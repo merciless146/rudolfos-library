@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rudolf OS Library</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:760px;margin:32px auto;padding:0 16px;color:#111827;background:#fff}
+@media(prefers-color-scheme:dark){body{background:#111827;color:#e5e7eb}a{color:#93c5fd}.app{border-color:#374151!important}}
+.app{border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin:10px 0}.app b{font-size:17px}small{color:#6b7280}</style></head>
+<body><h1>Rudolf OS Library</h1>
+<p>Apps made for Rudolf OS, signed with the Library's key. Rudolf OS installs them from the App Store's <b>Rudolf OS Library</b> tab; this page only lists them.</p>
+<div id="apps">Loading…</div>
+<p><small>Package list: <a href="index.txt">index.txt</a> (signed: index.sig) · <a href="catalog.json">catalog.json</a> · <a href="keys.txt">the Library's public key</a> · <a href="https://github.com/merciless146/rudolfos-library">source</a></small></p>
+<script>
+const mb=n=>(n/1048576).toFixed(n<10485760?1:0)+' MB';
+fetch('catalog.json').then(r=>r.json()).then(c=>{const d=document.getElementById('apps');d.textContent='';
+ for(const a of c.apps){const e=document.createElement('div');e.className='app';
+  e.innerHTML='<b></b> <small></small><p></p><small></small>';
+  e.children[0].textContent=a.icon+' '+a.title;e.children[1].textContent='version '+a.version;e.children[2].textContent=a.description||a.summary;
+  e.children[3].textContent=mb(a.download)+' download · '+mb(a.installed)+' installed · '+a.license;
+  if(a.source){const s=document.createElement('a');s.href=a.source;s.textContent=' · source';e.children[3].after(s)}
+  d.appendChild(e)}}).catch(()=>{document.getElementById('apps').textContent='The catalog could not be loaded.'});
+</script></body></html>
