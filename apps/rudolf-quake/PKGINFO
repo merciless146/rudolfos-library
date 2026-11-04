@@ -1,0 +1,10 @@
+name = rudolf-quake
+version = 1.0.0
+kind = addon
+title = Quake
+summary = The classic first-person shooter, with the free LibreQuake game data
+icon = 🎯
+license = GPL-2.0-or-later (engine), BSD-3-Clause (LibreQuake data)
+homepage = https://github.com/lavenderdotpet/LibreQuake
+category = Games
+description = Quake's engine (WinQuake, GPL) running in Rudolf OS, with LibreQuake: a complete, free replacement for Quake's game data made by the LibreQuake contributors. Your own Quake files (PAK0.PAK, PAK1.PAK) can be used instead from the Games folder on drive C:. The engine's source is in the package.

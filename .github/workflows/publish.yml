@@ -1,0 +1,47 @@
+# Publish the Rudolf OS Library: build each app in apps/ into a package signed with the Library's key, write the signed
+# package list (index.txt, index.sig) and the App Store's catalog (catalog.json), and put them on GitHub Pages:
+#   https://merciless146.github.io/rudolfos-library/
+# Runs when apps/ or tools/ change on main, or by hand (Actions > Publish the Library > Run workflow).
+# Needs: the secret RPK_LIBRARY_KEY (the Library's private key, PEM or raw base64) and Settings > Pages > Source:
+# GitHub Actions. GPL-2.0-or-later.
+name: Publish the Library
+on:
+  push:
+    branches: [main]
+    paths: ['apps/**', 'tools/**', 'keys.txt', 'site/**', '.github/workflows/publish.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq squashfs-tools python3-cryptography
+      - name: The Library's key
+        env: {RPK_LIBRARY_KEY: '${{ secrets.RPK_LIBRARY_KEY }}'}
+        run: |
+          umask 077; mkdir -p "$RUNNER_TEMP/k"; printf '%s\n' "$RPK_LIBRARY_KEY" > "$RUNNER_TEMP/k/library.key"
+          python3 tools/keycheck.py "$RUNNER_TEMP/k/library.key" keys.txt
+      - name: Build, sign and index
+        run: |
+          mkdir -p _site; cp site/* _site/
+          sh tools/publish.sh "$RUNNER_TEMP/k/library.key" _site
+          rm -f "$RUNNER_TEMP/k/library.key"
+          ls -la _site _site/source
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: {path: _site}
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: {name: github-pages, url: '${{ steps.d.outputs.page_url }}'}
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4

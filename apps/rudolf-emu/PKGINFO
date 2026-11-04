@@ -1,0 +1,10 @@
+name = rudolf-emu
+version = 1.0.0
+kind = addon
+title = Emu
+summary = Plays Nintendo DS and Super Nintendo games you own, from the Games folder
+icon = 🕹️
+license = GPL-2.0-or-later (DeSmuME), MIT (LakeSnes)
+homepage = https://github.com/merciless146/rudolfos-library/tree/main/apps/rudolf-emu
+category = Games
+description = The emulator cores of Rudolf OS's Emu: DeSmuME for the Nintendo DS and LakeSnes for the Super Nintendo, as WebAssembly. No games, BIOS files or keys are included: play your own copies from the Games folder on drive C:. Their source is published next to the package.

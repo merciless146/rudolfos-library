@@ -1,0 +1,3 @@
+# The Library's public key (Ed25519, base64). Rudolf OS trusts it for apps only (/etc/rudolf/library-keys), never for
+# system updates. Its private key is only in this repository's secret RPK_LIBRARY_KEY and offline with the owner.
+kRBDN3Ys6i49gblu504quUt7NZHGZj/kexNTb6uoenY=
