@@ -1,0 +1,26 @@
+# Check the Library's games before they are merged: each game's browser test (tests/*_t.js) in Chromium, as the
+# Rudolf OS desktop opens it (a sandboxed frame). Runs on pull requests and on main. GPL-2.0-or-later.
+name: Check the games
+on:
+  pull_request:
+    paths: ['apps/**', 'lib/**', 'tests/**', 'tools/**', '.github/workflows/check.yml']
+  push:
+    branches: [main]
+    paths: ['apps/**', 'lib/**', 'tests/**', '.github/workflows/check.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  games:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Playwright (Chromium)
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw" && npm init -y >/dev/null && npm i -s playwright@1.49.1
+          npx playwright install --with-deps chromium >/dev/null
+      - name: The games' tests
+        run: |
+          r=0; p=8193
+          for t in tests/*_t.js; do echo "== $t"; NODE_PATH="$RUNNER_TEMP/pw/node_modules" node "$t" $p || r=1; p=$((p+1)); done
+          exit $r

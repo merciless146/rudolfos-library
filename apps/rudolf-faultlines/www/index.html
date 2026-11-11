@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fault Lines</title>
+<link rel="stylesheet" href="faultlines.css">
+</head>
+<body>
+<header id="bar">
+  <div class="grp" role="group" aria-label="Field">
+    <button data-size="small" aria-pressed="false">Small</button>
+    <button data-size="medium" aria-pressed="false">Medium</button>
+    <button data-size="large" aria-pressed="false">Large</button>
+    <button data-size="daily" aria-pressed="false" title="Today's field: the same for everyone">Daily</button>
+  </div>
+  <div class="stat" title="Faults not yet marked"><span class="ico" aria-hidden="true">⚑</span><b id="left" aria-live="off">0</b></div>
+  <div class="stat" title="Time"><span class="ico" aria-hidden="true">⏱</span><b id="time">0</b></div>
+  <button id="mode" class="touchonly" aria-pressed="false" title="Taps dig or mark">⛏ Dig</button>
+  <button id="menuBtn" aria-haspopup="true" aria-expanded="false" title="Menu">☰</button>
+</header>
+<div id="menu" role="menu" hidden>
+  <button role="menuitem" data-cmd="new">New game <kbd>N</kbd></button>
+  <button role="menuitem" data-cmd="pause">Pause <kbd>P</kbd></button>
+  <button role="menuitem" data-cmd="stats">Best times</button>
+  <button role="menuitem" data-cmd="help">How to play</button>
+  <button role="menuitem" data-cmd="flash" aria-pressed="false">Reduce flashing</button>
+  <button role="menuitem" data-cmd="export">Export save…</button>
+  <button role="menuitem" data-cmd="import">Import save…</button>
+</div>
+<main id="stage"><canvas id="cv" aria-label="The field" tabindex="0"></canvas></main>
+<div id="ov" hidden><div class="card" role="dialog" aria-modal="true"><div id="ovBody"></div><div class="btns" id="ovBtns"></div></div></div>
+<div id="sr" class="sr" aria-live="polite"></div>
+<script src="gamekit.js"></script>
+<script src="faultlines.js"></script>
+</body>
+</html>

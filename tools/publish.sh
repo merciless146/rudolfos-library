@@ -10,6 +10,8 @@ mkdir -p "$SITE/source"
 for a in "$TOP"/apps/*/; do
 	n=$(basename "$a"); v=$(sed -n 's/^version *= *//p' "$a/PKGINFO")
 	T=$(mktemp -d); cp "$a/PKGINFO" "$T/"; cp -r "$a/www" "$T/www"
+	# games: the shared game kit (lib/gamekit), copied into each game whose page loads it, so a package has everything
+	grep -qs 'src="gamekit.js"' "$a/www/index.html" && cp "$TOP/lib/gamekit/gamekit.js" "$T/www/gamekit.js"
 	python3 "$HERE/rpk-tool.py" build "$T" "$SITE/$n.rpk" --key "$KEY"
 	rm -rf "$T"
 	# the corresponding source of compiled programs, published next to the package (GPL)
