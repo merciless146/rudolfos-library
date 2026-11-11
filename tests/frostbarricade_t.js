@@ -1,5 +1,5 @@
 /* Frost Barricade in Chromium (Playwright), as the Rudolf OS desktop opens it: shooting (mouse, keys, a controller,
-   touch), the weapons' effects, the barricade, day planning, losing and retrying a night, Night 15's rescue, saves.
+   touch), the weapons' effects, the barricade, day planning, losing and retrying a night, the weather radio and the weather, the wendigo, the last night's rescue, saves.
      node tests/frostbarricade_t.js [PORT] */
 const {chromium} = require('playwright');
 const {spawn} = require('child_process');
@@ -37,7 +37,12 @@ async function open(pg) {
 		const t = await f.evaluate(() => ({b: [...document.querySelectorAll('#ovBtns button')].map(b => b.textContent), age: document.querySelector('.age') && document.querySelector('.age').textContent}));
 		ok('2. the title: New game, Options, How to play, and "for older players"', t.b.includes('New game') && t.b.includes('Options') && /older players/.test(t.age), t);
 		await pg.screenshot({path: path.join(W, 'title.png')});
-		await f.click('text=New game'); await f.click('#ovBtns button.main'); await sleep(500);
+		await f.click('text=New game'); await f.click('#ovBtns button.main'); await sleep(300);
+		const prep = await f.evaluate(() => ({h: document.getElementById('ovBody').textContent, radio: !!document.querySelector('.radio')}));
+		ok('3a. a new game opens on the plan for Day 1, with the weather radio (tonight and tomorrow)', /Day 1 · before Night 1/.test(prep.h) && prep.radio && /Tonight, Night 1/.test(prep.h) && /Tomorrow night/.test(prep.h), prep.h.slice(0, 160));
+		/* (the weather pinned clear for the checks that follow; the weather has its own) */
+		await f.evaluate(() => { __fb.G.wx = Array(__fb.LAST + 1).fill('clear') });
+		await f.click('text=Spend the day'); await sleep(150); await f.click('#ovBtns button.main'); await sleep(500);
 		const n1 = await f.evaluate(() => ({night: __fb.G.night, bar: [...document.querySelectorAll('#bar button')].map(b => b.textContent), q: __fb.N.q.length}));
 		ok('3. Night 1 begins: the Icicle Pistol and Reload under the field, elves on their way', n1.night == 1 && /Icicle/.test(n1.bar[0]) && /Reload/.test(n1.bar.at(-1)) && n1.q > 10, n1);
 		/* a click on an elf's eyes */
@@ -122,13 +127,82 @@ async function open(pg) {
 		ok('11i. a mugger comes on slowly, shifting lanes quickly back and forth', mg.flips >= 3 && mg.span >= 2 && mg.walked < 60, mg);
 		ok('11j. at the barricade it steals a survivor’s weapon (a guard’s first) and runs for the woods', mg.stole.loot == 0 && mg.stole.hazel && !mg.stole.moss && mg.fled > 30, mg);
 		ok('11k. brought down before it gets away: the weapon is back; if it escapes: gone for the night', mg.back && mg.took && mg.lost, mg);
-		const nn = await f.evaluate(() => { __fb.G.night = 7; __fb.startNight(); return __fb.G.surv.every(s => !s.disarmed && !s.out) });
+		const nn = await f.evaluate(() => { __fb.G.wx = Array(26).fill('clear'); __fb.G.night = 7; __fb.startNight(); return __fb.G.surv.every(s => !s.disarmed && !s.out) });
 		ok('11l. the next night every survivor is armed again', nn);
 		await f.evaluate(() => { const G = __fb.G; G.night = 1; G.surv = []; __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [] });
+		/* ---------- the weather ---------- */
+		const sch = await f.evaluate(() => { const bad = [], moonDays = {}; let n = 0;
+			for (let i = 0; i < 500; i++) { const w = __fb.makeWeather('seed' + i); n++;
+				if (w.length != 26) bad.push('len');
+				for (let d = 1; d <= 7; d++) if (w[d] != 'clear' && w[d] != 'fog') bad.push('early ' + d + ' ' + w[d]);
+				if ((w[8] == 'blizzard') == (w[9] == 'blizzard')) bad.push('8/9');
+				if ((w[17] == 'blizzard') == (w[18] == 'blizzard')) bad.push('17/18');
+				for (const d of [8, 9, 17, 18]) if (w[d] != 'blizzard' && w[d] != 'clear' && w[d] != 'fog' && w[d] != 'moon') bad.push('other ' + d);
+				if (w[23] != 'blizzard' || w[24] != 'blizzard' || w[25] != 'blizzard') bad.push('23-25');
+				const moons = w.map((x, d) => x == 'moon' ? d : 0).filter(Boolean); if (moons.length != 1 || moons[0] < 8 || moons[0] > 22) bad.push('moon ' + moons);
+				moonDays[moons[0]] = (moonDays[moons[0]] || 0) + 1;
+				for (let d = 1; d <= 25; d++) if (w[d] == 'blizzard' && ![8, 9, 17, 18, 23, 24, 25].includes(d)) bad.push('stray blizzard ' + d);
+			}
+			const by = (a, b) => Object.entries(moonDays).filter(([d]) => d >= a && d <= b).reduce((s, [, c]) => s + c, 0) / n;
+			return {bad: bad.slice(0, 5), early: by(8, 14), mid: by(15, 20), late: by(21, 22)} });
+		ok('W1. the schedule: days 1-7 clear or fog; a blizzard on 8 or 9, on 17 or 18, and on 23-25; one full moon, days 8-22, never on a blizzard', sch.bad.length == 0, sch.bad);
+		ok('W2. the full moon: most often in days 8-14 (20% a day there), then 15-20, rarely as late as 21-22', sch.early > .6 && sch.early < .9 && sch.mid > .1 && sch.late < .1, sch);
+		const rad = await f.evaluate(() => { const G = __fb.G, keep = [G.night, G.wx], out = {};
+			G.wx = Array(26).fill('clear'); G.wx[8] = 'blizzard'; G.wx[23] = G.wx[24] = G.wx[25] = 'blizzard'; G.wx[12] = 'fog'; G.wx[13] = 'moon';
+			G.night = 7; out.d7 = __fb.radio(); G.night = 12; out.d12 = __fb.radio(); G.night = 22; out.d22 = __fb.radio(); G.night = 8; G.plan = {repair: 2, search: 6, train: 2}; __fb.dayScreen();
+			out.d8 = {dis: [...document.querySelectorAll('[data-h=search]')].every(b => b.disabled), search: G.plan.search, txt: document.getElementById('ovBody').textContent};
+			G.night = keep[0]; G.wx = keep[1]; return out });
+		ok('W3. the radio: tonight and tomorrow; a blizzard warning the day before one', /Tonight, Night 7: Clear/.test(rad.d7) && /Tomorrow night:<\/b> a blizzard/.test(rad.d7) && /Blizzard warning for tomorrow/.test(rad.d7) && /Night 12: Fog/.test(rad.d12) && /full moon/.test(rad.d12), rad.d7);
+		ok('W4. Day 22 always warns of the great blizzard', /Storm warning/.test(rad.d22) && /three nights/.test(rad.d22), rad.d22);
+		ok('W5. in a blizzard nobody can search: the hours go to repairs and Search is off', rad.d8.dis && rad.d8.search == 0 && /not in a blizzard/.test(rad.d8.txt), rad.d8);
+		const srch = await f.evaluate(() => { const G = __fb.G, keep = JSON.stringify(G), out = {clear: 0, fog: 0, lostC: 0, lostF: 0, bliz: ''};
+			const found = t => (t.match(/Found the|Ammunition for|joins the barricade|bandages/g) || []).length;
+			for (const wx of ['clear', 'fog']) for (let i = 0; i < 40; i++) { const g = JSON.parse(keep); g.seed = 's' + i; g.night = 6; g.wx = Array(26).fill(wx); g.plan = {repair: 0, search: 12, train: 0};
+				g.surv = ['A', 'B', 'C', 'D', 'E', 'F'].map(n => ({name: n, kind: 'fox', role: 'scout'})); __fb.G = g; __fb.runDay(); const t = document.getElementById('ovBody').textContent; out[wx] += found(t); out[wx == 'clear' ? 'lostC' : 'lostF'] += 6 - __fb.G.surv.length }
+			const g = JSON.parse(keep); g.night = 8; g.wx = Array(26).fill('blizzard'); g.plan = {repair: 6, search: 6, train: 0}; __fb.G = g; __fb.runDay(); out.bliz = document.getElementById('ovBody').textContent;
+			__fb.G = JSON.parse(keep); return out });
+		ok('W6. clear days find more than foggy ones (searching quicker, fog finds less)', srch.clear > srch.fog * 1.5, srch);
+		ok('W7. scouts sent out in fog are more often lost', srch.lostF > srch.lostC && srch.lostF > 10, {lostC: srch.lostC, lostF: srch.lostF});
+		ok('W8. a blizzard day: no searching at all', /kept everyone inside/.test(srch.bliz) && !/Found the|Ammunition for|joins the/.test(srch.bliz), srch.bliz.slice(0, 120));
+		const fog = await f.evaluate(() => { const G = __fb.G, N = __fb.N, out = {}; G.wx = Array(26).fill('clear'); G.wx[G.night] = 'fog'; __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [];
+			const N2 = __fb.N; __fb.cross.x = 700; __fb.cross.y = 280;
+			__fb.spawn('shambler'); const a = N2.elves[0]; a.x = 700; a.lane = a.tl = 3; a.sp = 0; a.changer = false;
+			__fb.spawn('shambler'); const b = N2.elves[1]; b.x = 330; b.lane = b.tl = 14; b.sp = 0; b.changer = false;
+			out.seenA = __fb.seen(__fb.headOf(a).x, __fb.headOf(a).y); out.seenB = __fb.seen(__fb.headOf(b).x, __fb.headOf(b).y);
+			const rips = []; for (let i = 0; i < 200; i++) { __fb.run(1); N2.fx.forEach(f => { if (f.k == 'rip' && f.t == 0 || f.k == 'rip' && !rips.includes(f)) rips.push(f) }) } out.ripB = rips.some(r => Math.abs(r.x - b.x) < 2 && r.y > 340); out.ripA = rips.some(r => Math.abs(r.x - a.x) < 2 && r.y < 300);
+			/* the blizzard: narrower; no ripples; no sprints; the survivors' bolts go astray */
+			G.wx[G.night] = 'blizzard'; G.surv = [{name: 'G1', kind: 'fox', role: 'guard'}]; __fb.startNight(); const N3 = __fb.N; N3.q = [[1e9, 'shambler']]; N3.elves = [];
+			__fb.spawn('sprinter'); const sp = N3.elves[0]; sp.x = 800; sp.spT = 0; sp.hp = sp.hp0 = 1e6; let sprinted = false;
+			for (let i = 0; i < 400; i++) { __fb.run(1); if (sp.sprint > 0) sprinted = true }
+			out.bliz = {rips: N3.fx.filter(f => f.k == 'rip').length, sprinted, missed: G.surv[0].missed || 0, far: __fb.seen(700, 280)};
+			G.surv = []; return out });
+		ok('W9. fog: only what lies in the nose’s light is seen; out of it, an elf shows as ripples of sound', fog.seenA !== fog.seenB && (fog.seenA ? fog.ripB && !fog.ripA : fog.ripA && !fog.ripB), fog);
+		ok('W10. a blizzard: a shorter, narrower view, no ripples, no sprinting, and bolts go astray', !fog.bliz.far && fog.bliz.rips == 0 && !fog.bliz.sprinted && fog.bliz.missed > 0, fog.bliz);
+		const moon = await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.wx[12] = 'moon'; const ks = {}; for (let i = 0; i < 300; i++) { const k = __fb.pickKind(12); ks[k] = (ks[k] || 0) + 1 }
+			G.night = 12; __fb.startNight(); const q = __fb.N.q.map(x => x[1]); return {ks, screech: q.includes('screech'), wend: q.filter(k => k == 'wendigo').length, order: q.indexOf('screech') < q.indexOf('wendigo')} });
+		ok('W11. the full moon: no white-eyed elves (all run, red-eyed), and a wendigo comes, screeching first', !moon.ks.shambler && !moon.ks.crawler && !moon.ks.spitter && !moon.ks.brute && moon.ks.sprinter > 100 && moon.screech && moon.wend == 1 && moon.order, moon);
+		const nw = await f.evaluate(() => { const G = __fb.G, keep = G.wx; G.wx = __fb.makeWeather('x'); const c = n => { G.night = n; __fb.startNight(); return __fb.N.q.filter(x => x[1] == 'wendigo').length }; const out = {n17: c(17) + c(18), n24: c(24), n25: c(25)}; G.wx = keep; return out });
+		ok('W12. wendigos: one on Night 24, two on Night 25; none in the earlier blizzards', nw.n24 == 1 && nw.n25 == 2 && nw.n17 == 0, nw);
+		const wg = await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 12; __fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = []; G.bar = 1000; G.barMax = 1000;
+			__fb.spawn('screech'); const msg = N.msg && N.msg.text;
+			__fb.spawn('wendigo'); const w = N.elves[0]; w.x = 600; w.sp = 0; w.throwT = .1; const big = {s: FBART.ELF.wendigo.s, hp: w.hp0, eye: FBART.ELF.wendigo.eye};
+			__fb.spawn('shambler'); const e = N.elves[1]; e.x = 640; e.lane = e.tl = w.lane; e.sp = 0; e.changer = false; e.hp = e.hp0 = 500;
+			let held = false; for (let i = 0; i < 300 && G.bar == 1000; i++) { __fb.run(1); if (e.held) held = true }
+			const thrown = {held, bar: 1000 - G.bar, landed: Math.abs(e.x - FBART.front(e.lane)) < 12};
+			/* the next: shot while held, it is let go */
+			__fb.spawn('shambler'); const e2 = N.elves.at(-1); e2.x = w.x + 20; e2.lane = e2.tl = w.lane; e2.sp = 0; e2.changer = false; e2.hp = e2.hp0 = 500; w.throwT = .05;
+			for (let i = 0; i < 30 && !e2.held; i++) __fb.run(1);
+			for (let i = 0; i < 20; i++) __fb.run(1);
+			const h = __fb.bodyOf(e2); G.skill = 30; __fb.cross.x = h.x; __fb.cross.y = h.y; __fb.pick('icicle'); G.wp.icicle.mag = 10; N.cd = 0; __fb.fire(); __fb.run(2);
+			const dropped = !e2.held && !e2.flying && !w.hold; return {msg, big, thrown, dropped, e2lift: e2.lift, hit: e2.hp < 500} });
+		ok('W13. a screech before a wendigo: huge, red-eyed, very tough', /screech/.test(wg.msg) && wg.big.s > 2 && wg.big.hp > 2000 && wg.big.eye == '#ff3b3b', wg);
+		ok('W14. a wendigo takes up an elf and throws it at the barricade', wg.thrown.held && wg.thrown.bar >= 60 && wg.thrown.landed, wg.thrown);
+		ok('W15. shoot the elf it holds and it lets go', wg.dropped, wg);
+		await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 1; G.surv = []; __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [] });
 		/* the night ends: the day's plan */
 		await f.evaluate(() => { const N = __fb.N; N.q = []; N.elves = []; __fb.run(260) }); await sleep(300);
 		const d = await f.evaluate(() => ({h: document.getElementById('ovBody').textContent, night: __fb.G.night}));
-		ok('14. the night over: Day 1 before Night 2, with twelve hours to plan', /Day 1 · before Night 2/.test(d.h) && /12 hours/.test(d.h) && d.night == 2, d.h.slice(0, 120));
+		ok('14. the night over: Day 2 before Night 2, with twelve hours to plan', /Day 2 · before Night 2/.test(d.h) && /12 hours/.test(d.h) && d.night == 2, d.h.slice(0, 120));
 		const cap = await f.evaluate(() => { for (let i = 0; i < 20; i++) document.querySelector('[data-h=train][data-d="1"]').click(); const p = __fb.G.plan; return p.repair + p.search + p.train });
 		ok('15. the hours cannot go past twelve', cap == 12, cap);
 		const day = await f.evaluate(() => { __fb.G.plan = {repair: 2, search: 10, train: 0}; __fb.G.bar = 500; __fb.runDay(); return {txt: document.getElementById('ovBody').textContent, bar: __fb.G.bar} });
@@ -152,12 +226,12 @@ async function open(pg) {
 		ok('20. 34 elves at once: a step ' + perf.step.toFixed(2) + ' ms, a frame every ' + dr.toFixed(1) + ' ms', perf.step < 3 && dr < 25, {perf, dr});
 		await pg.screenshot({path: path.join(W, 'night.png')});
 		/* the last night: the sleigh */
-		const end = await f.evaluate(() => { const G = __fb.G; G.night = 15; G.morning = JSON.parse(JSON.stringify(G)); __fb.startNight(); G.hp = 1e9; G.bar = 1e9; G.barMax = 1e9;
+		const end = await f.evaluate(() => { const G = __fb.G; G.wx = __fb.makeWeather(G.seed); G.night = __fb.LAST; G.morning = JSON.parse(JSON.stringify(G)); __fb.startNight(); G.hp = 1e9; G.bar = 1e9; G.barMax = 1e9;
 			let saw = null; for (let i = 0; i < 60 * 172 && !__fb.N.over; i++) { __fb.run(1); if (__fb.N.sleigh && !saw) saw = {t: Math.round(__fb.N.t), elves: __fb.N.elves.length} }
 			return {saw, over: __fb.N.over, foremen: true} });
 		await sleep(300);
 		const et = await f.evaluate(() => ({h: document.getElementById('ovBody').textContent, wins: __fb.save().wins, run: __fb.save().run}));
-		ok('21. Night 15: Captain Quill’s sleigh comes at 150 s, and the night’s elves are gone', end.saw && end.saw.t == 150 && end.over, end);
+		ok('21. Night 25, in the great blizzard: Captain Quill’s sleigh comes at 150 s, and the night’s elves are gone', end.saw && end.saw.t == 150 && end.over, end);
 		ok('22. the ending: Dawn, "Thank you for holding the line"; the win is kept', /Dawn/.test(et.h) && /holding the line/.test(et.h) && et.wins == 1 && !et.run, et.h.slice(0, 100));
 		ok('23. no errors in the console', errs.length == 0, errs.slice(0, 4).join(' | '));
 		/* saves: a game in progress carries on after the page is opened again */
@@ -168,7 +242,7 @@ async function open(pg) {
 		/* a phone on its side, and upright */
 		const ph = await br.newContext({viewport: {width: 740, height: 360}, hasTouch: true, isMobile: true});
 		const pp = await ph.newPage(); const m = await open(pp); await m.f.click('#ovBtns button');
-		await m.f.evaluate(() => { document.getElementById('ov').hidden = true; __fb.newRun('normal'); __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [] });
+		await m.f.evaluate(() => { document.getElementById('ov').hidden = true; __fb.newRun('normal'); __fb.G.wx = Array(26).fill('clear'); __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [] });
 		const fb3 = await (await m.f.frameElement()).boundingBox(), tp = await m.f.evaluate(() => { const c = document.getElementById('cv').getBoundingClientRect(), s = Math.min(c.width / __fb.W, c.height / __fb.H), ox = (c.width - __fb.W * s) / 2, oy = (c.height - __fb.H * s) / 2; return {x: c.left + ox + 700 * s, y: c.top + oy + 220 * s} });
 		await pp.touchscreen.tap(fb3.x + tp.x, fb3.y + tp.y); await sleep(200);
 		const tt = await m.f.evaluate(() => ({x: Math.round(__fb.cross.x), y: Math.round(__fb.cross.y), mag: __fb.G.wp.icicle.mag}));
