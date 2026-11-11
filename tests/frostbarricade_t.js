@@ -183,21 +183,67 @@ async function open(pg) {
 		ok('W11. the full moon: no white-eyed elves (all run, red-eyed), and a wendigo comes, screeching first', !moon.ks.shambler && !moon.ks.crawler && !moon.ks.spitter && !moon.ks.brute && moon.ks.sprinter > 100 && moon.screech && moon.wend == 1 && moon.order, moon);
 		const nw = await f.evaluate(() => { const G = __fb.G, keep = G.wx; G.wx = __fb.makeWeather('x'); const c = n => { G.night = n; __fb.startNight(); return __fb.N.q.filter(x => x[1] == 'wendigo').length }; const out = {n17: c(17) + c(18), n24: c(24), n25: c(25)}; G.wx = keep; return out });
 		ok('W12. wendigos: one on Night 24, two on Night 25; none in the earlier blizzards', nw.n24 == 1 && nw.n25 == 2 && nw.n17 == 0, nw);
-		const wg = await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 12; __fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = []; G.bar = 1000; G.barMax = 1000;
+		const wg = await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 12; G.hp = 100; __fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = []; G.bar = 1000; G.barMax = 1000;
+			G.surv = [{name: 'InLane', kind: 'fox', role: 'guard', hp: 40}, {name: 'Away', kind: 'owl', role: 'guard', hp: 40}];   /* (lanes 3 and 11) */
 			__fb.spawn('screech'); const msg = N.msg && N.msg.text;
-			__fb.spawn('wendigo'); const w = N.elves[0]; w.x = 600; w.sp = 0; w.throwT = .1; const big = {s: FBART.ELF.wendigo.s, hp: w.hp0, eye: FBART.ELF.wendigo.eye};
-			__fb.spawn('shambler'); const e = N.elves[1]; e.x = 640; e.lane = e.tl = w.lane; e.sp = 0; e.changer = false; e.hp = e.hp0 = 500;
-			let held = false; for (let i = 0; i < 300 && G.bar == 1000; i++) { __fb.run(1); if (e.held) held = true }
-			const thrown = {held, bar: 1000 - G.bar, landed: Math.abs(e.x - FBART.front(e.lane)) < 12};
-			/* the next: shot while held, it is let go */
-			__fb.spawn('shambler'); const e2 = N.elves.at(-1); e2.x = w.x + 20; e2.lane = e2.tl = w.lane; e2.sp = 0; e2.changer = false; e2.hp = e2.hp0 = 500; w.throwT = .05;
-			for (let i = 0; i < 30 && !e2.held; i++) __fb.run(1);
-			for (let i = 0; i < 20; i++) __fb.run(1);
-			const h = __fb.bodyOf(e2); G.skill = 30; __fb.cross.x = h.x; __fb.cross.y = h.y; __fb.pick('icicle'); G.wp.icicle.mag = 10; N.cd = 0; __fb.fire(); __fb.run(2);
-			const dropped = !e2.held && !e2.flying && !w.hold; return {msg, big, thrown, dropped, e2lift: e2.lift, hit: e2.hp < 500} });
-		ok('W13. a screech before a wendigo: huge, red-eyed, very tough', /screech/.test(wg.msg) && wg.big.s > 2 && wg.big.hp > 2000 && wg.big.eye == '#ff3b3b', wg);
-		ok('W14. a wendigo takes up an elf and throws it at the barricade', wg.thrown.held && wg.thrown.bar >= 60 && wg.thrown.landed, wg.thrown);
-		ok('W15. shoot the elf it holds and it lets go', wg.dropped, wg);
+			__fb.spawn('wendigo'); const w = N.elves[0]; w.x = 700; w.lane = 1; w.tl = 7; w.wT = 1e9; const big = {s: FBART.ELF.wendigo.s, hp: w.hp0, eye: FBART.ELF.wendigo.eye, sp: w.sp};
+			const l0 = w.lane, x0 = w.x; for (let i = 0; i < 120; i++) __fb.run(1); const drift = {lane: w.lane - l0, walked: x0 - w.x};
+			/* only one at a time: a second screech waits */
+			N.q = [[N.t, 'screech'], [N.t + 3.5, 'wendigo'], [1e9, 'shambler']]; for (let i = 0; i < 400; i++) __fb.run(1); const one = N.elves.filter(e => e.kind == 'wendigo').length, waiting = N.q.some(q => q[1] == 'wendigo');
+			/* a charge in lane 3: 1.5 s standing still, then the screech down the lane */
+			w.lane = w.tl = 3; w.x = 600; w.wT = 0; const bar0 = G.bar; __fb.run(1); const xs = w.x; let shook = false, charged = 0;
+			for (let i = 0; i < 89; i++) { __fb.run(1); if (w.wmode == 'charge') charged++ }
+			const still = Math.abs(w.x - xs) < .01; __fb.run(2); shook = N.shake > 0; const wave = N.waves.length;
+			for (let i = 0; i < 90; i++) __fb.run(1);
+			const lane3 = {inLane: 40 - G.surv[0].hp, away: 40 - G.surv[1].hp, bar: bar0 - G.bar, rudolf: N.rstun > 0 || N.deafT >= 0};
+			/* now in Rudolf's lane: stunned, blurred and deafened; full for 3 s, fading after */
+			w.lane = w.tl = 7; w.wT = 0; for (let i = 0; i < 200 && N.deafT < 0; i++) __fb.run(1);
+			const stun = N.rstun > 0, mag = G.wp.icicle.mag; __fb.fire(); __fb.run(2); const firedWhileStunned = G.wp.icicle.mag < mag;
+			for (let i = 0; i < 170; i++) __fb.run(1); const k1 = __fb.deafK(); for (let i = 0; i < 60; i++) __fb.run(1); const k2 = __fb.deafK(); for (let i = 0; i < 40; i++) __fb.run(1); const k3 = __fb.deafK();
+			return {msg, big, drift, one, waiting, charged, still, shook, wave, lane3, stun, firedWhileStunned, k: [k1, +k2.toFixed(2), k3]} });
+		ok('W13. a screech before a wendigo: huge, red-eyed, very tough, slow', /screech/.test(wg.msg) && wg.big.s > 2 && wg.big.hp > 2000 && wg.big.eye == '#ff3b3b' && wg.big.sp < 16, wg.big);
+		ok('W14. it comes on slowly, drifting towards Rudolf’s lane; only one at a time (the next screech waits)', wg.drift.lane > .3 && wg.drift.lane < 1.2 && wg.drift.walked > 5 && wg.drift.walked < 40 && wg.one == 1 && wg.waiting, {drift: wg.drift, one: wg.one, waiting: wg.waiting});
+		ok('W15. it stops for 1.5 s to charge, then screeches down its lane with the screen shaking', wg.still && wg.charged >= 88 && wg.wave == 1 && wg.shook, wg);
+		ok('W16. the screech hurts survivors in its lane, not the barricade, and not those out of it', wg.lane3.inLane > 0 && wg.lane3.away == 0 && wg.lane3.bar == 0 && !wg.lane3.rudolf, wg.lane3);
+		ok('W17. in Rudolf’s lane: stunned (no shooting), sight blurred and ears ringing for 3 s, then fading to nothing', wg.stun && !wg.firedWhileStunned && wg.k[0] == 1 && wg.k[1] > 0 && wg.k[1] < 1 && wg.k[2] == 0, wg);
+		/* ---------- shielders ---------- */
+		const sh = await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 8; G.surv = []; G.skill = 30; __fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = [];
+			const mk = (k, x, lane) => { __fb.spawn(k); const e = N.elves.at(-1); e.x = x; e.lane = e.tl = lane; e.sp = 0; e.changer = false; return e };
+			const a = mk('shielder', 500, 7), base = {eye: FBART.ELF.shielder.eye, hp: a.hp0, sham: (() => { const s = mk('shambler', 800, 2); const h = s.hp0; s.dead = true; return h })()};
+			const shoot = (x, y, k) => { __fb.pick(k || 'icicle'); const st = G.wp[k || 'icicle']; st.have = true; st.mag = 99; __fb.cross.x = x; __fb.cross.y = y; N.cd = 0; N.reload = 0; __fb.fire(); __fb.run(1) };
+			const hp0 = a.hp; const b = __fb.bodyOf(a), h = __fb.headOf(a); shoot(b.x, b.y); shoot(h.x, h.y); const blocked = a.hp == hp0;
+			const lg = __fb.legsOf(a); shoot((lg.x0 + lg.x1) / 2, lg.y1 - 3); const legs = a.hp < hp0;
+			/* the shield covers waist to head */
+			const box = __fb.shieldBox(a); const covers = box.y1 >= b.y + 4 && box.y0 <= h.y - h.r && lg.y0 >= box.y1 - .5;
+			/* a piercing shot stops at the shield */
+			const c = mk('shambler', 420, 7); c.hp = c.hp0 = 500; const behind = mk('shambler', 560, 7); behind.hp = behind.hp0 = 500; const s0 = a.hp; const cb = __fb.bodyOf(c); shoot(cb.x, cb.y, 'hail'); const pierce = {front: c.hp < 500, shield: a.hp == s0, behind: behind.hp == 500};
+			c.dead = true; behind.dead = true; N.run && 0;
+			/* a blast knocks it loose and back */
+			const x1 = a.x; G.wp.bauble.have = true; shoot(a.x - 4, __fb.bodyOf(a).y, 'bauble'); const blast = {dropped: !a.shield, back: a.x - x1, onField: N.shields.length};
+			return {base, blocked, legs, covers, pierce, blast} });
+		ok('S1. shielders: cyan eyes, tougher than ordinary elves', sh.base.eye == '#3ff0ff' && sh.base.hp > sh.base.sham * 1.5, sh.base);
+		ok('S2. the shield stops shots at the body and head; the lower legs can be hit; it covers waist, chest and head', sh.blocked && sh.legs && sh.covers, sh);
+		ok('S3. a piercing shot stops at a shield', sh.pierce.front && sh.pierce.shield && sh.pierce.behind, sh.pierce);
+		ok('S4. a blast knocks the shield loose and the shielder back', sh.blast.dropped && sh.blast.back > 10 && sh.blast.onField == 1, sh.blast);
+		const sb = await f.evaluate(() => { const G = __fb.G, out = {}; const setup = n => { G.night = n; G.surv = []; __fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = []; return N };
+			const mk = (N, k, x, lane) => { __fb.spawn(k); const e = N.elves.at(-1); e.x = x; e.lane = e.tl = lane; e.changer = false; return e };
+			/* Bash at the barricade */
+			let N = setup(8); const a = mk(N, 'shielder', FBART.front(7) - 1, 7); a.sp = 0; __fb.run(2); const bx = __fb.bodyOf(a); __fb.cross.x = bx.x; __fb.cross.y = bx.y; const x0 = a.x; const hit = __fb.bash(); out.bash = {hit, dropped: !a.shield, back: a.x - x0};
+			const again = __fb.bash(); out.cooldown = again === undefined;
+			/* Night 9: it does not go back for the shield; Night 10: it does */
+			const pick = n => { const N = setup(n); const e = mk(N, 'shielder', 600, 7); e.sp = 20; __fb.dropShield(e, 30); let got = false; for (let i = 0; i < 300 && !got; i++) { __fb.run(1); got = e.shield } return got };
+			out.n9 = pick(9); out.n10 = pick(10);
+			/* Night 18: an ordinary elf may take up a dead shielder's shield; it keeps white eyes and its own health; not before 18 */
+			const take = n => { let took = 0, hpOk = true; const seed = G.seed; for (let k = 0; k < 12; k++) { G.seed = 'take' + n + ':' + k; const N = setup(n); const s = mk(N, 'shielder', 600, 7); __fb.dropShield(s, 0); s.dead = true; N.elves = N.elves.filter(e => !e.dead);
+				const r = mk(N, 'shambler', 640, 7); r.sp = 20; for (let i = 0; i < 200; i++) __fb.run(1); if (r.shield) { took++; if (r.hp0 != __fb.hpMul(n) * 44 * 1 && Math.abs(r.hp0 - r.hp0) > 0) hpOk = false; out.eye = FBART.ELF[r.kind].eye; out.kind = r.kind; out.hp = [r.hp0, __fb.hpMul(n) * 44 * {easy: .8, normal: 1, hard: 1.2}[G.diff]] } } G.seed = seed; return {took, hpOk} };
+			out.n17 = take(17); out.n18 = take(18);
+			/* a living shielder's shield is not taken */
+			{ const N = setup(18); const s = mk(N, 'shielder', 900, 2); s.sp = 0; __fb.dropShield(s, 0); N.shields[0].x = 600; N.shields[0].lane = 7; const r = mk(N, 'shambler', 640, 7); r.sp = 20; for (let i = 0; i < 200; i++) __fb.run(1); out.alive = !r.shield }
+			return out });
+		ok('S5. Bash knocks a shield loose at the barricade and pushes the shielder back; it has a short wait', sb.bash.hit && sb.bash.dropped && sb.bash.back > 20 && sb.cooldown, sb.bash);
+		ok('S6. Night 9: a shielder leaves its shield; from Night 10 it goes back for it', !sb.n9 && sb.n10, {n9: sb.n9, n10: sb.n10});
+		ok('S7. from Night 18 an ordinary elf may take up a fallen shielder’s shield (white eyes, its own health); not on Night 17, not a living one’s', sb.n17.took == 0 && sb.n18.took >= 2 && sb.n18.took < 12 && sb.eye == '#eef2ff' && sb.kind == 'shambler' && sb.hp && Math.abs(sb.hp[0] - sb.hp[1]) < sb.hp[1] * .16 && sb.alive, sb);
+		await f.evaluate(() => { __fb.G.skill = 0 });
 		await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 1; G.surv = []; __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [] });
 		/* the night ends: the day's plan */
 		await f.evaluate(() => { const N = __fb.N; N.q = []; N.elves = []; __fb.run(260) }); await sleep(300);

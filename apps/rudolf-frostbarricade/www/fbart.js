@@ -14,7 +14,7 @@ const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (
 A.hash = hash;
 function mk(w, h, draw) { const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2; const x = c.getContext('2d'); x.scale(2, 2); x.lineJoin = 'round'; x.lineCap = 'round'; draw(x, w, h); c.w = w; c.h = h; return c }
 function glow(r, col) { return mk(r * 2, r * 2, x => { const g = x.createRadialGradient(r, r, 0, r, r, r); g.addColorStop(0, col); g.addColorStop(.4, col.replace(/[\d.]+\)$/, '.3)')); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, r * 2, r * 2) }) }
-A.warm = glow(30, 'rgba(255,200,110,1)'); A.eyeW = glow(16, 'rgba(235,240,255,1)'); A.eyeR = glow(16, 'rgba(255,50,50,1)'); A.eyeY = glow(16, 'rgba(255,210,63,1)'); A.eyeG = glow(16, 'rgba(125,255,74,1)'); A.lime = glow(16, 'rgba(214,255,74,1)'); A.pink = glow(16, 'rgba(255,79,163,1)'); A.white = glow(30, 'rgba(255,255,255,1)'); A.fire = glow(20, 'rgba(255,130,40,1)'); A.ice = glow(20, 'rgba(140,220,255,1)');
+A.warm = glow(30, 'rgba(255,200,110,1)'); A.eyeW = glow(16, 'rgba(235,240,255,1)'); A.eyeR = glow(16, 'rgba(255,50,50,1)'); A.eyeY = glow(16, 'rgba(255,210,63,1)'); A.eyeG = glow(16, 'rgba(125,255,74,1)'); A.eyeC = glow(16, 'rgba(63,240,255,1)'); A.lime = glow(16, 'rgba(214,255,74,1)'); A.pink = glow(16, 'rgba(255,79,163,1)'); A.white = glow(30, 'rgba(255,255,255,1)'); A.fire = glow(20, 'rgba(255,130,40,1)'); A.ice = glow(20, 'rgba(140,220,255,1)');
 
 /* ---------- the night: a dark field before the workshop woods ---------- */
 A.GROUND = 300;
@@ -144,7 +144,7 @@ A.survivor = function (x, kind, X, t, firing, Y0, armed, out) {
 /* ---------- corrupted elves ---------- */
 /* kinds: size, skin, clothes, eye colour. The eyes say what an elf will do: white for the ordinary ones, red for
    sprinters, yellow for bloaters, green for muggers (red is kept for the wendigo too, later) */
-const EYE = {white: '#eef2ff', red: '#ff3b3b', yellow: '#ffd23f', green: '#7dff4a'};
+const EYE = {white: '#eef2ff', red: '#ff3b3b', yellow: '#ffd23f', green: '#7dff4a', cyan: '#3ff0ff'};
 A.EYE = EYE;
 A.ELF = {
 	shambler: {s: 1, skin: '#3d3448', cloth: '#1f2a24', hat: '#2a1f33', eye: EYE.white},
@@ -155,6 +155,7 @@ A.ELF = {
 	sprinter: {s: .92, skin: '#3a3346', cloth: '#2a1f33', hat: '#1f2a24', eye: EYE.red},
 	bloater: {s: 1.35, skin: '#3b3245', cloth: '#262014', hat: '#2a1f33', eye: EYE.yellow},
 	mugger: {s: .95, skin: '#383046', cloth: '#1e2a1a', hat: '#14201a', eye: EYE.green},
+	shielder: {s: 1.05, skin: '#3a3346', cloth: '#1d2630', hat: '#1a2430', eye: EYE.cyan},
 	wendigo: {s: 2.5, skin: '#231c2a', cloth: '#120e16', hat: '#120e16', eye: EYE.red}};
 /* hit areas (relative to the feet), scaled by size: the head is the weak spot */
 A.elfHead = (kind, s) => kind == 'crawler' ? {dx: -10 * s, dy: -12 * s, r: 6.5 * s} : kind == 'wendigo' ? {dx: -4 * s, dy: -46 * s, r: 5.5 * s} : {dx: -1 * s, dy: -36 * s, r: 7 * s};
@@ -192,6 +193,7 @@ A.elf = function (x, e, t, rf) {
 		if (e.kind == 'mugger') { oval(x, 7, -24, 5, 6); fl(x, '#3a3020', lineC, 1); if (e.loot >= 0) { x.strokeStyle = '#6b4a2f'; x.lineWidth = 2.4; x.beginPath(); x.moveTo(-14, -22); x.lineTo(2, -26); x.stroke(); x.strokeStyle = '#c9a64a'; x.lineWidth = 1; x.beginPath(); x.moveTo(-11, -27); x.lineTo(-9, -18); x.stroke() } }
 		if (e.kind == 'spitter') { x.fillStyle = 'rgba(176,77,255,.7)'; circ(x, -6, -32, 2); x.fill() }
 		head(x, -1, -36, D, e, t, rf, lineC);
+		if (e.shield) shield(x, rf);
 	}
 	x.restore();
 	/* static at the edges */
@@ -228,6 +230,15 @@ function wendigo(x, e, t, rf, lineC, D) {
 	/* frost breath */
 	if (!rf) { x.fillStyle = 'rgba(220,230,255,.25)'; x.beginPath(); x.ellipse(-12 - (t * 8 % 6), -44, 3 + (t * 4 % 3), 1.6, 0, 0, 7); x.fill() }
 }
+/* a shield: an old sled-board, iron-banded and cracked, held upright from the waist to above the head; the lower legs
+   and feet show beneath it */
+function shield(x, rf) {
+	x.beginPath(); x.moveTo(-17, -12); x.lineTo(-9, -12); x.lineTo(-9, -52); x.quadraticCurveTo(-13, -56, -17, -52); x.closePath(); fl(x, '#4a3626', '#0d0a10', 1.2);
+	x.fillStyle = '#6a6e7a'; for (const y of [-20, -33, -46]) x.fillRect(-17, y, 8, 2);
+	x.fillStyle = '#9aa0ae'; for (const y of [-19, -32, -45]) { x.fillRect(-15.5, y, 1.2, 1.2); x.fillRect(-11.5, y, 1.2, 1.2) }
+	x.strokeStyle = rf ? 'rgba(63,240,255,.4)' : 'rgba(63,240,255,.55)'; x.lineWidth = .8; x.beginPath(); x.moveTo(-15, -40); x.lineTo(-12, -36); x.lineTo(-14, -28); x.stroke();
+}
+A.shieldDown = function (x, X, Y, s) { x.save(); x.translate(X, Y - 2); x.scale(s, s); x.fillStyle = 'rgba(0,0,0,.3)'; oval(x, 0, 3, 22, 3); x.fill(); x.fillStyle = '#4a3626'; x.fillRect(-20, -3, 40, 6); x.strokeStyle = '#0d0a10'; x.lineWidth = 1; x.strokeRect(-20, -3, 40, 6); x.fillStyle = '#6a6e7a'; for (const dx of [-12, 0, 12]) x.fillRect(dx, -3, 2, 6); x.restore() };
 function head(x, X, Y, D, e, t, rf, lineC) {
 	/* long pointed ears, a gaunt face, a drooping hat with a cracked bell */
 	x.beginPath(); x.moveTo(X + 2, Y - 2); x.lineTo(X + 12, Y - 8); x.lineTo(X + 4, Y + 2); x.closePath(); fl(x, D.skin, lineC, 1.1);
@@ -235,7 +246,7 @@ function head(x, X, Y, D, e, t, rf, lineC) {
 	x.beginPath(); x.moveTo(X - 7, Y - 4); x.lineTo(X + 7, Y - 5); x.lineTo(X + 4, Y - 13); x.lineTo(X + 10, Y - 19 + Math.sin(t * 2 + e.id) * 2); x.lineTo(X - 2, Y - 12); x.closePath(); fl(x, D.hat, lineC, 1.1);
 	circ(x, X + 10, Y - 19 + Math.sin(t * 2 + e.id) * 2, 2); fl(x, '#6a5a2a', lineC, .8);
 	/* narrow glowing eyes, facing left */
-	if (!rf) x.drawImage({[EYE.red]: A.eyeR, [EYE.yellow]: A.eyeY, [EYE.green]: A.eyeG}[D.eye] || A.eyeW, X - 12, Y - 8, 16, 12);
+	if (!rf) x.drawImage({[EYE.red]: A.eyeR, [EYE.yellow]: A.eyeY, [EYE.green]: A.eyeG, [EYE.cyan]: A.eyeC}[D.eye] || A.eyeW, X - 12, Y - 8, 16, 12);
 	x.fillStyle = D.eye; x.beginPath(); x.moveTo(X - 6, Y - 1); x.lineTo(X - 1, Y); x.lineTo(X - 6, Y + 1.4); x.closePath(); x.fill();
 	x.beginPath(); x.moveTo(X - 1, Y - 1); x.lineTo(X + 3, Y); x.lineTo(X - 1, Y + 1.3); x.closePath(); x.fill();
 	x.strokeStyle = D.eye; x.lineWidth = .9; x.beginPath(); x.moveTo(X - 5, Y + 4.5); x.lineTo(X - 3, Y + 3.5); x.lineTo(X - 1, Y + 4.5); x.lineTo(X + 1, Y + 3.5); x.stroke();
