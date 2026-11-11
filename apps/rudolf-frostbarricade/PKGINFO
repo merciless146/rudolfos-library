@@ -1,0 +1,10 @@
+name = rudolf-frostbarricade
+version = 1.0.0
+kind = webapp
+title = Frost Barricade
+summary = For older players: hold the barricade against corrupted elves for fifteen nights
+icon = 🛡️
+license = GPL-2.0-or-later
+homepage = https://github.com/merciless146/rudolfos-library
+category = Games
+description = For older players (cartoon horror and combat). Night after night the corrupted elves come out of the woods for the barricade. Aim and shoot with nine winter weapons, from the Icicle Pistol to the Sleigh-Bell Gatling; by day spend twelve hours on repairs, searching for weapons, ammunition and survivors, and training. Hold out for fifteen nights. Mouse, keyboard, controller or touch. Made for Rudolf OS.

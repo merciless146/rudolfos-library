@@ -18,7 +18,8 @@ jobs:
       - name: Playwright (Chromium)
         run: |
           mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw" && npm init -y >/dev/null && npm i -s playwright@1.49.1
-          npx playwright install --with-deps chromium >/dev/null
+          # (the system libraries come from Ubuntu's mirror; when it cannot be reached, the runner's own are enough)
+          npx playwright install --with-deps chromium >/dev/null 2>&1 || { echo "::warning title=Playwright::system packages not installed (mirror unreachable); using the runner's"; npx playwright install chromium >/dev/null; }
       - name: The games' tests
         run: |
           r=0; p=8193
