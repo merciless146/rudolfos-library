@@ -1,0 +1,231 @@
+/* ===== Frost Barricade: the art, drawn in Canvas each frame (no image files). GPL-2.0-or-later.
+   The corrupted elves follow Night Flight's corruption: jagged dark silhouettes, dark skin and clothes, narrow glowing
+   eyes without highlights, static at their edges. They crumble into black slush and static, never blood.
+   Friends (Rudolf, the survivors, Captain Quill and his owls) are soft and round, in Night Flight's style.
+   The scene is seen from the side: the barricade on the left, the horde coming from the right. ===== */
+(function () {
+'use strict';
+const A = window.FBART = {};
+const PI = Math.PI;
+const circ = (x, cx, cy, r) => { x.beginPath(); x.arc(cx, cy, r, 0, PI * 2) };
+const oval = (x, cx, cy, rx, ry, rot) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot || 0, 0, PI * 2) };
+const fl = (x, f, s, w) => { x.fillStyle = f; x.fill(); if (s) { x.strokeStyle = s; x.lineWidth = w || 1.4; x.stroke() } };
+const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296 };
+A.hash = hash;
+function mk(w, h, draw) { const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2; const x = c.getContext('2d'); x.scale(2, 2); x.lineJoin = 'round'; x.lineCap = 'round'; draw(x, w, h); c.w = w; c.h = h; return c }
+function glow(r, col) { return mk(r * 2, r * 2, x => { const g = x.createRadialGradient(r, r, 0, r, r, r); g.addColorStop(0, col); g.addColorStop(.4, col.replace(/[\d.]+\)$/, '.3)')); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, r * 2, r * 2) }) }
+A.warm = glow(30, 'rgba(255,200,110,1)'); A.lime = glow(16, 'rgba(214,255,74,1)'); A.pink = glow(16, 'rgba(255,79,163,1)'); A.white = glow(30, 'rgba(255,255,255,1)'); A.fire = glow(20, 'rgba(255,130,40,1)'); A.ice = glow(20, 'rgba(140,220,255,1)');
+
+/* ---------- the night: a dark field before the workshop woods ---------- */
+A.GROUND = 300;
+A.scene = function (x, W, H, t, night, dawn) {
+	const g = x.createLinearGradient(0, 0, 0, A.GROUND);
+	const k = dawn || 0;
+	g.addColorStop(0, mix('#05070f', '#3a3f7a', k)); g.addColorStop(.7, mix('#141a33', '#c78a7a', k)); g.addColorStop(1, mix('#262c45', '#f2c08a', k));
+	x.fillStyle = g; x.fillRect(0, 0, W, A.GROUND);
+	for (let i = 0; i < 70; i++) { x.fillStyle = `rgba(230,235,255,${(.2 + .5 * hash(i, 3)) * (1 - k)})`; x.fillRect(hash(i, 1) * W, hash(i, 2) * 170, 1.3, 1.3) }
+	/* a pale moon behind moving cloud */
+	x.globalAlpha = 1 - k * .8; x.drawImage(A.white, 470, 20, 80, 80); circ(x, 510, 60, 16); x.fillStyle = '#e8e6f0'; x.fill(); x.globalAlpha = 1;
+	for (let i = 0; i < 4; i++) { const cx = ((t * 6 + i * 190) % (W + 300)) - 150; x.fillStyle = `rgba(40,44,70,${.55 - k * .3})`; oval(x, cx, 50 + i * 18, 110, 14); x.fill() }
+	/* far woods, and the workshop with dead windows */
+	x.fillStyle = mix('#0d1120', '#4a3a55', k * .6);
+	for (let i = 0; i < 26; i++) { const px = i * 26 + hash(i, 5) * 14, ph = 50 + hash(i, 6) * 40; x.beginPath(); x.moveTo(px - 14, 250); x.lineTo(px, 250 - ph); x.lineTo(px + 14, 250); x.fill() }
+	x.fillStyle = mix('#151a2c', '#5a4560', k * .6); x.fillRect(380, 205, 120, 50); x.beginPath(); x.moveTo(372, 207); x.lineTo(440, 170); x.lineTo(508, 207); x.fill();
+	for (let i = 0; i < 4; i++) { const on = hash(i, Math.floor(t * 3) + night) > .7; x.fillStyle = on ? 'rgba(214,255,74,.55)' : 'rgba(40,30,60,.9)'; x.fillRect(392 + i * 27, 222, 10, 10) }
+	/* the field */
+	const gg = x.createLinearGradient(0, 240, 0, 360); gg.addColorStop(0, mix('#2a3352', '#c9b8c8', k)); gg.addColorStop(1, mix('#3b466b', '#efe0dc', k));
+	x.fillStyle = gg; x.beginPath(); x.moveTo(0, 262); for (let X = 0; X <= W; X += 20) x.lineTo(X, 262 + Math.sin(X * .02) * 4); x.lineTo(W, 360); x.lineTo(0, 360); x.fill();
+	/* drifting fog */
+	for (let i = 0; i < 5; i++) { const fx = ((t * (8 + i * 3) + i * 150) % (W + 260)) - 130; x.fillStyle = 'rgba(120,130,170,.08)'; oval(x, fx, 268 + i * 5, 140, 12); x.fill() }
+};
+A.snow = function (x, W, H, t) { for (let i = 0; i < 80; i++) { const sx = (hash(i, 7) * W - t * (12 + hash(i, 8) * 20) + W * 4) % W, sy = (hash(i, 9) * H + t * (25 + hash(i, 10) * 30)) % H; x.fillStyle = 'rgba(235,240,255,.7)'; x.fillRect(sx, sy, 1.6, 1.6) } };
+function mix(a, b, k) { const p = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)); const A_ = p(a), B = p(b); return 'rgb(' + A_.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',') + ')' }
+
+/* ---------- the barricade: crates, a sled, sacks of snow; it loses pieces as it weakens ---------- */
+A.BX = 112;
+A.barricade = function (x, frac, t, hitT) {
+	const X = A.BX, G = A.GROUND, sh = hitT > 0 ? Math.sin(t * 90) * 2 * hitT : 0;
+	x.save(); x.translate(sh, 0);
+	const pieces = [
+		[0, -16, 30, 16, '#6b4a2f'], [24, -18, 26, 18, '#7a5636'], [2, -32, 24, 16, '#5c3f28'], [22, -36, 22, 18, '#6b4a2f'],
+		[8, -50, 30, 14, '#7a5636'], [-6, -14, 12, 14, '#8d8fa8'], [44, -14, 12, 14, '#8d8fa8'], [12, -64, 22, 14, '#5c3f28']];
+	const n = Math.ceil(pieces.length * Math.max(0, frac));
+	for (let i = 0; i < pieces.length; i++) {
+		if (i >= n) continue;
+		const [dx, dy, w, h, c] = pieces[i];
+		x.fillStyle = c; x.fillRect(X + dx, G + dy, w, h); x.strokeStyle = 'rgba(0,0,0,.45)'; x.lineWidth = 1; x.strokeRect(X + dx + .5, G + dy + .5, w - 1, h - 1);
+		if (c != '#8d8fa8') { x.beginPath(); x.moveTo(X + dx + 2, G + dy + 2); x.lineTo(X + dx + w - 2, G + dy + h - 2); x.stroke() }
+		x.fillStyle = 'rgba(240,245,255,.85)'; x.fillRect(X + dx, G + dy - 2, w, 3);
+		if (frac < .5) { x.strokeStyle = 'rgba(214,255,74,.35)'; x.beginPath(); x.moveTo(X + dx + w * .3, G + dy); x.lineTo(X + dx + w * .5, G + dy + h * .6); x.lineTo(X + dx + w * .4, G + dy + h); x.stroke() }
+	}
+	/* the old sled leaned against it */
+	if (frac > .2) { x.strokeStyle = '#a33a2a'; x.lineWidth = 4; x.beginPath(); x.moveTo(X + 52, G - 2); x.lineTo(X + 58, G - 40); x.stroke(); x.strokeStyle = '#c9a64a'; x.lineWidth = 2; x.beginPath(); x.moveTo(X + 50, G); x.quadraticCurveTo(X + 66, G - 4, X + 62, G - 46); x.stroke() }
+	x.restore();
+};
+
+/* ---------- Rudolf, side view, aiming over the barricade ---------- */
+A.RX = 78; A.RY = A.GROUND - 46;
+A.rudolf = function (x, aim, weapon, t, recoil, hurtT) {
+	const X = A.RX, Y = A.RY + Math.sin(t * 2) * .8;
+	x.save();
+	if (hurtT > 0 && Math.floor(t * 20) % 2) x.globalAlpha = .6;
+	/* body */
+	oval(x, X - 4, Y + 22, 13, 15); fl(x, '#f6eddc', '#6b4a35');
+	x.beginPath(); x.moveTo(X - 12, Y + 6); x.quadraticCurveTo(X, Y + 12, X + 10, Y + 6); x.lineTo(X + 10, Y + 11); x.quadraticCurveTo(X, Y + 17, X - 12, Y + 11); x.closePath(); fl(x, '#3aa7c9', '#6b4a35', 1.1);
+	/* antlers */
+	x.strokeStyle = '#6b4a35'; x.lineWidth = 5.5; const ant = () => { x.beginPath(); x.moveTo(X - 6, Y - 12); x.quadraticCurveTo(X - 10, Y - 22, X - 4, Y - 28); x.moveTo(X - 8, Y - 20); x.lineTo(X - 15, Y - 23); x.stroke() };
+	ant(); x.strokeStyle = '#d9a85b'; x.lineWidth = 3.6; ant();
+	/* head */
+	circ(x, X, Y - 4, 11); fl(x, '#f6eddc', '#6b4a35');
+	oval(x, X - 9, Y - 10, 6, 3, -.6); fl(x, '#f6eddc', '#6b4a35', 1.1);
+	oval(x, X + 8, Y, 6, 4.5); fl(x, '#e9c9a0');
+	oval(x, X + 3, Y - 7, 2.4, 3.2); x.fillStyle = '#2b2230'; x.fill(); circ(x, X + 3.8, Y - 8.2, .9); x.fillStyle = '#fff'; x.fill();
+	x.strokeStyle = '#2b2230'; x.lineWidth = 1.4; x.beginPath(); x.moveTo(X + .5, Y - 12); x.lineTo(X + 5, Y - 11); x.stroke();   /* a determined brow */
+	circ(x, X + 13, Y - 1, 3.2); fl(x, '#e3283e', '#7a1420', 1); circ(x, X + 12.2, Y - 2, .9); x.fillStyle = 'rgba(255,255,255,.7)'; x.fill();
+	x.drawImage(A.pink, X + 13 - 8, Y - 1 - 8, 16, 16);
+	/* the arm and the weapon, turned to the aim */
+	const sx = X + 4, sy = Y + 16;
+	x.translate(sx, sy); x.rotate(aim); x.translate(-recoil * 4, 0);
+	A.weapon(x, weapon);
+	oval(x, 4, 2, 6, 4); fl(x, '#f6eddc', '#6b4a35', 1.1);
+	x.restore();
+};
+/* the weapons, each its own shape and colours (drawn pointing right from the shoulder) */
+A.MUZZLE = {icicle: 26, cane: 34, flurry: 32, snowplow: 38, hail: 44, bauble: 36, hearth: 38, aurora: 42, bells: 40};
+A.weapon = function (x, w) {
+	const R = (X, Y, ww, h, c, s) => { x.fillStyle = c; x.fillRect(X, Y, ww, h); if (s) { x.strokeStyle = s; x.lineWidth = 1; x.strokeRect(X + .5, Y + .5, ww - 1, h - 1) } };
+	switch (w) {
+	case 'icicle': R(6, -2, 12, 6, '#5d7a99', '#2a3a50'); x.fillStyle = '#bfe8ff'; x.beginPath(); x.moveTo(17, -2); x.lineTo(27, 1); x.lineTo(17, 3); x.closePath(); x.fill(); R(8, 3, 4, 6, '#3d4f66'); break;
+	case 'cane': R(4, -2, 30, 5, '#f4f4f4', '#7a1a20'); for (let i = 0; i < 6; i++) { x.fillStyle = '#d42a35'; x.beginPath(); x.moveTo(6 + i * 5, -2); x.lineTo(9 + i * 5, -2); x.lineTo(7 + i * 5, 3); x.lineTo(4 + i * 5, 3); x.fill() } x.strokeStyle = '#d42a35'; x.lineWidth = 3; x.beginPath(); x.arc(5, 4, 4, PI * .5, PI * 1.5, false); x.stroke(); R(14, 3, 4, 6, '#7a1a20'); break;
+	case 'flurry': R(4, -3, 26, 7, '#7fa9c9', '#2a3a50'); R(12, 4, 5, 9, '#2a3a50'); for (let i = 0; i < 3; i++) { x.fillStyle = '#e6f6ff'; circ(x, 10 + i * 6, 0, 1.5); x.fill() } R(28, -1, 5, 3, '#bfe8ff'); break;
+	case 'snowplow': R(4, -4, 34, 8, '#c94b2a', '#4a1a10'); R(28, -5, 10, 10, '#e8e0d0', '#4a1a10'); R(6, 4, 10, 4, '#6b4a2f'); break;
+	case 'hail': R(2, -2, 42, 5, '#3b4a5e', '#141c28'); R(12, -7, 14, 5, '#8fb8d8', '#141c28'); R(4, 3, 8, 5, '#5c3f28'); break;
+	case 'bauble': R(4, -5, 30, 10, '#2f6b4a', '#123020'); circ(x, 36, 0, 6); fl(x, '#d4af37', '#5a4a10'); R(10, 5, 5, 7, '#123020'); break;
+	case 'hearth': R(4, -4, 30, 8, '#6b4a2f', '#2a1a10'); R(30, -3, 8, 6, '#3a2a20'); x.drawImage(A.fire, 30, -10, 16, 16); R(10, -10, 8, 6, '#b5462a', '#2a1a10'); break;
+	case 'aurora': R(4, -3, 34, 6, '#2a2f5a', '#0d1028'); x.fillStyle = '#7dffcf'; x.fillRect(10, -1, 26, 2); x.drawImage(A.ice, 32, -10, 20, 20); break;
+	case 'bells': R(2, -5, 32, 10, '#8a6a2a', '#3a2a10'); for (let i = 0; i < 3; i++) { circ(x, 34 + i * 2, -3 + i * 3, 3); fl(x, '#e8c24a', '#5a4a10', 1) } R(10, 5, 6, 8, '#3a2a10'); break;
+	}
+};
+
+/* ---------- the survivors behind the barricade (small, round, friendly) ---------- */
+A.SURV = {bunny: ['#ffffff', '#f7b9cf'], badger: ['#4a4a52', '#f2f2f2'], fox: ['#e0782e', '#fff3e6'], hare: ['#d8c6a8', '#fff'], otter: ['#7a5a3a', '#e8d6bf'], owl: ['#a89276', '#f4ead8']};
+A.survivor = function (x, kind, X, t, firing) {
+	const [c1, c2] = A.SURV[kind] || A.SURV.bunny, Y = A.GROUND - 16 + Math.sin(t * 3 + X) * .6;
+	if (kind == 'bunny' || kind == 'hare') { oval(x, X - 3, Y - 20, 2.5, 7, -.2); fl(x, c1, '#5d4b63', 1); oval(x, X + 2, Y - 20, 2.5, 7, .2); fl(x, c1, '#5d4b63', 1) }
+	if (kind == 'fox') { x.beginPath(); x.moveTo(X - 5, Y - 14); x.lineTo(X - 3, Y - 22); x.lineTo(X, Y - 15); x.moveTo(X + 1, Y - 15); x.lineTo(X + 4, Y - 22); x.lineTo(X + 6, Y - 14); fl(x, c1, '#5a3010', 1) }
+	if (kind == 'owl') { x.beginPath(); x.moveTo(X - 6, Y - 16); x.lineTo(X - 5, Y - 21); x.lineTo(X - 2, Y - 17); x.moveTo(X + 2, Y - 17); x.lineTo(X + 5, Y - 21); x.lineTo(X + 6, Y - 16); fl(x, c1, '#4a3a2a', 1) }
+	oval(x, X, Y, 8, 9); fl(x, c1, '#3a3040', 1.2);
+	oval(x, X, Y + 2, 5, 5); x.fillStyle = c2; x.fill();
+	circ(x, X, Y - 10, 7); fl(x, c1, '#3a3040', 1.2);
+	if (kind == 'badger') { x.fillStyle = c2; x.fillRect(X - 1.5, Y - 17, 3, 10) }
+	if (kind == 'owl') { circ(x, X - 2.6, Y - 11, 2.6); x.fillStyle = '#fff'; x.fill(); circ(x, X + 2.6, Y - 11, 2.6); x.fill() }
+	circ(x, X + 2.5, Y - 11, 1.3); x.fillStyle = '#2b2230'; x.fill(); circ(x, X - 2.5, Y - 11, 1.3); x.fill();
+	/* a small crossbow */
+	x.strokeStyle = '#6b4a2f'; x.lineWidth = 2; x.beginPath(); x.moveTo(X + 4, Y - 2); x.lineTo(X + 16, Y - 6); x.stroke();
+	if (firing) { x.drawImage(A.warm, X + 10, Y - 14, 14, 14) }
+};
+
+/* ---------- corrupted elves ---------- */
+/* kinds: size, skin, clothes, eye colour */
+A.ELF = {
+	shambler: {s: 1, skin: '#3d3448', cloth: '#1f2a24', hat: '#2a1f33', eye: '#d6ff4a'},
+	runner: {s: .9, skin: '#3a3346', cloth: '#2a1f33', hat: '#1f2a24', eye: '#ff4fa3'},
+	brute: {s: 1.5, skin: '#342c3e', cloth: '#1a1d2a', hat: '#2a1f33', eye: '#ff3b3b'},
+	crawler: {s: .95, skin: '#3d3448', cloth: '#232a1f', hat: '#2a1f33', eye: '#d6ff4a'},
+	spitter: {s: 1.05, skin: '#38304a', cloth: '#1d2633', hat: '#3a1f33', eye: '#b04dff'},
+	tinker: {s: 1, skin: '#3d3448', cloth: '#2b231a', hat: '#1f2a24', eye: '#ffb03b'},
+	foreman: {s: 2.3, skin: '#2e2638', cloth: '#14161f', hat: '#2a1220', eye: '#ff3b3b'}};
+/* hit areas (relative to the feet), scaled by size: the head is the weak spot */
+A.elfHead = (kind, s) => kind == 'crawler' ? {dx: -10 * s, dy: -12 * s, r: 6.5 * s} : {dx: -1 * s, dy: -36 * s, r: 7 * s};
+A.elfBody = (kind, s) => kind == 'crawler' ? {dx: 2 * s, dy: -8 * s, r: 9 * s} : {dx: 0, dy: -18 * s, r: 10.5 * s};
+A.elf = function (x, e, t, rf) {
+	const D = A.ELF[e.kind], s = D.s, X = e.x, Y = A.GROUND - 4 + (e.lane || 0), ph = e.walk;
+	x.save(); x.translate(X, Y);
+	/* a shadow */
+	x.fillStyle = 'rgba(0,0,0,.35)'; oval(x, 0, 2, 12 * s, 3 * s); x.fill();
+	if (e.chill > 0) { x.globalAlpha = .9 }
+	const jit = rf ? 0 : (hash(e.id, Math.floor(t * 12)) > .93 ? (hash(e.id, 3) - .5) * 3 : 0);
+	x.translate(jit, 0); x.scale(s, s);
+	const lineC = e.hitT > 0 ? '#ffffff' : '#120a18';
+	if (e.kind == 'crawler') {
+		/* dragging itself low along the snow */
+		x.beginPath(); x.moveTo(-16, -6); x.lineTo(-6, -14); x.lineTo(8, -12); x.lineTo(16, -6); x.lineTo(12, -1); x.lineTo(-12, -1); x.closePath(); fl(x, D.cloth, lineC, 1.3);
+		x.strokeStyle = D.skin; x.lineWidth = 3; x.beginPath(); x.moveTo(-12, -6); x.lineTo(-20, -1 + Math.sin(ph) * 2); x.moveTo(-6, -8); x.lineTo(-14, 0 - Math.sin(ph) * 2); x.stroke();
+		head(x, -10, -12, D, e, t, rf, lineC);
+	} else {
+		const sw = Math.sin(ph) * (e.kind == 'runner' ? 7 : 4);
+		/* legs */
+		x.strokeStyle = D.cloth; x.lineWidth = 4; x.beginPath(); x.moveTo(-2, -12); x.lineTo(-3 + sw, 0); x.moveTo(2, -12); x.lineTo(3 - sw, 0); x.stroke();
+		x.fillStyle = '#0d0a10'; x.fillRect(-6 + sw, -2, 6, 3); x.fillRect(-1 - sw, -2, 6, 3);
+		/* a torn tunic, jagged at the hem */
+		x.beginPath(); x.moveTo(-8, -28); x.lineTo(7, -28); x.lineTo(9, -14); x.lineTo(6, -10); x.lineTo(3, -13); x.lineTo(0, -9); x.lineTo(-3, -13); x.lineTo(-6, -10); x.lineTo(-9, -14); x.closePath(); fl(x, D.cloth, lineC, 1.3);
+		x.strokeStyle = '#4a3a20'; x.lineWidth = 2; x.beginPath(); x.moveTo(-8, -18); x.lineTo(8, -18); x.stroke();
+		/* arms reaching for the barricade */
+		const reach = e.attacking ? Math.sin(t * 10 + e.id) * 4 : Math.sin(ph) * 2;
+		x.strokeStyle = D.skin; x.lineWidth = 3.2; x.beginPath(); x.moveTo(-6, -26); x.lineTo(-15 + reach, -24 + reach * .3); x.moveTo(-3, -24); x.lineTo(-13 - reach, -20); x.stroke();
+		x.fillStyle = D.skin; for (let k = 0; k < 3; k++) { x.beginPath(); x.moveTo(-15 + reach, -24 + reach * .3); x.lineTo(-19 + reach, -27 + k * 2.5); x.lineTo(-15 + reach, -23 + k); x.fill() }
+		if (e.kind == 'tinker' && !e.gone) { x.fillStyle = '#4a2a3a'; x.fillRect(-14, -24, 9, 9); x.strokeStyle = '#ffb03b'; x.lineWidth = 1.2; x.strokeRect(-14, -24, 9, 9); x.beginPath(); x.moveTo(-14, -20); x.lineTo(-5, -20); x.moveTo(-10, -24); x.lineTo(-10, -15); x.stroke(); if (!rf && Math.floor(t * 6) % 2) x.drawImage(A.lime, -18, -28, 16, 16) }
+		if (e.kind == 'spitter') { x.fillStyle = 'rgba(176,77,255,.7)'; circ(x, -6, -32, 2); x.fill() }
+		head(x, -1, -36, D, e, t, rf, lineC);
+	}
+	x.restore();
+	/* static at the edges */
+	if (!rf) { x.fillStyle = 'rgba(176,77,255,.5)'; for (let i = 0; i < 3; i++) x.fillRect(X + (hash(e.id + i, Math.floor(t * 20)) - .5) * 22 * s, Y - hash(i, Math.floor(t * 15) + e.id) * 40 * s, 2, 2) }
+	if (e.chill > 0) { x.globalAlpha = .45; x.drawImage(A.ice, X - 16 * s, Y - 40 * s, 32 * s, 40 * s); x.globalAlpha = 1 }
+	if (e.burn > 0) { x.globalAlpha = .7; x.drawImage(A.fire, X - 10 * s + (hash(e.id, Math.floor(t * 10)) - .5) * 8, Y - 30 * s, 20 * s, 24 * s); x.globalAlpha = 1 }
+};
+function head(x, X, Y, D, e, t, rf, lineC) {
+	/* long pointed ears, a gaunt face, a drooping hat with a cracked bell */
+	x.beginPath(); x.moveTo(X + 2, Y - 2); x.lineTo(X + 12, Y - 8); x.lineTo(X + 4, Y + 2); x.closePath(); fl(x, D.skin, lineC, 1.1);
+	x.beginPath(); x.moveTo(X - 7, Y - 2); x.lineTo(X - 4, Y - 7); x.lineTo(X + 4, Y - 7); x.lineTo(X + 7, Y - 1); x.lineTo(X + 4, Y + 7); x.lineTo(X - 1, Y + 8); x.lineTo(X - 6, Y + 4); x.closePath(); fl(x, D.skin, lineC, 1.2);
+	x.beginPath(); x.moveTo(X - 7, Y - 4); x.lineTo(X + 7, Y - 5); x.lineTo(X + 4, Y - 13); x.lineTo(X + 10, Y - 19 + Math.sin(t * 2 + e.id) * 2); x.lineTo(X - 2, Y - 12); x.closePath(); fl(x, D.hat, lineC, 1.1);
+	circ(x, X + 10, Y - 19 + Math.sin(t * 2 + e.id) * 2, 2); fl(x, '#6a5a2a', lineC, .8);
+	/* narrow glowing eyes, facing left */
+	if (!rf) x.drawImage(D.eye == '#d6ff4a' ? A.lime : A.pink, X - 12, Y - 8, 16, 12);
+	x.fillStyle = D.eye; x.beginPath(); x.moveTo(X - 6, Y - 1); x.lineTo(X - 1, Y); x.lineTo(X - 6, Y + 1.4); x.closePath(); x.fill();
+	x.beginPath(); x.moveTo(X - 1, Y - 1); x.lineTo(X + 3, Y); x.lineTo(X - 1, Y + 1.3); x.closePath(); x.fill();
+	x.strokeStyle = D.eye; x.lineWidth = .9; x.beginPath(); x.moveTo(X - 5, Y + 4.5); x.lineTo(X - 3, Y + 3.5); x.lineTo(X - 1, Y + 4.5); x.lineTo(X + 1, Y + 3.5); x.stroke();
+}
+/* what is left when one falls: a spreading black slush that fades */
+A.slush = function (x, d, t) {
+	const a = Math.max(0, 1 - d.t / 6);
+	x.fillStyle = `rgba(14,8,20,${.75 * a})`; oval(x, d.x, A.GROUND - 2, d.r * Math.min(1, d.t * 3), 3 + d.r * .1); x.fill();
+	x.fillStyle = `rgba(176,77,255,${.4 * a})`; for (let i = 0; i < 3; i++) x.fillRect(d.x + (hash(d.id, i) - .5) * d.r * 1.6, A.GROUND - 3 - hash(i, d.id) * 3, 2, 2);
+};
+
+/* ---------- Captain Quill and his sleigh (Night 15) ---------- */
+/* an original character: a rockhopper penguin (slate-blue back, spiky yellow crest, orange-red beak, pink feet) in a red
+   winter coat with white fur trim, flying a red sleigh pulled by two snowy owls */
+A.sleigh = function (x, X, Y, t, wave) {
+	x.save(); x.translate(X, Y); x.scale(1.5, 1.5);
+	/* the owls, flapping, on long reins */
+	for (let k = 0; k < 2; k++) {
+		const ox = 70 + k * 46, oy = -14 + Math.sin(t * 6 + k) * 3, f = Math.sin(t * 12 + k * 2);
+		x.strokeStyle = '#c9a64a'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(40, -6); x.lineTo(ox - 6, oy + 2); x.stroke();
+		x.beginPath(); x.moveTo(ox - 2, oy - 2); x.quadraticCurveTo(ox - 16, oy - 16 - f * 12, ox - 26, oy - 4 - f * 8); x.quadraticCurveTo(ox - 14, oy + 2, ox - 2, oy + 2); fl(x, '#f4f6fa', '#6a7f9a', 1);
+		oval(x, ox, oy, 9, 8); fl(x, '#ffffff', '#6a7f9a', 1.1);
+		for (let i = 0; i < 4; i++) { x.fillStyle = '#8a96a8'; x.fillRect(ox - 6 + i * 3, oy + 1 + (i % 2) * 2, 1.5, 1.5) }
+		circ(x, ox + 4, oy - 2, 2.4); x.fillStyle = '#ffd34d'; x.fill(); circ(x, ox + 4.5, oy - 2, 1.1); x.fillStyle = '#2b2230'; x.fill();
+		x.fillStyle = '#4a4a52'; x.beginPath(); x.moveTo(ox + 8, oy); x.lineTo(ox + 11, oy + 1.5); x.lineTo(ox + 8, oy + 3); x.fill();
+	}
+	/* the sleigh */
+	x.beginPath(); x.moveTo(-40, -20); x.lineTo(30, -20); x.quadraticCurveTo(44, -20, 42, -6); x.lineTo(-34, -4); x.quadraticCurveTo(-46, -8, -40, -20); fl(x, '#b52a2a', '#4a0f0f', 1.6);
+	x.strokeStyle = '#d9b14a'; x.lineWidth = 2; x.beginPath(); x.moveTo(-38, -14); x.lineTo(34, -14); x.stroke();
+	x.strokeStyle = '#d9b14a'; x.lineWidth = 2.4; x.beginPath(); x.moveTo(-44, 4); x.lineTo(40, 4); x.quadraticCurveTo(52, 4, 50, -6); x.moveTo(-30, -4); x.lineTo(-30, 4); x.moveTo(20, -4); x.lineTo(20, 4); x.stroke();
+	/* the captain */
+	const cx = -6, cy = -30;
+	oval(x, cx, cy + 4, 11, 13); fl(x, '#c42a2a', '#4a0f0f', 1.3);
+	x.fillStyle = '#ffffff'; x.fillRect(cx - 2, cy - 8, 4, 22); oval(x, cx, cy + 15, 11, 2.6); x.fill();
+	circ(x, cx + 1, cy - 12, 9); fl(x, '#3a4a66', '#1a2033', 1.2);
+	oval(x, cx + 4, cy - 10, 5, 5.5); x.fillStyle = '#ffffff'; x.fill();
+	/* the crest: spiky yellow feathers sweeping back from the brow */
+	x.strokeStyle = '#ffd23f'; x.lineWidth = 1.6; for (let i = 0; i < 4; i++) { x.beginPath(); x.moveTo(cx + 3, cy - 16); x.lineTo(cx - 8 - i * 2, cy - 22 - i * 2 + Math.sin(t * 4 + i) * 1.2); x.stroke() }
+	circ(x, cx + 5, cy - 13, 1.6); x.fillStyle = '#c42a2a'; x.fill(); circ(x, cx + 5.4, cy - 13.4, .6); x.fillStyle = '#fff'; x.fill();
+	x.fillStyle = '#ff6a2a'; x.beginPath(); x.moveTo(cx + 9, cy - 11); x.lineTo(cx + 16, cy - 9); x.lineTo(cx + 9, cy - 7); x.closePath(); x.fill();
+	/* a wing raised in a wave */
+	x.save(); x.translate(cx + 8, cy - 2); x.rotate(-.9 + Math.sin(t * (wave ? 8 : 2)) * (wave ? .4 : .1)); oval(x, 6, 0, 8, 3); fl(x, '#c42a2a', '#4a0f0f', 1); x.fillStyle = '#fff'; oval(x, 13, 0, 2.5, 3); x.fill(); x.restore();
+	x.fillStyle = '#ff9fb0'; oval(x, cx - 2, cy + 18, 3, 1.5); x.fill(); oval(x, cx + 4, cy + 18, 3, 1.5); x.fill();
+	x.globalAlpha = .45; x.drawImage(A.warm, -50, -50, 100, 70); x.globalAlpha = 1;
+	x.restore();
+};
+})();
