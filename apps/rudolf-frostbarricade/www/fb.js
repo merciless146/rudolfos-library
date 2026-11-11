@@ -1,11 +1,12 @@
-/* ===== Frost Barricade: hold the barricade for fifteen nights (for older players: a darker game of the Rudolf OS
+/* ===== Frost Barricade: hold the barricade for twenty-five nights (for older players: a darker game of the Rudolf OS
    Library, docs/plan-games.md). An original game: the corrupted elves come out of the woods each night; aim and shoot
    (point and click, keys, a controller or touch); by day spend twelve hours on repairs, searching for weapons, ammo and
-   survivors, and training. On the fifteenth night Captain Quill's sleigh comes for everyone who held the line.
+   survivors, and training; a weather radio tells what the night will bring. On the twenty-fifth night, in the great
+   blizzard, Captain Quill's sleigh comes for everyone who held the line.
    Uses the game kit (gamekit.js) and the art (fbart.js). GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
-const W = 900, H = 400, DT = 1 / 60, PI = Math.PI, LAST = 15, SLEIGH_AT = 150;
+const W = 900, H = 400, DT = 1 / 60, PI = Math.PI, LAST = 25, SLEIGH_AT = 150;
 const $ = s => document.querySelector(s), A = window.FBART, cv = $('#cv');
 const DIFF = {easy: {name: 'Easy', count: .75, hp: .8, dmg: .65}, normal: {name: 'Normal', count: 1, hp: 1, dmg: 1}, hard: {name: 'Hard', count: 1.25, hp: 1.2, dmg: 1.3}};
 /* the weapons: each better than the last, or with a way of its own */
@@ -32,7 +33,26 @@ const ELF = {
 	mugger: {hp: 42, sp: 14, dps: 4, from: 3, w: 0},
 	spitter: {hp: 55, sp: 20, dps: 0, from: 6, w: 3},
 	brute: {hp: 260, sp: 14, dps: 20, from: 7, w: 2},
-	foreman: {hp: 1600, sp: 9, dps: 45, from: 99, w: 0}};
+	foreman: {hp: 1600, sp: 9, dps: 45, from: 99, w: 0},
+	/* red eyes, always: the wendigo (full moon, the great blizzard); it screeches before it comes */
+	wendigo: {hp: 2600, sp: 24, dps: 30, from: 99, w: 0}};
+/* ---------- the weather: one a day, for that day's searching and that night ---------- */
+const WX = {
+	clear: {name: 'Clear', icon: '☀', tonight: 'Clear skies and a still night: you will see all the way to the woods. Good weather for searching; it goes quicker today.', tomorrow: 'clear and still'},
+	moon: {name: 'Full moon', icon: '🌕', tonight: 'A full moon is rising, bright as day. They are restless out there tonight: every one of them running, eyes red. And something large has been heard in the woods.', tomorrow: 'a full moon (they will be restless)'},
+	fog: {name: 'Fog', icon: '🌫', tonight: 'Thick fog, day and night. Only what Rudolf’s nose lights can be seen tonight: watch for the ripples of their sounds. Searching is slow and risky today.', tomorrow: 'fog'},
+	blizzard: {name: 'Blizzard', icon: '❄', tonight: 'Blizzard. Nobody can go out searching today. Tonight you will barely see past the barricade and the survivors’ aim will suffer, but nothing can run in this.', tomorrow: 'a blizzard'}};
+/* the schedule, fixed when a game starts (from its seed): days 1-7 clear or fog; a blizzard on day 8 or 9 and on day 17
+   or 18; the great blizzard on days 23-25; one full moon, from day 8 (20% a day to 14, 60% to 20, 80% on 21, else 22),
+   never on a blizzard's day */
+function makeWeather(seed) {
+	const r = RG.rng(seed + ':weather'), w = [null];
+	for (let d = 1; d <= LAST; d++) w.push(r() < .3 ? 'fog' : 'clear');
+	w[r() < .5 ? 8 : 9] = 'blizzard'; w[r() < .5 ? 17 : 18] = 'blizzard'; w[23] = w[24] = w[25] = 'blizzard';
+	for (let d = 8; d <= 22; d++) { if (w[d] == 'blizzard') continue; const p = d <= 14 ? .2 : d <= 20 ? .6 : d == 21 ? .8 : 1; if (r() < p) { w[d] = 'moon'; break } }
+	return w;
+}
+const wxOf = n => (G.wx || (G.wx = makeWeather(G.seed)))[Math.max(1, Math.min(LAST, n))];
 const NAMES = ['Juniper', 'Bramble', 'Clove', 'Sorrel', 'Thistle', 'Hazel', 'Rowan', 'Fennel', 'Wren', 'Birch', 'Moss', 'Sleet'];
 const KINDS = ['bunny', 'badger', 'fox', 'hare', 'otter', 'owl'];
 const ROLES = {guard: 'Guard (shoots from the barricade)', repair: 'Repairs (+50 to the barricade a day)', scout: 'Scouts (an extra hour of searching)'};
@@ -45,42 +65,52 @@ const R = () => N.rng();
 /* ---------- a run ---------- */
 function newRun(diff) {
 	const wp = {}; ORDER.forEach(k => wp[k] = {have: k == 'icicle', mag: WEP[k].mag, res: k == 'icicle' ? 0 : 0});
-	G = {diff, night: 1, seed: String(Date.now()) + ':' + Math.floor(Math.random() * 1e9), bar: 1000, barMax: 1000, hp: 100, wp, cur: 'icicle', skill: 0, surv: [], kills: 0, heads: 0, shots: 0, hits: 0, letter: false};
+	G = {diff, night: 1, plan: {repair: 0, search: 8, train: 4}, seed: String(Date.now()) + ':' + Math.floor(Math.random() * 1e9), bar: 1000, barMax: 1000, hp: 100, wp, cur: 'icicle', skill: 0, surv: [], kills: 0, heads: 0, shots: 0, hits: 0, letter: false};
+	G.wx = makeWeather(G.seed);
 }
 const snapshot = () => JSON.parse(JSON.stringify(G));
 
 /* ---------- the night ---------- */
 function startNight() {
 	const D = DIFF[G.diff], n = G.night;
-	N = {t: 0, rng: RG.rng(G.seed + ':night:' + n), elves: [], slush: [], fx: [], spits: [], q: [], over: false, won: false, id: 0, barHit: 0, hurt: 0, recoil: 0, cd: 0, burst: 0, spin: 0, reload: 0, msg: null, sleigh: null, dawn: 0, beam: 0, flame: 0};
+	N = {night: n, wx: wxOf(n), t: 0, rng: RG.rng(G.seed + ':night:' + n), throws: [], elves: [], slush: [], fx: [], spits: [], q: [], over: false, won: false, id: 0, barHit: 0, hurt: 0, recoil: 0, cd: 0, burst: 0, spin: 0, reload: 0, msg: null, sleigh: null, dawn: 0, beam: 0, flame: 0};
 	const total = n == LAST ? 9999 : nightCount(n, D), len = 46 + n * 3.5;
 	if (n < LAST) for (let i = 0; i < total; i++) N.q.push([2 + (i / total) * len + R() * 2, pickKind(n)]);
 	/* survivors come back to the barricade armed and rested each night (a stolen weapon is back by then) */
 	G.surv.forEach(s => { s.disarmed = false; s.out = false; s.hp = 40 });
-	if (n == 10) N.q.push([len * .6, 'foreman']);
+	if (n == 10 || n == 15 || n == 20) N.q.push([len * .6, 'foreman']);
 	if (n == LAST) N.q.push([60, 'foreman'], [110, 'foreman']);
+	/* wendigos: one under the full moon; one on Night 24 and two on Night 25, in the great blizzard; a screech first */
+	const wend = t => N.q.push([t - 3.5, 'screech'], [t, 'wendigo']);
+	if (N.wx == 'moon') wend(len * .45);
+	if (n == LAST - 1) wend(50);
+	if (n == LAST) { wend(40); wend(95) }
 	N.q.sort((a, b) => a[0] - b[0]);
 	N.total = N.q.length;
 	screen = 'night'; bar(); AU.music('night');
-	N.msg = {t: 0, text: 'Night ' + n + (n == LAST ? ' · the last' : ''), sub: n == LAST ? 'Hold on until the sleigh comes.' : n == 1 ? 'They are coming out of the woods.' : ''};
+	N.msg = {t: 0, text: 'Night ' + n + (n == LAST ? ' · the last' : '') + ' · ' + WX[N.wx].name, sub: n == LAST ? 'Hold on until the sleigh comes.' : n == 1 ? 'They are coming out of the woods.' : N.wx == 'moon' ? 'They are running tonight. All of them.' : N.wx == 'fog' ? 'Light them with your nose. Listen for them.' : N.wx == 'blizzard' ? 'Nothing runs in this. Neither will you see them coming.' : ''};
 }
 /* each night a few more elves, a little tougher; from Night 2 on some change lanes or sprint (none on Night 1, almost
    half on Night 15) */
 function nightCount(n, D) { return Math.round((22 + (n - 1) * 3) * D.count) }
 const hpMul = n => 1 + (n - 1) * .045;
-const wildChance = n => .47 * (n - 1) / (LAST - 1);
+const wildChance = n => .47 * Math.min(1, (n - 1) / 14);
 /* which elf: from the night's weights, and then (with wildChance) a sprinter or, from Night 3, a mugger instead */
 function pickKind(n) {
 	const kinds = Object.keys(ELF).filter(k => ELF[k].from <= n && ELF[k].w), tw = kinds.reduce((a, k) => a + ELF[k].w, 0);
 	let r = R() * tw, k = kinds[0]; for (const kk of kinds) { r -= ELF[kk].w; if (r <= 0) { k = kk; break } }
 	if (k != 'bloater' && R() < wildChance(n)) k = n >= 3 && R() < .45 ? 'mugger' : 'sprinter';
+	/* under the full moon every white-eyed elf runs, red-eyed */
+	if (G && G.wx && wxOf(n) == 'moon' && (k == 'shambler' || k == 'crawler' || k == 'spitter' || k == 'brute')) k = 'sprinter';
 	return k;
 }
 function spawn(kind) {
+	if (kind == 'screech') { AU.sfx('screech'); N.msg = {t: 0, text: 'A screech from the woods…', sub: 'Something large is coming.'}; if (!save.set.reduceFlash) N.shake = .6; return }
 	const D = DIFF[G.diff], E = ELF[kind], mul = hpMul(G.night) * D.hp, p = wildChance(G.night), lane = Math.floor(R() * A.LANES);
 	const e = {id: ++N.id, kind, x: W + 20 + R() * 40, lane, tl: lane, changer: (kind == 'shambler' || kind == 'crawler') && R() < p, sprinter: kind == 'sprinter', mugger: kind == 'mugger', loot: -1, lcT: kind == 'mugger' ? R() * .4 : 1 + R() * 3, spT: 1 + R() * 2, sprint: 0, hp: E.hp * mul, hp0: E.hp * mul, sp: E.sp * (.85 + R() * .3), walk: R() * 6, attacking: false, chill: 0, burn: 0, stun: 0, hitT: 0, spitT: 1 + R() * 2, stop: kind == 'spitter' ? 430 + R() * 220 : 0};
+	if (kind == 'wendigo') { e.lane = e.tl = 4 + Math.floor(R() * 7); e.throwT = 4; e.changer = false }
 	N.elves.push(e);
-	if (R() < .25) AU.sfx('groan');
+	if (R() < (N.wx == 'fog' ? .45 : .25)) AU.sfx('groan');
 }
 function nightStep() {
 	const D = DIFF[G.diff]; N.t += DT;
@@ -90,6 +120,7 @@ function nightStep() {
 	weaponStep();
 	/* elves */
 	for (const e of N.elves) {
+		if (e.held || e.flying) continue;   /* (in a wendigo's grip, or in the air) */
 		if (e.hitT > 0) e.hitT -= DT; if (e.chill > 0) e.chill -= DT; if (e.stun > 0) e.stun -= DT;
 		if (e.burn > 0) { e.burn -= DT; damage(e, 9 * DT, false, true) }
 		if (e.dead) continue;
@@ -97,11 +128,11 @@ function nightStep() {
 		/* changing lanes: now and then a new lane up to three away, crossed gradually */
 		if (e.changer && !e.attacking && e.stun <= 0) { e.lcT -= DT; if (e.lcT <= 0) { e.lcT = 2 + R() * 3; e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + (R() < .5 ? -1 : 1) * (1 + Math.floor(R() * 3)))) } }
 		/* muggers weave: back and forth across two or three lanes, quickly */
-		if (e.mugger && !e.attacking && e.stun <= 0) { e.lcT -= DT; if (e.lcT <= 0) { e.lcT = .4 + R() * .3; const dir = e.tl >= e.lane ? -1 : 1; e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + dir * (2 + Math.floor(R() * 2)))) } }
+		if (e.mugger && !e.attacking && e.stun <= 0) { e.lcT -= DT; if (e.lcT <= 0) { e.lcT = .4 + R() * .3; let dir = e.wdir = -(e.wdir || 1); const step = 2 + Math.floor(R() * 2); if (Math.round(e.lane) + dir * step < 0 || Math.round(e.lane) + dir * step > A.LANES - 1) dir = e.wdir = -dir; e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + dir * step)) } }
 		if (e.lane != e.tl) { const d = e.tl - e.lane; e.lane += Math.sign(d) * Math.min(Math.abs(d), (e.mugger ? 6 : 1.3) * DT) }
 		/* sprinters: dashes for the barricade, again and again */
 		if (e.sprint > 0) e.sprint -= DT;
-		else if (e.sprinter && !e.attacking) { e.spT -= DT; if (e.spT <= 0) { e.sprint = 1.1 + R() * 1.2; e.spT = 1.6 + R() * 2.2 } }
+		else if (e.sprinter && !e.attacking && N.wx != 'blizzard') { e.spT -= DT; if (e.spT <= 0) { e.sprint = 1.1 + R() * 1.2; e.spT = 1.6 + R() * 2.2 } }
 		const sp = e.sp * (e.chill > 0 ? .45 : 1) * (e.stun > 0 ? 0 : 1) * (e.sprint > 0 ? 2.8 : 1);
 		/* a mugger with a weapon runs for the woods; out of sight, the weapon is gone until the next night */
 		if (e.loot >= 0) { e.x += 80 * (e.chill > 0 ? .45 : 1) * (e.stun > 0 ? 0 : 1) * DT; e.walk += DT * 5; e.attacking = false;
@@ -112,6 +143,7 @@ function nightStep() {
 			if (e.spitT <= 0 && e.stun <= 0) { e.spitT = 2.6 + R(); N.spits.push({x: e.x - 8, y: A.laneY(e.lane) - 40 * ELF_S(e), vx: -(e.x - front + 10) / 1.2, vy: -150, t: 0, ty: A.laneY(e.lane) - 30, fx: front}); AU.sfx('spit') }
 			continue;
 		}
+		if (e.kind == 'wendigo') wendigoStep(e);
 		const stopX = G.bar > 0 ? front + (e.id % 5) * 2 : A.RX + 26;
 		if (e.x > stopX) { e.x -= sp * DT; e.walk += sp * DT * .25; e.attacking = false }
 		else {
@@ -121,6 +153,8 @@ function nightStep() {
 			if (G.bar > 0) hitBar(ELF[e.kind].dps * D.dmg * DT); else hurtRudolf(ELF[e.kind].dps * .5 * D.dmg * DT);
 		}
 	}
+	throwsStep();
+	ripples();
 	/* spit arcs onto the barricade */
 	for (const s of N.spits) { s.t += DT; s.x += s.vx * DT; s.vy += 260 * DT; s.y += s.vy * DT; if (s.y >= s.ty && s.x < s.fx + 10) { s.done = true; if (G.bar > 0) hitBar(12 * D.dmg); else hurtRudolf(5 * D.dmg); burst(s.x, s.y, 8, '#b04dff') } }
 	N.spits = N.spits.filter(s => !s.done && s.t < 4);
@@ -128,7 +162,10 @@ function nightStep() {
 	/* survivors on guard */
 	G.surv.forEach((s, i) => {
 		if (s.role != 'guard' || s.disarmed || s.out) return; s.cd = (s.cd || 1 + i * .2) - DT; s.fire = Math.max(0, (s.fire || 0) - DT);
-		if (s.cd <= 0) { const tg = N.elves.filter(e => e.x < W - 10).sort((a, b) => a.x - b.x)[0]; if (tg) { s.cd = 1.1; s.fire = .12; damage(tg, (8 + G.night * .6), false); const sp = survPos(i); N.fx.push({k: 'bolt', x0: sp.x + 16, y0: sp.y - 18, x1: tg.x, y1: A.laneY(tg.lane) - 22 * ELF_S(tg), t: 0}); AU.sfx('bolt') } }
+		if (s.cd <= 0) { const tg = N.elves.filter(e => e.x < W - 10 && !e.flying).sort((a, b) => a.x - b.x)[0]; if (tg) { s.cd = 1.1; s.fire = .12; const sp = survPos(i);
+			/* in a blizzard nearly half the bolts go astray */
+			const miss = N.wx == 'blizzard' && R() < .45; if (!miss) damage(tg, (8 + G.night * .6), false); else s.missed = (s.missed || 0) + 1;
+			N.fx.push({k: 'bolt', x0: sp.x + 16, y0: sp.y - 18, x1: tg.x + (miss ? 30 : 0), y1: A.laneY(tg.lane) - 22 * ELF_S(tg) - (miss ? 30 : 0), t: 0}); AU.sfx('bolt') } }
 	});
 	if (N.barHit > 0) N.barHit -= DT * 3; if (N.hurt > 0) N.hurt -= DT; if (N.recoil > 0) N.recoil = Math.max(0, N.recoil - DT * 8);
 	fxStep();
@@ -142,6 +179,62 @@ const ELF_S = e => A.ELF[e.kind].s * A.depth(e.lane);
 const SURV_LANES = [3, 11, 6, 13, 1, 9];
 /* the survivors hold the barricade from just behind it */
 const survPos = i => ({x: 112 + (i % 3) * 10, y: A.laneY(SURV_LANES[i % 6])});
+/* the wendigo: every few seconds it takes up an elf near it, and after a moment throws it at the barricade; shoot the
+   elf it holds and it lets go */
+function wendigoStep(w) {
+	const s = ELF_S(w);
+	if (w.hold) {
+		const h = w.hold;
+		if (h.dead || h.hp < w.holdHp) { h.held = null; h.lift = 0; w.hold = null; if (!h.dead) N.fx.push({k: 'txt', x: w.x, y: A.laneY(w.lane) - 120, s: 'Dropped!', t: 0, long: true}); return }
+		w.holdT -= DT; h.x = w.x - 26 * s; h.lane = h.tl = w.lane; h.lift = 70 * s * Math.min(1, (1 - w.holdT) * 3);
+		if (w.holdT <= 0) { h.held = null; h.flying = true; N.throws.push({e: h, x0: h.x, l0: h.lane, lift0: h.lift, tx: A.front(h.lane) + 4, t: 0, dur: 1.1}); w.hold = null; AU.sfx('throw') }
+		return;
+	}
+	w.throwT -= DT;
+	if (w.throwT <= 0) {
+		const c = N.elves.filter(e => e !== w && !e.dead && !e.held && !e.flying && e.kind != 'wendigo' && e.kind != 'foreman' && Math.abs(e.x - w.x) < 110 && Math.abs(e.lane - w.lane) < 4).sort((a, b) => Math.abs(a.x - w.x) - Math.abs(b.x - w.x))[0];
+		if (c) { w.hold = c; c.held = w; w.holdT = 1; w.holdHp = c.hp; w.throwT = 6 } else w.throwT = 1;
+	}
+}
+function throwsStep() {
+	const D = DIFF[G.diff];
+	for (const t of N.throws) {
+		const e = t.e; t.t += DT; const k = Math.min(1, t.t / t.dur);
+		e.x = t.x0 + (t.tx - t.x0) * k; e.lift = t.lift0 * (1 - k) + Math.sin(k * PI) * 90;
+		if (e.dead) { t.done = true; continue }
+		if (k >= 1) { t.done = true; e.flying = false; e.lift = 0; if (G.bar > 0) hitBar(70 * D.dmg); else hurtRudolf(20 * D.dmg); burst(e.x, A.laneY(e.lane) - 20, 16, '#e8eefc', A.laneY(e.lane)); damage(e, 20, false); AU.sfx('thud'); if (!save.set.reduceFlash) N.shake = .2 }
+	}
+	N.throws = N.throws.filter(t => !t.done);
+}
+/* what Rudolf can see in fog or a blizzard: a cone of light from his nose towards the crosshair, and a little round him */
+const nose = () => ({x: A.RX + 13, y: A.RY - 1});
+const VIS = {fog: {half: .28, len: 2000, near: 120}, blizzard: {half: .16, len: 430, near: 80}};
+function seen(x, y) {
+	const v = VIS[N.wx]; if (!v) return true;
+	const o = nose(), dx = x - o.x, dy = y - o.y, d = Math.hypot(dx, dy);
+	if (Math.hypot(x - A.RX, y - A.RY) < v.near) return true;
+	let da = Math.atan2(dy, dx) - Math.atan2(cross.y - o.y, cross.x - o.x); da = Math.atan2(Math.sin(da), Math.cos(da));
+	return d < v.len && Math.abs(da) < v.half;
+}
+/* in fog, elves out of sight show where they are by the ripples of their sounds (not in a blizzard: the wind drowns them) */
+function ripples() {
+	if (N.wx != 'fog') return;
+	for (const e of N.elves) { if (e.dead) continue; e.rip = (e.rip == null ? Math.random() * 1.5 : e.rip) - DT; if (e.rip <= 0) { e.rip = 1.1 + Math.random() * .9; const y = A.laneY(e.lane) - 24 * ELF_S(e); if (!seen(e.x, y)) N.fx.push({k: 'rip', x: e.x, y, t: 0, big: e.kind == 'wendigo' || e.kind == 'bloater' || e.kind == 'brute'}) } }
+}
+let VC = null;
+function drawVision(x) {
+	const v = VIS[N.wx]; if (!v) return;
+	if (!VC) { VC = document.createElement('canvas'); VC.width = W; VC.height = H }
+	const c = VC.getContext('2d'), o = nose(), a = Math.atan2(cross.y - o.y, cross.x - o.x), fog = N.wx == 'fog';
+	c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, W, H); c.fillStyle = fog ? 'rgba(52,60,82,.94)' : 'rgba(212,220,236,.9)'; c.fillRect(0, 0, W, H);
+	c.globalCompositeOperation = 'destination-out';
+	const cone = (hf, L, al) => { c.fillStyle = `rgba(0,0,0,${al})`; c.beginPath(); c.moveTo(o.x, o.y); for (let i = 0; i <= 12; i++) { const t = a - hf + (i / 12) * hf * 2; c.lineTo(o.x + Math.cos(t) * L, o.y + Math.sin(t) * L) } c.closePath(); c.fill() };
+	cone(v.half * 1.4, v.len * 1.08, .35); cone(v.half * 1.15, v.len * 1.03, .5); cone(v.half, v.len, 1);
+	const g = c.createRadialGradient(A.RX, A.RY, 0, A.RX, A.RY, v.near * 1.3); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.7, 'rgba(0,0,0,.9)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+	x.drawImage(VC, 0, 0, W, H);
+	/* the nose's warm light */
+	x.globalCompositeOperation = 'lighter'; x.fillStyle = 'rgba(255,110,100,.05)'; x.beginPath(); x.moveTo(o.x, o.y); x.lineTo(o.x + Math.cos(a - v.half) * v.len, o.y + Math.sin(a - v.half) * v.len); x.lineTo(o.x + Math.cos(a + v.half) * v.len, o.y + Math.sin(a + v.half) * v.len); x.closePath(); x.fill(); x.globalCompositeOperation = 'source-over';
+}
 /* a mugger at the barricade takes a survivor's crossbow (a guard's first) */
 function steal(e) {
 	const order = G.surv.map((s, i) => i).filter(i => !G.surv[i].disarmed && !G.surv[i].out).sort((a, b) => (G.surv[b].role == 'guard') - (G.surv[a].role == 'guard'));
@@ -236,8 +329,8 @@ function flame(w, mx, my, a0) {
 	for (let i = 0; i < 2; i++) N.fx.push({k: 'fire', x: mx, y: my, vx: Math.cos(a0 + (Math.random() - .5) * .3) * (260 + Math.random() * 80), vy: Math.sin(a0 + (Math.random() - .5) * .3) * 280, t: 0});
 	if (hit) G.hits++;
 }
-function headOf(e) { const s = ELF_S(e), h = A.elfHead(e.kind, s); return {x: e.x + h.dx, y: A.laneY(e.lane) + h.dy, r: h.r + 1} }
-function bodyOf(e) { const s = ELF_S(e), b = A.elfBody(e.kind, s); return {x: e.x + b.dx, y: A.laneY(e.lane) + b.dy, r: b.r} }
+function headOf(e) { const s = ELF_S(e), h = A.elfHead(e.kind, s); return {x: e.x + h.dx, y: A.laneY(e.lane) - (e.lift || 0) + h.dy, r: h.r + 1} }
+function bodyOf(e) { const s = ELF_S(e), b = A.elfBody(e.kind, s); return {x: e.x + b.dx, y: A.laneY(e.lane) - (e.lift || 0) + b.dy, r: b.r} }
 /* the elf under the point (the nearest lane wins), then for piercing shots the ones behind it in about the same lane */
 function pointHits(x, y, pierce) {
 	let best = null;
@@ -263,12 +356,12 @@ function nearestHead(x, y, r) { let best = null, bd = r * r; for (const e of N.e
 function burst(x, y, n, col, floor) { for (let i = 0; i < n && N.fx.length < 600; i++) { const a = Math.random() * PI * 2, v = 30 + Math.random() * 120; N.fx.push({k: 'p', x, y, fl: floor || y + 20, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, t: 0, col, life: .5 + Math.random() * .6}) } }
 function fxStep() {
 	for (const f of N.fx) { f.t += DT; if (f.k == 'p') { f.x += f.vx * DT; f.y += f.vy * DT; f.vy += 300 * DT; if (f.y > f.fl) { f.y = f.fl; f.vy *= -.2; f.vx *= .5 } } else if (f.k == 'fire') { f.x += f.vx * DT; f.y += f.vy * DT; f.vy -= 120 * DT } }
-	N.fx = N.fx.filter(f => f.t < (f.k == 'p' ? f.life : f.k == 'txt' ? (f.long ? 2.6 : .9) : f.k == 'ring' ? .4 : f.k == 'fire' ? .55 : f.k == 'beam' ? .3 : .12));
+	N.fx = N.fx.filter(f => f.t < (f.k == 'p' ? f.life : f.k == 'rip' ? .9 : f.k == 'txt' ? (f.long ? 2.6 : .9) : f.k == 'ring' ? .4 : f.k == 'fire' ? .55 : f.k == 'beam' ? .3 : .12));
 	for (const s of N.slush) s.t += DT; N.slush = N.slush.filter(s => s.t < 6);
 	if (N.shake > 0) N.shake -= DT;
 }
 
-/* ---------- the rescue (Night 15) ---------- */
+/* ---------- the rescue (the last night) ---------- */
 function startRescue() { N.sleigh = {t: 0, x: W + 80, y: 40, phase: 'in'}; AU.music('rescue'); AU.sfx('jingle'); N.msg = {t: 0, text: 'Bells in the sky…', sub: ''} }
 function rescueStep() {
 	const S = N.sleigh; S.t += DT;
@@ -286,6 +379,7 @@ function draw() {
 	if (screen == 'title' || !N) { A.scene(x, W, H, T, 0, 0); for (let i = 0; i < 3; i++) { const p = survPos(i); A.survivor(x, KINDS[i], p.x, T, false, p.y) } A.rudolf(x, -.15, 'icicle', T, 0, 0); A.barricade(x, 1, T, 0); fakeHorde(x); A.snow(x, W, H, T); titleText(x); x.restore(); return }
 	if (N.shake > 0 && !rf) x.translate((Math.random() - .5) * 6, (Math.random() - .5) * 3);
 	A.scene(x, W, H, T, G.night, N.dawn);
+	if (N.wx == 'moon') { x.drawImage(A.white, W - 230, -20, 200, 200); x.beginPath(); x.arc(W - 130, 70, 32, 0, 7); x.fillStyle = '#fbf8ef'; x.fill() }
 	for (const s of N.slush) A.slush(x, s, T);
 	/* the survivors and Rudolf, the long barricade, then the elves (far lanes first) */
 	const board = N.sleigh && N.sleigh.board || 0, away = N.sleigh && N.sleigh.phase == 'away';
@@ -312,6 +406,10 @@ function draw() {
 	}
 	if (N.sleigh) A.sleigh(x, N.sleigh.x, N.sleigh.y, T, N.sleigh.phase == 'light');
 	A.snow(x, W, H, T);
+	if (N.wx == 'moon') { x.globalCompositeOperation = 'screen'; x.fillStyle = 'rgba(70,78,110,.25)'; x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'source-over' }
+	if (!N.sleigh || N.sleigh.phase == 'in') drawVision(x);
+	if (N.wx == 'blizzard') { x.strokeStyle = 'rgba(245,248,255,.7)'; x.lineWidth = 1.4; x.beginPath(); for (let i = 0; i < 160; i++) { const sx = (A.hash(i, 21) * (W + 200) - T * (260 + A.hash(i, 22) * 200)) % (W + 200), px = sx < 0 ? sx + W + 200 : sx, py = (A.hash(i, 23) * H + T * (90 + A.hash(i, 24) * 60)) % H; x.moveTo(px, py); x.lineTo(px - 12, py + 4) } x.stroke() }
+	for (const f of N.fx) if (f.k == 'rip') { const k = f.t / .9; x.strokeStyle = `rgba(225,232,255,${(1 - k) * .8})`; x.lineWidth = f.big ? 2.2 : 1.4; for (const m of [1, .6]) { x.beginPath(); x.ellipse(f.x, f.y, (f.big ? 34 : 22) * k * m + 2, (f.big ? 14 : 9) * k * m + 1, 0, 0, 7); x.stroke() } }
 	if (N.hurt > 0 && !rf) { x.fillStyle = `rgba(120,0,40,${N.hurt * .4})`; x.fillRect(0, 0, W, H) }
 	hud(x);
 	/* the crosshair: its gap shows the spread */
@@ -327,10 +425,10 @@ function draw() {
 function hud(x) {
 	x.fillStyle = 'rgba(5,6,14,.6)'; x.fillRect(0, 0, W, 28);
 	x.font = 'bold 13px system-ui,sans-serif'; x.textBaseline = 'middle'; x.textAlign = 'left'; x.fillStyle = '#f1e9ff';
-	x.fillText('Night ' + G.night + ' of ' + LAST, 8, 14);
+	x.fillText('Night ' + (N.night || G.night) + ' of ' + LAST + ' · ' + WX[N.wx].icon + ' ' + WX[N.wx].name, 8, 14);
 	x.font = '11px system-ui,sans-serif'; x.fillStyle = '#c9c2dd';
 	const left = G.night == LAST ? (N.sleigh ? 'The sleigh is here!' : 'The sleigh comes in ' + Math.max(0, Math.ceil(SLEIGH_AT - N.t)) + ' s') : (N.q.length + N.elves.length) + ' left';
-	x.fillText(left, 104, 14);
+	x.fillText(left, 200, 14);
 	const bar = (X, label, v, max, col) => { x.fillStyle = 'rgba(255,255,255,.15)'; x.fillRect(X, 9, 110, 10); x.fillStyle = col; x.fillRect(X, 9, 110 * Math.max(0, v / max), 10); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(label, X - 4, 14); x.textAlign = 'left' };
 	bar(W - 400, 'Barricade', G.bar, G.barMax, G.bar / G.barMax < .3 ? '#e0603a' : '#b98a4a'); bar(W - 150, 'Rudolf', G.hp, 100, '#ff6f91');
 	/* the weapon */
@@ -347,7 +445,7 @@ function hud(x) {
 function fakeHorde(x) { for (let i = 0; i < 6; i++) { const e = {id: i + 1, kind: ['shambler', 'sprinter', 'mugger', 'bloater', 'crawler', 'shambler'][i], x: 470 + i * 70 + Math.sin(T * .3 + i) * 6, lane: [2, 9, 5, 12, 7, 13][i], walk: T * 2 + i, chill: 0, burn: 0, hitT: 0}; A.elf(x, e, T, save.set.reduceFlash) } }
 function titleText(x) {
 	x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = 'bold 40px system-ui,sans-serif'; x.lineWidth = 6; x.strokeStyle = 'rgba(0,0,0,.75)'; x.strokeText('Frost Barricade', W / 2, 64); x.fillStyle = '#f4ecff'; x.fillText('Frost Barricade', W / 2, 64);
-	x.font = '13px system-ui,sans-serif'; x.fillStyle = '#c9c2dd'; x.strokeText('Fifteen nights. One barricade.', W / 2, 96); x.fillText('Fifteen nights. One barricade.', W / 2, 96);
+	x.font = '13px system-ui,sans-serif'; x.fillStyle = '#c9c2dd'; x.strokeText('Twenty-five nights. One barricade.', W / 2, 96); x.fillText('Twenty-five nights. One barricade.', W / 2, 96);
 }
 
 /* ---------- sound (Web Audio; no files) ---------- */
@@ -376,7 +474,9 @@ const AU = (() => {
 		case 'boom': nz(out, t, .7, .7, 500); tone(out, t, 90, .6, 'sine', .4, 30); break;
 		case 'fall': nz(out, t, .25, .12, 400); tone(out, t, 160, .25, 'sawtooth', .04, 60); break;
 		case 'fallbig': nz(out, t, .6, .3, 300); tone(out, t, 90, .7, 'sawtooth', .1, 30); break;
-		case 'groan': tone(out, t, 90 + Math.random() * 30, .9, 'sawtooth', .035, 60); break;
+		case 'groan': tone(out, t, 90 + Math.random() * 30, .9, 'sawtooth', N && N.wx == 'fog' ? .06 : .035, 60); break;
+		case 'screech': tone(out, t, 1900, 1.6, 'sawtooth', .09, 380); tone(out, t + .05, 2300, 1.4, 'square', .04, 500); nz(out, t, 1.4, .18, 3500, 'bandpass'); break;
+		case 'throw': nz(out, t, .35, .2, 600); tone(out, t, 140, .4, 'sawtooth', .06, 60); break;
 		case 'thud': nz(out, t, .18, .25, 300); break;
 		case 'hurt': tone(out, t, 300, .2, 'square', .06, 150); break;
 		case 'spit': nz(out, t, .2, .15, 1200, 'bandpass'); break;
@@ -422,32 +522,52 @@ function dawn() {
 }
 function dayScreen() {
 	screen = 'day'; bar();
-	const p = G.plan, used = p.repair + p.search + p.train;
-	const row = (k, label, what) => `<div class="hrow"><span><b>${label}</b><small>${what}</small></span><button data-h="${k}" data-d="-1" aria-label="Fewer hours for ${label}">−</button><b class="hn">${p[k]} h</b><button data-h="${k}" data-d="1" aria-label="More hours for ${label}">+</button></div>`;
+	const p = G.plan, wx = wxOf(G.night), noSearch = wx == 'blizzard';
+	if (noSearch && p.search) { p.repair = Math.min(12, p.repair + p.search); p.search = 0 }
+	const used = p.repair + p.search + p.train;
+	const row = (k, label, what, off) => `<div class="hrow${off ? ' off' : ''}"><span><b>${label}</b><small>${what}</small></span><button data-h="${k}" data-d="-1" aria-label="Fewer hours for ${label}"${off ? ' disabled' : ''}>−</button><b class="hn">${p[k]} h</b><button data-h="${k}" data-d="1" aria-label="More hours for ${label}"${off ? ' disabled' : ''}>+</button></div>`;
 	const owned = ORDER.filter(k => G.wp[k].have).map(k => WEP[k].name + (WEP[k].inf ? '' : ' (' + (G.wp[k].res + G.wp[k].mag) + ')')).join(', ');
-	let html = `<h2>Day ${G.night - 1 || 1} · before Night ${G.night}</h2><p>The barricade: <b>${Math.round(G.bar)} / ${G.barMax}</b>. Rudolf: <b>${Math.round(G.hp)}</b>. ${12 - used} of 12 hours left to plan.</p>` +
-		row('repair', 'Repair', '+70 to the barricade an hour') + row('search', 'Search', 'weapons, ammo, survivors') + row('train', 'Train', 'steadier aim, faster reloads (' + G.skill + '/30)');
+	let html = `<h2>Day ${G.night} · before Night ${G.night}</h2>` + radio() + `<p>The barricade: <b>${Math.round(G.bar)} / ${G.barMax}</b>. Rudolf: <b>${Math.round(G.hp)}</b>. ${12 - used} of 12 hours left to plan.</p>` +
+		row('repair', 'Repair', '+70 to the barricade an hour') +
+		row('search', 'Search', noSearch ? 'not in a blizzard' : wx == 'fog' ? 'slow and risky in the fog' : wx == 'clear' ? 'weapons, ammo, survivors; quicker today' : 'weapons, ammo, survivors', noSearch) +
+		row('train', 'Train', 'steadier aim, faster reloads (' + G.skill + '/30)');
 	if (G.surv.length) html += '<h3>Survivors</h3>' + G.surv.map((s, i) => `<div class="hrow"><span><b>${s.name}</b><small>a ${s.kind}</small></span><button data-s="${i}" class="role">${ROLES[s.role].split(' (')[0]}</button></div>`).join('');
 	html += `<p class="small">Carrying: ${owned}.</p>`;
-	if (G.night == LAST - 1 && !G.letter) html += '<p class="note">A snowy owl lands on the barricade with a note tied to its leg: <i>“Hold on through the fifteenth night. I am coming for all of you. — Captain Quill”</i></p>';
+	if (G.night == LAST - 1 && !G.letter) html += '<p class="note">A snowy owl lands on the barricade with a note tied to its leg: <i>“Hold on through the storm, to the end of the twenty-fifth night. I am coming for all of you. — Captain Quill”</i></p>';
 	dialog(html, [['Spend the day', runDay, 1], ['Save and quit', toTitle, 0, 1]], 'day');
-	document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { const k = b.dataset.h, d = +b.dataset.d, u = p.repair + p.search + p.train; if (d > 0 && u >= 12) return; p[k] = Math.max(0, p[k] + d); AU.sfx('ok'); dayScreen(); const nb = document.querySelector(`[data-h="${k}"][data-d="${d}"]`); nb && nb.focus() });
+	document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { const k = b.dataset.h, d = +b.dataset.d, u = p.repair + p.search + p.train; if (d > 0 && u >= 12) return; if (k == 'search' && noSearch) return; p[k] = Math.max(0, p[k] + d); AU.sfx('ok'); dayScreen(); const nb = document.querySelector(`[data-h="${k}"][data-d="${d}"]`); nb && nb.focus() });
 	document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { const s = G.surv[+b.dataset.s], ks = Object.keys(ROLES); s.role = ks[(ks.indexOf(s.role) + 1) % ks.length]; dayScreen(); const nb = document.querySelector(`[data-s="${b.dataset.s}"]`); nb && nb.focus() });
+}
+/* the weather radio: tonight, tomorrow night, and warnings */
+function radio() {
+	const n = G.night, t = wxOf(n), m = n < LAST ? wxOf(n + 1) : null;
+	let h = `<div class="radio" role="status" aria-label="Weather radio"><b>📻 Weather radio</b><p><b>${WX[t].icon} Tonight, Night ${n}: ${WX[t].name}.</b> ${WX[t].tonight}</p>`;
+	if (m) h += `<p><b>Tomorrow night:</b> ${WX[m].tomorrow}.</p>`;
+	if (n == 22) h += '<p class="warn">⚠ Storm warning: a great blizzard comes in tomorrow and will not let up for three nights. No searching then; tonight and today are the last chance.</p>';
+	else if (m == 'blizzard' && t != 'blizzard') h += '<p class="warn">⚠ Blizzard warning for tomorrow: nobody will be able to search. Search today if you need to.</p>';
+	return h + '</div>';
 }
 function runDay() {
 	const p = G.plan, rng = RG.rng(G.seed + ':day:' + G.night), out = [];
 	if (G.night == LAST - 1) G.letter = true;
 	const rep = p.repair * 70 + G.surv.filter(s => s.role == 'repair').length * 50, before = G.bar;
 	G.bar = Math.min(G.barMax, G.bar + rep); if (G.bar > before) out.push('Repaired the barricade: +' + Math.round(G.bar - before) + '.');
-	const hours = p.search + G.surv.filter(s => s.role == 'scout').length;
+	const wx = wxOf(G.night), scouts = G.surv.filter(s => s.role == 'scout');
+	let hours = wx == 'blizzard' ? 0 : p.search + scouts.length;
+	if (wx == 'blizzard') out.push('The blizzard kept everyone inside: no searching today.');
+	/* clear days: searching goes quicker (about a third more done); fog: less is found, and scouts may not come back */
+	if (wx == 'clear') hours += Math.floor(hours * .3 + rng());
+	const f = wx == 'fog' ? .55 : 1;
+	if (wx != 'blizzard') for (const sc of scouts) if (rng() < (wx == 'fog' ? .12 : .03)) { G.surv.splice(G.surv.indexOf(sc), 1); out.push('<b>' + sc.name + '</b> went out to search and did not come back' + (wx == 'fog' ? ' from the fog.' : '.')) }
 	for (let h = 0; h < hours; h++) {
 		const r = rng();
 		const next = ORDER.find(k => !G.wp[k].have && WEP[k].night <= G.night);
-		if (next && r < .12 + G.night * .02) { G.wp[next].have = true; G.wp[next].mag = WEP[next].mag; G.wp[next].res = WEP[next].find; out.push('<b>Found the ' + WEP[next].name + '!</b> ' + WEP[next].desc) }
-		else if (r < .4) { const ks = ORDER.filter(k => G.wp[k].have && !WEP[k].inf); if (ks.length) { const k = ks[Math.floor(rng() * ks.length)], n = Math.round(WEP[k].find * (.4 + rng() * .5)); G.wp[k].res += n; out.push('Ammunition for the ' + WEP[k].name + ': +' + n + '.') } else out.push('Searched the sheds: nothing useful.') }
-		else if (r < .52 && G.surv.length < 6) { const used = new Set(G.surv.map(s => s.name)), free = NAMES.filter(n => !used.has(n)), nm = free[Math.floor(rng() * free.length)]; const kind = KINDS[Math.floor(rng() * KINDS.length)]; G.surv.push({name: nm, kind, role: 'guard'}); out.push('<b>' + nm + '</b>, a ' + kind + ', was hiding in the old mill and joins the barricade.') }
-		else if (r < .65) { G.hp = Math.min(100, G.hp + 15); out.push('Found bandages and a flask of cocoa: Rudolf +15.') }
-		else out.push('Searched the woods’ edge: nothing but snow.');
+		const pw = next ? (.12 + Math.min(G.night, 15) * .02) * f : 0, pa = pw + .28 * f, ps = pa + .12 * f, pb = ps + .13;
+		if (next && r < pw) { G.wp[next].have = true; G.wp[next].mag = WEP[next].mag; G.wp[next].res = WEP[next].find; out.push('<b>Found the ' + WEP[next].name + '!</b> ' + WEP[next].desc) }
+		else if (r < pa) { const ks = ORDER.filter(k => G.wp[k].have && !WEP[k].inf); if (ks.length) { const k = ks[Math.floor(rng() * ks.length)], n = Math.round(WEP[k].find * (.4 + rng() * .5)); G.wp[k].res += n; out.push('Ammunition for the ' + WEP[k].name + ': +' + n + '.') } else out.push('Searched the sheds: nothing useful.') }
+		else if (r < ps && G.surv.length < 6) { const used = new Set(G.surv.map(s => s.name)), free = NAMES.filter(n => !used.has(n)), nm = free[Math.floor(rng() * free.length)]; const kind = KINDS[Math.floor(rng() * KINDS.length)]; G.surv.push({name: nm, kind, role: 'guard'}); out.push('<b>' + nm + '</b>, a ' + kind + ', was hiding in the old mill and joins the barricade.') }
+		else if (r < pb) { G.hp = Math.min(100, G.hp + 15); out.push('Found bandages and a flask of cocoa: Rudolf +15.') }
+		else out.push(wx == 'fog' ? 'Searched blind in the fog: nothing found.' : 'Searched the woods’ edge: nothing but snow.');
 	}
 	if (p.train) { const s0 = G.skill; G.skill = Math.min(30, G.skill + p.train); if (G.skill > s0) out.push('Practised at the barricade: aim ' + G.skill + '/30.') }
 	G.morning = null; persist(true);
@@ -463,7 +583,7 @@ function retryNight() { if (G.morning) { G = JSON.parse(JSON.stringify(G.morning
 function ending() {
 	save.wins++; save.run = null; persist(); screen = 'end'; bar();
 	const acc = G.shots ? Math.round(G.hits / G.shots * 100) : 0;
-	dialog(`<h2>Dawn</h2><p>The sleigh climbs into a pink sky. Below, the barricade stands where Rudolf and ${G.surv.length ? G.surv.length + ' friends' : 'his friends'} kept it for fifteen nights.</p><p>${G.kills} elves fell to the corruption’s end; ${G.heads} by the eyes. Accuracy ${acc}%.</p><p><b>Thank you for holding the line.</b></p>`, [['Title', toTitle, 1]]);
+	dialog(`<h2>Dawn</h2><p>The sleigh climbs into a pink sky. Below, the barricade stands where Rudolf and ${G.surv.length ? G.surv.length + ' friends' : 'his friends'} kept it for twenty-five nights.</p><p>${G.kills} elves fell to the corruption’s end; ${G.heads} by the eyes. Accuracy ${acc}%.</p><p><b>Thank you for holding the line.</b></p>`, [['Title', toTitle, 1]]);
 }
 
 /* ---------- menus ---------- */
@@ -482,7 +602,7 @@ function toTitle() {
 	dialog('<p class="age">For older players: cartoon horror and combat.</p>' + (save.wins ? '<p class="small">The line held ' + save.wins + ' time' + (save.wins > 1 ? 's' : '') + '.</p>' : save.best > 1 ? '<p class="small">Furthest: Night ' + save.best + '.</p>' : ''), B, 'title');
 }
 function pickDiff() {
-	const b = d => [DIFF[d].name, () => { save.set.diff = d; newRun(d); G.plan = {repair: 0, search: 6, train: 2}; G.morning = snapshot(); save.run = snapshot(); persist(); closeDialog(); startNight() }, save.set.diff == d];
+	const b = d => [DIFF[d].name, () => { save.set.diff = d; newRun(d); save.run = snapshot(); persist(); AU.music('day'); dayScreen() }, save.set.diff == d];
 	dialog('<h2>New game</h2>' + (save.run ? '<p>This replaces the game you have going.</p>' : '') + '<p>Easy: fewer, weaker elves. Hard: more of them, and stronger.</p>', [b('easy'), b('normal'), b('hard'), ['Back', toTitle, 0, 1]], 'title');
 }
 function menuOptions() {
@@ -498,7 +618,9 @@ function help(back) {
 		'<p><b>Shoot:</b> click where to shoot (hold for automatic weapons); or tap the field; or aim with the arrows or a controller’s stick and fire with Z, Space or a trigger. Their <b>glowing eyes</b> are the weak spot.</p><p><b>The eyes say what they will do:</b> white, the ordinary ones; <b style="color:#ff5a5a">red</b>, sprinters that dash for the barricade; <b style="color:#ffd23f">yellow</b>, bloaters that burst when they fall, hurting everything near (the barricade and your survivors too); <b style="color:#7dff4a">green</b>, muggers that weave between lanes and steal a survivor’s weapon: bring them down before they get back to the woods.</p>' +
 		'<p><b>Reload:</b> R, right-click, X on a controller, or the Reload button. <b>Weapons:</b> 1–9, Q and E, the bumpers, or the buttons below the field.</p>' +
 		'<p><b>By day</b> plan twelve hours: repair the barricade, search for weapons, ammunition and survivors, or train. Survivors can guard, repair or scout.</p>' +
-		'<p>Hold out for fifteen nights.</p>', [['OK', back || null, 1, 1]], 'title');
+		'<p><b>The weather radio</b> on each day’s plan tells tonight’s weather and tomorrow’s. <b>Clear:</b> searching goes quicker. <b>Fog:</b> you only see what Rudolf’s nose lights, towards the crosshair; out of the light they show as ripples of sound; searching is slow and risky. <b>Blizzard:</b> even less to see, no ripples, no searching, the survivors’ aim suffers, but nothing sprints. <b>Full moon:</b> once a game; bright, but every white-eyed elf runs, and a wendigo comes.</p>' +
+		'<p>A <b>screech</b> means a wendigo: huge, very hard to bring down, and it throws elves at the barricade. Shoot the elf it is holding to make it let go.</p>' +
+		'<p>Hold out for twenty-five nights.</p>', [['OK', back || null, 1, 1]], 'title');
 }
 function menuPause() {
 	AU.hold(true);
@@ -581,7 +703,7 @@ async function start() {
 	toTitle();
 	if (!save.seenHelp) { save.seenHelp = 1; persist(); help(toTitle) }
 	RG.loop(update, draw, {whilePaused: true});
-	window.__fb = {W, H, headOf, bodyOf, nightCount, hpMul, wildChance, pickKind, survPos, BLOAT_R, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
+	window.__fb = {W, H, LAST, headOf, bodyOf, nightCount, hpMul, wildChance, pickKind, survPos, BLOAT_R, makeWeather, wxOf, seen, radio, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
 		run(n) { for (let i = 0; i < n && N && !N.over; i++) { inputStep(); nightStep() } return N && {t: N.t, elves: N.elves.length, q: N.q.length, bar: G.bar, hp: G.hp, kills: G.kills} }};
 }
 start();

@@ -33,3 +33,9 @@ button.main{background:var(--on);color:var(--onfg);border-color:var(--on);font-w
 .hrow button{min-height:34px;min-width:38px;text-align:center;padding:4px 8px}
 .hrow .role{min-width:110px}
 .hn{min-width:34px;text-align:center}
+.radio{background:rgba(217,168,91,.08);border:1px solid rgba(217,168,91,.45);border-radius:9px;padding:8px 10px;margin:6px 0 8px;font-size:13px}
+.radio>b{display:block;color:#f0d9a8;margin-bottom:2px;font-size:12px;letter-spacing:.02em}
+.radio p{margin:4px 0}
+.radio .warn{color:#ffd0a0;font-weight:600}
+.hrow.off{opacity:.5}
+.hrow button:disabled{cursor:not-allowed}

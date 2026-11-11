@@ -154,19 +154,21 @@ A.ELF = {
 	foreman: {s: 2.3, skin: '#2e2638', cloth: '#14161f', hat: '#2a1220', eye: EYE.white},
 	sprinter: {s: .92, skin: '#3a3346', cloth: '#2a1f33', hat: '#1f2a24', eye: EYE.red},
 	bloater: {s: 1.35, skin: '#3b3245', cloth: '#262014', hat: '#2a1f33', eye: EYE.yellow},
-	mugger: {s: .95, skin: '#383046', cloth: '#1e2a1a', hat: '#14201a', eye: EYE.green}};
+	mugger: {s: .95, skin: '#383046', cloth: '#1e2a1a', hat: '#14201a', eye: EYE.green},
+	wendigo: {s: 2.5, skin: '#231c2a', cloth: '#120e16', hat: '#120e16', eye: EYE.red}};
 /* hit areas (relative to the feet), scaled by size: the head is the weak spot */
-A.elfHead = (kind, s) => kind == 'crawler' ? {dx: -10 * s, dy: -12 * s, r: 6.5 * s} : {dx: -1 * s, dy: -36 * s, r: 7 * s};
-A.elfBody = (kind, s) => kind == 'crawler' ? {dx: 2 * s, dy: -8 * s, r: 9 * s} : {dx: 0, dy: -18 * s, r: 10.5 * s};
+A.elfHead = (kind, s) => kind == 'crawler' ? {dx: -10 * s, dy: -12 * s, r: 6.5 * s} : kind == 'wendigo' ? {dx: -4 * s, dy: -46 * s, r: 5.5 * s} : {dx: -1 * s, dy: -36 * s, r: 7 * s};
+A.elfBody = (kind, s) => kind == 'crawler' ? {dx: 2 * s, dy: -8 * s, r: 9 * s} : kind == 'wendigo' ? {dx: 0, dy: -28 * s, r: 9 * s} : {dx: 0, dy: -18 * s, r: 10.5 * s};
 A.elf = function (x, e, t, rf) {
-	const D = A.ELF[e.kind], s = D.s * A.depth(e.lane || 0), X = e.x, Y = A.laneY(e.lane || 0), ph = e.walk;
+	const D = A.ELF[e.kind], s = D.s * A.depth(e.lane || 0), X = e.x, Y = A.laneY(e.lane || 0) - (e.lift || 0), ph = e.walk;
 	x.save(); x.translate(X, Y);
 	/* a shadow */
-	x.fillStyle = 'rgba(0,0,0,.35)'; oval(x, 0, 2, 12 * s, 3 * s); x.fill();
+	x.fillStyle = 'rgba(0,0,0,.35)'; oval(x, 0, 2 + (e.lift || 0), 12 * s, 3 * s); x.fill();
 	if (e.chill > 0) { x.globalAlpha = .9 }
 	const jit = rf ? 0 : (hash(e.id, Math.floor(t * 12)) > .93 ? (hash(e.id, 3) - .5) * 3 : 0);
 	x.translate(jit, 0); x.scale(s, s);
 	const lineC = e.hitT > 0 ? '#ffffff' : '#120a18';
+	if (e.kind == 'wendigo') { wendigo(x, e, t, rf, lineC, D); x.restore(); return }
 	if (e.kind == 'crawler') {
 		/* dragging itself low along the snow */
 		x.beginPath(); x.moveTo(-16, -6); x.lineTo(-6, -14); x.lineTo(8, -12); x.lineTo(16, -6); x.lineTo(12, -1); x.lineTo(-12, -1); x.closePath(); fl(x, D.cloth, lineC, 1.3);
@@ -197,6 +199,35 @@ A.elf = function (x, e, t, rf) {
 	if (e.chill > 0) { x.globalAlpha = .45; x.drawImage(A.ice, X - 16 * s, Y - 40 * s, 32 * s, 40 * s); x.globalAlpha = 1 }
 	if (e.burn > 0) { x.globalAlpha = .7; x.drawImage(A.fire, X - 10 * s + (hash(e.id, Math.floor(t * 10)) - .5) * 8, Y - 30 * s, 20 * s, 24 * s); x.globalAlpha = 1 }
 };
+/* the wendigo: an original design for this game. Gaunt and very tall, long-limbed, with a narrow skull-like face and
+   sharp branching antlers (unlike Rudolf's soft round ones), in the same dark, jagged corruption as the elves; its
+   eyes are always red. Frightening by shape and size, not by gore. */
+function wendigo(x, e, t, rf, lineC, D) {
+	const ph = e.walk, sw = Math.sin(ph) * 5;
+	/* long legs, bent backwards at the knee */
+	x.strokeStyle = D.skin; x.lineWidth = 3.2;
+	for (const k of [1, -1]) { x.beginPath(); x.moveTo(k * 2, -22); x.lineTo(k * 2 + 4 + sw * k, -11); x.lineTo(k * 1 - 2 + sw * k, 0); x.stroke() }
+	/* a narrow, ridged torso, hunched forward */
+	x.beginPath(); x.moveTo(-5, -38); x.lineTo(6, -40); x.lineTo(7, -30); x.lineTo(5, -21); x.lineTo(-4, -20); x.lineTo(-7, -29); x.closePath(); fl(x, D.skin, lineC, 1);
+	x.strokeStyle = 'rgba(0,0,0,.45)'; x.lineWidth = .8; for (let i = 0; i < 4; i++) { x.beginPath(); x.moveTo(-5, -35 + i * 3.5); x.lineTo(4, -36 + i * 3.5); x.stroke() }
+	/* very long arms with long claws, reaching ahead */
+	const reach = e.hold ? -8 : Math.sin(t * 2 + e.id) * 2;
+	x.strokeStyle = D.skin; x.lineWidth = 2.4;
+	x.beginPath(); x.moveTo(-4, -37); x.lineTo(-14, -30 + reach); x.lineTo(-24, e.hold ? -40 : -20 + reach); x.stroke();
+	x.beginPath(); x.moveTo(2, -37); x.lineTo(-8, -28); x.lineTo(-18, -16 - reach); x.stroke();
+	x.strokeStyle = '#0c0910'; x.lineWidth = 1; for (const [hx, hy] of [[-24, e.hold ? -40 : -20 + reach], [-18, -16 - reach]]) for (let k = 0; k < 3; k++) { x.beginPath(); x.moveTo(hx, hy); x.lineTo(hx - 4, hy - 2 + k * 2); x.stroke() }
+	/* the skull-like face on a long neck */
+	x.strokeStyle = D.skin; x.lineWidth = 2.6; x.beginPath(); x.moveTo(0, -39); x.lineTo(-3, -43); x.stroke();
+	x.beginPath(); x.moveTo(-8, -47); x.lineTo(-4, -51); x.lineTo(1, -50); x.lineTo(2, -45); x.lineTo(-2, -41); x.lineTo(-7, -42); x.closePath(); fl(x, '#3a3240', lineC, 1);
+	/* sharp branching antlers */
+	x.strokeStyle = '#2a2230'; x.lineWidth = 1.6;
+	for (const k of [1, -1]) { const bx = -3 + k * 2, by = -50; x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + k * 6, by - 8); x.lineTo(bx + k * 9, by - 16); x.moveTo(bx + k * 6, by - 8); x.lineTo(bx + k * 12, by - 9); x.moveTo(bx + k * 8, by - 13); x.lineTo(bx + k * 4, by - 18); x.moveTo(bx + k * 10, by - 9); x.lineTo(bx + k * 14, by - 13); x.stroke() }
+	/* red eyes, narrow, no highlights */
+	if (!rf) x.drawImage(A.eyeR, -12, -52, 14, 10);
+	x.fillStyle = D.eye; x.beginPath(); x.moveTo(-7, -47); x.lineTo(-4.5, -46.4); x.lineTo(-7, -45.6); x.closePath(); x.fill(); x.beginPath(); x.moveTo(-3.5, -47); x.lineTo(-1, -46.4); x.lineTo(-3.5, -45.6); x.closePath(); x.fill();
+	/* frost breath */
+	if (!rf) { x.fillStyle = 'rgba(220,230,255,.25)'; x.beginPath(); x.ellipse(-12 - (t * 8 % 6), -44, 3 + (t * 4 % 3), 1.6, 0, 0, 7); x.fill() }
+}
 function head(x, X, Y, D, e, t, rf, lineC) {
 	/* long pointed ears, a gaunt face, a drooping hat with a cracked bell */
 	x.beginPath(); x.moveTo(X + 2, Y - 2); x.lineTo(X + 12, Y - 8); x.lineTo(X + 4, Y + 2); x.closePath(); fl(x, D.skin, lineC, 1.1);
