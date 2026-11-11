@@ -83,20 +83,48 @@ async function open(pg) {
 		ok('13. the Hearthfire sets them burning; the Sleigh-Bell Gatling winds up; the Carbine fires bursts of three', fx.burn && fx.spin[1] > fx.spin[0] * 1.5 && fx.burst == 3, fx);
 		/* fifteen lanes; changing lanes and sprinting from none on Night 1 to almost half on Night 15 */
 		const ln = await f.evaluate(() => { const G = __fb.G, N = __fb.N, n0 = G.night, out = {};
-			const sample = night => { G.night = night; N.elves = []; for (let i = 0; i < 600; i++) __fb.spawn('shambler'); const r = {lanes: new Set(N.elves.map(e => e.lane)).size, ch: N.elves.filter(e => e.changer).length / 600, sp: N.elves.filter(e => e.sprinter).length / 600}; N.elves = []; return r };
+			const sample = night => { G.night = night; N.elves = []; const ks = []; for (let i = 0; i < 1200; i++) { const k = __fb.pickKind(night); ks.push(k); if (i < 600) __fb.spawn('shambler') } const nb = ks.filter(k => k != 'bloater').length; const r = {lanes: new Set(N.elves.map(e => e.lane)).size, ch: N.elves.filter(e => e.changer).length / 600, sp: ks.filter(k => k == 'sprinter' || k == 'mugger').length / nb, mug: ks.filter(k => k == 'mugger').length}; N.elves = []; return r };
 			out.n1 = sample(1); out.n8 = sample(8); out.n15 = sample(15);
 			out.counts = [1, 2, 8, 14].map(n => __fb.nightCount(n, {count: 1})); out.hp = [1, 2, 15].map(n => +__fb.hpMul(n).toFixed(3));
 			/* a lane-changer drifts over gradually; a sprinter dashes */
 			G.night = 15; N.q = [[1e9, 'shambler']]; __fb.spawn('shambler'); const e = N.elves[0]; e.changer = true; e.sprinter = false; e.lane = e.tl = 7; e.lcT = 0; e.x = 800; const lanes = []; for (let i = 0; i < 90; i++) { __fb.run(1); lanes.push(e.lane) }
 			out.change = {from: 7, to: e.tl, steps: lanes.filter((v, i) => i && v != lanes[i - 1]).length, maxStep: Math.max(...lanes.map((v, i) => i ? Math.abs(v - lanes[i - 1]) : 0))};
-			N.elves = []; __fb.spawn('shambler'); const s2 = N.elves[0]; s2.changer = false; s2.sprinter = true; s2.spT = 0; s2.x = 800; s2.sp = 20; const x0 = s2.x; __fb.run(30); out.dash = x0 - s2.x;
+			N.elves = []; __fb.spawn('sprinter'); const s2 = N.elves[0]; s2.changer = false; s2.spT = 0; s2.x = 800; s2.sp = 20; const x0 = s2.x; __fb.run(30); out.dash = x0 - s2.x;
 			N.elves = []; __fb.spawn('shambler'); const s3 = N.elves[0]; s3.changer = s3.sprinter = false; s3.x = 800; s3.sp = 20; __fb.run(30); out.walk = 800 - s3.x;
 			G.night = n0; N.elves = []; return out });
-		ok('11a. fifteen lanes; on Night 1 none change lanes or sprint', ln.n1.lanes == 15 && ln.n1.ch == 0 && ln.n1.sp == 0, ln.n1);
-		ok('11b. on Night 15 almost half do (about 47%), and about a quarter on Night 8', Math.abs(ln.n15.ch - .47) < .07 && Math.abs(ln.n15.sp - .47) < .07 && Math.abs(ln.n8.ch - .235) < .06, {n8: ln.n8, n15: ln.n15});
+		ok('11a. fifteen lanes; on Night 1 none change lanes, sprint or mug', ln.n1.lanes == 15 && ln.n1.ch == 0 && ln.n1.sp == 0, ln.n1);
+		ok('11b. on Night 15 almost half are sprinters or muggers (about 47%), about a quarter on Night 8; muggers among them', Math.abs(ln.n15.sp - .47) < .07 && Math.abs(ln.n8.sp - .235) < .06 && ln.n15.mug > 100 && Math.abs(ln.n15.ch - .47) < .07, {n8: ln.n8, n15: ln.n15});
 		ok('11c. a lane change is gradual (a fraction of a lane a step), to a lane up to three away', ln.change.to != 7 && Math.abs(ln.change.to - 7) <= 3 && ln.change.steps > 10 && ln.change.maxStep < .05, ln.change);
-		ok('11d. a sprint covers ground more than twice as fast', ln.dash > ln.walk * 2, {dash: ln.dash, walk: ln.walk});
+		ok('11d. a sprinter’s dash covers ground more than twice as fast', ln.dash > ln.walk * 2, {dash: ln.dash, walk: ln.walk});
 		ok('11e. each night a few more elves, a little tougher (22, 25 … 61; ×1.000, ×1.045 … ×1.63)', ln.counts.join() == '22,25,43,61' && ln.hp.join() == '1,1.045,1.63', {c: ln.counts, hp: ln.hp});
+		/* eyes; bloaters; muggers */
+		const ey = await f.evaluate(() => { const E = FBART.ELF, c = k => E[k].eye; return {white: ['shambler', 'crawler', 'spitter', 'brute', 'foreman'].map(c), red: c('sprinter'), yellow: c('bloater'), green: c('mugger')} });
+		ok('11f. eyes: white for the ordinary elves, red sprinters, yellow bloaters, green muggers', ey.white.every(x => x == '#eef2ff') && ey.red == '#ff3b3b' && ey.yellow == '#ffd23f' && ey.green == '#7dff4a', ey);
+		const bl = await f.evaluate(() => { const G = __fb.G, N = __fb.N; G.night = 6; G.hp = 100; G.bar = 1000; G.barMax = 1000;
+			G.surv = [{name: 'Near', kind: 'fox', role: 'guard', hp: 40}, {name: 'Far', kind: 'owl', role: 'guard', hp: 40}];
+			N.q = [[1e9, 'shambler']]; N.elves = [];
+			__fb.spawn('bloater'); const b = N.elves[0]; b.lane = b.tl = 3; b.x = FBART.front(3) + 6; b.sp = 0; const big = {hp: b.hp0, s: FBART.ELF.bloater.s};
+			const near = () => { __fb.spawn('shambler'); const e = N.elves.at(-1); e.lane = e.tl = 3; e.sp = 0; e.hp = e.hp0 = 1000; e.changer = false; return e };
+			const e1 = near(); e1.x = b.x + 20; const e2 = near(); e2.x = b.x + 90; const e3 = near(); e3.x = b.x + 300;
+			const bar0 = G.bar; b.hp = .01; b.burn = 1; __fb.run(1);
+			return {big, bar: bar0 - G.bar, d1: 1000 - e1.hp, d2: 1000 - e2.hp, d3: 1000 - e3.hp, near: 40 - G.surv[0].hp, far: 40 - G.surv[1].hp, rudolf: 100 - G.hp} });
+		ok('11g. bloaters are bigger and tougher than the ordinary ones', bl.big.s > 1.3 && bl.big.hp > 150, bl.big);
+		ok('11h. a bloater bursts when it falls: the barricade, elves nearby (more the nearer), survivors near it', bl.bar > 100 && bl.d1 > bl.d2 && bl.d2 > 0 && bl.d3 == 0 && bl.near > bl.far && bl.near > 0, bl);
+		const mg = await f.evaluate(() => { const G = __fb.G, N = __fb.N; G.bar = 1000; G.surv = [{name: 'Hazel', kind: 'bunny', role: 'guard', hp: 40}, {name: 'Moss', kind: 'badger', role: 'repair', hp: 40}];
+			N.q = [[1e9, 'shambler']]; N.elves = []; __fb.spawn('mugger'); const m = N.elves[0]; m.lane = m.tl = 7; m.x = 600; const lanes = []; for (let i = 0; i < 180; i++) { __fb.run(1); lanes.push(m.lane) }
+			const flips = lanes.filter((v, i) => i > 1 && Math.sign(v - lanes[i - 1]) != Math.sign(lanes[i - 1] - lanes[i - 2]) && v != lanes[i - 1]).length, span = Math.max(...lanes) - Math.min(...lanes), walked = 600 - m.x;
+			m.x = FBART.front(m.lane) - 1; __fb.run(3); const stole = {loot: m.loot, hazel: G.surv[0].disarmed, moss: G.surv[1].disarmed};
+			const x1 = m.x; __fb.run(30); const fled = m.x - x1;
+			m.hp = .01; m.burn = 1; __fb.run(1); const back = !G.surv[0].disarmed;
+			/* a second one gets away */
+			N.elves = []; __fb.spawn('mugger'); const m2 = N.elves[0]; m2.lane = m2.tl = 7; m2.x = FBART.front(7) - 1; __fb.run(3); const took = G.surv[0].disarmed; m2.x = __fb.W + 20; __fb.run(20); const lost = G.surv[0].disarmed && m2.dead;
+			N.elves = []; return {flips, span, walked, stole, fled, back, took, lost} });
+		ok('11i. a mugger comes on slowly, shifting lanes quickly back and forth', mg.flips >= 3 && mg.span >= 2 && mg.walked < 60, mg);
+		ok('11j. at the barricade it steals a survivor’s weapon (a guard’s first) and runs for the woods', mg.stole.loot == 0 && mg.stole.hazel && !mg.stole.moss && mg.fled > 30, mg);
+		ok('11k. brought down before it gets away: the weapon is back; if it escapes: gone for the night', mg.back && mg.took && mg.lost, mg);
+		const nn = await f.evaluate(() => { __fb.G.night = 7; __fb.startNight(); return __fb.G.surv.every(s => !s.disarmed && !s.out) });
+		ok('11l. the next night every survivor is armed again', nn);
+		await f.evaluate(() => { const G = __fb.G; G.night = 1; G.surv = []; __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [] });
 		/* the night ends: the day's plan */
 		await f.evaluate(() => { const N = __fb.N; N.q = []; N.elves = []; __fb.run(260) }); await sleep(300);
 		const d = await f.evaluate(() => ({h: document.getElementById('ovBody').textContent, night: __fb.G.night}));
@@ -119,7 +147,7 @@ async function open(pg) {
 		ok('19. the desktop pauses it', t0 == t1 && await f.evaluate(() => /Paused/.test(document.getElementById('ovBody').textContent)));
 		await pg.evaluate(() => send({op: 'resume'})); await f.click('text=Carry on');
 		/* how fast with a crowd */
-		const perf = await f.evaluate(() => { const N = __fb.N; N.q = [[1e9, 'shambler']]; for (let i = 0; i < 34; i++) { __fb.spawn(['shambler', 'runner', 'brute', 'crawler'][i % 4]); N.elves.at(-1).x = 230 + i * 18 } for (let i = 0; i < 40; i++) N.fx.push({k: 'p', x: 300, y: 250, vx: 1, vy: 1, t: 0, col: '#fff', life: 9}); let a = 0; for (let i = 0; i < 60; i++) { const s = performance.now(); window.__fbdraw && 0; document.getElementById('cv'); a += 0 } const s = performance.now(); for (let i = 0; i < 30; i++) __fb.run(1); return {step: (performance.now() - s) / 30} });
+		const perf = await f.evaluate(() => { const N = __fb.N; N.q = [[1e9, 'shambler']]; for (let i = 0; i < 34; i++) { __fb.spawn(['shambler', 'sprinter', 'brute', 'bloater', 'mugger', 'crawler'][i % 6]); N.elves.at(-1).x = 230 + i * 18 } for (let i = 0; i < 40; i++) N.fx.push({k: 'p', x: 300, y: 250, vx: 1, vy: 1, t: 0, col: '#fff', life: 9}); let a = 0; for (let i = 0; i < 60; i++) { const s = performance.now(); window.__fbdraw && 0; document.getElementById('cv'); a += 0 } const s = performance.now(); for (let i = 0; i < 30; i++) __fb.run(1); return {step: (performance.now() - s) / 30} });
 		const dr = await f.evaluate(() => new Promise(r => { let n = 0, s = performance.now(); const tick = () => { if (++n == 30) r((performance.now() - s) / 30); else requestAnimationFrame(tick) }; requestAnimationFrame(tick) }));
 		ok('20. 34 elves at once: a step ' + perf.step.toFixed(2) + ' ms, a frame every ' + dr.toFixed(1) + ' ms', perf.step < 3 && dr < 25, {perf, dr});
 		await pg.screenshot({path: path.join(W, 'night.png')});

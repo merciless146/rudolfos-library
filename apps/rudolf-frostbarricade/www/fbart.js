@@ -14,7 +14,7 @@ const hash = (a, b) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (
 A.hash = hash;
 function mk(w, h, draw) { const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2; const x = c.getContext('2d'); x.scale(2, 2); x.lineJoin = 'round'; x.lineCap = 'round'; draw(x, w, h); c.w = w; c.h = h; return c }
 function glow(r, col) { return mk(r * 2, r * 2, x => { const g = x.createRadialGradient(r, r, 0, r, r, r); g.addColorStop(0, col); g.addColorStop(.4, col.replace(/[\d.]+\)$/, '.3)')); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, r * 2, r * 2) }) }
-A.warm = glow(30, 'rgba(255,200,110,1)'); A.lime = glow(16, 'rgba(214,255,74,1)'); A.pink = glow(16, 'rgba(255,79,163,1)'); A.white = glow(30, 'rgba(255,255,255,1)'); A.fire = glow(20, 'rgba(255,130,40,1)'); A.ice = glow(20, 'rgba(140,220,255,1)');
+A.warm = glow(30, 'rgba(255,200,110,1)'); A.eyeW = glow(16, 'rgba(235,240,255,1)'); A.eyeR = glow(16, 'rgba(255,50,50,1)'); A.eyeY = glow(16, 'rgba(255,210,63,1)'); A.eyeG = glow(16, 'rgba(125,255,74,1)'); A.lime = glow(16, 'rgba(214,255,74,1)'); A.pink = glow(16, 'rgba(255,79,163,1)'); A.white = glow(30, 'rgba(255,255,255,1)'); A.fire = glow(20, 'rgba(255,130,40,1)'); A.ice = glow(20, 'rgba(140,220,255,1)');
 
 /* ---------- the night: a dark field before the workshop woods ---------- */
 A.GROUND = 300;
@@ -123,7 +123,8 @@ A.weapon = function (x, w) {
 
 /* ---------- the survivors behind the barricade (small, round, friendly) ---------- */
 A.SURV = {bunny: ['#ffffff', '#f7b9cf'], badger: ['#4a4a52', '#f2f2f2'], fox: ['#e0782e', '#fff3e6'], hare: ['#d8c6a8', '#fff'], otter: ['#7a5a3a', '#e8d6bf'], owl: ['#a89276', '#f4ead8']};
-A.survivor = function (x, kind, X, t, firing, Y0) {
+A.survivor = function (x, kind, X, t, firing, Y0, armed, out) {
+	if (out) { x.save(); x.globalAlpha = .45; x.translate(X, (Y0 || A.GROUND) - 6); x.rotate(-PI / 2); x.translate(-X, -((Y0 || A.GROUND) - 6)) }
 	const [c1, c2] = A.SURV[kind] || A.SURV.bunny, Y = (Y0 || A.GROUND) - 16 + Math.sin(t * 3 + X) * .6;
 	if (kind == 'bunny' || kind == 'hare') { oval(x, X - 3, Y - 20, 2.5, 7, -.2); fl(x, c1, '#5d4b63', 1); oval(x, X + 2, Y - 20, 2.5, 7, .2); fl(x, c1, '#5d4b63', 1) }
 	if (kind == 'fox') { x.beginPath(); x.moveTo(X - 5, Y - 14); x.lineTo(X - 3, Y - 22); x.lineTo(X, Y - 15); x.moveTo(X + 1, Y - 15); x.lineTo(X + 4, Y - 22); x.lineTo(X + 6, Y - 14); fl(x, c1, '#5a3010', 1) }
@@ -134,21 +135,26 @@ A.survivor = function (x, kind, X, t, firing, Y0) {
 	if (kind == 'badger') { x.fillStyle = c2; x.fillRect(X - 1.5, Y - 17, 3, 10) }
 	if (kind == 'owl') { circ(x, X - 2.6, Y - 11, 2.6); x.fillStyle = '#fff'; x.fill(); circ(x, X + 2.6, Y - 11, 2.6); x.fill() }
 	circ(x, X + 2.5, Y - 11, 1.3); x.fillStyle = '#2b2230'; x.fill(); circ(x, X - 2.5, Y - 11, 1.3); x.fill();
-	/* a small crossbow */
-	x.strokeStyle = '#6b4a2f'; x.lineWidth = 2; x.beginPath(); x.moveTo(X + 4, Y - 2); x.lineTo(X + 16, Y - 6); x.stroke();
+	/* a small crossbow (unless a mugger has it) */
+	if (armed !== false) { x.strokeStyle = '#6b4a2f'; x.lineWidth = 2; x.beginPath(); x.moveTo(X + 4, Y - 2); x.lineTo(X + 16, Y - 6); x.stroke() }
 	if (firing) { x.drawImage(A.warm, X + 10, Y - 14, 14, 14) }
+	if (out) x.restore();
 };
 
 /* ---------- corrupted elves ---------- */
-/* kinds: size, skin, clothes, eye colour */
+/* kinds: size, skin, clothes, eye colour. The eyes say what an elf will do: white for the ordinary ones, red for
+   sprinters, yellow for bloaters, green for muggers (red is kept for the wendigo too, later) */
+const EYE = {white: '#eef2ff', red: '#ff3b3b', yellow: '#ffd23f', green: '#7dff4a'};
+A.EYE = EYE;
 A.ELF = {
-	shambler: {s: 1, skin: '#3d3448', cloth: '#1f2a24', hat: '#2a1f33', eye: '#d6ff4a'},
-	runner: {s: .9, skin: '#3a3346', cloth: '#2a1f33', hat: '#1f2a24', eye: '#ff4fa3'},
-	brute: {s: 1.5, skin: '#342c3e', cloth: '#1a1d2a', hat: '#2a1f33', eye: '#ff3b3b'},
-	crawler: {s: .95, skin: '#3d3448', cloth: '#232a1f', hat: '#2a1f33', eye: '#d6ff4a'},
-	spitter: {s: 1.05, skin: '#38304a', cloth: '#1d2633', hat: '#3a1f33', eye: '#b04dff'},
-	tinker: {s: 1, skin: '#3d3448', cloth: '#2b231a', hat: '#1f2a24', eye: '#ffb03b'},
-	foreman: {s: 2.3, skin: '#2e2638', cloth: '#14161f', hat: '#2a1220', eye: '#ff3b3b'}};
+	shambler: {s: 1, skin: '#3d3448', cloth: '#1f2a24', hat: '#2a1f33', eye: EYE.white},
+	crawler: {s: .95, skin: '#3d3448', cloth: '#232a1f', hat: '#2a1f33', eye: EYE.white},
+	spitter: {s: 1.05, skin: '#38304a', cloth: '#1d2633', hat: '#3a1f33', eye: EYE.white},
+	brute: {s: 1.5, skin: '#342c3e', cloth: '#1a1d2a', hat: '#2a1f33', eye: EYE.white},
+	foreman: {s: 2.3, skin: '#2e2638', cloth: '#14161f', hat: '#2a1220', eye: EYE.white},
+	sprinter: {s: .92, skin: '#3a3346', cloth: '#2a1f33', hat: '#1f2a24', eye: EYE.red},
+	bloater: {s: 1.35, skin: '#3b3245', cloth: '#262014', hat: '#2a1f33', eye: EYE.yellow},
+	mugger: {s: .95, skin: '#383046', cloth: '#1e2a1a', hat: '#14201a', eye: EYE.green}};
 /* hit areas (relative to the feet), scaled by size: the head is the weak spot */
 A.elfHead = (kind, s) => kind == 'crawler' ? {dx: -10 * s, dy: -12 * s, r: 6.5 * s} : {dx: -1 * s, dy: -36 * s, r: 7 * s};
 A.elfBody = (kind, s) => kind == 'crawler' ? {dx: 2 * s, dy: -8 * s, r: 9 * s} : {dx: 0, dy: -18 * s, r: 10.5 * s};
@@ -167,7 +173,7 @@ A.elf = function (x, e, t, rf) {
 		x.strokeStyle = D.skin; x.lineWidth = 3; x.beginPath(); x.moveTo(-12, -6); x.lineTo(-20, -1 + Math.sin(ph) * 2); x.moveTo(-6, -8); x.lineTo(-14, 0 - Math.sin(ph) * 2); x.stroke();
 		head(x, -10, -12, D, e, t, rf, lineC);
 	} else {
-		const sw = Math.sin(ph) * (e.kind == 'runner' ? 7 : 4);
+		const sw = Math.sin(ph) * (e.kind == 'sprinter' ? (e.sprint > 0 ? 9 : 6) : 4);
 		/* legs */
 		x.strokeStyle = D.cloth; x.lineWidth = 4; x.beginPath(); x.moveTo(-2, -12); x.lineTo(-3 + sw, 0); x.moveTo(2, -12); x.lineTo(3 - sw, 0); x.stroke();
 		x.fillStyle = '#0d0a10'; x.fillRect(-6 + sw, -2, 6, 3); x.fillRect(-1 - sw, -2, 6, 3);
@@ -178,7 +184,10 @@ A.elf = function (x, e, t, rf) {
 		const reach = e.attacking ? Math.sin(t * 10 + e.id) * 4 : Math.sin(ph) * 2;
 		x.strokeStyle = D.skin; x.lineWidth = 3.2; x.beginPath(); x.moveTo(-6, -26); x.lineTo(-15 + reach, -24 + reach * .3); x.moveTo(-3, -24); x.lineTo(-13 - reach, -20); x.stroke();
 		x.fillStyle = D.skin; for (let k = 0; k < 3; k++) { x.beginPath(); x.moveTo(-15 + reach, -24 + reach * .3); x.lineTo(-19 + reach, -27 + k * 2.5); x.lineTo(-15 + reach, -23 + k); x.fill() }
-		if (e.kind == 'tinker' && !e.gone) { x.fillStyle = '#4a2a3a'; x.fillRect(-14, -24, 9, 9); x.strokeStyle = '#ffb03b'; x.lineWidth = 1.2; x.strokeRect(-14, -24, 9, 9); x.beginPath(); x.moveTo(-14, -20); x.lineTo(-5, -20); x.moveTo(-10, -24); x.lineTo(-10, -15); x.stroke(); if (!rf && Math.floor(t * 6) % 2) x.drawImage(A.lime, -18, -28, 16, 16) }
+		/* a bloater's swollen belly, cracked and glowing */
+		if (e.kind == 'bloater') { oval(x, 1, -19, 11, 10); fl(x, '#2e2636', lineC, 1.3); x.strokeStyle = 'rgba(255,210,63,' + (rf ? .7 : .5 + .4 * Math.sin(t * 5 + e.id)) + ')'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(-5, -26); x.lineTo(-1, -20); x.lineTo(-4, -14); x.moveTo(4, -25); x.lineTo(2, -19); x.lineTo(6, -13); x.stroke() }
+		/* a mugger's sack; and the stolen crossbow while it runs */
+		if (e.kind == 'mugger') { oval(x, 7, -24, 5, 6); fl(x, '#3a3020', lineC, 1); if (e.loot >= 0) { x.strokeStyle = '#6b4a2f'; x.lineWidth = 2.4; x.beginPath(); x.moveTo(-14, -22); x.lineTo(2, -26); x.stroke(); x.strokeStyle = '#c9a64a'; x.lineWidth = 1; x.beginPath(); x.moveTo(-11, -27); x.lineTo(-9, -18); x.stroke() } }
 		if (e.kind == 'spitter') { x.fillStyle = 'rgba(176,77,255,.7)'; circ(x, -6, -32, 2); x.fill() }
 		head(x, -1, -36, D, e, t, rf, lineC);
 	}
@@ -195,7 +204,7 @@ function head(x, X, Y, D, e, t, rf, lineC) {
 	x.beginPath(); x.moveTo(X - 7, Y - 4); x.lineTo(X + 7, Y - 5); x.lineTo(X + 4, Y - 13); x.lineTo(X + 10, Y - 19 + Math.sin(t * 2 + e.id) * 2); x.lineTo(X - 2, Y - 12); x.closePath(); fl(x, D.hat, lineC, 1.1);
 	circ(x, X + 10, Y - 19 + Math.sin(t * 2 + e.id) * 2, 2); fl(x, '#6a5a2a', lineC, .8);
 	/* narrow glowing eyes, facing left */
-	if (!rf) x.drawImage(D.eye == '#d6ff4a' ? A.lime : A.pink, X - 12, Y - 8, 16, 12);
+	if (!rf) x.drawImage({[EYE.red]: A.eyeR, [EYE.yellow]: A.eyeY, [EYE.green]: A.eyeG}[D.eye] || A.eyeW, X - 12, Y - 8, 16, 12);
 	x.fillStyle = D.eye; x.beginPath(); x.moveTo(X - 6, Y - 1); x.lineTo(X - 1, Y); x.lineTo(X - 6, Y + 1.4); x.closePath(); x.fill();
 	x.beginPath(); x.moveTo(X - 1, Y - 1); x.lineTo(X + 3, Y); x.lineTo(X - 1, Y + 1.3); x.closePath(); x.fill();
 	x.strokeStyle = D.eye; x.lineWidth = .9; x.beginPath(); x.moveTo(X - 5, Y + 4.5); x.lineTo(X - 3, Y + 3.5); x.lineTo(X - 1, Y + 4.5); x.lineTo(X + 1, Y + 3.5); x.stroke();
