@@ -1,0 +1,10 @@
+name = rudolf-nightflight
+version = 0.1.0
+kind = webapp
+title = Night Flight
+summary = Rudolf's bullet-hell flight through a winter night: lasers from his glowing nose
+icon = 🌙
+license = GPL-2.0-or-later
+homepage = https://github.com/merciless146/rudolfos-library
+category = Games
+description = A top-down bullet-hell shooter. Rudolf flies up through the night and fires lasers from his glowing nose at the corruption creeping into the village: weave through bullet patterns, graze them for points, charge a piercing beam, and save corrupted friends. Stages 1 and 2 with their bosses (more to come), Story, Practice and Score Attack, three difficulties, replays. Plays with the keyboard, a controller or touch. Made for Rudolf OS.

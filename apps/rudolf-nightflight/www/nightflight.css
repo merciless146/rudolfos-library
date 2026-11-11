@@ -1,0 +1,19 @@
+:root{--card:rgba(16,24,64,.92);--fg:#f3f6ff;--line:#5a6fb8;--on:#ffd36e;--onfg:#2a1a00}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(ellipse at 50% 0%,#1d3370,#070b1e 70%);color:var(--fg);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Ubuntu,sans-serif;-webkit-user-select:none;user-select:none}
+#stage{position:absolute;inset:0}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;outline:none}
+#ov{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(5,8,25,.55);padding:14px}
+#ov[hidden]{display:none}
+#ov.title{background:none;align-items:flex-end;padding-bottom:max(18px,4vh)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;width:100%;max-width:330px;max-height:100%;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+#ov.title .card{background:rgba(12,20,56,.82)}
+.card h2{margin:0 0 6px;font-size:19px;color:#fff6e0}
+.card p{margin:6px 0;color:#d8e2ff}
+#ovBody:empty{display:none}
+.btns{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+#ovBody:empty+.btns{margin-top:0}
+button{font:inherit;color:var(--fg);background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:9px;padding:9px 12px;cursor:pointer;text-align:left;min-height:40px}
+button:hover{background:rgba(255,255,255,.14)}
+button:focus-visible,button:focus{outline:2px solid var(--on);outline-offset:1px}
+button.main{background:var(--on);color:var(--onfg);border-color:var(--on);font-weight:600}
