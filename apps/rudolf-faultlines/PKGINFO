@@ -1,0 +1,10 @@
+name = rudolf-faultlines
+version = 1.0.0
+kind = webapp
+title = Fault Lines
+summary = A logic puzzle: clear the ground without opening a fault
+icon = ⛏️
+license = GPL-2.0-or-later
+homepage = https://github.com/merciless146/rudolfos-library
+category = Games
+description = Clear the ground without opening a fault: each opened cell tells how many of its neighbours hide one. Three field sizes, a Daily field that is the same for everyone, best times kept with your account. Plays with a mouse, the keyboard, a controller or touch. Made for Rudolf OS.
