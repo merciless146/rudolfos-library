@@ -21,10 +21,15 @@ const WEP = {
 	bells: {name: 'Sleigh-Bell Gatling', dmg: 15, rps: 18, mag: 150, reload: 4, spread: .05, mode: 'auto', find: 300, night: 13, fx: 'spin', desc: 'Winds up, then does not stop.'}};
 const ORDER = Object.keys(WEP);
 const ELF = {
+	/* white eyes: the ordinary ones */
 	shambler: {hp: 44, sp: 22, dps: 7, from: 1, w: 10},
-	runner: {hp: 30, sp: 58, dps: 5, from: 2, w: 6},
 	crawler: {hp: 34, sp: 30, dps: 6, from: 4, w: 4},
-	tinker: {hp: 48, sp: 27, dps: 0, from: 5, w: 3},
+	/* yellow eyes: bloaters, large, slow and tough; they burst when they fall (bloaterBlast) */
+	bloater: {hp: 170, sp: 13, dps: 8, from: 4, w: 3},
+	/* red eyes: sprinters, dashing for the barricade; green eyes: muggers, weaving between lanes to steal a survivor's
+	   weapon (both from wildChance, below, not the weights) */
+	sprinter: {hp: 34, sp: 26, dps: 6, from: 2, w: 0},
+	mugger: {hp: 42, sp: 14, dps: 4, from: 3, w: 0},
 	spitter: {hp: 55, sp: 20, dps: 0, from: 6, w: 3},
 	brute: {hp: 260, sp: 14, dps: 20, from: 7, w: 2},
 	foreman: {hp: 1600, sp: 9, dps: 45, from: 99, w: 0}};
@@ -48,9 +53,10 @@ const snapshot = () => JSON.parse(JSON.stringify(G));
 function startNight() {
 	const D = DIFF[G.diff], n = G.night;
 	N = {t: 0, rng: RG.rng(G.seed + ':night:' + n), elves: [], slush: [], fx: [], spits: [], q: [], over: false, won: false, id: 0, barHit: 0, hurt: 0, recoil: 0, cd: 0, burst: 0, spin: 0, reload: 0, msg: null, sleigh: null, dawn: 0, beam: 0, flame: 0};
-	const kinds = Object.keys(ELF).filter(k => ELF[k].from <= n), tw = kinds.reduce((a, k) => a + ELF[k].w, 0);
 	const total = n == LAST ? 9999 : nightCount(n, D), len = 46 + n * 3.5;
-	if (n < LAST) for (let i = 0; i < total; i++) { let r = R() * tw, k = kinds[0]; for (const kk of kinds) { r -= ELF[kk].w; if (r <= 0) { k = kk; break } } N.q.push([2 + (i / total) * len + R() * 2, k]) }
+	if (n < LAST) for (let i = 0; i < total; i++) N.q.push([2 + (i / total) * len + R() * 2, pickKind(n)]);
+	/* survivors come back to the barricade armed and rested each night (a stolen weapon is back by then) */
+	G.surv.forEach(s => { s.disarmed = false; s.out = false; s.hp = 40 });
 	if (n == 10) N.q.push([len * .6, 'foreman']);
 	if (n == LAST) N.q.push([60, 'foreman'], [110, 'foreman']);
 	N.q.sort((a, b) => a[0] - b[0]);
@@ -63,16 +69,23 @@ function startNight() {
 function nightCount(n, D) { return Math.round((22 + (n - 1) * 3) * D.count) }
 const hpMul = n => 1 + (n - 1) * .045;
 const wildChance = n => .47 * (n - 1) / (LAST - 1);
+/* which elf: from the night's weights, and then (with wildChance) a sprinter or, from Night 3, a mugger instead */
+function pickKind(n) {
+	const kinds = Object.keys(ELF).filter(k => ELF[k].from <= n && ELF[k].w), tw = kinds.reduce((a, k) => a + ELF[k].w, 0);
+	let r = R() * tw, k = kinds[0]; for (const kk of kinds) { r -= ELF[kk].w; if (r <= 0) { k = kk; break } }
+	if (k != 'bloater' && R() < wildChance(n)) k = n >= 3 && R() < .45 ? 'mugger' : 'sprinter';
+	return k;
+}
 function spawn(kind) {
 	const D = DIFF[G.diff], E = ELF[kind], mul = hpMul(G.night) * D.hp, p = wildChance(G.night), lane = Math.floor(R() * A.LANES);
-	const e = {id: ++N.id, kind, x: W + 20 + R() * 40, lane, tl: lane, changer: kind != 'foreman' && R() < p, sprinter: kind != 'foreman' && kind != 'crawler' && R() < p, lcT: 1 + R() * 3, spT: 2 + R() * 5, sprint: 0, hp: E.hp * mul, hp0: E.hp * mul, sp: E.sp * (.85 + R() * .3), walk: R() * 6, attacking: false, chill: 0, burn: 0, stun: 0, hitT: 0, spitT: 1 + R() * 2, stop: kind == 'spitter' ? 430 + R() * 220 : 0};
+	const e = {id: ++N.id, kind, x: W + 20 + R() * 40, lane, tl: lane, changer: (kind == 'shambler' || kind == 'crawler') && R() < p, sprinter: kind == 'sprinter', mugger: kind == 'mugger', loot: -1, lcT: kind == 'mugger' ? R() * .4 : 1 + R() * 3, spT: 1 + R() * 2, sprint: 0, hp: E.hp * mul, hp0: E.hp * mul, sp: E.sp * (.85 + R() * .3), walk: R() * 6, attacking: false, chill: 0, burn: 0, stun: 0, hitT: 0, spitT: 1 + R() * 2, stop: kind == 'spitter' ? 430 + R() * 220 : 0};
 	N.elves.push(e);
 	if (R() < .25) AU.sfx('groan');
 }
 function nightStep() {
 	const D = DIFF[G.diff]; N.t += DT;
 	while (N.q.length && N.q[0][0] <= N.t) spawn(N.q.shift()[1]);
-	if (G.night == LAST && !N.sleigh) { if (N.t < SLEIGH_AT - 2) { if (Math.floor(N.t * 10) % Math.max(3, 14 - Math.floor(N.t / 12)) == 0 && N.elves.length < 34) { const ks = ['shambler', 'shambler', 'runner', 'crawler', 'tinker', 'spitter', 'brute']; spawn(ks[Math.floor(R() * ks.length)]) } } else if (N.t >= SLEIGH_AT) startRescue() }
+	if (G.night == LAST && !N.sleigh) { if (N.t < SLEIGH_AT - 2) { if (Math.floor(N.t * 10) % Math.max(3, 14 - Math.floor(N.t / 12)) == 0 && N.elves.length < 34) { spawn(pickKind(LAST)) } } else if (N.t >= SLEIGH_AT) startRescue() }
 	/* the weapon */
 	weaponStep();
 	/* elves */
@@ -83,11 +96,17 @@ function nightStep() {
 		const front = A.front(e.lane);
 		/* changing lanes: now and then a new lane up to three away, crossed gradually */
 		if (e.changer && !e.attacking && e.stun <= 0) { e.lcT -= DT; if (e.lcT <= 0) { e.lcT = 2 + R() * 3; e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + (R() < .5 ? -1 : 1) * (1 + Math.floor(R() * 3)))) } }
-		if (e.lane != e.tl) { const d = e.tl - e.lane; e.lane += Math.sign(d) * Math.min(Math.abs(d), 1.3 * DT) }
-		/* sprinting: short dashes for the barricade */
+		/* muggers weave: back and forth across two or three lanes, quickly */
+		if (e.mugger && !e.attacking && e.stun <= 0) { e.lcT -= DT; if (e.lcT <= 0) { e.lcT = .4 + R() * .3; const dir = e.tl >= e.lane ? -1 : 1; e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + dir * (2 + Math.floor(R() * 2)))) } }
+		if (e.lane != e.tl) { const d = e.tl - e.lane; e.lane += Math.sign(d) * Math.min(Math.abs(d), (e.mugger ? 6 : 1.3) * DT) }
+		/* sprinters: dashes for the barricade, again and again */
 		if (e.sprint > 0) e.sprint -= DT;
-		else if (e.sprinter && !e.attacking) { e.spT -= DT; if (e.spT <= 0) { e.sprint = 1.2 + R() * 1.6; e.spT = 4 + R() * 5 } }
-		const sp = e.sp * (e.chill > 0 ? .45 : 1) * (e.stun > 0 ? 0 : 1) * (e.sprint > 0 ? 2.4 : 1);
+		else if (e.sprinter && !e.attacking) { e.spT -= DT; if (e.spT <= 0) { e.sprint = 1.1 + R() * 1.2; e.spT = 1.6 + R() * 2.2 } }
+		const sp = e.sp * (e.chill > 0 ? .45 : 1) * (e.stun > 0 ? 0 : 1) * (e.sprint > 0 ? 2.8 : 1);
+		/* a mugger with a weapon runs for the woods; out of sight, the weapon is gone until the next night */
+		if (e.loot >= 0) { e.x += 80 * (e.chill > 0 ? .45 : 1) * (e.stun > 0 ? 0 : 1) * DT; e.walk += DT * 5; e.attacking = false;
+			if (e.x > W + 30) { e.dead = true; e.escaped = true; const sv = G.surv[e.loot]; if (sv) N.fx.push({k: 'txt', x: W - 160, y: 120, s: 'The mugger got away with ' + sv.name + '’s crossbow', t: 0, long: true}); AU.sfx('lost') }
+			continue }
 		if (e.kind == 'spitter' && e.x <= e.stop) {
 			e.attacking = false; e.spitT -= DT;
 			if (e.spitT <= 0 && e.stun <= 0) { e.spitT = 2.6 + R(); N.spits.push({x: e.x - 8, y: A.laneY(e.lane) - 40 * ELF_S(e), vx: -(e.x - front + 10) / 1.2, vy: -150, t: 0, ty: A.laneY(e.lane) - 30, fx: front}); AU.sfx('spit') }
@@ -97,7 +116,7 @@ function nightStep() {
 		if (e.x > stopX) { e.x -= sp * DT; e.walk += sp * DT * .25; e.attacking = false }
 		else {
 			e.attacking = true; e.walk += DT * 4;
-			if (e.kind == 'tinker') { explode(e.x, A.laneY(e.lane) - 18, 60, 40, e); if (G.bar > 0) hitBar(90 * D.dmg); else hurtRudolf(25 * D.dmg); continue }
+			if (e.mugger && steal(e)) continue;
 			if (e.stun > 0) continue;
 			if (G.bar > 0) hitBar(ELF[e.kind].dps * D.dmg * DT); else hurtRudolf(ELF[e.kind].dps * .5 * D.dmg * DT);
 		}
@@ -108,7 +127,7 @@ function nightStep() {
 	N.elves = N.elves.filter(e => !e.dead);
 	/* survivors on guard */
 	G.surv.forEach((s, i) => {
-		if (s.role != 'guard') return; s.cd = (s.cd || 1 + i * .2) - DT; s.fire = Math.max(0, (s.fire || 0) - DT);
+		if (s.role != 'guard' || s.disarmed || s.out) return; s.cd = (s.cd || 1 + i * .2) - DT; s.fire = Math.max(0, (s.fire || 0) - DT);
 		if (s.cd <= 0) { const tg = N.elves.filter(e => e.x < W - 10).sort((a, b) => a.x - b.x)[0]; if (tg) { s.cd = 1.1; s.fire = .12; damage(tg, (8 + G.night * .6), false); const sp = survPos(i); N.fx.push({k: 'bolt', x0: sp.x + 16, y0: sp.y - 18, x1: tg.x, y1: A.laneY(tg.lane) - 22 * ELF_S(tg), t: 0}); AU.sfx('bolt') } }
 	});
 	if (N.barHit > 0) N.barHit -= DT * 3; if (N.hurt > 0) N.hurt -= DT; if (N.recoil > 0) N.recoil = Math.max(0, N.recoil - DT * 8);
@@ -121,7 +140,25 @@ function nightStep() {
 }
 const ELF_S = e => A.ELF[e.kind].s * A.depth(e.lane);
 const SURV_LANES = [3, 11, 6, 13, 1, 9];
-const survPos = i => ({x: 40 + (i % 3) * 14, y: A.laneY(SURV_LANES[i % 6])});
+/* the survivors hold the barricade from just behind it */
+const survPos = i => ({x: 112 + (i % 3) * 10, y: A.laneY(SURV_LANES[i % 6])});
+/* a mugger at the barricade takes a survivor's crossbow (a guard's first) */
+function steal(e) {
+	const order = G.surv.map((s, i) => i).filter(i => !G.surv[i].disarmed && !G.surv[i].out).sort((a, b) => (G.surv[b].role == 'guard') - (G.surv[a].role == 'guard'));
+	if (!order.length) return false;
+	const i = order[0], s = G.surv[i]; s.disarmed = true; e.loot = i; e.attacking = false; e.tl = e.lane;
+	N.fx.push({k: 'txt', x: e.x, y: A.laneY(e.lane) - 60, s: 'Stolen: ' + s.name + '’s crossbow!', t: 0, long: true}); AU.sfx('steal');
+	return true;
+}
+/* a bloater bursting: the barricade, other elves, the survivors and Rudolf, each hurt more the nearer it is */
+const BLOAT_R = 160;
+function bloaterBlast(e) {
+	const D = DIFF[G.diff], x = e.x, y = A.laneY(e.lane) - 24 * ELF_S(e), k = d => Math.max(0, 1 - d / BLOAT_R);
+	explode(x, y, BLOAT_R, 120, e, true);
+	const kb = k(Math.max(0, x - A.front(e.lane))); if (kb > 0 && G.bar > 0) hitBar(160 * kb * D.dmg);
+	G.surv.forEach((s, i) => { const p = survPos(i), d = Math.hypot(p.x - x, (p.y - 14 - y) * 1.5); if (d < BLOAT_R && !s.out) { s.hp = (s.hp == null ? 40 : s.hp) - 70 * k(d); if (s.hp <= 0) { s.out = true; N.fx.push({k: 'txt', x: p.x + 60, y: p.y - 40, s: s.name + ' is knocked out until morning', t: 0, long: true}) } } });
+	const dr = Math.hypot(A.RX - x, (A.RY + 20 - y) * 1.5); if (dr < BLOAT_R) hurtRudolf(50 * k(dr) * D.dmg);
+}
 function hitBar(d) { G.bar = Math.max(0, G.bar - d); N.barHit = 1; if (Math.random() < .08) AU.sfx('thud') }
 function hurtRudolf(d) { G.hp = Math.max(0, G.hp - d); N.hurt = .4; if (Math.random() < .1) AU.sfx('hurt') }
 function damage(e, d, head, quiet) {
@@ -131,15 +168,16 @@ function damage(e, d, head, quiet) {
 		e.dead = true; G.kills++; save.stats.kills++; if (head) { G.heads++; save.stats.heads++ }
 		const ly = A.laneY(e.lane); N.slush.push({x: e.x, y: ly - 2, r: 14 * ELF_S(e), t: 0, id: e.id});
 		burst(e.x, ly - 20 * ELF_S(e), 16, '#140a1c', ly); burst(e.x, ly - 20 * ELF_S(e), 10, '#b04dff', ly);
-		if (e.kind == 'tinker') explode(e.x, ly - 18, 70, 70, e);
+		if (e.kind == 'bloater') bloaterBlast(e);
+		if (e.loot >= 0 && !e.escaped) { const sv = G.surv[e.loot]; if (sv) { sv.disarmed = false; N.fx.push({k: 'txt', x: e.x, y: ly - 60, s: 'Recovered ' + sv.name + '’s crossbow', t: 0, long: true}); AU.sfx('ready') } e.loot = -1 }
 		AU.sfx(e.kind == 'foreman' || e.kind == 'brute' ? 'fallbig' : 'fall');
 	}
 }
-function explode(x, y, r, dmg, src) {
+function explode(x, y, r, dmg, src, linear) {
 	if (src) src.dead = true;
 	burst(x, y, 26, '#ffb03b', y + 20); burst(x, y, 18, '#d6ff4a', y + 20); N.fx.push({k: 'ring', x, y, r, t: 0});
 	/* (across the lanes the blast reaches a little less far) */
-	for (const e of N.elves) { if (e.dead || e === src) continue; const d = Math.hypot(e.x - x, (A.laneY(e.lane) - 18 * ELF_S(e) - y) * 1.5); if (d < r) damage(e, dmg * (1 - d / r * .5), false) }
+	for (const e of N.elves) { if (e.dead || e === src) continue; const d = Math.hypot(e.x - x, (A.laneY(e.lane) - 18 * ELF_S(e) - y) * 1.5); if (d < r) damage(e, dmg * (linear ? 1 - d / r : 1 - d / r * .5), false) }
 	AU.sfx('boom'); if (!save.set.reduceFlash) N.shake = .25;
 }
 
@@ -225,7 +263,7 @@ function nearestHead(x, y, r) { let best = null, bd = r * r; for (const e of N.e
 function burst(x, y, n, col, floor) { for (let i = 0; i < n && N.fx.length < 600; i++) { const a = Math.random() * PI * 2, v = 30 + Math.random() * 120; N.fx.push({k: 'p', x, y, fl: floor || y + 20, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, t: 0, col, life: .5 + Math.random() * .6}) } }
 function fxStep() {
 	for (const f of N.fx) { f.t += DT; if (f.k == 'p') { f.x += f.vx * DT; f.y += f.vy * DT; f.vy += 300 * DT; if (f.y > f.fl) { f.y = f.fl; f.vy *= -.2; f.vx *= .5 } } else if (f.k == 'fire') { f.x += f.vx * DT; f.y += f.vy * DT; f.vy -= 120 * DT } }
-	N.fx = N.fx.filter(f => f.t < (f.k == 'p' ? f.life : f.k == 'txt' ? .9 : f.k == 'ring' ? .4 : f.k == 'fire' ? .55 : f.k == 'beam' ? .3 : .12));
+	N.fx = N.fx.filter(f => f.t < (f.k == 'p' ? f.life : f.k == 'txt' ? (f.long ? 2.6 : .9) : f.k == 'ring' ? .4 : f.k == 'fire' ? .55 : f.k == 'beam' ? .3 : .12));
 	for (const s of N.slush) s.t += DT; N.slush = N.slush.filter(s => s.t < 6);
 	if (N.shake > 0) N.shake -= DT;
 }
@@ -253,7 +291,7 @@ function draw() {
 	const board = N.sleigh && N.sleigh.board || 0, away = N.sleigh && N.sleigh.phase == 'away';
 	if (!away) {
 		x.globalAlpha = 1 - board;
-		G.surv.map((s, i) => [s, i]).sort((a, b) => SURV_LANES[a[1] % 6] - SURV_LANES[b[1] % 6]).forEach(([s, i]) => { const p = survPos(i); A.survivor(x, s.kind, p.x - board * 10, T, s.fire > 0, p.y) });
+		G.surv.map((s, i) => [s, i]).sort((a, b) => SURV_LANES[a[1] % 6] - SURV_LANES[b[1] % 6]).forEach(([s, i]) => { const p = survPos(i); A.survivor(x, s.kind, p.x - board * 10, T, s.fire > 0, p.y, !s.disarmed, s.out) });
 		A.rudolf(x, aimAngle(), G.cur, T, N.recoil, N.hurt);
 		x.globalAlpha = 1;
 	}
@@ -270,7 +308,7 @@ function draw() {
 		else if (f.k == 'fire') { x.globalAlpha = 1 - f.t / .55; x.drawImage(A.fire, f.x - 10 - f.t * 20, f.y - 10 - f.t * 20, 20 + f.t * 40, 20 + f.t * 40); x.globalAlpha = 1 }
 		else if (f.k == 'p') { x.globalAlpha = 1 - f.t / f.life; x.fillStyle = f.col; x.fillRect(f.x - 1.5, f.y - 1.5, 3, 3); x.globalAlpha = 1 }
 		else if (f.k == 'ring') { const k = f.t / .4; x.strokeStyle = f.slow ? `rgba(255,214,140,${1 - k})` : `rgba(255,176,59,${1 - k})`; x.lineWidth = 4; x.beginPath(); x.arc(f.x, f.y, f.r * k, 0, 7); x.stroke() }
-		else if (f.k == 'txt') { x.globalAlpha = 1 - f.t / .9; x.font = 'bold 10px system-ui,sans-serif'; x.textAlign = 'center'; x.fillStyle = '#ffe6a0'; x.fillText(f.s, f.x, f.y - f.t * 20); x.globalAlpha = 1 }
+		else if (f.k == 'txt') { x.globalAlpha = 1 - f.t / (f.long ? 2.6 : .9); x.font = f.long ? 'bold 12px system-ui,sans-serif' : 'bold 10px system-ui,sans-serif'; x.textAlign = 'center'; x.fillStyle = '#ffe6a0'; x.fillText(f.s, f.x, f.y - f.t * 20); x.globalAlpha = 1 }
 	}
 	if (N.sleigh) A.sleigh(x, N.sleigh.x, N.sleigh.y, T, N.sleigh.phase == 'light');
 	A.snow(x, W, H, T);
@@ -306,7 +344,7 @@ function hud(x) {
 	if (N.say && N.say.t < 5) { N.say.t += DT; const a = Math.min(1, N.say.t * 3, (5 - N.say.t) * 2); x.globalAlpha = a; x.fillStyle = 'rgba(10,12,30,.8)'; x.fillRect(80, 52, W - 160, 44); x.textAlign = 'left'; x.font = 'bold 11px system-ui,sans-serif'; x.fillStyle = '#ffd36e'; x.fillText(N.say.who, 92, 64); x.font = '13px system-ui,sans-serif'; x.fillStyle = '#fff'; x.fillText(N.say.text, 92, 82); x.globalAlpha = 1 }
 	if (N.won && G.night < LAST) { x.textAlign = 'center'; x.font = 'bold 24px system-ui,sans-serif'; x.fillStyle = '#ffe9c8'; x.fillText('The night is over', W / 2, 150) }
 }
-function fakeHorde(x) { for (let i = 0; i < 6; i++) { const e = {id: i + 1, kind: ['shambler', 'runner', 'shambler', 'brute', 'crawler', 'shambler'][i], x: 470 + i * 70 + Math.sin(T * .3 + i) * 6, lane: [2, 9, 5, 12, 7, 13][i], walk: T * 2 + i, chill: 0, burn: 0, hitT: 0}; A.elf(x, e, T, save.set.reduceFlash) } }
+function fakeHorde(x) { for (let i = 0; i < 6; i++) { const e = {id: i + 1, kind: ['shambler', 'sprinter', 'mugger', 'bloater', 'crawler', 'shambler'][i], x: 470 + i * 70 + Math.sin(T * .3 + i) * 6, lane: [2, 9, 5, 12, 7, 13][i], walk: T * 2 + i, chill: 0, burn: 0, hitT: 0}; A.elf(x, e, T, save.set.reduceFlash) } }
 function titleText(x) {
 	x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = 'bold 40px system-ui,sans-serif'; x.lineWidth = 6; x.strokeStyle = 'rgba(0,0,0,.75)'; x.strokeText('Frost Barricade', W / 2, 64); x.fillStyle = '#f4ecff'; x.fillText('Frost Barricade', W / 2, 64);
 	x.font = '13px system-ui,sans-serif'; x.fillStyle = '#c9c2dd'; x.strokeText('Fifteen nights. One barricade.', W / 2, 96); x.fillText('Fifteen nights. One barricade.', W / 2, 96);
@@ -344,6 +382,8 @@ const AU = (() => {
 		case 'spit': nz(out, t, .2, .15, 1200, 'bandpass'); break;
 		case 'bolt': tone(out, t, 900, .05, 'triangle', .04, 500); break;
 		case 'jingle': for (let i = 0; i < 10; i++) tone(out, t + i * .09, [2093, 2637, 3136][i % 3], .2, 'sine', .05); break;
+		case 'steal': tone(out, t, 700, .12, 'square', .05, 1100); tone(out, t + .1, 500, .15, 'square', .05, 300); break;
+		case 'lost': tone(out, t, 400, .5, 'triangle', .07, 150); break;
 		case 'light': [523, 659, 784, 1046, 1318].forEach((f, i) => tone(out, t + i * .12, f, 1.2, 'triangle', .07)); break;
 		case 'ok': tone(out, t, 660, .06, 'square', .03); break;
 		}
@@ -455,7 +495,7 @@ function menuOptions() {
 }
 function help(back) {
 	dialog('<h2>How to play</h2><p>Every night corrupted elves come out of the woods for the barricade. When it breaks, they come for Rudolf.</p>' +
-		'<p><b>Shoot:</b> click where to shoot (hold for automatic weapons); or tap the field; or aim with the arrows or a controller’s stick and fire with Z, Space or a trigger. Their <b>glowing eyes</b> are the weak spot.</p>' +
+		'<p><b>Shoot:</b> click where to shoot (hold for automatic weapons); or tap the field; or aim with the arrows or a controller’s stick and fire with Z, Space or a trigger. Their <b>glowing eyes</b> are the weak spot.</p><p><b>The eyes say what they will do:</b> white, the ordinary ones; <b style="color:#ff5a5a">red</b>, sprinters that dash for the barricade; <b style="color:#ffd23f">yellow</b>, bloaters that burst when they fall, hurting everything near (the barricade and your survivors too); <b style="color:#7dff4a">green</b>, muggers that weave between lanes and steal a survivor’s weapon: bring them down before they get back to the woods.</p>' +
 		'<p><b>Reload:</b> R, right-click, X on a controller, or the Reload button. <b>Weapons:</b> 1–9, Q and E, the bumpers, or the buttons below the field.</p>' +
 		'<p><b>By day</b> plan twelve hours: repair the barricade, search for weapons, ammunition and survivors, or train. Survivors can guard, repair or scout.</p>' +
 		'<p>Hold out for fifteen nights.</p>', [['OK', back || null, 1, 1]], 'title');
@@ -541,7 +581,7 @@ async function start() {
 	toTitle();
 	if (!save.seenHelp) { save.seenHelp = 1; persist(); help(toTitle) }
 	RG.loop(update, draw, {whilePaused: true});
-	window.__fb = {W, H, headOf, bodyOf, nightCount, hpMul, wildChance, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
+	window.__fb = {W, H, headOf, bodyOf, nightCount, hpMul, wildChance, pickKind, survPos, BLOAT_R, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
 		run(n) { for (let i = 0; i < n && N && !N.over; i++) { inputStep(); nightStep() } return N && {t: N.t, elves: N.elves.length, q: N.q.length, bar: G.bar, hp: G.hp, kills: G.kills} }};
 }
 start();
