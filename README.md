@@ -15,6 +15,7 @@ Published at **https://merciless146.github.io/rudolfos-library/**:
 | | Package | What it is | Licence |
 |---|---|---|---|
 | 🎯 | `rudolf-quake` | Quake's engine with the free LibreQuake game data (and the engine's source) | GPL-2.0-or-later, BSD-3-Clause |
+| 🌙 | `rudolf-nightflight` | Night Flight: Rudolf's bullet-hell flight (stages 1-2 and their bosses so far), replays | GPL-2.0-or-later |
 | ⛏️ | `rudolf-faultlines` | Fault Lines: a logic puzzle (clear the ground without opening a fault), with a Daily field | GPL-2.0-or-later |
 | 🕹️ | `rudolf-emu` | Emu's Nintendo DS (DeSmuME) and SNES (LakeSnes) cores, as WebAssembly. No games, BIOS files or keys | GPL-2.0-or-later, MIT |
 
