@@ -42,9 +42,9 @@ async function open(pg) {
 		ok('3. Night 1 begins: the Icicle Pistol and Reload under the field, elves on their way', n1.night == 1 && /Icicle/.test(n1.bar[0]) && /Reload/.test(n1.bar.at(-1)) && n1.q > 10, n1);
 		/* a click on an elf's eyes */
 		const fb = await (await f.frameElement()).boundingBox();
-		await f.evaluate(() => { __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = []; __fb.spawn('shambler'); const e = __fb.N.elves[0]; e.x = 400; e.lane = 0; e.sp = 0 });
-		const head = await f.evaluate(() => { const e = __fb.N.elves[0], v = RG; const c = document.getElementById('cv').getBoundingClientRect(); return {e: {x: e.x - 1, y: 300 - 4 - 36}} });
-		const toPage = async (gx, gy) => f.evaluate(([gx, gy]) => { const c = document.getElementById('cv').getBoundingClientRect(), s = Math.min(c.width / 640, c.height / 360), ox = (c.width - 640 * s) / 2, oy = (c.height - 360 * s) / 2; return {x: c.left + ox + gx * s, y: c.top + oy + gy * s} }, [gx, gy]);
+		await f.evaluate(() => { __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = []; __fb.spawn('shambler'); const e = __fb.N.elves[0]; e.x = 500; e.lane = e.tl = 7; e.sp = 0 });
+		const head = await f.evaluate(() => { const h = __fb.headOf(__fb.N.elves[0]); return {e: {x: h.x, y: h.y}} });
+		const toPage = async (gx, gy) => f.evaluate(([gx, gy]) => { const c = document.getElementById('cv').getBoundingClientRect(), s = Math.min(c.width / __fb.W, c.height / __fb.H), ox = (c.width - __fb.W * s) / 2, oy = (c.height - __fb.H * s) / 2; return {x: c.left + ox + gx * s, y: c.top + oy + gy * s} }, [gx, gy]);
 		let p = await toPage(head.e.x, head.e.y); await pg.mouse.move(fb.x + p.x, fb.y + p.y); await sleep(50);
 		const cr = await f.evaluate(() => ({x: __fb.cross.x, y: __fb.cross.y}));
 		ok('4. the mouse moves the crosshair', Math.abs(cr.x - head.e.x) < 2 && Math.abs(cr.y - head.e.y) < 2, cr);
@@ -54,7 +54,7 @@ async function open(pg) {
 		await f.focus('#cv'); await pg.keyboard.press('KeyR'); await sleep(1400);
 		ok('6. R reloads', await f.evaluate(() => __fb.G.wp.icicle.mag == 10));
 		/* the barricade, then Rudolf */
-		const bh = await f.evaluate(() => { __fb.G.hp = 100; __fb.spawn('brute'); const e = __fb.N.elves.at(-1); e.x = 175; e.sp = 30; const b0 = __fb.G.bar; __fb.run(240); return {b0, b1: __fb.G.bar} });
+		const bh = await f.evaluate(() => { __fb.G.hp = 100; __fb.spawn('brute'); const e = __fb.N.elves.at(-1); e.x = 230; e.sp = 30; const b0 = __fb.G.bar; __fb.run(240); return {b0, b1: __fb.G.bar} });
 		ok('7. elves at the barricade break it down', bh.b1 < bh.b0 - 10, bh);
 		const rh = await f.evaluate(() => { __fb.G.bar = 0; __fb.run(400); return __fb.G.hp });
 		ok('8. once it is down they reach Rudolf', rh < 100, rh);
@@ -67,20 +67,36 @@ async function open(pg) {
 		/* the weapons and their effects */
 		const fx = await f.evaluate(() => {
 			const G = __fb.G, N = __fb.N, out = {}; Object.keys(__fb.WEP).forEach(k => { G.wp[k].have = true; G.wp[k].mag = __fb.WEP[k].mag; G.wp[k].res = 100 });
-			const line = (n, kind) => { N.q = [[1e9, 'shambler']]; N.elves = []; for (let i = 0; i < n; i++) { __fb.spawn(kind || 'brute'); const e = N.elves.at(-1); e.x = 300 + i * 40; e.lane = 0; e.sp = 0; e.hp = e.hp0 = 5000 } __fb.cross.x = 300; __fb.cross.y = 300 - 4 - 18 * 1.5 };
+			const line = (n, kind) => { N.q = [[1e9, 'shambler']]; N.elves = []; for (let i = 0; i < n; i++) { __fb.spawn(kind || 'brute'); const e = N.elves.at(-1); e.x = 400 + i * 40; e.lane = e.tl = 7; e.changer = e.sprinter = false; e.sp = 0; e.hp = e.hp0 = 5000 } const b = __fb.bodyOf(N.elves[0]); __fb.cross.x = b.x; __fb.cross.y = b.y };
 			const shoot = (k, n) => { __fb.pick(k); N.cd = 0; N.reload = 0; for (let i = 0; i < (n || 1); i++) { __fb.fire(); __fb.run(1); N.cd = 0; N.burst = 0 } };
 			line(4); shoot('hail'); out.hail = N.elves.filter(e => e.hp < 5000).length;
 			line(4); shoot('aurora'); out.aurora = N.elves.filter(e => e.hp < 5000).length; out.stun = N.elves.every(e => e.hp == 5000 || e.stun > 0);
 			line(3); shoot('bauble'); out.boom = N.elves.filter(e => e.hp < 5000).length;
 			line(1); const x0 = N.elves[0].x; shoot('snowplow'); out.knock = N.elves[0].x - x0;
 			line(1); __fb.pick('flurry'); N.cd = 0; __fb.hold(true); let ch = false; for (let i = 0; i < 120 && !ch; i++) { __fb.run(1); ch = N.elves[0].chill > 0 } __fb.hold(false); out.chill = ch;
-			line(1); N.elves[0].x = 230; __fb.cross.x = 230; __fb.pick('hearth'); __fb.hold(true); __fb.run(20); __fb.hold(false); out.burn = N.elves[0].burn > 0;
+			line(1); N.elves[0].x = 300; { const b = __fb.bodyOf(N.elves[0]); __fb.cross.x = b.x; __fb.cross.y = b.y } __fb.pick('hearth'); __fb.hold(true); __fb.run(20); __fb.hold(false); out.burn = N.elves[0].burn > 0;
 			line(1); __fb.pick('bells'); N.cd = 0; __fb.hold(true); __fb.run(30); const early = 150 - G.wp.bells.mag; __fb.run(60); const later = 150 - G.wp.bells.mag - early; __fb.hold(false); out.spin = [early, later];
 			line(1); __fb.pick('cane'); N.cd = 0; const m0 = G.wp.cane.mag; __fb.fire(); __fb.run(20); out.burst = m0 - G.wp.cane.mag;
 			return out });
 		ok('11. Hailstorm Rifle goes through three; Aurora Lance through the whole line, and stuns', fx.hail == 3 && fx.aurora == 4 && fx.stun, fx);
 		ok('12. the Ornament Launcher catches the ones nearby; the Snowplow pushes back; the Flurry chills', fx.boom >= 2 && fx.knock > 10 && fx.chill === true, fx);
 		ok('13. the Hearthfire sets them burning; the Sleigh-Bell Gatling winds up; the Carbine fires bursts of three', fx.burn && fx.spin[1] > fx.spin[0] * 1.5 && fx.burst == 3, fx);
+		/* fifteen lanes; changing lanes and sprinting from none on Night 1 to almost half on Night 15 */
+		const ln = await f.evaluate(() => { const G = __fb.G, N = __fb.N, n0 = G.night, out = {};
+			const sample = night => { G.night = night; N.elves = []; for (let i = 0; i < 600; i++) __fb.spawn('shambler'); const r = {lanes: new Set(N.elves.map(e => e.lane)).size, ch: N.elves.filter(e => e.changer).length / 600, sp: N.elves.filter(e => e.sprinter).length / 600}; N.elves = []; return r };
+			out.n1 = sample(1); out.n8 = sample(8); out.n15 = sample(15);
+			out.counts = [1, 2, 8, 14].map(n => __fb.nightCount(n, {count: 1})); out.hp = [1, 2, 15].map(n => +__fb.hpMul(n).toFixed(3));
+			/* a lane-changer drifts over gradually; a sprinter dashes */
+			G.night = 15; N.q = [[1e9, 'shambler']]; __fb.spawn('shambler'); const e = N.elves[0]; e.changer = true; e.sprinter = false; e.lane = e.tl = 7; e.lcT = 0; e.x = 800; const lanes = []; for (let i = 0; i < 90; i++) { __fb.run(1); lanes.push(e.lane) }
+			out.change = {from: 7, to: e.tl, steps: lanes.filter((v, i) => i && v != lanes[i - 1]).length, maxStep: Math.max(...lanes.map((v, i) => i ? Math.abs(v - lanes[i - 1]) : 0))};
+			N.elves = []; __fb.spawn('shambler'); const s2 = N.elves[0]; s2.changer = false; s2.sprinter = true; s2.spT = 0; s2.x = 800; s2.sp = 20; const x0 = s2.x; __fb.run(30); out.dash = x0 - s2.x;
+			N.elves = []; __fb.spawn('shambler'); const s3 = N.elves[0]; s3.changer = s3.sprinter = false; s3.x = 800; s3.sp = 20; __fb.run(30); out.walk = 800 - s3.x;
+			G.night = n0; N.elves = []; return out });
+		ok('11a. fifteen lanes; on Night 1 none change lanes or sprint', ln.n1.lanes == 15 && ln.n1.ch == 0 && ln.n1.sp == 0, ln.n1);
+		ok('11b. on Night 15 almost half do (about 47%), and about a quarter on Night 8', Math.abs(ln.n15.ch - .47) < .07 && Math.abs(ln.n15.sp - .47) < .07 && Math.abs(ln.n8.ch - .235) < .06, {n8: ln.n8, n15: ln.n15});
+		ok('11c. a lane change is gradual (a fraction of a lane a step), to a lane up to three away', ln.change.to != 7 && Math.abs(ln.change.to - 7) <= 3 && ln.change.steps > 10 && ln.change.maxStep < .05, ln.change);
+		ok('11d. a sprint covers ground more than twice as fast', ln.dash > ln.walk * 2, {dash: ln.dash, walk: ln.walk});
+		ok('11e. each night a few more elves, a little tougher (22, 25 … 61; ×1.000, ×1.045 … ×1.63)', ln.counts.join() == '22,25,43,61' && ln.hp.join() == '1,1.045,1.63', {c: ln.counts, hp: ln.hp});
 		/* the night ends: the day's plan */
 		await f.evaluate(() => { const N = __fb.N; N.q = []; N.elves = []; __fb.run(260) }); await sleep(300);
 		const d = await f.evaluate(() => ({h: document.getElementById('ovBody').textContent, night: __fb.G.night}));
@@ -103,7 +119,7 @@ async function open(pg) {
 		ok('19. the desktop pauses it', t0 == t1 && await f.evaluate(() => /Paused/.test(document.getElementById('ovBody').textContent)));
 		await pg.evaluate(() => send({op: 'resume'})); await f.click('text=Carry on');
 		/* how fast with a crowd */
-		const perf = await f.evaluate(() => { const N = __fb.N; N.q = [[1e9, 'shambler']]; for (let i = 0; i < 34; i++) { __fb.spawn(['shambler', 'runner', 'brute', 'crawler'][i % 4]); N.elves.at(-1).x = 180 + i * 13 } for (let i = 0; i < 40; i++) N.fx.push({k: 'p', x: 300, y: 250, vx: 1, vy: 1, t: 0, col: '#fff', life: 9}); let a = 0; for (let i = 0; i < 60; i++) { const s = performance.now(); window.__fbdraw && 0; document.getElementById('cv'); a += 0 } const s = performance.now(); for (let i = 0; i < 30; i++) __fb.run(1); return {step: (performance.now() - s) / 30} });
+		const perf = await f.evaluate(() => { const N = __fb.N; N.q = [[1e9, 'shambler']]; for (let i = 0; i < 34; i++) { __fb.spawn(['shambler', 'runner', 'brute', 'crawler'][i % 4]); N.elves.at(-1).x = 230 + i * 18 } for (let i = 0; i < 40; i++) N.fx.push({k: 'p', x: 300, y: 250, vx: 1, vy: 1, t: 0, col: '#fff', life: 9}); let a = 0; for (let i = 0; i < 60; i++) { const s = performance.now(); window.__fbdraw && 0; document.getElementById('cv'); a += 0 } const s = performance.now(); for (let i = 0; i < 30; i++) __fb.run(1); return {step: (performance.now() - s) / 30} });
 		const dr = await f.evaluate(() => new Promise(r => { let n = 0, s = performance.now(); const tick = () => { if (++n == 30) r((performance.now() - s) / 30); else requestAnimationFrame(tick) }; requestAnimationFrame(tick) }));
 		ok('20. 34 elves at once: a step ' + perf.step.toFixed(2) + ' ms, a frame every ' + dr.toFixed(1) + ' ms', perf.step < 3 && dr < 25, {perf, dr});
 		await pg.screenshot({path: path.join(W, 'night.png')});
@@ -125,10 +141,10 @@ async function open(pg) {
 		const ph = await br.newContext({viewport: {width: 740, height: 360}, hasTouch: true, isMobile: true});
 		const pp = await ph.newPage(); const m = await open(pp); await m.f.click('#ovBtns button');
 		await m.f.evaluate(() => { document.getElementById('ov').hidden = true; __fb.newRun('normal'); __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [] });
-		const fb3 = await (await m.f.frameElement()).boundingBox(), tp = await m.f.evaluate(() => { const c = document.getElementById('cv').getBoundingClientRect(), s = Math.min(c.width / 640, c.height / 360), ox = (c.width - 640 * s) / 2, oy = (c.height - 360 * s) / 2; return {x: c.left + ox + 500 * s, y: c.top + oy + 200 * s} });
+		const fb3 = await (await m.f.frameElement()).boundingBox(), tp = await m.f.evaluate(() => { const c = document.getElementById('cv').getBoundingClientRect(), s = Math.min(c.width / __fb.W, c.height / __fb.H), ox = (c.width - __fb.W * s) / 2, oy = (c.height - __fb.H * s) / 2; return {x: c.left + ox + 700 * s, y: c.top + oy + 220 * s} });
 		await pp.touchscreen.tap(fb3.x + tp.x, fb3.y + tp.y); await sleep(200);
 		const tt = await m.f.evaluate(() => ({x: Math.round(__fb.cross.x), y: Math.round(__fb.cross.y), mag: __fb.G.wp.icicle.mag}));
-		ok('25. touch: a tap aims there and fires', Math.abs(tt.x - 500) < 3 && Math.abs(tt.y - 200) < 3 && tt.mag == 9, tt);
+		ok('25. touch: a tap aims there and fires', Math.abs(tt.x - 700) < 3 && Math.abs(tt.y - 220) < 3 && tt.mag == 9, tt);
 		await pp.screenshot({path: path.join(W, 'phone.png')});
 		await pp.setViewportSize({width: 360, height: 640}); await sleep(300);
 		const up = await m.f.evaluate(() => ({sw: document.documentElement.scrollWidth, iw: innerWidth}));

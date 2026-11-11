@@ -18,6 +18,10 @@ A.warm = glow(30, 'rgba(255,200,110,1)'); A.lime = glow(16, 'rgba(214,255,74,1)'
 
 /* ---------- the night: a dark field before the workshop woods ---------- */
 A.GROUND = 300;
+/* fifteen lanes, far (0, higher up and smaller) to near (14) */
+A.LANES = 15; A.TOP = 246;
+A.laneY = l => 262 + l * 9;
+A.depth = l => .8 + l * .025;
 A.scene = function (x, W, H, t, night, dawn) {
 	const g = x.createLinearGradient(0, 0, 0, A.GROUND);
 	const k = dawn || 0;
@@ -25,46 +29,56 @@ A.scene = function (x, W, H, t, night, dawn) {
 	x.fillStyle = g; x.fillRect(0, 0, W, A.GROUND);
 	for (let i = 0; i < 70; i++) { x.fillStyle = `rgba(230,235,255,${(.2 + .5 * hash(i, 3)) * (1 - k)})`; x.fillRect(hash(i, 1) * W, hash(i, 2) * 170, 1.3, 1.3) }
 	/* a pale moon behind moving cloud */
-	x.globalAlpha = 1 - k * .8; x.drawImage(A.white, 470, 20, 80, 80); circ(x, 510, 60, 16); x.fillStyle = '#e8e6f0'; x.fill(); x.globalAlpha = 1;
+	x.globalAlpha = 1 - k * .8; x.drawImage(A.white, W - 170, 20, 80, 80); circ(x, W - 130, 60, 16); x.fillStyle = '#e8e6f0'; x.fill(); x.globalAlpha = 1;
 	for (let i = 0; i < 4; i++) { const cx = ((t * 6 + i * 190) % (W + 300)) - 150; x.fillStyle = `rgba(40,44,70,${.55 - k * .3})`; oval(x, cx, 50 + i * 18, 110, 14); x.fill() }
 	/* far woods, and the workshop with dead windows */
 	x.fillStyle = mix('#0d1120', '#4a3a55', k * .6);
-	for (let i = 0; i < 26; i++) { const px = i * 26 + hash(i, 5) * 14, ph = 50 + hash(i, 6) * 40; x.beginPath(); x.moveTo(px - 14, 250); x.lineTo(px, 250 - ph); x.lineTo(px + 14, 250); x.fill() }
-	x.fillStyle = mix('#151a2c', '#5a4560', k * .6); x.fillRect(380, 205, 120, 50); x.beginPath(); x.moveTo(372, 207); x.lineTo(440, 170); x.lineTo(508, 207); x.fill();
-	for (let i = 0; i < 4; i++) { const on = hash(i, Math.floor(t * 3) + night) > .7; x.fillStyle = on ? 'rgba(214,255,74,.55)' : 'rgba(40,30,60,.9)'; x.fillRect(392 + i * 27, 222, 10, 10) }
+	for (let i = 0; i < Math.ceil(W / 26); i++) { const px = i * 26 + hash(i, 5) * 14, ph = 50 + hash(i, 6) * 40; x.beginPath(); x.moveTo(px - 14, A.TOP + 4); x.lineTo(px, A.TOP + 4 - ph); x.lineTo(px + 14, A.TOP + 4); x.fill() }
+	const wx = W * .62; x.fillStyle = mix('#151a2c', '#5a4560', k * .6); x.fillRect(wx, A.TOP - 45, 120, 50); x.beginPath(); x.moveTo(wx - 8, A.TOP - 43); x.lineTo(wx + 60, A.TOP - 80); x.lineTo(wx + 128, A.TOP - 43); x.fill();
+	for (let i = 0; i < 4; i++) { const on = hash(i, Math.floor(t * 3) + night) > .7; x.fillStyle = on ? 'rgba(214,255,74,.55)' : 'rgba(40,30,60,.9)'; x.fillRect(wx + 12 + i * 27, A.TOP - 28, 10, 10) }
 	/* the field */
-	const gg = x.createLinearGradient(0, 240, 0, 360); gg.addColorStop(0, mix('#2a3352', '#c9b8c8', k)); gg.addColorStop(1, mix('#3b466b', '#efe0dc', k));
-	x.fillStyle = gg; x.beginPath(); x.moveTo(0, 262); for (let X = 0; X <= W; X += 20) x.lineTo(X, 262 + Math.sin(X * .02) * 4); x.lineTo(W, 360); x.lineTo(0, 360); x.fill();
+	const gg = x.createLinearGradient(0, A.TOP, 0, H); gg.addColorStop(0, mix('#2a3352', '#c9b8c8', k)); gg.addColorStop(1, mix('#3b466b', '#efe0dc', k));
+	x.fillStyle = gg; x.beginPath(); x.moveTo(0, A.TOP); for (let X = 0; X <= W; X += 20) x.lineTo(X, A.TOP + Math.sin(X * .02) * 3); x.lineTo(W, H); x.lineTo(0, H); x.fill();
+	/* faint furrows: the lanes */
+	for (let l = 0; l < A.LANES; l += 2) { x.fillStyle = 'rgba(10,12,30,.07)'; x.fillRect(0, A.laneY(l) + 1, W, 2) }
 	/* drifting fog */
-	for (let i = 0; i < 5; i++) { const fx = ((t * (8 + i * 3) + i * 150) % (W + 260)) - 130; x.fillStyle = 'rgba(120,130,170,.08)'; oval(x, fx, 268 + i * 5, 140, 12); x.fill() }
+	for (let i = 0; i < 6; i++) { const fx = ((t * (8 + i * 3) + i * 150) % (W + 260)) - 130; x.fillStyle = 'rgba(120,130,170,.08)'; oval(x, fx, A.TOP + 14 + i * 24, 160, 12); x.fill() }
 };
 A.snow = function (x, W, H, t) { for (let i = 0; i < 80; i++) { const sx = (hash(i, 7) * W - t * (12 + hash(i, 8) * 20) + W * 4) % W, sy = (hash(i, 9) * H + t * (25 + hash(i, 10) * 30)) % H; x.fillStyle = 'rgba(235,240,255,.7)'; x.fillRect(sx, sy, 1.6, 1.6) } };
 function mix(a, b, k) { const p = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)); const A_ = p(a), B = p(b); return 'rgb(' + A_.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',') + ')' }
 
 /* ---------- the barricade: crates, a sled, sacks of snow; it loses pieces as it weakens ---------- */
-A.BX = 112;
+A.BX = 150;
+/* the wall's front edge in a lane (where the elves stop) */
+A.wallX = l => A.BX + (14 - l) * 3;
+A.front = l => A.wallX(l) + 56 * A.depth(l) + 4;
 A.barricade = function (x, frac, t, hitT) {
-	const X = A.BX, G = A.GROUND, sh = hitT > 0 ? Math.sin(t * 90) * 2 * hitT : 0;
+	const sh = hitT > 0 ? Math.sin(t * 90) * 2 * hitT : 0;
 	x.save(); x.translate(sh, 0);
-	const pieces = [
-		[0, -16, 30, 16, '#6b4a2f'], [24, -18, 26, 18, '#7a5636'], [2, -32, 24, 16, '#5c3f28'], [22, -36, 22, 18, '#6b4a2f'],
-		[8, -50, 30, 14, '#7a5636'], [-6, -14, 12, 14, '#8d8fa8'], [44, -14, 12, 14, '#8d8fa8'], [12, -64, 22, 14, '#5c3f28']];
-	const n = Math.ceil(pieces.length * Math.max(0, frac));
-	for (let i = 0; i < pieces.length; i++) {
-		if (i >= n) continue;
-		const [dx, dy, w, h, c] = pieces[i];
-		x.fillStyle = c; x.fillRect(X + dx, G + dy, w, h); x.strokeStyle = 'rgba(0,0,0,.45)'; x.lineWidth = 1; x.strokeRect(X + dx + .5, G + dy + .5, w - 1, h - 1);
-		if (c != '#8d8fa8') { x.beginPath(); x.moveTo(X + dx + 2, G + dy + 2); x.lineTo(X + dx + w - 2, G + dy + h - 2); x.stroke() }
-		x.fillStyle = 'rgba(240,245,255,.85)'; x.fillRect(X + dx, G + dy - 2, w, 3);
-		if (frac < .5) { x.strokeStyle = 'rgba(214,255,74,.35)'; x.beginPath(); x.moveTo(X + dx + w * .3, G + dy); x.lineTo(X + dx + w * .5, G + dy + h * .6); x.lineTo(X + dx + w * .4, G + dy + h); x.stroke() }
+	const pieces = [[0, -16, 30, 16, '#6b4a2f'], [24, -18, 26, 18, '#7a5636'], [2, -32, 24, 16, '#5c3f28'], [22, -36, 22, 18, '#6b4a2f'], [8, -50, 30, 14, '#7a5636'], [-6, -14, 12, 14, '#8d8fa8'], [44, -14, 12, 14, '#8d8fa8']];
+	/* a snowbank along its foot, from the far lane to the near one */
+	x.fillStyle = 'rgba(205,215,240,.55)'; x.beginPath(); x.moveTo(A.wallX(0) - 6, A.laneY(0) + 4); x.lineTo(A.front(0) + 6, A.laneY(0) + 4); x.lineTo(A.front(14) + 8, A.laneY(14) + 8); x.lineTo(A.wallX(14) - 8, A.laneY(14) + 8); x.closePath(); x.fill();
+	/* segments from the far lane to the near one, each a stack of crates, sacks and boards */
+	for (let k = 0; k <= 12; k++) {
+		const l = k * 14 / 12, G = A.laneY(l) + 4, d = A.depth(l), X = A.wallX(l);
+		const n = Math.ceil(pieces.length * Math.max(0, frac) - hash(k, 77) * 1.5);
+		for (let i = 0; i < pieces.length; i++) {
+			if (i >= n) continue;
+			const [dx, dy, w, h, c] = pieces[(i + k) % pieces.length];
+			const px = X + dx * d, py = G + dy * d, pw = w * d, ph = h * d;
+			x.fillStyle = c; x.fillRect(px, py, pw, ph); x.strokeStyle = 'rgba(0,0,0,.45)'; x.lineWidth = 1; x.strokeRect(px + .5, py + .5, pw - 1, ph - 1);
+			if (c != '#8d8fa8') { x.beginPath(); x.moveTo(px + 2, py + 2); x.lineTo(px + pw - 2, py + ph - 2); x.stroke() }
+			x.fillStyle = 'rgba(240,245,255,.85)'; x.fillRect(px, py - 2, pw, 3);
+			if (frac < .5) { x.strokeStyle = 'rgba(214,255,74,.35)'; x.beginPath(); x.moveTo(px + pw * .3, py); x.lineTo(px + pw * .5, py + ph * .6); x.lineTo(px + pw * .4, py + ph); x.stroke() }
+		}
+		/* old sleds lean against it here and there */
+		if (frac > .2 && k % 4 == 2) { x.strokeStyle = '#a33a2a'; x.lineWidth = 4 * d; x.beginPath(); x.moveTo(X + 52 * d, G - 2); x.lineTo(X + 58 * d, G - 40 * d); x.stroke(); x.strokeStyle = '#c9a64a'; x.lineWidth = 2 * d; x.beginPath(); x.moveTo(X + 50 * d, G); x.quadraticCurveTo(X + 66 * d, G - 4, X + 62 * d, G - 46 * d); x.stroke() }
 	}
-	/* the old sled leaned against it */
-	if (frac > .2) { x.strokeStyle = '#a33a2a'; x.lineWidth = 4; x.beginPath(); x.moveTo(X + 52, G - 2); x.lineTo(X + 58, G - 40); x.stroke(); x.strokeStyle = '#c9a64a'; x.lineWidth = 2; x.beginPath(); x.moveTo(X + 50, G); x.quadraticCurveTo(X + 66, G - 4, X + 62, G - 46); x.stroke() }
 	x.restore();
 };
 
 /* ---------- Rudolf, side view, aiming over the barricade ---------- */
-A.RX = 78; A.RY = A.GROUND - 46;
+A.RX = 96; A.RY = A.laneY(7) - 40;
 A.rudolf = function (x, aim, weapon, t, recoil, hurtT) {
 	const X = A.RX, Y = A.RY + Math.sin(t * 2) * .8;
 	x.save();
@@ -109,8 +123,8 @@ A.weapon = function (x, w) {
 
 /* ---------- the survivors behind the barricade (small, round, friendly) ---------- */
 A.SURV = {bunny: ['#ffffff', '#f7b9cf'], badger: ['#4a4a52', '#f2f2f2'], fox: ['#e0782e', '#fff3e6'], hare: ['#d8c6a8', '#fff'], otter: ['#7a5a3a', '#e8d6bf'], owl: ['#a89276', '#f4ead8']};
-A.survivor = function (x, kind, X, t, firing) {
-	const [c1, c2] = A.SURV[kind] || A.SURV.bunny, Y = A.GROUND - 16 + Math.sin(t * 3 + X) * .6;
+A.survivor = function (x, kind, X, t, firing, Y0) {
+	const [c1, c2] = A.SURV[kind] || A.SURV.bunny, Y = (Y0 || A.GROUND) - 16 + Math.sin(t * 3 + X) * .6;
 	if (kind == 'bunny' || kind == 'hare') { oval(x, X - 3, Y - 20, 2.5, 7, -.2); fl(x, c1, '#5d4b63', 1); oval(x, X + 2, Y - 20, 2.5, 7, .2); fl(x, c1, '#5d4b63', 1) }
 	if (kind == 'fox') { x.beginPath(); x.moveTo(X - 5, Y - 14); x.lineTo(X - 3, Y - 22); x.lineTo(X, Y - 15); x.moveTo(X + 1, Y - 15); x.lineTo(X + 4, Y - 22); x.lineTo(X + 6, Y - 14); fl(x, c1, '#5a3010', 1) }
 	if (kind == 'owl') { x.beginPath(); x.moveTo(X - 6, Y - 16); x.lineTo(X - 5, Y - 21); x.lineTo(X - 2, Y - 17); x.moveTo(X + 2, Y - 17); x.lineTo(X + 5, Y - 21); x.lineTo(X + 6, Y - 16); fl(x, c1, '#4a3a2a', 1) }
@@ -139,7 +153,7 @@ A.ELF = {
 A.elfHead = (kind, s) => kind == 'crawler' ? {dx: -10 * s, dy: -12 * s, r: 6.5 * s} : {dx: -1 * s, dy: -36 * s, r: 7 * s};
 A.elfBody = (kind, s) => kind == 'crawler' ? {dx: 2 * s, dy: -8 * s, r: 9 * s} : {dx: 0, dy: -18 * s, r: 10.5 * s};
 A.elf = function (x, e, t, rf) {
-	const D = A.ELF[e.kind], s = D.s, X = e.x, Y = A.GROUND - 4 + (e.lane || 0), ph = e.walk;
+	const D = A.ELF[e.kind], s = D.s * A.depth(e.lane || 0), X = e.x, Y = A.laneY(e.lane || 0), ph = e.walk;
 	x.save(); x.translate(X, Y);
 	/* a shadow */
 	x.fillStyle = 'rgba(0,0,0,.35)'; oval(x, 0, 2, 12 * s, 3 * s); x.fill();
@@ -189,8 +203,8 @@ function head(x, X, Y, D, e, t, rf, lineC) {
 /* what is left when one falls: a spreading black slush that fades */
 A.slush = function (x, d, t) {
 	const a = Math.max(0, 1 - d.t / 6);
-	x.fillStyle = `rgba(14,8,20,${.75 * a})`; oval(x, d.x, A.GROUND - 2, d.r * Math.min(1, d.t * 3), 3 + d.r * .1); x.fill();
-	x.fillStyle = `rgba(176,77,255,${.4 * a})`; for (let i = 0; i < 3; i++) x.fillRect(d.x + (hash(d.id, i) - .5) * d.r * 1.6, A.GROUND - 3 - hash(i, d.id) * 3, 2, 2);
+	x.fillStyle = `rgba(14,8,20,${.75 * a})`; oval(x, d.x, d.y, d.r * Math.min(1, d.t * 3), 3 + d.r * .1); x.fill();
+	x.fillStyle = `rgba(176,77,255,${.4 * a})`; for (let i = 0; i < 3; i++) x.fillRect(d.x + (hash(d.id, i) - .5) * d.r * 1.6, d.y - 1 - hash(i, d.id) * 3, 2, 2);
 };
 
 /* ---------- Captain Quill and his sleigh (Night 15) ---------- */

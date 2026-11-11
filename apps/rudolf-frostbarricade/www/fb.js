@@ -5,7 +5,7 @@
    Uses the game kit (gamekit.js) and the art (fbart.js). GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
-const W = 640, H = 360, DT = 1 / 60, PI = Math.PI, LAST = 15, SLEIGH_AT = 150;
+const W = 900, H = 400, DT = 1 / 60, PI = Math.PI, LAST = 15, SLEIGH_AT = 150;
 const $ = s => document.querySelector(s), A = window.FBART, cv = $('#cv');
 const DIFF = {easy: {name: 'Easy', count: .75, hp: .8, dmg: .65}, normal: {name: 'Normal', count: 1, hp: 1, dmg: 1}, hard: {name: 'Hard', count: 1.25, hp: 1.2, dmg: 1.3}};
 /* the weapons: each better than the last, or with a way of its own */
@@ -13,7 +13,7 @@ const WEP = {
 	icicle: {name: 'Icicle Pistol', dmg: 14, rps: 4, mag: 10, reload: 1.1, spread: .02, mode: 'semi', inf: true, night: 0, desc: 'Reliable, and never runs out of shots.'},
 	cane: {name: 'Candy-Cane Carbine', dmg: 17, rps: 10, mag: 24, reload: 1.6, spread: .018, mode: 'burst', find: 48, night: 1, desc: 'Three-shot bursts, very steady.'},
 	flurry: {name: 'Flurry SMG', dmg: 9, rps: 13, mag: 40, reload: 1.8, spread: .06, mode: 'auto', find: 120, night: 2, fx: 'chill', desc: 'Fully automatic; its frost can slow them.'},
-	snowplow: {name: 'Snowplow Shotgun', dmg: 11, pellets: 7, rps: 1.3, mag: 6, reload: 2.4, spread: .16, mode: 'semi', find: 18, night: 3, fx: 'knock', desc: 'Seven pellets that push them back.'},
+	snowplow: {name: 'Snowplow Shotgun', dmg: 11, pellets: 7, rps: 1.3, mag: 6, reload: 2.4, spread: .07, mode: 'semi', find: 18, night: 3, fx: 'knock', desc: 'Seven pellets that push them back.'},
 	hail: {name: 'Hailstorm Rifle', dmg: 70, rps: 1.4, mag: 5, reload: 2.2, spread: .004, mode: 'semi', find: 15, night: 5, pierce: 3, desc: 'Goes through three of them.'},
 	bauble: {name: 'Ornament Launcher', dmg: 80, rps: .9, mag: 4, reload: 2.8, spread: .03, mode: 'semi', find: 8, night: 7, fx: 'boom', desc: 'Bursting baubles: everything nearby is caught.'},
 	hearth: {name: 'Hearthfire Thrower', dmg: 6, rps: 20, mag: 80, reload: 3, spread: 0, mode: 'auto', find: 160, night: 9, fx: 'fire', desc: 'A short reach of fire; they keep burning.'},
@@ -49,7 +49,7 @@ function startNight() {
 	const D = DIFF[G.diff], n = G.night;
 	N = {t: 0, rng: RG.rng(G.seed + ':night:' + n), elves: [], slush: [], fx: [], spits: [], q: [], over: false, won: false, id: 0, barHit: 0, hurt: 0, recoil: 0, cd: 0, burst: 0, spin: 0, reload: 0, msg: null, sleigh: null, dawn: 0, beam: 0, flame: 0};
 	const kinds = Object.keys(ELF).filter(k => ELF[k].from <= n), tw = kinds.reduce((a, k) => a + ELF[k].w, 0);
-	const total = n == LAST ? 9999 : Math.round((14 + n * 6) * D.count), len = 38 + n * 4;
+	const total = n == LAST ? 9999 : nightCount(n, D), len = 46 + n * 3.5;
 	if (n < LAST) for (let i = 0; i < total; i++) { let r = R() * tw, k = kinds[0]; for (const kk of kinds) { r -= ELF[kk].w; if (r <= 0) { k = kk; break } } N.q.push([2 + (i / total) * len + R() * 2, k]) }
 	if (n == 10) N.q.push([len * .6, 'foreman']);
 	if (n == LAST) N.q.push([60, 'foreman'], [110, 'foreman']);
@@ -58,9 +58,14 @@ function startNight() {
 	screen = 'night'; bar(); AU.music('night');
 	N.msg = {t: 0, text: 'Night ' + n + (n == LAST ? ' · the last' : ''), sub: n == LAST ? 'Hold on until the sleigh comes.' : n == 1 ? 'They are coming out of the woods.' : ''};
 }
+/* each night a few more elves, a little tougher; from Night 2 on some change lanes or sprint (none on Night 1, almost
+   half on Night 15) */
+function nightCount(n, D) { return Math.round((22 + (n - 1) * 3) * D.count) }
+const hpMul = n => 1 + (n - 1) * .045;
+const wildChance = n => .47 * (n - 1) / (LAST - 1);
 function spawn(kind) {
-	const D = DIFF[G.diff], E = ELF[kind], mul = (1 + (G.night - 1) * .07) * D.hp;
-	const e = {id: ++N.id, kind, x: W + 20 + R() * 30, lane: Math.round((R() - .5) * 8), hp: E.hp * mul, hp0: E.hp * mul, sp: E.sp * (.85 + R() * .3), walk: R() * 6, attacking: false, chill: 0, burn: 0, stun: 0, hitT: 0, spitT: 1 + R() * 2, stop: kind == 'spitter' ? 280 + R() * 120 : 0};
+	const D = DIFF[G.diff], E = ELF[kind], mul = hpMul(G.night) * D.hp, p = wildChance(G.night), lane = Math.floor(R() * A.LANES);
+	const e = {id: ++N.id, kind, x: W + 20 + R() * 40, lane, tl: lane, changer: kind != 'foreman' && R() < p, sprinter: kind != 'foreman' && kind != 'crawler' && R() < p, lcT: 1 + R() * 3, spT: 2 + R() * 5, sprint: 0, hp: E.hp * mul, hp0: E.hp * mul, sp: E.sp * (.85 + R() * .3), walk: R() * 6, attacking: false, chill: 0, burn: 0, stun: 0, hitT: 0, spitT: 1 + R() * 2, stop: kind == 'spitter' ? 430 + R() * 220 : 0};
 	N.elves.push(e);
 	if (R() < .25) AU.sfx('groan');
 }
@@ -71,34 +76,40 @@ function nightStep() {
 	/* the weapon */
 	weaponStep();
 	/* elves */
-	const front = A.BX + 58;
 	for (const e of N.elves) {
 		if (e.hitT > 0) e.hitT -= DT; if (e.chill > 0) e.chill -= DT; if (e.stun > 0) e.stun -= DT;
 		if (e.burn > 0) { e.burn -= DT; damage(e, 9 * DT, false, true) }
 		if (e.dead) continue;
-		const sp = e.sp * (e.chill > 0 ? .45 : 1) * (e.stun > 0 ? 0 : 1);
+		const front = A.front(e.lane);
+		/* changing lanes: now and then a new lane up to three away, crossed gradually */
+		if (e.changer && !e.attacking && e.stun <= 0) { e.lcT -= DT; if (e.lcT <= 0) { e.lcT = 2 + R() * 3; e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + (R() < .5 ? -1 : 1) * (1 + Math.floor(R() * 3)))) } }
+		if (e.lane != e.tl) { const d = e.tl - e.lane; e.lane += Math.sign(d) * Math.min(Math.abs(d), 1.3 * DT) }
+		/* sprinting: short dashes for the barricade */
+		if (e.sprint > 0) e.sprint -= DT;
+		else if (e.sprinter && !e.attacking) { e.spT -= DT; if (e.spT <= 0) { e.sprint = 1.2 + R() * 1.6; e.spT = 4 + R() * 5 } }
+		const sp = e.sp * (e.chill > 0 ? .45 : 1) * (e.stun > 0 ? 0 : 1) * (e.sprint > 0 ? 2.4 : 1);
 		if (e.kind == 'spitter' && e.x <= e.stop) {
 			e.attacking = false; e.spitT -= DT;
-			if (e.spitT <= 0 && e.stun <= 0) { e.spitT = 2.6 + R(); N.spits.push({x: e.x - 8, y: A.GROUND - 40, vx: -(e.x - front + 10) / 1.2, vy: -150, t: 0}); AU.sfx('spit') }
+			if (e.spitT <= 0 && e.stun <= 0) { e.spitT = 2.6 + R(); N.spits.push({x: e.x - 8, y: A.laneY(e.lane) - 40 * ELF_S(e), vx: -(e.x - front + 10) / 1.2, vy: -150, t: 0, ty: A.laneY(e.lane) - 30, fx: front}); AU.sfx('spit') }
 			continue;
 		}
-		const stopX = G.bar > 0 ? front + (e.lane + 4) * .8 : A.RX + 22;
+		const stopX = G.bar > 0 ? front + (e.id % 5) * 2 : A.RX + 26;
 		if (e.x > stopX) { e.x -= sp * DT; e.walk += sp * DT * .25; e.attacking = false }
 		else {
 			e.attacking = true; e.walk += DT * 4;
-			if (e.kind == 'tinker') { explode(e.x, e.lane, 60, 40, e); if (G.bar > 0) hitBar(90 * D.dmg); else hurtRudolf(25 * D.dmg); continue }
+			if (e.kind == 'tinker') { explode(e.x, A.laneY(e.lane) - 18, 60, 40, e); if (G.bar > 0) hitBar(90 * D.dmg); else hurtRudolf(25 * D.dmg); continue }
 			if (e.stun > 0) continue;
 			if (G.bar > 0) hitBar(ELF[e.kind].dps * D.dmg * DT); else hurtRudolf(ELF[e.kind].dps * .5 * D.dmg * DT);
 		}
 	}
 	/* spit arcs onto the barricade */
-	for (const s of N.spits) { s.t += DT; s.x += s.vx * DT; s.vy += 260 * DT; s.y += s.vy * DT; if (s.y >= A.GROUND - 30 && s.x < front + 10) { s.done = true; if (G.bar > 0) hitBar(12 * D.dmg); else hurtRudolf(5 * D.dmg); burst(s.x, s.y, 8, '#b04dff') } }
+	for (const s of N.spits) { s.t += DT; s.x += s.vx * DT; s.vy += 260 * DT; s.y += s.vy * DT; if (s.y >= s.ty && s.x < s.fx + 10) { s.done = true; if (G.bar > 0) hitBar(12 * D.dmg); else hurtRudolf(5 * D.dmg); burst(s.x, s.y, 8, '#b04dff') } }
 	N.spits = N.spits.filter(s => !s.done && s.t < 4);
 	N.elves = N.elves.filter(e => !e.dead);
 	/* survivors on guard */
 	G.surv.forEach((s, i) => {
 		if (s.role != 'guard') return; s.cd = (s.cd || 1 + i * .2) - DT; s.fire = Math.max(0, (s.fire || 0) - DT);
-		if (s.cd <= 0) { const tg = N.elves.filter(e => e.x < W - 10).sort((a, b) => a.x - b.x)[0]; if (tg) { s.cd = 1.1; s.fire = .12; damage(tg, (8 + G.night * .6), false); N.fx.push({k: 'bolt', x0: 22 + i * 10 + 16, y0: A.GROUND - 22, x1: tg.x, y1: A.GROUND - 22 * ELF_S(tg), t: 0}); AU.sfx('bolt') } }
+		if (s.cd <= 0) { const tg = N.elves.filter(e => e.x < W - 10).sort((a, b) => a.x - b.x)[0]; if (tg) { s.cd = 1.1; s.fire = .12; damage(tg, (8 + G.night * .6), false); const sp = survPos(i); N.fx.push({k: 'bolt', x0: sp.x + 16, y0: sp.y - 18, x1: tg.x, y1: A.laneY(tg.lane) - 22 * ELF_S(tg), t: 0}); AU.sfx('bolt') } }
 	});
 	if (N.barHit > 0) N.barHit -= DT * 3; if (N.hurt > 0) N.hurt -= DT; if (N.recoil > 0) N.recoil = Math.max(0, N.recoil - DT * 8);
 	fxStep();
@@ -108,7 +119,9 @@ function nightStep() {
 	if (N.won) { N.wonT += DT; N.dawn = Math.min(.6, N.wonT / 4); if (N.wonT > 3 && !N.over) { N.over = true; dawn() } }
 	if (N.sleigh) rescueStep();
 }
-const ELF_S = e => A.ELF[e.kind].s;
+const ELF_S = e => A.ELF[e.kind].s * A.depth(e.lane);
+const SURV_LANES = [3, 11, 6, 13, 1, 9];
+const survPos = i => ({x: 40 + (i % 3) * 14, y: A.laneY(SURV_LANES[i % 6])});
 function hitBar(d) { G.bar = Math.max(0, G.bar - d); N.barHit = 1; if (Math.random() < .08) AU.sfx('thud') }
 function hurtRudolf(d) { G.hp = Math.max(0, G.hp - d); N.hurt = .4; if (Math.random() < .1) AU.sfx('hurt') }
 function damage(e, d, head, quiet) {
@@ -116,16 +129,17 @@ function damage(e, d, head, quiet) {
 	e.hp -= d; if (!quiet) e.hitT = .08;
 	if (e.hp <= 0) {
 		e.dead = true; G.kills++; save.stats.kills++; if (head) { G.heads++; save.stats.heads++ }
-		N.slush.push({x: e.x, r: 14 * ELF_S(e), t: 0, id: e.id});
-		burst(e.x, A.GROUND - 20 * ELF_S(e), 16, '#140a1c'); burst(e.x, A.GROUND - 20 * ELF_S(e), 10, '#b04dff');
-		if (e.kind == 'tinker') explode(e.x, e.lane, 70, 70, e);
+		const ly = A.laneY(e.lane); N.slush.push({x: e.x, y: ly - 2, r: 14 * ELF_S(e), t: 0, id: e.id});
+		burst(e.x, ly - 20 * ELF_S(e), 16, '#140a1c', ly); burst(e.x, ly - 20 * ELF_S(e), 10, '#b04dff', ly);
+		if (e.kind == 'tinker') explode(e.x, ly - 18, 70, 70, e);
 		AU.sfx(e.kind == 'foreman' || e.kind == 'brute' ? 'fallbig' : 'fall');
 	}
 }
-function explode(x, lane, r, dmg, src) {
+function explode(x, y, r, dmg, src) {
 	if (src) src.dead = true;
-	burst(x, A.GROUND - 18, 26, '#ffb03b'); burst(x, A.GROUND - 18, 18, '#d6ff4a'); N.fx.push({k: 'ring', x, y: A.GROUND - 18, r, t: 0});
-	for (const e of N.elves) if (!e.dead && e !== src && Math.abs(e.x - x) < r) damage(e, dmg * (1 - Math.abs(e.x - x) / r * .5), false);
+	burst(x, y, 26, '#ffb03b', y + 20); burst(x, y, 18, '#d6ff4a', y + 20); N.fx.push({k: 'ring', x, y, r, t: 0});
+	/* (across the lanes the blast reaches a little less far) */
+	for (const e of N.elves) { if (e.dead || e === src) continue; const d = Math.hypot(e.x - x, (A.laneY(e.lane) - 18 * ELF_S(e) - y) * 1.5); if (d < r) damage(e, dmg * (1 - d / r * .5), false) }
 	AU.sfx('boom'); if (!save.set.reduceFlash) N.shake = .25;
 }
 
@@ -155,37 +169,50 @@ function fire(w, st) {
 	if (!save.set.reduceFlash) N.fx.push({k: 'flash', x: mx, y: my, t: 0});
 	AU.sfx(G.cur);
 	if (w.fx == 'fire') { flame(w, mx, my, a0); return }
-	const pel = w.pellets || 1, spr = w.spread * (1 - G.skill * .015);
+	const pel = w.pellets || 1, spr = w.spread * (1 - G.skill * .015), dist = Math.hypot(cross.x - mx, cross.y - my);
 	let hitAny = false;
 	for (let p = 0; p < pel; p++) {
-		let a = a0 + (R() - .5) * 2 * spr;
-		/* aim assist: the nearest head close to the crosshair */
-		if (save.set.assist && pel == 1) { const h = nearestHead(cross.x, cross.y, 20); if (h) a = Math.atan2(h.y - my, h.x - mx) }
-		const dx = Math.cos(a), dy = Math.sin(a), hits = rayHits(mx, my, dx, dy);
-		const take = w.pierce ? Math.min(hits.length, w.pierce) : Math.min(1, hits.length);
-		let endT = 700;
-		for (let i = 0; i < take; i++) {
-			const h = hits[i]; hitAny = true; endT = h.t;
-			if (w.fx == 'boom') { explode(mx + dx * h.t, h.e.lane, 60, w.dmg, null); break }
+		/* the shot lands near the crosshair: the spread grows with the distance */
+		const ja = R() * PI * 2, jr = Math.sqrt(R()) * spr * dist;
+		let ax = cross.x + Math.cos(ja) * jr, ay = cross.y + Math.sin(ja) * jr;
+		if (save.set.assist && pel == 1) { const h = nearestHead(cross.x, cross.y, 22); if (h) { ax = h.x; ay = h.y } }
+		const hits = pointHits(ax, ay, w.pierce || 1);
+		for (const h of hits) {
+			hitAny = true;
+			if (w.fx == 'boom') { explode(ax, ay, 60, w.dmg, null); break }
 			damage(h.e, w.dmg * (h.head ? 2.5 : 1), h.head);
-			if (h.head) N.fx.push({k: 'txt', x: h.e.x, y: A.GROUND - 50 * ELF_S(h.e), s: 'eyes!', t: 0});
+			if (h.head) N.fx.push({k: 'txt', x: h.e.x, y: A.laneY(h.e.lane) - 50 * ELF_S(h.e), s: 'eyes!', t: 0});
 			if (w.fx == 'chill' && R() < .3) h.e.chill = 2;
 			if (w.fx == 'knock') h.e.x += 7;
 			if (w.fx == 'stun') h.e.stun = .9;
 		}
-		if (w.fx == 'boom' && !take) { const gy = A.GROUND - 10; const t = dy > 0 ? (gy - my) / dy : 700; explode(mx + dx * Math.min(t, 700), 0, 50, w.dmg, null); endT = t }
-		N.fx.push({k: w.fx == 'stun' ? 'beam' : 'tracer', x0: mx, y0: my, x1: mx + dx * Math.min(endT, 700), y1: my + dy * Math.min(endT, 700), t: 0, c: G.cur});
+		if (w.fx == 'boom' && !hits.length) explode(ax, ay, 60, w.dmg, null);
+		const far = w.pierce > 1 ? (hits.length ? hits[hits.length - 1].e.x : ax) + (w.pierce > 3 ? W : 0) : ax;
+		N.fx.push({k: w.fx == 'stun' ? 'beam' : 'tracer', x0: mx, y0: my, x1: Math.min(W + 20, far), y1: ay, t: 0, c: G.cur});
 	}
 	if (hitAny) G.hits++;
 }
 function flame(w, mx, my, a0) {
 	N.flame = .1; let hit = false;
-	for (const e of N.elves) { if (e.dead) continue; const b = bodyOf(e), dx = b.x - mx, dy = b.y - my, d = Math.hypot(dx, dy); if (d < 210 && Math.abs(Math.atan2(dy, dx) - a0) < .24) { damage(e, w.dmg, false, true); e.burn = 2.2; e.hitT = .05; hit = true } }
+	for (const e of N.elves) { if (e.dead) continue; const b = bodyOf(e), dx = b.x - mx, dy = b.y - my, d = Math.hypot(dx, dy); if (d < 260 && Math.abs(Math.atan2(dy, dx) - a0) < .24) { damage(e, w.dmg, false, true); e.burn = 2.2; e.hitT = .05; hit = true } }
 	for (let i = 0; i < 2; i++) N.fx.push({k: 'fire', x: mx, y: my, vx: Math.cos(a0 + (Math.random() - .5) * .3) * (260 + Math.random() * 80), vy: Math.sin(a0 + (Math.random() - .5) * .3) * 280, t: 0});
 	if (hit) G.hits++;
 }
-function headOf(e) { const s = ELF_S(e), h = A.elfHead(e.kind, s); return {x: e.x + h.dx, y: A.GROUND - 4 + e.lane + h.dy, r: h.r + 1} }
-function bodyOf(e) { const s = ELF_S(e), b = A.elfBody(e.kind, s); return {x: e.x + b.dx, y: A.GROUND - 4 + e.lane + b.dy, r: b.r} }
+function headOf(e) { const s = ELF_S(e), h = A.elfHead(e.kind, s); return {x: e.x + h.dx, y: A.laneY(e.lane) + h.dy, r: h.r + 1} }
+function bodyOf(e) { const s = ELF_S(e), b = A.elfBody(e.kind, s); return {x: e.x + b.dx, y: A.laneY(e.lane) + b.dy, r: b.r} }
+/* the elf under the point (the nearest lane wins), then for piercing shots the ones behind it in about the same lane */
+function pointHits(x, y, pierce) {
+	let best = null;
+	for (const e of N.elves) {
+		if (e.dead) continue;
+		const h = headOf(e), b = bodyOf(e), head = (x - h.x) ** 2 + (y - h.y) ** 2 < h.r * h.r, body = (x - b.x) ** 2 + (y - b.y) ** 2 < b.r * b.r;
+		if ((head || body) && (!best || e.lane > best.e.lane)) best = {e, head};
+	}
+	if (!best) return [];
+	const out = [best];
+	if (pierce > 1) N.elves.filter(e => !e.dead && e !== best.e && e.x > best.e.x && Math.abs(e.lane - best.e.lane) <= 1.2).sort((a, b) => a.x - b.x).slice(0, pierce - 1).forEach(e => out.push({e, head: false}));
+	return out;
+}
 function rayCircle(ox, oy, dx, dy, c) { const fx = ox - c.x, fy = oy - c.y, b = fx * dx + fy * dy, cc = fx * fx + fy * fy - c.r * c.r, disc = b * b - cc; if (disc < 0) return -1; const t = -b - Math.sqrt(disc); return t > 0 ? t : -1 }
 function rayHits(ox, oy, dx, dy) {
 	const out = [];
@@ -195,9 +222,9 @@ function rayHits(ox, oy, dx, dy) {
 function nearestHead(x, y, r) { let best = null, bd = r * r; for (const e of N.elves) { if (e.dead) continue; const h = headOf(e), d = (h.x - x) ** 2 + (h.y - y) ** 2; if (d < bd) { bd = d; best = h } } return best }
 
 /* ---------- effects ---------- */
-function burst(x, y, n, col) { for (let i = 0; i < n && N.fx.length < 600; i++) { const a = Math.random() * PI * 2, v = 30 + Math.random() * 120; N.fx.push({k: 'p', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, t: 0, col, life: .5 + Math.random() * .6}) } }
+function burst(x, y, n, col, floor) { for (let i = 0; i < n && N.fx.length < 600; i++) { const a = Math.random() * PI * 2, v = 30 + Math.random() * 120; N.fx.push({k: 'p', x, y, fl: floor || y + 20, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, t: 0, col, life: .5 + Math.random() * .6}) } }
 function fxStep() {
-	for (const f of N.fx) { f.t += DT; if (f.k == 'p') { f.x += f.vx * DT; f.y += f.vy * DT; f.vy += 300 * DT; if (f.y > A.GROUND) { f.y = A.GROUND; f.vy *= -.2; f.vx *= .5 } } else if (f.k == 'fire') { f.x += f.vx * DT; f.y += f.vy * DT; f.vy -= 120 * DT } }
+	for (const f of N.fx) { f.t += DT; if (f.k == 'p') { f.x += f.vx * DT; f.y += f.vy * DT; f.vy += 300 * DT; if (f.y > f.fl) { f.y = f.fl; f.vy *= -.2; f.vx *= .5 } } else if (f.k == 'fire') { f.x += f.vx * DT; f.y += f.vy * DT; f.vy -= 120 * DT } }
 	N.fx = N.fx.filter(f => f.t < (f.k == 'p' ? f.life : f.k == 'txt' ? .9 : f.k == 'ring' ? .4 : f.k == 'fire' ? .55 : f.k == 'beam' ? .3 : .12));
 	for (const s of N.slush) s.t += DT; N.slush = N.slush.filter(s => s.t < 6);
 	if (N.shake > 0) N.shake -= DT;
@@ -207,7 +234,7 @@ function fxStep() {
 function startRescue() { N.sleigh = {t: 0, x: W + 80, y: 40, phase: 'in'}; AU.music('rescue'); AU.sfx('jingle'); N.msg = {t: 0, text: 'Bells in the sky…', sub: ''} }
 function rescueStep() {
 	const S = N.sleigh; S.t += DT;
-	if (S.phase == 'in') { S.x += (210 - S.x) * 1.4 * DT; S.y += (175 - S.y) * 1.4 * DT; if (S.t > 3.5) { S.phase = 'light'; S.t = 0; for (const e of N.elves) { e.dead = true; burst(e.x, A.GROUND - 20, 14, '#ffd36e'); burst(e.x, A.GROUND - 20, 8, '#140a1c') } N.elves = []; N.q = []; N.fx.push({k: 'ring', x: S.x, y: S.y, r: 700, t: 0, slow: true}); AU.sfx('light') } }
+	if (S.phase == 'in') { S.x += (300 - S.x) * 1.4 * DT; S.y += (170 - S.y) * 1.4 * DT; if (S.t > 3.5) { S.phase = 'light'; S.t = 0; for (const e of N.elves) { e.dead = true; const ly = A.laneY(e.lane); burst(e.x, ly - 20, 14, '#ffd36e', ly); burst(e.x, ly - 20, 8, '#140a1c', ly) } N.elves = []; N.q = []; N.fx.push({k: 'ring', x: S.x, y: S.y, r: 700, t: 0, slow: true}); AU.sfx('light') } }
 	else if (S.phase == 'light') { N.dawn = Math.min(.35, S.t / 3); if (S.t > 1.2 && !S.said) { S.said = true; N.say = {t: 0, who: 'Captain Quill', text: 'Easy now — there’s room for every one of you. Climb aboard!'} } if (S.t > 5.5) { S.phase = 'board'; S.t = 0 } }
 	else if (S.phase == 'board') { S.board = Math.min(1, S.t / 2); if (S.t > 2.6) { S.phase = 'away'; S.t = 0; N.say = {t: 0, who: 'Rudolf', text: 'We held the line. Every night of it.'} } }
 	else if (S.phase == 'away') { S.x -= 70 * DT; S.y -= 34 * DT; N.dawn = Math.min(1, .35 + S.t / 6); if (S.t > 6 && !N.over) { N.over = true; ending() } }
@@ -218,23 +245,22 @@ function draw() {
 	if (!view) return;
 	const x = view.begin(); x.save(); x.beginPath(); x.rect(0, 0, W, H); x.clip();
 	const rf = save.set.reduceFlash;
-	if (screen == 'title' || !N) { A.scene(x, W, H, T, 0, 0); A.barricade(x, 1, T, 0); A.rudolf(x, -.15, 'icicle', T, 0, 0); for (let i = 0; i < 3; i++) A.survivor(x, KINDS[i], 22 + i * 14, T, false); fakeHorde(x); A.snow(x, W, H, T); titleText(x); x.restore(); return }
+	if (screen == 'title' || !N) { A.scene(x, W, H, T, 0, 0); for (let i = 0; i < 3; i++) { const p = survPos(i); A.survivor(x, KINDS[i], p.x, T, false, p.y) } A.rudolf(x, -.15, 'icicle', T, 0, 0); A.barricade(x, 1, T, 0); fakeHorde(x); A.snow(x, W, H, T); titleText(x); x.restore(); return }
 	if (N.shake > 0 && !rf) x.translate((Math.random() - .5) * 6, (Math.random() - .5) * 3);
 	A.scene(x, W, H, T, G.night, N.dawn);
 	for (const s of N.slush) A.slush(x, s, T);
-	/* elves, far ones first */
-	const es = N.elves.slice().sort((a, b) => a.lane - b.lane);
-	for (const e of es) A.elf(x, e, T, rf);
-	for (const s of N.spits) { x.fillStyle = '#2a1036'; x.beginPath(); x.arc(s.x, s.y, 4, 0, 7); x.fill(); x.fillStyle = '#b04dff'; x.fillRect(s.x - 1, s.y - 1, 2, 2) }
-	/* the survivors and Rudolf, then the barricade in front of them */
+	/* the survivors and Rudolf, the long barricade, then the elves (far lanes first) */
 	const board = N.sleigh && N.sleigh.board || 0, away = N.sleigh && N.sleigh.phase == 'away';
 	if (!away) {
 		x.globalAlpha = 1 - board;
-		G.surv.forEach((s, i) => A.survivor(x, s.kind, 22 + i * 10 - board * 10, T, s.fire > 0));
+		G.surv.map((s, i) => [s, i]).sort((a, b) => SURV_LANES[a[1] % 6] - SURV_LANES[b[1] % 6]).forEach(([s, i]) => { const p = survPos(i); A.survivor(x, s.kind, p.x - board * 10, T, s.fire > 0, p.y) });
 		A.rudolf(x, aimAngle(), G.cur, T, N.recoil, N.hurt);
 		x.globalAlpha = 1;
 	}
 	A.barricade(x, G.bar / G.barMax, T, N.barHit);
+	const es = N.elves.slice().sort((a, b) => a.lane - b.lane);
+	for (const e of es) A.elf(x, e, T, rf);
+	for (const s of N.spits) { x.fillStyle = '#2a1036'; x.beginPath(); x.arc(s.x, s.y, 4, 0, 7); x.fill(); x.fillStyle = '#b04dff'; x.fillRect(s.x - 1, s.y - 1, 2, 2) }
 	/* shots */
 	for (const f of N.fx) {
 		if (f.k == 'tracer') { x.strokeStyle = {icicle: 'rgba(190,232,255,.9)', cane: 'rgba(255,120,130,.9)', bauble: 'rgba(255,215,100,.9)', bells: 'rgba(255,230,140,.9)'}[f.c] || 'rgba(230,240,255,.8)'; x.lineWidth = f.c == 'hail' ? 2.4 : 1.4; x.globalAlpha = 1 - f.t / .12; x.beginPath(); x.moveTo(f.x0, f.y0); x.lineTo(f.x1, f.y1); x.stroke(); x.globalAlpha = 1 }
@@ -268,7 +294,7 @@ function hud(x) {
 	const left = G.night == LAST ? (N.sleigh ? 'The sleigh is here!' : 'The sleigh comes in ' + Math.max(0, Math.ceil(SLEIGH_AT - N.t)) + ' s') : (N.q.length + N.elves.length) + ' left';
 	x.fillText(left, 104, 14);
 	const bar = (X, label, v, max, col) => { x.fillStyle = 'rgba(255,255,255,.15)'; x.fillRect(X, 9, 110, 10); x.fillStyle = col; x.fillRect(X, 9, 110 * Math.max(0, v / max), 10); x.fillStyle = '#fff'; x.textAlign = 'right'; x.fillText(label, X - 4, 14); x.textAlign = 'left' };
-	bar(310, 'Barricade', G.bar, G.barMax, G.bar / G.barMax < .3 ? '#e0603a' : '#b98a4a'); bar(500, 'Rudolf', G.hp, 100, '#ff6f91');
+	bar(W - 400, 'Barricade', G.bar, G.barMax, G.bar / G.barMax < .3 ? '#e0603a' : '#b98a4a'); bar(W - 150, 'Rudolf', G.hp, 100, '#ff6f91');
 	/* the weapon */
 	const w = WEP[G.cur], st = G.wp[G.cur];
 	x.fillStyle = 'rgba(5,6,14,.55)'; x.fillRect(W - 200, H - 34, 196, 30);
@@ -280,7 +306,7 @@ function hud(x) {
 	if (N.say && N.say.t < 5) { N.say.t += DT; const a = Math.min(1, N.say.t * 3, (5 - N.say.t) * 2); x.globalAlpha = a; x.fillStyle = 'rgba(10,12,30,.8)'; x.fillRect(80, 52, W - 160, 44); x.textAlign = 'left'; x.font = 'bold 11px system-ui,sans-serif'; x.fillStyle = '#ffd36e'; x.fillText(N.say.who, 92, 64); x.font = '13px system-ui,sans-serif'; x.fillStyle = '#fff'; x.fillText(N.say.text, 92, 82); x.globalAlpha = 1 }
 	if (N.won && G.night < LAST) { x.textAlign = 'center'; x.font = 'bold 24px system-ui,sans-serif'; x.fillStyle = '#ffe9c8'; x.fillText('The night is over', W / 2, 150) }
 }
-function fakeHorde(x) { for (let i = 0; i < 6; i++) { const e = {id: i + 1, kind: ['shambler', 'runner', 'shambler', 'brute', 'crawler', 'shambler'][i], x: 330 + i * 52 + Math.sin(T * .3 + i) * 6, lane: (i % 3) * 3 - 3, walk: T * 2 + i, chill: 0, burn: 0, hitT: 0}; A.elf(x, e, T, save.set.reduceFlash) } }
+function fakeHorde(x) { for (let i = 0; i < 6; i++) { const e = {id: i + 1, kind: ['shambler', 'runner', 'shambler', 'brute', 'crawler', 'shambler'][i], x: 470 + i * 70 + Math.sin(T * .3 + i) * 6, lane: [2, 9, 5, 12, 7, 13][i], walk: T * 2 + i, chill: 0, burn: 0, hitT: 0}; A.elf(x, e, T, save.set.reduceFlash) } }
 function titleText(x) {
 	x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = 'bold 40px system-ui,sans-serif'; x.lineWidth = 6; x.strokeStyle = 'rgba(0,0,0,.75)'; x.strokeText('Frost Barricade', W / 2, 64); x.fillStyle = '#f4ecff'; x.fillText('Frost Barricade', W / 2, 64);
 	x.font = '13px system-ui,sans-serif'; x.fillStyle = '#c9c2dd'; x.strokeText('Fifteen nights. One barricade.', W / 2, 96); x.fillText('Fifteen nights. One barricade.', W / 2, 96);
@@ -515,7 +541,7 @@ async function start() {
 	toTitle();
 	if (!save.seenHelp) { save.seenHelp = 1; persist(); help(toTitle) }
 	RG.loop(update, draw, {whilePaused: true});
-	window.__fb = {get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
+	window.__fb = {W, H, headOf, bodyOf, nightCount, hpMul, wildChance, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
 		run(n) { for (let i = 0; i < n && N && !N.over; i++) { inputStep(); nightStep() } return N && {t: N.t, elves: N.elves.length, q: N.q.length, bar: G.bar, hp: G.hp, kills: G.kills} }};
 }
 start();
