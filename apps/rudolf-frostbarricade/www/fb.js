@@ -85,7 +85,7 @@ function startNight() {
 	const total = n == LAST ? 9999 : nightCount(n, D), len = 46 + n * 3.5;
 	if (n < LAST) for (let i = 0; i < total; i++) N.q.push([2 + (i / total) * len + R() * 2, pickKind(n)]);
 	/* survivors come back to the barricade armed and rested each night (a stolen weapon is back by then) */
-	G.surv.forEach((s, i) => { s.disarmed = false; s.out = false; s.fled = false; s.runX = null; s.hp = 40; s.cd = .6 + R() * 2.4 + i * .3 });
+	G.surv.forEach((s, i) => { s.disarmed = false; s.out = false; s.fled = false; s.stun = 0; s.runX = null; s.hp = 40; s.cd = .6 + R() * 2.4 + i * .3 });
 	if (n == 10 || n == 15 || n == 20) N.q.push([len * .6, 'foreman']);
 	if (n == LAST) N.q.push([60, 'foreman'], [110, 'foreman']);
 	/* wendigos: one under the full moon; one on Night 24 and two on Night 25, in the great blizzard; a screech first */
@@ -117,6 +117,7 @@ function spawn(kind) {
 	const D = DIFF[G.diff], E = ELF[kind], mul = hpMul(G.night) * D.hp, p = wildChance(G.night), lane = Math.floor(R() * A.LANES);
 	const e = {id: ++N.id, kind, x: W + 20 + R() * 40, lane, tl: lane, changer: (kind == 'shambler' || kind == 'crawler') && R() < p, sprinter: kind == 'sprinter', mugger: kind == 'mugger', loot: -1, lcT: kind == 'mugger' ? R() * .4 : 1 + R() * 3, spT: 1 + R() * 2, sprint: 0, hp: E.hp * mul, hp0: E.hp * mul, sp: E.sp * (kind == 'wendigo' ? 1 : ELF_SPEED) * (.85 + R() * .3), walk: R() * 6, attacking: false, chill: 0, burn: 0, stun: 0, hitT: 0, spitT: 1 + R() * 2, stop: kind == 'spitter' ? 430 + R() * 220 : 0};
 	if (kind == 'shielder') e.shield = true;
+	if (N.wx == 'moon' && A.ELF[kind].eye == A.EYE.white) { e.sprinter = true; e.eye = A.EYE.red; e.changer = false }
 	/* the wendigo: it drifts, slowly, towards Rudolf's lane */
 	if (kind == 'wendigo') { e.lane = Math.floor(R() * A.LANES); e.tl = Math.round(N.rl); e.changer = false; e.wmode = 'walk'; e.wT = 4 + R() * 2 }
 	N.elves.push(e);
@@ -182,6 +183,7 @@ function nightStep() {
 	/* survivors on guard: each shoots in its own time, and wildly until trained (their aim follows the training) */
 	G.surv.forEach((s, i) => {
 		if (s.fled) { s.runX -= 150 * DT; return }
+		if (s.stun > 0) { s.stun -= DT; return }
 		if (s.role != 'guard' || s.disarmed || s.out) return; s.cd = (s.cd == null ? .6 + R() * 2.4 : s.cd) - DT; s.fire = Math.max(0, (s.fire || 0) - DT);
 		if (s.cd <= 0) { const tg = N.elves.filter(e => e.x < W - 10).sort((a, b) => (!!a.shield - !!b.shield) || a.x - b.x)[Math.floor(R() * 2)] || N.elves.find(e => e.x < W - 10); if (tg) { s.cd = 1.3 + R() * 1.7; s.fire = .12; const sp = survPos(i);
 			/* the chance to hit: about 40% untrained, 85% fully trained; in a blizzard little more than half that; a shield stops them */
@@ -212,11 +214,11 @@ const survPos = i => ({x: 136 + (i % 3) * 10, y: A.laneY(SURV_LANES[i % 6])});
 /* the wendigo: a mini-boss. It comes on slowly, drifting towards Rudolf's lane; now and then it stops and, for 1.5 s,
    draws in a screech, then lets it go down its lane. The screech does not touch the barricade: it hurts the survivors
    in its path, and if it reaches Rudolf he is stunned, his sight blurs and his ears ring for 3 s, then fade. */
-const CHARGE = 1.5, DEAF_FULL = 3, DEAF_FADE = 1.5, WAVE_SPEED = 520, WAVE_REACH = 1.5;
+const CHARGE = 1.5, DEAF_FULL = 3, DEAF_FADE = 2.5, WAVE_SPEED = 520, WAVE_REACH = 1.5;
 function wendigoStep(w) {
 	if (w.wmode == 'charge') {
 		w.chT -= DT;
-		if (w.chT <= 0) { w.wmode = 'walk'; w.wT = 5 + R() * 3; N.waves.push({lane: w.lane, x: w.x - 30 * ELF_S(w), t: 0, hit: {}}); AU.sfx('wscreech'); N.shake = save.set.reduceFlash ? .2 : .55; N.shakeAmp = save.set.reduceFlash ? 2 : 9 }
+		if (w.chT <= 0) { w.wmode = 'walk'; w.wT = 5 + R() * 3; N.waves.push({lane: w.lane, x: w.x - 30 * ELF_S(w), x0: w.x - 30 * ELF_S(w), t: 0, hit: {}}); AU.sfx('wscreech'); N.shake = save.set.reduceFlash ? .2 : .55; N.shakeAmp = save.set.reduceFlash ? 2 : 9 }
 		return;
 	}
 	w.tl = Math.round(N.rl);   /* (it keeps drifting towards wherever Rudolf is) */
@@ -226,10 +228,12 @@ function wendigoStep(w) {
 function wavesStep() {
 	for (const v of N.waves) {
 		v.t += DT; v.x -= WAVE_SPEED * DT;
-		G.surv.forEach((s, i) => { const p = survPos(i); if (!v.hit['s' + i] && v.x <= p.x + 10 && Math.abs(SURV_LANES[i % 6] - v.lane) <= WAVE_REACH && !s.out && !s.fled) { v.hit['s' + i] = 1; s.hp = (s.hp == null ? 40 : s.hp) - 25; N.fx.push({k: 'txt', x: p.x + 50, y: p.y - 34, s: s.name + ' is hit by the screech', t: 0, long: true}); if (s.hp <= 0) { s.out = true; N.fx.push({k: 'txt', x: p.x + 60, y: p.y - 50, s: s.name + ' is knocked out until morning', t: 0, long: true}) } } });
+/* a survivor in its path is stunned for a while (not hurt) */
+		G.surv.forEach((s, i) => { const p = survPos(i); if (!v.hit['s' + i] && v.x <= p.x + 10 && Math.abs(SURV_LANES[i % 6] - v.lane) <= WAVE_REACH && !s.out && !s.fled) { v.hit['s' + i] = 1; s.stun = 3; N.fx.push({k: 'txt', x: p.x + 50, y: p.y - 34, s: s.name + ' is stunned by the screech', t: 0, long: true}) } });
 		if (!v.hit.r && v.x <= A.RX + 10 && Math.abs(N.rl - v.lane) <= WAVE_REACH) { v.hit.r = 1; N.rstun = 1.2; N.deafT = 0; N.burst = 0; AU.sfx('ring') }
 	}
-	N.waves = N.waves.filter(v => v.x > -40);
+	/* it dies away just past Rudolf's place */
+	N.waves = N.waves.filter(v => v.x > A.RX - 40);
 }
 /* how deafened and blurred, 0..1: full for 3 s, then fading out */
 const deafK = () => N.deafT < 0 ? 0 : N.deafT < DEAF_FULL ? 1 : Math.max(0, 1 - (N.deafT - DEAF_FULL) / DEAF_FADE);
@@ -265,7 +269,9 @@ function bash() {
 }
 /* what Rudolf can see in fog or a blizzard: a cone of light from his nose towards the crosshair, and a little round him */
 const nose = () => A.rNose(N ? N.rl : 7);
-const VIS = {fog: {half: .28, len: 2000, near: 120}, blizzard: {half: .16, len: 430, near: 80}};
+/* 25 Days: in fog a cone 25 degrees either side of the aim reaching 70% of the field; in a blizzard a much narrower one
+   reaching 40% of the screen */
+const VIS = {fog: {half: 25 * PI / 180, len: (W - A.RX) * .7, near: 110}, blizzard: {half: 9 * PI / 180, len: W * .4, near: 70}};
 function seen(x, y) {
 	const v = VIS[N.wx]; if (!v) return true;
 	const o = nose(), dx = x - o.x, dy = y - o.y, d = Math.hypot(dx, dy);
@@ -481,7 +487,7 @@ function draw() {
 		x.globalAlpha = 1 - board;
 		for (const d of N.drops) A.dropped(x, d.x, d.y);
 		/* the survivors and Rudolf, far to near */
-		const ppl = G.surv.map((s, i) => ({l: SURV_LANES[i % 6], f: () => { const p = survPos(i); A.survivor(x, s.kind, (s.fled ? s.runX : p.x) - board * 10, s.fled ? T * 4 : T, s.fire > 0, p.y, !s.disarmed && !s.fled, s.out) }}));
+		const ppl = G.surv.map((s, i) => ({l: SURV_LANES[i % 6], f: () => { const p = survPos(i); A.survivor(x, s.kind, (s.fled ? s.runX : p.x) - board * 10, s.fled ? T * 4 : T, s.fire > 0, p.y, !s.disarmed && !s.fled, s.out, s.stun > 0) }}));
 		ppl.push({l: N.rl + .01, f: () => A.rudolf(x, aimAngle(), G.cur, T, N.recoil, N.hurt, N.rl, N.rwalk)});
 		ppl.sort((a, b) => a.l - b.l).forEach(o => o.f());
 		x.globalAlpha = 1;
@@ -492,7 +498,7 @@ function draw() {
 	for (const e of es) {
 		A.elf(x, e, T, rf);
 		/* a wendigo drawing in its screech */
-		if (e.kind == 'wendigo' && e.wmode == 'charge') { const h = headOf(e), k = 1 - e.chT / CHARGE; x.strokeStyle = `rgba(255,70,70,${.3 + .5 * k})`; x.lineWidth = 2; for (let i = 0; i < 3; i++) { const r = 6 + ((T * 30 + i * 9) % 26) * (1 - k * .5); x.beginPath(); x.arc(h.x - 6, h.y + 6, r, PI * .6, PI * 1.4); x.stroke() } }
+		if (e.kind == 'wendigo' && e.wmode == 'charge') { const h = headOf(e), k = 1 - e.chT / CHARGE; x.strokeStyle = `rgba(150,255,120,${.3 + .5 * k})`; x.lineWidth = 2; for (let i = 0; i < 3; i++) { const r = 6 + ((T * 30 + i * 9) % 26) * (1 - k * .5); x.beginPath(); x.arc(h.x - 6, h.y + 6, r, PI * .6, PI * 1.4); x.stroke() } }
 	}
 	for (const g of N.gibs) if (!g.rest) A.gib(x, g);
 	for (const m of N.smoke) { x.fillStyle = `rgba(150,150,160,${.28 * (1 - m.t / 1.2)})`; x.beginPath(); x.arc(m.x, m.y, m.r + m.t * 10, 0, 7); x.fill() }
@@ -516,7 +522,7 @@ function draw() {
 	if (!N.sleigh || N.sleigh.phase == 'in') drawVision(x);
 	if (N.wx == 'blizzard') { x.strokeStyle = 'rgba(245,248,255,.7)'; x.lineWidth = 1.4; x.beginPath(); for (let i = 0; i < 160; i++) { const sx = (A.hash(i, 21) * (W + 200) - T * (260 + A.hash(i, 22) * 200)) % (W + 200), px = sx < 0 ? sx + W + 200 : sx, py = (A.hash(i, 23) * H + T * (90 + A.hash(i, 24) * 60)) % H; x.moveTo(px, py); x.lineTo(px - 12, py + 4) } x.stroke() }
 	/* screeches running down their lanes (seen through fog and snow) */
-	for (const v of N.waves) { const y = A.laneY(v.lane) - 30; x.strokeStyle = 'rgba(255,120,120,.75)'; x.lineWidth = 2.4; for (let i = 0; i < 4; i++) { const xx = v.x + i * 14; x.globalAlpha = 1 - i * .22; x.beginPath(); x.ellipse(xx, y, 6 + i * 2, 26 + i * 5, 0, PI * .5, PI * 1.5); x.stroke() } x.globalAlpha = 1; x.fillStyle = 'rgba(255,90,90,.08)'; x.fillRect(v.x, y - 30, W - v.x, 60) }
+	for (const v of N.waves) { const y = A.laneY(v.lane) - 30; { const g = x.createLinearGradient(v.x, 0, v.x0, 0); g.addColorStop(0, 'rgba(160,255,120,.35)'); g.addColorStop(1, 'rgba(160,255,120,0)'); x.fillStyle = g; x.fillRect(v.x, y - 10, Math.max(0, v.x0 - v.x), 20) } x.strokeStyle = 'rgba(170,255,140,.8)'; x.lineWidth = 2.4; for (let i = 0; i < 4; i++) { const xx = v.x + i * 14; x.globalAlpha = 1 - i * .22; x.beginPath(); x.ellipse(xx, y, 6 + i * 2, 26 + i * 5, 0, PI * .5, PI * 1.5); x.stroke() } x.globalAlpha = 1; }
 	for (const f of N.fx) if (f.k == 'rip') { const k = f.t / .9; x.strokeStyle = `rgba(225,232,255,${(1 - k) * .8})`; x.lineWidth = f.big ? 2.2 : 1.4; for (const m of [1, .6]) { x.beginPath(); x.ellipse(f.x, f.y, (f.big ? 34 : 22) * k * m + 2, (f.big ? 14 : 9) * k * m + 1, 0, 0, 7); x.stroke() } }
 	/* stunned by a screech: the sight blurs (full for 3 s, then clearing) */
 	const dk = deafK(); cv.style.filter = dk > 0 ? `blur(${(dk * 3.2).toFixed(2)}px)` : ''; AU.ring(dk);
@@ -592,7 +598,10 @@ const AU = (() => {
 		case 'fallbig': nz(out, t, .6, .3, 300); tone(out, t, 90, .7, 'sawtooth', .1, 30); break;
 		case 'groan': tone(out, t, 90 + Math.random() * 30, .9, 'sawtooth', N && N.wx == 'fog' ? .06 : .035, 60); break;
 		case 'screech': tone(out, t, 1900, 1.6, 'sawtooth', .09, 380); tone(out, t + .05, 2300, 1.4, 'square', .04, 500); nz(out, t, 1.4, .18, 3500, 'bandpass'); break;
-		case 'wcharge': tone(out, t, 300, 1.5, 'sawtooth', .05, 1400); nz(out, t, 1.5, .05, 2000, 'bandpass'); break;
+		case 'wcharge': { /* a long, rasping inhale: breath noise rising in pitch and loudness over 1.5 s */
+			const sb = C.createBufferSource(); sb.buffer = noise; sb.loop = true; const fi = C.createBiquadFilter(); fi.type = 'bandpass'; fi.Q.value = 1.6; fi.frequency.setValueAtTime(500, t); fi.frequency.exponentialRampToValueAtTime(2600, t + 1.45);
+			const a = C.createGain(); a.gain.setValueAtTime(.0001, t); a.gain.exponentialRampToValueAtTime(.32, t + 1.35); a.gain.exponentialRampToValueAtTime(.0001, t + 1.5);
+			sb.connect(fi); fi.connect(a); a.connect(out); sb.start(t); sb.stop(t + 1.52); tone(out, t, 90, 1.5, 'sawtooth', .025, 140); break }
 		case 'wscreech': tone(out, t, 2400, .9, 'sawtooth', .11, 900); tone(out, t, 1700, .9, 'square', .05, 600); nz(out, t, .8, .25, 3000, 'bandpass'); break;
 		case 'ring': break;
 		case 'clang': tone(out, t, 1200, .12, 'square', .05, 900); tone(out, t, 2600, .2, 'sine', .04); break;
@@ -747,9 +756,9 @@ function help(back) {
 		'<p><b>Move:</b> W and S, or the up and down arrows (or a controller’s left stick, or drag behind the barricade) take Rudolf up and down behind the barricade. He can only aim a little up or down, so move him to the lane you want.</p><p><b>Shoot:</b> click towards where to shoot (hold for automatic weapons), or tap the field, or fire with Z, Space or a trigger; left and right (or the right stick) move the crosshair. Shots fly on past the crosshair until they hit something; the Ornament Launcher bursts at the crosshair. Their <b>glowing eyes</b> are the weak spot. Ammunition never runs out, but you still reload.</p><p><b>The eyes say what they will do:</b> white, the ordinary ones; <b style="color:#ff5a5a">red</b>, sprinters that dash for the barricade; <b style="color:#ffd23f">yellow</b>, bloaters that burst when they fall, hurting everything near (the barricade and your survivors too); <b style="color:#7dff4a">green</b>, muggers that weave between lanes and steal a survivor’s weapon: bring them down before they get back to the woods.</p>' +
 		'<p><b>Reload:</b> R, right-click, X on a controller, or the Reload button. <b>Weapons:</b> 1–9, Q and E, the bumpers, or the buttons below the field.</p>' +
 		'<p><b>By day</b> plan twelve hours: repair the barricade, search for weapons, scrap and survivors, or train (training steadies everyone’s aim: survivors miss a lot until they have trained). Survivors can guard, repair or scout. If the barricade falls below 5%, they panic, drop their crossbows and run until morning.</p>' +
-		'<p><b>The weather radio</b> on each day’s plan tells tonight’s weather and tomorrow’s. <b>Clear:</b> searching goes quicker. <b>Fog:</b> you only see what Rudolf’s nose lights, towards the crosshair; out of the light they show as ripples of sound; searching is slow and risky. <b>Blizzard:</b> even less to see, no ripples, no searching, the survivors’ aim suffers, but nothing sprints. <b>Full moon:</b> once a game; bright, but every white-eyed elf runs, and a wendigo comes.</p>' +
+		'<p><b>The weather radio</b> on each day’s plan tells tonight’s weather and tomorrow’s. <b>Clear:</b> searching goes quicker. <b>Fog:</b> you only see what Rudolf’s nose lights, towards the crosshair; out of the light they show as ripples of sound; searching is slow and risky. <b>Blizzard:</b> even less to see, no ripples, no searching, the survivors’ aim suffers, but nothing sprints. <b>Full moon:</b> once a game; bright, but every white-eyed elf turns red-eyed and runs, and a wendigo comes.</p>' +
 		'<p><b style="color:#3ff0ff">Cyan eyes</b>: shielders, behind a shield that stops every shot; aim for their lower legs, or knock the shield loose with a blast or a <b>Bash</b> (F, Y on a controller, the middle button, or ✊ Bash) when they reach the barricade. From Night 10 they go back for their shields; from Night 18 other elves may take up a fallen shielder’s.</p>' +
-		'<p>A <b>screech</b> from the woods means a <b>wendigo</b>: huge, very hard to bring down, slowly coming for Rudolf’s lane. When it stops and draws breath, its screech will run down its lane: it hurts the survivors in its path, and if it reaches Rudolf he is stunned and deafened for a few seconds. Get him out of its lane by bringing it down, or keep it busy.</p>' +
+		'<p>A <b>screech</b> from the woods means a <b>wendigo</b>: something like a huge, corrupted Rudolf with green eyes and a frothing mouth, very hard to bring down, slowly coming for Rudolf’s lane. When it stops and draws a long breath (about a second and a half), its screech runs down its lane to the barricade and beyond: survivors in its path are stunned, and if it reaches Rudolf his sight blurs and his ears ring for a few seconds. It does not harm the barricade. Move Rudolf out of its lane.</p>' +
 		'<p>Hold out for twenty-five days and nights.</p>', [['OK', back || null, 1, 1]], 'title');
 }
 function menuPause() {
@@ -848,7 +857,7 @@ async function start() {
 	toTitle();
 	if (!save.seenHelp) { save.seenHelp = 1; persist(); help(toTitle) }
 	RG.loop(update, draw, {whilePaused: true});
-	window.__fb = {W, H, LAST, aimAngle, shoulder, bash, dropShield, shieldBox, legsOf, deafK, CHARGE, headOf, bodyOf, nightCount, hpMul, wildChance, pickKind, survPos, BLOAT_R, makeWeather, wxOf, seen, radio, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
+	window.__fb = {W, H, LAST, VIS, aimAngle, shoulder, bash, dropShield, shieldBox, legsOf, deafK, CHARGE, headOf, bodyOf, nightCount, hpMul, wildChance, pickKind, survPos, BLOAT_R, makeWeather, wxOf, seen, radio, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
 		run(n) { for (let i = 0; i < n && N && !N.over; i++) { inputStep(); nightStep() } return N && {t: N.t, elves: N.elves.length, q: N.q.length, bar: G.bar, hp: G.hp, kills: G.kills} }};
 }
 start();
