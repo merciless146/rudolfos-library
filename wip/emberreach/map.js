@@ -225,7 +225,7 @@ function create() {
 		return {kind: (s.cls || s.kind || 'star') + ' class · ' + (s.M || 0).toFixed(2) + ' suns',
 			owner: o.owner ? (o.contested ? 'Contested, held by ' : '') + m.name.replace(/^The /, '') + (rel < 0 ? ' (at war with you)' : rel > 0 ? ' (allied)' : '') : 'Unclaimed space', ownerCol: rel < 0 ? C.red : rel > 0 ? C.green : C.text,
 			port: port ? 'Port: ' + {halo: 'Halo (capital)', lantern: 'Lantern', trefoil: 'Trefoil outpost', bloom: 'Bloom'}[port.cls] + ' at ' + port.world : 'No port',
-			planets: sys.planets.length + (sys.planets.length == 1 ? ' planet' : ' planets') + (live ? ' · ' + live + ' living' : ''),
+			planets: sys.planets.length + (sys.planets.length == 1 ? ' planet' : ' planets') + (live ? ' · ' + live + ' living' : '') + (M.explore && M.explore.sys[s.id] != null ? ' · charted by you' : !o.owner ? ' · uncharted' : ''),
 			dist: d < 1000 ? d.toFixed(d < 10 ? 2 : 1) + ' pc' : Math.round(d).toLocaleString('en-US') + ' pc', misjump: mj > 0.005 ? Math.round(mj * 100) + '%' : null};
 	}
 	function box(ctx, x, y, w, h) { ctx.fillStyle = C.panel; ctx.fillRect(x, y, w, h); ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1) }

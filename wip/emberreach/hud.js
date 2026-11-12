@@ -125,6 +125,7 @@ function draw(ctx, W, H, h, t) {
 		inv.forEach((t2, i) => text(ctx, t2, bx + bw - 10, py + 18 + i * 16, {mono: true, size: 10, col: C.muted, align: 'right'}));
 		/* the status line: the hatch, an incoming missile */
 		const sts = [];
+		if (h.sweep) sts.push(['SWEEP ' + Math.round(h.sweep * 100) + '%', C.cyan]);
 		if (h.hatch) sts.push([h.hatch == 'jammed' ? 'HATCH JAMMED · SPILLING' : 'HATCH OPEN · SCOOPING', h.hatch == 'jammed' ? C.red : C.cyan]);
 		if (h.incoming) sts.push(['MISSILE INBOUND', C.red]);
 		if (!k.armed && !sts.length) sts.push(['UNARMED', C.muted]);
