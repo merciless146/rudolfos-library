@@ -556,7 +556,9 @@ home currency.
    carriers and dreadnoughts.
 6. **M5:** exploration in full: scanning, surveys, ruins, naming, missions. The package moves to `apps/` and
    reaches the App Store.
-7. **M6:** the Core, the black hole, polish; phones (1.6.0).
+7. **M5b:** colonies: claiming systems and building ports and facilities, after Elite Dangerous's Trailblazers
+   (see [plan-ember-reach-colonies.md](plan-ember-reach-colonies.md)).
+8. **M6:** the Core, the black hole, polish; phones (1.6.0).
 
 ## Open questions
 
