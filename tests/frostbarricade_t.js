@@ -4,7 +4,7 @@
 const {chromium} = require('playwright');
 const {spawn} = require('child_process');
 const fs = require('fs'), path = require('path'), os = require('os');
-const PORT = +(process.argv[2] || 8201), TOP = path.join(__dirname, '..');
+const __W = 1040, PORT = +(process.argv[2] || 8201), TOP = path.join(__dirname, '..');
 const W = fs.mkdtempSync(path.join(os.tmpdir(), 'fb-'));
 let P = 0, F = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { F++; console.log('FAIL ' + n + (d !== undefined ? ' - ' + (typeof d == 'string' ? d : JSON.stringify(d)) : '')) } };
@@ -167,7 +167,7 @@ async function open(pg) {
 		const fog = await f.evaluate(() => { const G = __fb.G, N = __fb.N, out = {}; G.wx = Array(26).fill('clear'); G.wx[G.night] = 'fog'; __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [];
 			const N2 = __fb.N; __fb.cross.x = 700; __fb.cross.y = 280;
 			__fb.spawn('shambler'); const a = N2.elves[0]; a.x = 700; a.lane = a.tl = 3; a.sp = 0; a.changer = false;
-			__fb.spawn('shambler'); const b = N2.elves[1]; b.x = 330; b.lane = b.tl = 14; b.sp = 0; b.changer = false;
+			__fb.spawn('shambler'); const b = N2.elves[1]; b.x = 230; b.lane = b.tl = 14; b.sp = 0; b.changer = false;
 			out.seenA = __fb.seen(__fb.headOf(a).x, __fb.headOf(a).y); out.seenB = __fb.seen(__fb.headOf(b).x, __fb.headOf(b).y);
 			const rips = []; for (let i = 0; i < 200; i++) { __fb.run(1); N2.fx.forEach(f => { if (f.k == 'rip' && f.t == 0 || f.k == 'rip' && !rips.includes(f)) rips.push(f) }) } out.ripB = rips.some(r => Math.abs(r.x - b.x) < 2 && r.y > 340); out.ripA = rips.some(r => Math.abs(r.x - a.x) < 2 && r.y < 300);
 			/* the blizzard: narrower; no ripples; no sprints; the survivors' bolts go astray */
@@ -195,16 +195,16 @@ async function open(pg) {
 			for (let i = 0; i < 89; i++) { __fb.run(1); if (w.wmode == 'charge') charged++ }
 			const still = Math.abs(w.x - xs) < .01; __fb.run(2); shook = N.shake > 0; const wave = N.waves.length;
 			for (let i = 0; i < 90; i++) __fb.run(1);
-			const lane3 = {inLane: 40 - G.surv[0].hp, away: 40 - G.surv[1].hp, bar: bar0 - G.bar, rudolf: N.rstun > 0 || N.deafT >= 0};
+			const lane3 = {inLane: (G.surv[0].stun || 0) > 0 && G.surv[0].hp == 40, away: (G.surv[1].stun || 0) > 0, bar: bar0 - G.bar, rudolf: N.rstun > 0 || N.deafT >= 0};
 			/* now in Rudolf's lane: stunned, blurred and deafened; full for 3 s, fading after */
 			w.lane = w.tl = 7; w.wT = 0; for (let i = 0; i < 200 && N.deafT < 0; i++) __fb.run(1);
 			const stun = N.rstun > 0, mag = G.wp.icicle.mag; __fb.fire(); __fb.run(2); const firedWhileStunned = G.wp.icicle.mag < mag;
-			for (let i = 0; i < 170; i++) __fb.run(1); const k1 = __fb.deafK(); for (let i = 0; i < 60; i++) __fb.run(1); const k2 = __fb.deafK(); for (let i = 0; i < 40; i++) __fb.run(1); const k3 = __fb.deafK();
+			for (let i = 0; i < 170; i++) __fb.run(1); const k1 = __fb.deafK(); for (let i = 0; i < 60; i++) __fb.run(1); const k2 = __fb.deafK(); for (let i = 0; i < 120; i++) __fb.run(1); const k3 = __fb.deafK();
 			return {msg, big, drift, one, waiting, charged, still, shook, wave, lane3, stun, firedWhileStunned, k: [k1, +k2.toFixed(2), k3]} });
-		ok('W13. a screech before a wendigo: huge, red-eyed, very tough, slow', /screech/.test(wg.msg) && wg.big.s > 2 && wg.big.hp > 2000 && wg.big.eye == '#ff3b3b' && wg.big.sp < 16, wg.big);
+		ok('W13. a screech before a wendigo: huge, green-eyed (a corrupted Rudolf), very tough, slow', /screech/.test(wg.msg) && wg.big.s > 2 && wg.big.hp > 2000 && wg.big.eye == '#7dff4a' && wg.big.sp < 16, wg.big);
 		ok('W14. it comes on slowly, drifting towards Rudolf’s lane; only one at a time (the next screech waits)', wg.drift.lane > .3 && wg.drift.lane < 1.2 && wg.drift.walked > 5 && wg.drift.walked < 40 && wg.one == 1 && wg.waiting, {drift: wg.drift, one: wg.one, waiting: wg.waiting});
 		ok('W15. it stops for 1.5 s to charge, then screeches down its lane with the screen shaking', wg.still && wg.charged >= 88 && wg.wave == 1 && wg.shook, wg);
-		ok('W16. the screech hurts survivors in its lane, not the barricade, and not those out of it', wg.lane3.inLane > 0 && wg.lane3.away == 0 && wg.lane3.bar == 0 && !wg.lane3.rudolf, wg.lane3);
+		ok('W16. the screech stuns survivors in its lane (unhurt), not the barricade, and not those out of it', wg.lane3.inLane && !wg.lane3.away && wg.lane3.bar == 0 && !wg.lane3.rudolf, wg.lane3);
 		ok('W17. in Rudolf’s lane: stunned (no shooting), sight blurred and ears ringing for 3 s, then fading to nothing', wg.stun && !wg.firedWhileStunned && wg.k[0] == 1 && wg.k[1] > 0 && wg.k[1] < 1 && wg.k[2] == 0, wg);
 		/* ---------- shielders ---------- */
 		const sh = await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 8; G.surv = []; G.skill = 30; __fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = [];
@@ -325,6 +325,20 @@ async function open(pg) {
 		ok('32. the survivors fire each in their own time', new Set(d25.stagger).size == 3 && d25.stagger.every(v => v != null), d25.stagger);
 		ok('33. untrained survivors miss much more than trained ones', d25.miss[0] > d25.miss[1] * 2, d25.miss);
 		ok('34. below 5% the survivors panic: they drop their crossbows and run off', d25.panic.fled && d25.panic.drops == 3 && d25.gone, d25.panic);
+		const d25b = await o2.f.evaluate(() => {
+			__fb.newRun('normal'); const out = {}, G = __fb.G; G.night = 10;
+			/* the sight in fog and in a blizzard */
+			G.wx = Array(26).fill('fog'); __fb.startNight(); out.fog = Object.assign({}, __fb.VIS.fog); out.bliz = Object.assign({}, __fb.VIS.blizzard);
+			/* the full moon: every white-eyed one a red-eyed sprinter, the foreman too; the others keep their eyes */
+			G.wx = Array(26).fill('moon'); __fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = [];
+			for (const k of ['shambler', 'crawler', 'brute', 'spitter', 'foreman', 'bloater', 'shielder', 'mugger']) __fb.spawn(k);
+			out.moon = N.elves.map(e => [e.kind, e.eye || null, !!e.sprinter]);
+			/* the screech dies away just past Rudolf */
+			N.elves = []; N.waves.push({lane: 7, x: 400, x0: 400, t: 0, hit: {}}); for (let i = 0; i < 120; i++) __fb.run(1); out.wavesLeft = N.waves.length;
+			return out });
+		ok('36. fog: a cone 25 degrees either way, reaching 70% of the field; blizzard: much narrower, 40% of the screen', Math.abs(d25b.fog.half - Math.PI * 25 / 180) < 1e-6 && Math.abs(d25b.fog.len - (__W - 108) * .7) < 1 && d25b.bliz.half < d25b.fog.half / 2 && Math.abs(d25b.bliz.len - __W * .4) < 1, [d25b.fog, d25b.bliz]);
+		ok('37. the full moon: every white-eyed elf a red-eyed sprinter (the foreman too); bloaters, shielders and muggers keep theirs', d25b.moon.filter(m => ['shambler', 'crawler', 'brute', 'spitter', 'foreman'].includes(m[0])).every(m => m[1] == '#ff3b3b' && m[2]) && d25b.moon.filter(m => ['bloater', 'shielder', 'mugger'].includes(m[0])).every(m => m[1] == null), d25b.moon);
+		ok('38. the screech dies away past Rudolf', d25b.wavesLeft == 0, d25b.wavesLeft);
 		ok('35. the elves are faster, the sprinters most of all', d25.sprint > 38 * .85 && d25.shamb > 22 * .85 * 1.2, [d25.sprint, d25.shamb]);
 		/* a phone on its side, and upright */
 		const ph = await br.newContext({viewport: {width: 740, height: 360}, hasTouch: true, isMobile: true});

@@ -104,55 +104,70 @@ A.rudolfFeet = l => A.laneY(l);
 /* where his shoulder (the weapon's pivot) and his nose are, at lane l */
 A.rShoulder = l => { const s = A.rudolfScale(l); return {x: A.RX + 6 * s, y: A.laneY(l) - 34 * s} };
 A.rNose = l => { const s = A.rudolfScale(l); return {x: A.RX + 16 * s, y: A.laneY(l) - 52 * s} };
-A.rudolf = function (x, aim, weapon, t, recoil, hurtT, l, walk) {
-	const s = A.rudolfScale(l), X = A.RX, Y = A.laneY(l), bob = Math.sin(t * 2) * .6, st = Math.sin(walk || 0);
-	const ink = '#0a0c14', W1 = '#f2f4f8', W2 = '#c9cfdc', W3 = '#9aa3b6';
-	x.save(); x.translate(X, Y); x.scale(s, s);
-	if (hurtT > 0 && Math.floor(t * 20) % 2) x.globalAlpha = .6;
+/* the stag model, facing right, feet at (0, 0), about 98 tall: Rudolf, and (dark and corrupted) the wendigo.
+   pal: ink, W1 (light), W2, W3 (shade), nose (null: a dead, dark one), eye (null: a dark slit; else it glows),
+   corrupt (cracks, ribs, a ragged ruff), froth (green foam at the mouth) */
+function stag(x, pal, t, walk, bob) {
+	const {ink, W1, W2, W3} = pal;
 	const P = (pts, f, w) => { x.beginPath(); x.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) x.lineTo(pts[i][0], pts[i][1]); x.closePath(); x.fillStyle = f; x.fill(); x.strokeStyle = ink; x.lineWidth = w || 1.3; x.lineJoin = 'miter'; x.stroke() };
-	/* a shadow */
 	x.fillStyle = 'rgba(0,0,0,.4)'; oval(x, 0, 1, 15, 3); x.fill();
 	/* legs: the far one darker; thigh, shin, a dark hoof */
 	const leg = (dx, ph, c) => { const k = Math.sin(ph) * 4; P([[dx - 4, -19], [dx + 3, -19], [dx + 4 + k * .4, -9], [dx + 2 + k, -2], [dx - 2 + k, -2], [dx - 3 + k * .4, -10]], c); P([[dx - 3 + k, -3], [dx + 3 + k, -3], [dx + 4 + k, 0], [dx - 3 + k, 0]], '#1c1a22', 1) };
 	leg(-3, (walk || 0) + PI, W3); leg(2, walk || 0, W2);
-	/* the torso: faceted, lighter at the front */
 	x.translate(0, bob);
+	/* the torso: faceted, lighter at the front */
 	P([[-9, -44], [5, -45], [10, -33], [8, -19], [-6, -17], [-12, -29]], W1, 1.5);
 	P([[-9, -44], [-12, -29], [-6, -17], [-2, -30]], W2, .9);
 	x.strokeStyle = 'rgba(10,12,20,.5)'; x.lineWidth = .8; x.beginPath(); x.moveTo(5, -45); x.lineTo(-2, -30); x.lineTo(8, -19); x.stroke();
-	/* a bandolier with brass, worn and scuffed */
-	x.strokeStyle = '#2e2620'; x.lineWidth = 3.2; x.beginPath(); x.moveTo(-9, -42); x.lineTo(8, -21); x.stroke();
-	x.fillStyle = '#b8913a'; for (let i = 0; i < 4; i++) x.fillRect(-6 + i * 3.8, -38 + i * 4.3, 1.6, 2.6);
-	x.fillStyle = 'rgba(60,50,50,.35)'; x.fillRect(-7, -26, 3, 1); x.fillRect(2, -36, 4, 1);
-	/* the far antler (behind the head), grey */
+	if (pal.corrupt) {   /* ribs showing through, cracks with a sick green light */
+		x.strokeStyle = 'rgba(0,0,0,.7)'; x.lineWidth = 1; for (let i = 0; i < 4; i++) { x.beginPath(); x.moveTo(-8, -38 + i * 4.5); x.quadraticCurveTo(0, -36 + i * 4.5, 7, -39 + i * 4.5); x.stroke() }
+		x.strokeStyle = 'rgba(120,255,90,.45)'; x.lineWidth = .8; x.beginPath(); x.moveTo(3, -44); x.lineTo(0, -37); x.lineTo(4, -31); x.moveTo(-9, -28); x.lineTo(-5, -23); x.stroke();
+	}
 	const antler = (ox, c, w) => { x.strokeStyle = ink; x.lineWidth = w + 2.2; x.lineCap = 'butt'; x.lineJoin = 'miter';
 		const path = () => { x.beginPath(); x.moveTo(ox - 2, -60); x.lineTo(ox - 8, -72); x.lineTo(ox - 6, -84); x.lineTo(ox - 13, -96);
-			x.moveTo(ox - 8, -72); x.lineTo(ox + 3, -78); x.moveTo(ox - 6, -84); x.lineTo(ox + 2, -92); x.moveTo(ox - 7, -80); x.lineTo(ox - 15, -84); x.moveTo(ox - 11, -93); x.lineTo(ox - 19, -98) };
+			x.moveTo(ox - 8, -72); x.lineTo(ox + 3, -78); x.moveTo(ox - 6, -84); x.lineTo(ox + 2, -92); x.moveTo(ox - 7, -80); x.lineTo(ox - 15, -84); x.moveTo(ox - 11, -93); x.lineTo(ox - 19, -98);
+			if (pal.corrupt) { x.moveTo(ox - 13, -96); x.lineTo(ox - 12, -106); x.moveTo(ox + 3, -78); x.lineTo(ox + 8, -82) } };
 		path(); x.stroke(); x.strokeStyle = c; x.lineWidth = w; path(); x.stroke() };
 	antler(4, W3, 2.6);
-	/* the ruff: a shaggy, spiky fringe under the chin, down the neck */
-	P([[-7, -50], [8, -46], [6, -40], [3, -43], [1, -36], [-2, -42], [-5, -35], [-6, -42], [-10, -38]], W1, 1.2);
+	/* the ruff: a shaggy, spiky fringe under the chin (ragged and longer when corrupted) */
+	P(pal.corrupt ? [[-7, -50], [8, -46], [7, -38], [4, -42], [2, -31], [-1, -40], [-4, -29], [-6, -40], [-11, -34]] : [[-7, -50], [8, -46], [6, -40], [3, -43], [1, -36], [-2, -42], [-5, -35], [-6, -42], [-10, -38]], W1, 1.2);
 	/* the head: faceted, the muzzle to the right */
 	const hx = 3, hy = -55;
 	P([[hx - 8, hy - 7], [hx + 3, hy - 9], [hx + 9, hy - 5], [hx + 15, hy + 1], [hx + 13, hy + 5], [hx + 5, hy + 7], [hx - 3, hy + 7], [hx - 9, hy + 1]], W1, 1.5);
 	P([[hx - 8, hy - 7], [hx + 1, hy - 1], [hx - 3, hy + 7], [hx - 9, hy + 1]], W2, .9);
 	x.strokeStyle = 'rgba(10,12,20,.75)'; x.lineWidth = 1; x.beginPath(); x.moveTo(hx + 3, hy - 9); x.lineTo(hx + 1, hy - 1); x.lineTo(hx + 13, hy + 5); x.moveTo(hx + 1, hy - 1); x.lineTo(hx + 5, hy + 7); x.stroke();
-	/* the diamond ear, dark inside */
 	P([[hx - 6, hy - 6], [hx - 15, hy - 12], [hx - 21, hy - 8], [hx - 12, hy - 2]], W1, 1.3);
-	P([[hx - 9, hy - 6], [hx - 15, hy - 10], [hx - 18, hy - 8], [hx - 12, hy - 4]], '#1a1d28', .6);
-	/* the near antler, white */
+	P([[hx - 9, hy - 6], [hx - 15, hy - 10], [hx - 18, hy - 8], [hx - 12, hy - 4]], pal.corrupt ? '#0c1a08' : '#1a1d28', .6);
 	antler(0, W1, 3);
-	/* a narrow, slanted eye */
-	x.fillStyle = ink; x.beginPath(); x.moveTo(hx + 3, hy - 3); x.lineTo(hx + 9, hy - 2.2); x.lineTo(hx + 4, hy - .8); x.closePath(); x.fill();
-	x.strokeStyle = ink; x.lineWidth = 1.2; x.beginPath(); x.moveTo(hx + 2, hy - 5.5); x.lineTo(hx + 9, hy - 4); x.stroke();   /* the brow */
-	/* the red nose, glowing */
-	x.drawImage(A.pink, hx + 15 - 9, hy + 2 - 9, 18, 18);
-	P([[hx + 12, hy], [hx + 16, hy - .5], [hx + 18, hy + 2], [hx + 16, hy + 4.5], [hx + 12, hy + 4]], '#e3283e', 1);
-	x.fillStyle = 'rgba(255,255,255,.7)'; x.fillRect(hx + 14, hy + .5, 1.6, 1);
+	/* the eye: a narrow dark slit, or (corrupted) a glowing one */
+	if (pal.eye) { if (!pal.rf) x.drawImage(A.eyeG, hx + 6 - 10, hy - 2 - 8, 20, 16); x.fillStyle = pal.eye } else x.fillStyle = ink;
+	x.beginPath(); x.moveTo(hx + 3, hy - 3); x.lineTo(hx + 9, hy - 2.2); x.lineTo(hx + 4, hy - .8); x.closePath(); x.fill();
+	x.strokeStyle = ink; x.lineWidth = 1.2; x.beginPath(); x.moveTo(hx + 2, hy - 5.5); x.lineTo(hx + 9, hy - 4); x.stroke();
+	/* the nose: Rudolf's red, glowing; corrupted, dead and dark */
+	if (pal.nose) x.drawImage(A.pink, hx + 15 - 9, hy + 2 - 9, 18, 18);
+	P([[hx + 12, hy], [hx + 16, hy - .5], [hx + 18, hy + 2], [hx + 16, hy + 4.5], [hx + 12, hy + 4]], pal.nose || '#2a1416', 1);
+	if (pal.nose) { x.fillStyle = 'rgba(255,255,255,.7)'; x.fillRect(hx + 14, hy + .5, 1.6, 1) }
+	/* a frothing mouth: green foam, dripping */
+	if (pal.froth) {
+		x.fillStyle = '#0a0606'; x.beginPath(); x.moveTo(hx + 6, hy + 5); x.lineTo(hx + 14, hy + 5.5); x.lineTo(hx + 8, hy + 8); x.closePath(); x.fill();
+		x.fillStyle = pal.rf ? '#7dff4a' : 'rgba(125,255,74,.9)';
+		for (let i = 0; i < 6; i++) { const fx = hx + 5 + i * 1.8, fy = hy + 6 + Math.sin(t * 9 + i * 2) * .6; x.beginPath(); x.arc(fx, fy, 1.1 + hash(i, 61) * .8, 0, 7); x.fill() }
+		for (let i = 0; i < 2; i++) { const d = ((t * (1.2 + i * .5) + i * .4) % 1) * 12; x.globalAlpha = 1 - d / 12; x.beginPath(); x.ellipse(hx + 7 + i * 4, hy + 8 + d, 1, 1.6, 0, 0, 7); x.fill(); x.globalAlpha = 1 }
+	}
+}
+A.rudolf = function (x, aim, weapon, t, recoil, hurtT, l, walk) {
+	const s = A.rudolfScale(l), bob = Math.sin(t * 2) * .6;
+	x.save(); x.translate(A.RX, A.laneY(l)); x.scale(s, s);
+	if (hurtT > 0 && Math.floor(t * 20) % 2) x.globalAlpha = .6;
+	stag(x, {ink: '#0a0c14', W1: '#f2f4f8', W2: '#c9cfdc', W3: '#9aa3b6', nose: '#e3283e'}, t, walk, bob);
+	x.translate(0, -bob);
+	/* a bandolier with brass, worn and scuffed */
+	x.strokeStyle = '#2e2620'; x.lineWidth = 3.2; x.beginPath(); x.moveTo(-9, -42 + bob); x.lineTo(8, -21 + bob); x.stroke();
+	x.fillStyle = '#b8913a'; for (let i = 0; i < 4; i++) x.fillRect(-6 + i * 3.8, -38 + i * 4.3 + bob, 1.6, 2.6);
 	/* the arm and the weapon, turned to the aim */
-	x.translate(6, -34 - bob); x.rotate(aim); x.translate(-recoil * 4, 0);
+	x.translate(6, -34); x.rotate(aim); x.translate(-recoil * 4, 0);
 	A.weapon(x, weapon);
-	P([[-2, -3], [8, -3], [9, 3], [-1, 4]], W1, 1.1);
+	x.beginPath(); x.moveTo(-2, -3); x.lineTo(8, -3); x.lineTo(9, 3); x.lineTo(-1, 4); x.closePath(); x.fillStyle = '#f2f4f8'; x.fill(); x.strokeStyle = '#0a0c14'; x.lineWidth = 1.1; x.stroke();
 	x.restore();
 };
 /* the weapons, each its own shape and colours (drawn pointing right from the shoulder) */
@@ -174,8 +189,9 @@ A.weapon = function (x, w) {
 
 /* ---------- the survivors behind the barricade (small, round, friendly) ---------- */
 A.SURV = {bunny: ['#ffffff', '#f7b9cf'], badger: ['#4a4a52', '#f2f2f2'], fox: ['#e0782e', '#fff3e6'], hare: ['#d8c6a8', '#fff'], otter: ['#7a5a3a', '#e8d6bf'], owl: ['#a89276', '#f4ead8']};
-A.survivor = function (x, kind, X, t, firing, Y0, armed, out) {
+A.survivor = function (x, kind, X, t, firing, Y0, armed, out, stunned) {
 	if (out) { x.save(); x.globalAlpha = .45; x.translate(X, (Y0 || A.GROUND) - 6); x.rotate(-PI / 2); x.translate(-X, -((Y0 || A.GROUND) - 6)) }
+	if (stunned) X += Math.sin(t * 8) * 1.5;
 	const [c1, c2] = A.SURV[kind] || A.SURV.bunny, Y = (Y0 || A.GROUND) - 16 + Math.sin(t * 3 + X) * .6;
 	if (kind == 'bunny' || kind == 'hare') { oval(x, X - 3, Y - 20, 2.5, 7, -.2); fl(x, c1, '#5d4b63', 1); oval(x, X + 2, Y - 20, 2.5, 7, .2); fl(x, c1, '#5d4b63', 1) }
 	if (kind == 'fox') { x.beginPath(); x.moveTo(X - 5, Y - 14); x.lineTo(X - 3, Y - 22); x.lineTo(X, Y - 15); x.moveTo(X + 1, Y - 15); x.lineTo(X + 4, Y - 22); x.lineTo(X + 6, Y - 14); fl(x, c1, '#5a3010', 1) }
@@ -189,6 +205,8 @@ A.survivor = function (x, kind, X, t, firing, Y0, armed, out) {
 	/* a small crossbow (unless a mugger has it) */
 	if (armed !== false) { x.strokeStyle = '#6b4a2f'; x.lineWidth = 2; x.beginPath(); x.moveTo(X + 4, Y - 2); x.lineTo(X + 16, Y - 6); x.stroke() }
 	if (firing) { x.drawImage(A.warm, X + 10, Y - 14, 14, 14) }
+	/* stunned by a screech: reeling, stars circling the head */
+	if (stunned) { x.fillStyle = '#c8ff9a'; for (let i = 0; i < 3; i++) { const a = t * 5 + i * 2.1; x.save(); x.translate(X + Math.cos(a) * 8, Y - 20 + Math.sin(a) * 2.5); x.rotate(a); x.fillRect(-1.5, -.5, 3, 1); x.fillRect(-.5, -1.5, 1, 3); x.restore() } }
 	if (out) x.restore();
 };
 
@@ -207,12 +225,12 @@ A.ELF = {
 	bloater: {s: 1.35, skin: '#3b3245', cloth: '#262014', hat: '#2a1f33', eye: EYE.yellow},
 	mugger: {s: .95, skin: '#383046', cloth: '#1e2a1a', hat: '#14201a', eye: EYE.green},
 	shielder: {s: 1.05, skin: '#3a3346', cloth: '#1d2630', hat: '#1a2430', eye: EYE.cyan},
-	wendigo: {s: 2.5, skin: '#231c2a', cloth: '#120e16', hat: '#120e16', eye: EYE.red}};
+	wendigo: {s: 2.5, skin: '#231c2a', cloth: '#120e16', hat: '#120e16', eye: EYE.green}};
 /* hit areas (relative to the feet), scaled by size: the head is the weak spot */
-A.elfHead = (kind, s) => kind == 'crawler' ? {dx: -10 * s, dy: -12 * s, r: 6.5 * s} : kind == 'wendigo' ? {dx: -4 * s, dy: -46 * s, r: 5.5 * s} : {dx: -1 * s, dy: -36 * s, r: 7 * s};
-A.elfBody = (kind, s) => kind == 'crawler' ? {dx: 2 * s, dy: -8 * s, r: 9 * s} : kind == 'wendigo' ? {dx: 0, dy: -28 * s, r: 9 * s} : {dx: 0, dy: -18 * s, r: 10.5 * s};
+A.elfHead = (kind, s) => kind == 'crawler' ? {dx: -10 * s, dy: -12 * s, r: 6.5 * s} : kind == 'wendigo' ? {dx: -3.6 * s, dy: -33 * s, r: 6 * s} : {dx: -1 * s, dy: -36 * s, r: 7 * s};
+A.elfBody = (kind, s) => kind == 'crawler' ? {dx: 2 * s, dy: -8 * s, r: 9 * s} : kind == 'wendigo' ? {dx: 0, dy: -19 * s, r: 7.5 * s} : {dx: 0, dy: -18 * s, r: 10.5 * s};
 A.elf = function (x, e, t, rf) {
-	const D = A.ELF[e.kind], s = D.s * A.depth(e.lane || 0), X = e.x, Y = A.laneY(e.lane || 0) - (e.lift || 0), ph = e.walk;
+	const D0 = A.ELF[e.kind], D = e.eye ? Object.assign({}, D0, {eye: e.eye}) : D0, s = D.s * A.depth(e.lane || 0), X = e.x, Y = A.laneY(e.lane || 0) - (e.lift || 0), ph = e.walk;
 	x.save(); x.translate(X, Y);
 	/* a shadow */
 	x.fillStyle = 'rgba(0,0,0,.35)'; oval(x, 0, 2 + (e.lift || 0), 12 * s, 3 * s); x.fill();
@@ -252,34 +270,25 @@ A.elf = function (x, e, t, rf) {
 	if (e.chill > 0) { x.globalAlpha = .45; x.drawImage(A.ice, X - 16 * s, Y - 40 * s, 32 * s, 40 * s); x.globalAlpha = 1 }
 	if (e.burn > 0) { x.globalAlpha = .7; x.drawImage(A.fire, X - 10 * s + (hash(e.id, Math.floor(t * 10)) - .5) * 8, Y - 30 * s, 20 * s, 24 * s); x.globalAlpha = 1 }
 };
-/* the wendigo: an original design for this game. Gaunt and very tall, long-limbed, with a narrow skull-like face and
-   sharp branching antlers (unlike Rudolf's soft round ones), in the same dark, jagged corruption as the elves; its
-   eyes are always red. Frightening by shape and size, not by gore. */
+/* the wendigo: Rudolf's own model gone wrong (25 Days): larger, dark and gaunt, ribs and cracks, a dead nose, longer
+   ragged antlers, glowing green eyes and a frothing green mouth; long clawed arms reach for the barricade. It faces
+   left, and is drawn at 0.6 of the elves' scale (2.5) so it stands about 145 tall. */
+const WEND = {ink: '#050407', W1: '#2c2832', W2: '#1d1a22', W3: '#141118', nose: null, eye: '#7dff4a', corrupt: true, froth: true};
 function wendigo(x, e, t, rf, lineC, D) {
-	const ph = e.walk, sw = Math.sin(ph) * 5;
-	/* long legs, bent backwards at the knee */
-	x.strokeStyle = D.skin; x.lineWidth = 3.2;
-	for (const k of [1, -1]) { x.beginPath(); x.moveTo(k * 2, -22); x.lineTo(k * 2 + 4 + sw * k, -11); x.lineTo(k * 1 - 2 + sw * k, 0); x.stroke() }
-	/* a narrow, ridged torso, hunched forward */
-	x.beginPath(); x.moveTo(-5, -38); x.lineTo(6, -40); x.lineTo(7, -30); x.lineTo(5, -21); x.lineTo(-4, -20); x.lineTo(-7, -29); x.closePath(); fl(x, D.skin, lineC, 1);
-	x.strokeStyle = 'rgba(0,0,0,.45)'; x.lineWidth = .8; for (let i = 0; i < 4; i++) { x.beginPath(); x.moveTo(-5, -35 + i * 3.5); x.lineTo(4, -36 + i * 3.5); x.stroke() }
-	/* very long arms with long claws, reaching ahead */
-	const reach = e.hold ? -8 : Math.sin(t * 2 + e.id) * 2;
-	x.strokeStyle = D.skin; x.lineWidth = 2.4;
-	x.beginPath(); x.moveTo(-4, -37); x.lineTo(-14, -30 + reach); x.lineTo(-24, e.hold ? -40 : -20 + reach); x.stroke();
-	x.beginPath(); x.moveTo(2, -37); x.lineTo(-8, -28); x.lineTo(-18, -16 - reach); x.stroke();
-	x.strokeStyle = '#0c0910'; x.lineWidth = 1; for (const [hx, hy] of [[-24, e.hold ? -40 : -20 + reach], [-18, -16 - reach]]) for (let k = 0; k < 3; k++) { x.beginPath(); x.moveTo(hx, hy); x.lineTo(hx - 4, hy - 2 + k * 2); x.stroke() }
-	/* the skull-like face on a long neck */
-	x.strokeStyle = D.skin; x.lineWidth = 2.6; x.beginPath(); x.moveTo(0, -39); x.lineTo(-3, -43); x.stroke();
-	x.beginPath(); x.moveTo(-8, -47); x.lineTo(-4, -51); x.lineTo(1, -50); x.lineTo(2, -45); x.lineTo(-2, -41); x.lineTo(-7, -42); x.closePath(); fl(x, '#3a3240', lineC, 1);
-	/* sharp branching antlers */
-	x.strokeStyle = '#2a2230'; x.lineWidth = 1.6;
-	for (const k of [1, -1]) { const bx = -3 + k * 2, by = -50; x.beginPath(); x.moveTo(bx, by); x.lineTo(bx + k * 6, by - 8); x.lineTo(bx + k * 9, by - 16); x.moveTo(bx + k * 6, by - 8); x.lineTo(bx + k * 12, by - 9); x.moveTo(bx + k * 8, by - 13); x.lineTo(bx + k * 4, by - 18); x.moveTo(bx + k * 10, by - 9); x.lineTo(bx + k * 14, by - 13); x.stroke() }
-	/* red eyes, narrow, no highlights */
-	if (!rf) x.drawImage(A.eyeR, -12, -52, 14, 10);
-	x.fillStyle = D.eye; x.beginPath(); x.moveTo(-7, -47); x.lineTo(-4.5, -46.4); x.lineTo(-7, -45.6); x.closePath(); x.fill(); x.beginPath(); x.moveTo(-3.5, -47); x.lineTo(-1, -46.4); x.lineTo(-3.5, -45.6); x.closePath(); x.fill();
-	/* frost breath */
-	if (!rf) { x.fillStyle = 'rgba(220,230,255,.25)'; x.beginPath(); x.ellipse(-12 - (t * 8 % 6), -44, 3 + (t * 4 % 3), 1.6, 0, 0, 7); x.fill() }
+	x.save(); x.scale(-.6, .6);
+	const pal = Object.assign({}, WEND, {rf, ink: e.hitT > 0 ? '#c8ffc0' : WEND.ink});
+	/* drawing in a screech: the head lifts */
+	const ch = e.wmode == 'charge';
+	stag(x, pal, t, e.walk, Math.sin(t * 1.4 + e.id) * .8);
+	/* long arms with claws, reaching ahead (to the right here: towards the barricade) */
+	const reach = Math.sin(t * 2 + e.id) * 2;
+	for (const [sx, sy, k] of [[4, -42, 1], [-2, -40, -1]]) {
+		x.strokeStyle = pal.ink; x.lineWidth = 4.4; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + 12, sy + 8 + reach * k); x.lineTo(sx + 26, sy + 2 + reach * k); x.stroke();
+		x.strokeStyle = WEND.W2; x.lineWidth = 2.6; x.stroke();
+		x.strokeStyle = '#0a080c'; x.lineWidth = 1.2; for (let c = 0; c < 3; c++) { x.beginPath(); x.moveTo(sx + 26, sy + 2 + reach * k); x.lineTo(sx + 32, sy - 1 + c * 3 + reach * k); x.stroke() }
+	}
+	if (ch && !rf) { x.globalAlpha = .5; x.drawImage(A.eyeG, 2, -66, 26, 20); x.globalAlpha = 1 }
+	x.restore();
 }
 /* a shield: an old sled-board, iron-banded and cracked, held upright from the waist to above the head; the lower legs
    and feet show beneath it */
