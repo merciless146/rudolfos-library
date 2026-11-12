@@ -16,7 +16,9 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
   - The pilot under g, with the canopy broken: `pilot.js` (`tests/emberreach_pilot_t.js`, 10 checks).
   - A system to fly in, its ports, docking, cruise and collisions: `scene.js` (`tests/emberreach_scene_t.js`, 23
     checks).
-  - The save: `save.js` (`tests/emberreach_save_t.js`, 9 checks).
+  - The save: `save.js` (`tests/emberreach_save_t.js`, 12 checks).
+  - Trade: wallet, cargo, markets, exchange, services, shipyards: `trade.js` (`tests/emberreach_trade_t.js`, 18
+    checks). The starport: `port.js`.
   - Travel between stars: fuel, misjumps, ports, lanes and routes: `travel.js` (`tests/emberreach_travel_t.js`, 16
     checks). The star map: `map.js`.
   - **The flight screen (M1):** `play.html`, with `play.js`, `render.js`, `meshes.js` and `hud.js`. Open it from a
@@ -747,6 +749,25 @@ home currency.
    - **Saves** keep the system you're in, your fuel, your last port and your route's destination (save version 2;
      M1 saves still load).
 4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.
+   **Playable** in `play.html`:
+   - **Choosing an origin:** a new game opens on the 46 great powers, by cluster, with each one's species, currency,
+     capital, allies, enemies and starter ship. You start docked at its capital with 20,000 SU in its currency.
+   - **The starport** (`port.js`), the design canvas's layout working for real:
+     - the status strip, the services row (refuelling and repairs, paid at the market's prices; restocking waits
+       for weapons in M4) and the F1–F9 bar;
+     - **Market:** the economy model's prices in the holder's currency, buying and selling (up to what fits and
+       what you can pay), with what you paid and the profit if sold here;
+     - **Shipyard:** the yard's stock by port class (outposts XS and S, Lanterns up to M, Halos everything; never
+       an enemy's designs), bought with your ship in part-exchange, your cargo transferred if it fits;
+     - **Contacts:** the authority (bounties), the war office (fronts, enlisting) and the exchange (spreads by
+       relation, enemies' coin refused);
+     - **Bulletin board:** today's war contracts (taking them comes with M4);
+     - **Status:** wallet in every currency, worth, hold, reputation;
+     - **Station**, **Outfitting** and **Carto & lounges** screens, the last two pointing to M4 and M5.
+   - **Trade** (`trade.js`, 18 checks): wallets in many currencies; free traders at contested systems taking SU
+     at an 8% cut; trade reputation; fuel tanks of a few tonnes; repairs at 8% of a ship's value from wrecked;
+     ships lost replaced for 5% of their value, the cargo lost with them.
+   - **Saves** (version 3) carry the player: money, cargo, reputation, bounties, commission.
 5. **M4:** combat and war: weapons, shields, heat, pirates, patrols; war missions, commissions, moving fronts;
    carriers and dreadnoughts.
 6. **M5:** exploration in full: scanning, surveys, ruins, naming, missions. The package moves to `apps/` and

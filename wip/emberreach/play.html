@@ -21,6 +21,55 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 .btns button{min-height:44px;padding:0 18px;border:1px solid #f2a33a;background:transparent;color:#f6c27a;font:600 14px Inter,system-ui,sans-serif;cursor:pointer}
 .btns button.primary{background:#f2a33a;color:#1a1205;border-color:#f2a33a}
 .btns button:focus-visible{outline:2px solid #6cc9e8;outline-offset:2px}
+/* the starport (port.js): the design canvas's layout */
+#port{position:fixed;inset:0;background:#0a111f;color:#e8edf6;font:14px Inter,system-ui,sans-serif;z-index:5}
+#port[hidden]{display:none}
+.pt{display:flex;flex-direction:column;height:100%}
+.pt button{font:inherit;color:inherit;cursor:pointer}
+.pt button:disabled{cursor:not-allowed;opacity:.45}
+.pt button:focus-visible,.pt select:focus-visible,.pt input:focus-visible{outline:2px solid #f2a33a;outline-offset:2px}
+.pt-top{min-height:52px;box-sizing:border-box;padding:6px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 24px;border-bottom:1px solid #243352;background:#0d1628}
+.pt-name{display:flex;gap:12px;align-items:baseline;flex:1 1 300px}.pt-name b{font-size:17px}.pt-name span{color:#9fb0cc;font-size:13px}
+.pt-stats{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:13px}.pt-stats div{display:flex;gap:6px}.pt-stats span{color:#9fb0cc}.pt-stats b{font:500 13px ui-monospace,Menlo,Consolas,monospace}
+.gold{color:#f6c27a}.good{color:#7fd1a8}.bad{color:#ff8a7f}.muted{color:#9fb0cc}.small{font-size:12px;line-height:1.5}.num{text-align:right;font-family:ui-monospace,Menlo,Consolas,monospace}
+.pt-svc{display:flex;flex-wrap:wrap;gap:8px;padding:8px 20px;border-bottom:1px solid #243352;align-items:stretch}
+.pt-svcb{min-width:190px;min-height:44px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:4px 14px;background:#101a2d;border:1px solid #243352}
+.pt-svcb span{font-size:12px;color:#9fb0cc}.pt-fill{flex:1}.pt-ship{align-self:center;color:#9fb0cc;font-size:13px}
+.pt-main{flex:1;min-height:0;overflow:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.pt-h{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}.pt-h h1{margin:0;font:600 22px "Space Grotesk",Inter,system-ui,sans-serif}.pt-h span{color:#9fb0cc}
+.pt-card{background:#101a2d;border:1px solid #243352;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.pt-card h2{margin:0;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#9fb0cc;font-weight:600}.pt-card h3{margin:4px 0 0;font-size:13px}.pt-card p{margin:0;line-height:1.5}
+.pt-narrow{max-width:520px}
+.pt-grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:12px}.pt-col{display:flex;flex-direction:column;gap:12px}.pt-span2{grid-column:span 2}
+@media (max-width:900px){.pt-span2{grid-column:auto}}
+.pt-split{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}.pt-table{flex:999 1 520px;padding:0;gap:0}.pt-side{flex:1 1 300px}.pt-wide{flex:1 1 380px}
+.pt-thead,.pt-row{display:grid;grid-template-columns:1.6fr 1fr 1fr .8fr .7fr .9fr;gap:8px;padding:6px 14px;align-items:center}
+.pt-row4{grid-template-columns:1.1fr 1.4fr 1.3fr 1.7fr!important}
+.pt-thead{font-size:11px;color:#9fb0cc;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #243352}
+.pt-row{min-height:32px;border:0;background:transparent;text-align:left;font-size:13px}.pt-row:hover{background:#15213a}.pt-row.on{background:#1d2a45;color:#f6c27a}
+.pt-big{font:600 24px "Space Grotesk",Inter,system-ui,sans-serif}
+.pt-card dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:13px}.pt-card dt{color:#9fb0cc}.pt-card dd{margin:0}
+.pt-label{font-size:11px;color:#9fb0cc;text-transform:uppercase;letter-spacing:.06em}
+.pt-btns{display:flex;flex-wrap:wrap;gap:8px}
+.pt-primary,.pt-ghost{min-height:44px;padding:0 16px;font-weight:600}.pt-primary{background:#f2a33a;color:#1a1205!important;border:0}.pt-ghost{background:transparent;border:1px solid #f2a33a;color:#f6c27a!important}
+.pt-chips{display:flex;flex-wrap:wrap;gap:6px}.pt-chips span{padding:4px 10px;font-size:12px;background:#15213a;border:1px solid #243352}.pt-chips span.on{color:#f6c27a;border-color:#6b4a17;background:#2a2213}
+.pt-ad{display:flex;gap:14px;align-items:center;padding:10px 12px;background:#15213a}.pt-ad div{flex:1;display:flex;flex-direction:column;gap:2px}.pt-ad .tag{font-size:11px;color:#f6c27a;text-transform:uppercase;font-weight:600;width:44px}
+.pt-list{display:flex;flex-direction:column;gap:6px}
+.pt-front{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;background:#15213a;font-size:13px}
+.pt-form{display:flex;flex-wrap:wrap;gap:10px}.pt-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#9fb0cc;flex:1 1 160px}
+.pt-form select,.pt-form input{min-height:40px;background:#0a111f;color:#e8edf6;border:1px solid #2a3a5c;padding:0 8px;font:14px Inter,system-ui,sans-serif}
+.pt-wallet{display:flex;flex-direction:column;gap:4px;font-size:13px}.pt-wallet span{color:#9fb0cc}.pt-wallet b{color:#e8edf6;font-family:ui-monospace,Menlo,Consolas,monospace}
+.pt-table h2{padding:14px 14px 6px}
+.pt-rep{display:grid;grid-template-columns:2fr .8fr 1fr;gap:8px;padding:6px 14px;border-bottom:1px solid #172340;font-size:13px}
+.pt-bar{display:flex;gap:6px;padding:8px 20px 12px;border-top:1px solid #243352;background:#0d1628;overflow-x:auto}
+.pt-bar button{flex:1 0 84px;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:transparent;border:1px solid #243352;color:#c3cde0;font-size:12px}
+.pt-bar button small{font:10px ui-monospace,Menlo,monospace;color:#9fb0cc}.pt-bar button.on{background:#1d2a45;border-color:#f2a33a;color:#f6c27a}
+/* the origin picker */
+.org-h{margin:14px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#9fb0cc}
+.org{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:8px}
+.org button{display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;padding:10px 12px;min-height:44px;background:#101a2d;border:1px solid #243352;color:#e8edf6;font:13px Inter,system-ui,sans-serif;cursor:pointer}
+.org button span{font-size:12px;color:#9fb0cc}.org button:hover,.org button:focus-visible{border-color:#f2a33a;outline:none}
+.card{max-width:min(980px,94vw)}
 #load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:500 14px ui-monospace,Menlo,Consolas,monospace;color:#9fb0cc}
 </style>
 </head>
@@ -28,6 +77,7 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 <canvas id="gl" aria-hidden="true"></canvas>
 <canvas id="hud" tabindex="0" aria-label="Ember Reach flight view"></canvas>
 <div id="load">&gt; plotting the galaxy…</div>
+<div id="port" hidden></div>
 <div id="ov" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="ovT"><div id="ovBody"></div><div class="btns" id="ovBtns"></div></div></div>
 <script src="../../lib/gamekit/gamekit.js"></script>
 <script src="wos-stats.js"></script>
@@ -35,6 +85,8 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 <script src="factions.js"></script>
 <script src="economy.js"></script>
 <script src="ships.js"></script>
+<script src="reputation.js"></script>
+<script src="trade.js"></script>
 <script src="flight.js"></script>
 <script src="modules.js"></script>
 <script src="pilot.js"></script>
@@ -44,6 +96,7 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 <script src="travel.js"></script>
 <script src="hud.js"></script>
 <script src="map.js"></script>
+<script src="port.js"></script>
 <script src="sound.js"></script>
 <script src="save.js"></script>
 <script src="play.js"></script>
