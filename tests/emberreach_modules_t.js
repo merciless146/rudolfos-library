@@ -12,7 +12,7 @@ try {
 	const fits = L.map(M.fit);
 	ok('1. every one of the 40 stock ships carries a power plant, engines, hyperspace drive, canopy, RCS and ACS, each with its own health',
 		fits.every(f => ['power', 'engines', 'jump', 'canopy', 'rcs', 'acs'].every(id => { const m = M.get(f, id); return m && m.hp == m.max && m.max >= 10 })));
-	ok('2. weapons only on armed ships, a cargo hold only where there is cargo', L.every((s, i) => !!M.get(fits[i], 'weapons') == s.hard.some(n => n > 0) && !!M.get(fits[i], 'cargo') == s.cargo > 0));
+	ok('2. weapons only on armed ships, a cargo hatch only where there is a hold', L.every((s, i) => !!M.get(fits[i], 'weapons') == s.hard.some(n => n > 0) && !!M.get(fits[i], 'hatch') == s.cargo > 0));
 	ok('3. bigger hulls have bigger health pools', M.get(M.fit(L.find(s => s.id == 'monolith')), 'engines').max > 100 * M.get(M.fit(wren), 'engines').max);
 
 	/* breaking a module raises an alert, once */

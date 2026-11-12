@@ -7,6 +7,9 @@
    - top left: module alerts (the ship's side profile with the broken module flashing, and the console line
      "<MODULE> INOPERABLE" under an orange triangle, red for critical modules), or the console's recent messages;
    - right: the internal-systems panel (toggled);
+   - combat (M4): the scanner (bottom centre: ships within 8 km, hostile red, on stalks above and below the plane),
+     shields / hull / heat above the flight panel, red brackets and a lead pip on a hostile target with its shields and
+     hull, the missile lock closing round it, a red edge when hit, and the incoming-missile warning;
    - with the canopy broken: felt g, the view darkening from the edges, black when the pilot blacks out (the blur is
      a filter on the 3D canvas, set by play.js).
    GPL-2.0-or-later. ===== */
@@ -17,7 +20,7 @@ const MONO = '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace', SANS 
 /* the ship's side profile (nose right), the same zones as the HUD mockup */
 const PROFILE = {hull: 'M20 50 L60 34 L200 30 L250 40 L300 58 L250 74 L200 84 L60 86 L20 72 Z',
 	engines: ['M6 46 L36 42 L36 80 L6 76 Z'], rcs: ['M44 36h14v8h-14z', 'M44 76h14v8h-14z'], power: ['M70 40h50v22h-50z'], jump: ['M70 65h50v17h-50z'],
-	shields: ['M126 38h48v20h-48z'], weapons: ['M140 72h44v9h-44z'], cargo: ['M140 72h44v9h-44z'], life: ['M126 60h48v10h-48z', 'M180 44h24v22h-24z'],
+	shields: ['M126 38h48v20h-48z'], weapons: ['M140 72h44v9h-44z'], hatch: ['M138 84h48v5h-48z'], life: ['M126 60h48v10h-48z', 'M180 44h24v22h-24z'],
 	acs: ['M210 66h22v9h-22z', 'M210 44h16v8h-16z'], canopy: ['M198 31 C214 15 246 17 268 43 L250 41 L200 33 Z'], sensors: ['M272 50 L304 58 L272 66 Z']};
 let P2 = null;
 const path = d => (P2 = P2 || {}, P2[d] || (P2[d] = new Path2D(d)));
@@ -36,6 +39,7 @@ function fmtSpeed(v) {
 }
 function box(ctx, x, y, w, h) { ctx.fillStyle = C.panel; ctx.fillRect(x, y, w, h); ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1) }
 function text(ctx, s, x, y, o) { o = o || {}; ctx.font = (o.weight || 500) + ' ' + (o.size || 13) + 'px ' + (o.mono ? MONO : SANS); ctx.fillStyle = o.col || C.text; ctx.textAlign = o.align || 'left'; ctx.textBaseline = o.base || 'alphabetic'; ctx.fillText(s, x, y) }
+function bar(ctx, x, y, w, h, v, col, back) { ctx.fillStyle = back || '#1a2540'; ctx.fillRect(x, y, w, h); ctx.fillStyle = col; ctx.fillRect(x, y, w * Math.max(0, Math.min(1, v)), h) }
 function triangle(ctx, x, y, col) {
 	ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x + 11, y + 1); ctx.lineTo(x + 21, y + 19); ctx.lineTo(x + 1, y + 19); ctx.closePath(); ctx.fill();
 	ctx.fillStyle = '#05080f'; ctx.fillRect(x + 10, y + 7, 2, 6); ctx.fillRect(x + 10, y + 15, 2, 2);
@@ -50,6 +54,11 @@ function draw(ctx, W, H, h, t) {
 		if (!h.vision.conscious) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); text(ctx, 'PILOT UNCONSCIOUS · CONTROLS LOCKED', cx, cy, {mono: true, col: '#3a4660', align: 'center', size: 13}); ctx.restore(); return }
 		const d = h.vision.dark, g = ctx.createRadialGradient(cx, cy, Math.max(W, H) * 0.62 * (1 - d), cx, cy, Math.max(W, H) * (0.78 - 0.35 * d));
 		g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,' + Math.min(1, 0.55 + d) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+	}
+	/* ---- hit: the edges flash red ---- */
+	if (h.hitAge != null && h.hitAge < 0.35) {
+		const a = (1 - h.hitAge / 0.35) * (h.reduceFlash ? 0.18 : 0.45), g = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.35, cx, cy, Math.max(W, H) * 0.75);
+		g.addColorStop(0, 'rgba(229,72,77,0)'); g.addColorStop(1, 'rgba(229,72,77,' + a.toFixed(3) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 	}
 	/* ---- a jump: the drive's tunnel, streaks racing out from the centre ---- */
 	if (h.witch != null) {
@@ -76,18 +85,51 @@ function draw(ctx, W, H, h, t) {
 	if (h.target) {
 		const T = h.target;
 		if (T.on) {
-			const s = Math.max(14, Math.min(120, T.size)); ctx.strokeStyle = C.amber; ctx.lineWidth = 1.6; ctx.beginPath();
+			const s = Math.max(14, Math.min(120, T.size)), tc = T.hostile ? C.red : C.amber; ctx.strokeStyle = tc; ctx.lineWidth = 1.6; ctx.beginPath();
 			for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.moveTo(T.x + sx * s, T.y + sy * (s - 7)); ctx.lineTo(T.x + sx * s, T.y + sy * s); ctx.lineTo(T.x + sx * (s - 7), T.y + sy * s) }
-			ctx.stroke(); text(ctx, T.name, T.x + s + 6, T.y - 2, {col: C.amber, size: 12, weight: 600}); text(ctx, fmtDist(T.dist), T.x + s + 6, T.y + 13, {col: C.text, size: 12, mono: true});
+			ctx.stroke(); text(ctx, T.name, T.x + s + 6, T.y - 2, {col: tc, size: 12, weight: 600});
+			/* missile lock: a ring closing in; solid when locked */
+			if (T.lock > 0) { ctx.strokeStyle = T.locked ? C.red : 'rgba(229,72,77,0.6)'; ctx.lineWidth = T.locked ? 2.4 : 1.4; ctx.beginPath(); ctx.arc(T.x, T.y, s + 10 + (1 - T.lock) * 40, 0, 7); ctx.stroke(); if (T.locked) text(ctx, 'LOCK', T.x, T.y + s + 24, {mono: true, size: 11, weight: 700, col: C.red, align: 'center'}) } text(ctx, fmtDist(T.dist), T.x + s + 6, T.y + 13, {col: C.text, size: 12, mono: true});
 		} else {
 			/* an arrow at the edge, pointing the way to turn */
 			const a = Math.atan2(T.dy, T.dx), r = Math.min(W, H) * 0.42, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
-			ctx.fillStyle = C.amber; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 12, y + Math.sin(a) * 12); ctx.lineTo(x + Math.cos(a + 2.5) * 10, y + Math.sin(a + 2.5) * 10); ctx.lineTo(x + Math.cos(a - 2.5) * 10, y + Math.sin(a - 2.5) * 10); ctx.closePath(); ctx.fill();
+			ctx.fillStyle = T.hostile ? C.red : C.amber; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 12, y + Math.sin(a) * 12); ctx.lineTo(x + Math.cos(a + 2.5) * 10, y + Math.sin(a + 2.5) * 10); ctx.lineTo(x + Math.cos(a - 2.5) * 10, y + Math.sin(a - 2.5) * 10); ctx.closePath(); ctx.fill();
 		}
+	}
+	/* the lead pip: where to aim so the guns hit */
+	if (h.target && h.target.lead && h.target.lead.on) { const L = h.target.lead; ctx.strokeStyle = C.red; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(L.x, L.y - 6); ctx.lineTo(L.x + 6, L.y); ctx.lineTo(L.x, L.y + 6); ctx.lineTo(L.x - 6, L.y); ctx.closePath(); ctx.stroke() }
+	/* ---- bottom centre: the scanner ---- */
+	if (h.scanner) {
+		const sc = h.scanner, rw = small ? 110 : 150, rh = small ? 38 : 50, sx = cx, sy = H - rh - (h.touch ? 200 : 26), R = sc.range;
+		ctx.fillStyle = 'rgba(8,14,26,0.6)'; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.fill();
+		ctx.strokeStyle = 'rgba(108,201,232,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.ellipse(sx, sy, rw / 2, rh / 2, 0, 0, 7); ctx.moveTo(sx - rw, sy); ctx.lineTo(sx + rw, sy); ctx.moveTo(sx, sy - rh); ctx.lineTo(sx, sy + rh); ctx.stroke();
+		for (const b of sc.blips) {
+			const k = Math.hypot(b.x, b.z) / R; if (k > 1) continue;
+			const px = sx + b.x / R * rw, py = sy - b.z / R * rh, top = py - Math.max(-rh, Math.min(rh, b.y / R * rh * 1.6));
+			ctx.strokeStyle = b.col; ctx.fillStyle = b.col; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, top); ctx.stroke();
+			ctx.fillRect(px - (b.big ? 4 : 2.5), top - (b.big ? 2 : 1.5), b.big ? 8 : 5, b.big ? 4 : 3);
+			if (b.target) { ctx.strokeRect(px - 6, top - 5, 12, 10) }
+		}
+		text(ctx, (R / 1000) + ' km', sx + rw - 4, sy + rh + 12, {mono: true, size: 10, col: C.muted, align: 'right'});
 	}
 	/* ---- bottom left: flight ---- */
 	const bw = small ? 240 : 290, bh = 118, bx = 16, by = H - bh - (h.touch ? 190 : 16);
 	box(ctx, bx, by, bw, bh);
+	if (h.combat) {
+		const k = h.combat, py = by - 84;
+		box(ctx, bx, py, bw, 78);
+		const rows = [['SHLD', k.shield, C.cyan], ['HULL', k.hull, k.hull < 0.3 ? C.red : k.hull < 0.6 ? C.amber : C.green], ['HEAT', k.heat, k.hot ? C.red : k.heat > 0.75 ? C.amber : '#c9a46a']];
+		rows.forEach(([l, v, col], i) => { const yy = py + 10 + i * 16; text(ctx, l, bx + 10, yy + 8, {mono: true, size: 10, col: C.muted}); bar(ctx, bx + 50, yy, bw - 150, 8, v, col) });
+		if (k.hot) text(ctx, 'OVERHEAT', bx + bw - 92, py + 34, {mono: true, size: 10, weight: 700, col: C.red});
+		const inv = [k.ammo != null ? 'RND ' + k.ammo : null, k.missileMax ? 'MSL ' + k.missiles : null, 'FLR ' + k.flares].filter(Boolean);
+		inv.forEach((t2, i) => text(ctx, t2, bx + bw - 10, py + 18 + i * 16, {mono: true, size: 10, col: C.muted, align: 'right'}));
+		/* the status line: the hatch, an incoming missile */
+		const sts = [];
+		if (h.hatch) sts.push([h.hatch == 'jammed' ? 'HATCH JAMMED · SPILLING' : 'HATCH OPEN · SCOOPING', h.hatch == 'jammed' ? C.red : C.cyan]);
+		if (h.incoming) sts.push(['MISSILE INBOUND', C.red]);
+		if (!k.armed && !sts.length) sts.push(['UNARMED', C.muted]);
+		let sx2 = bx + 10; for (const [t2, col] of sts) { text(ctx, t2, sx2, py + 68, {mono: true, size: 10, weight: 700, col}); ctx.font = '700 10px ' + MONO; sx2 += ctx.measureText(t2).width + 14 }
+	}
 	text(ctx, h.cruise ? 'CRUISE' : 'SPEED', bx + 12, by + 22, {col: C.muted, size: 11, mono: true});
 	text(ctx, fmtSpeed(h.speed), bx + 12, by + 50, {size: 26, weight: 600, mono: true, col: h.cruise ? C.cyan : C.text});
 	/* throttle bar: FA on, a set speed (reverse below the line); FA off, thrust */
@@ -113,6 +155,7 @@ function draw(ctx, W, H, h, t) {
 		text(ctx, T.name, x + 12, y + 42, {size: 16, weight: 600});
 		text(ctx, fmtDist(T.dist), x + 12, y + 66, {mono: true, size: 14});
 		text(ctx, (T.closing >= 0 ? '▼ ' : '▲ ') + fmtSpeed(Math.abs(T.closing)), x + w - 12, y + 66, {mono: true, size: 12, col: C.muted, align: 'right'});
+		if (T.bars) { text(ctx, T.bars.what, x + 12, y + 88, {size: 11, col: T.hostile ? C.red : C.muted, weight: 600}); bar(ctx, x + 12, y + 96, w - 24, 6, T.bars.shield, C.cyan); bar(ctx, x + 12, y + 106, w - 24, 6, T.bars.hull, T.bars.hull < 0.3 ? C.red : C.green) }
 		if (T.dock) { const d = T.dock; text(ctx, d.line1, x + 12, y + 90, {size: 12, col: d.col || C.text, weight: 600}); if (d.line2) text(ctx, d.line2, x + 12, y + 108, {size: 12, col: C.muted}) }
 	}
 	/* ---- top left: alerts, or the console ---- */

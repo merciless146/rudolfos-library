@@ -103,9 +103,11 @@ const tank = ship => Math.max(1, Math.round(ship.length * TRADE.tankPerMetre * 1
 /* filling the tank from `fuel` (0..1), at this market's fuel price (in its currency) */
 function refuelCost(ship, fuel, mkt) { return (1 - fuel) * tank(ship) * mkt.prices.Fuel.price }
 /* repairs: the share of the modules' health that's missing, of 8% of the ship's value, in the market's currency */
-function repairCost(ship, fit, mkt, day) {
+function repairCost(ship, fit, mkt, day, hull) {
 	const tot = fit.modules.reduce((t, m) => t + m.max, 0), miss = fit.modules.reduce((t, m) => t + m.max - m.hp, 0);
-	return miss / tot * TRADE.repairShare * S.value(ship) * rate(mkt.currency, day);
+	/* with the hull's health (a share), half the bill is the hull */
+	const k = hull == null ? miss / tot : (miss / tot + Math.max(0, 1 - hull)) / 2;
+	return k * TRADE.repairShare * S.value(ship) * rate(mkt.currency, day);
 }
 /* a replacement ship: 5% of its value, in the home currency */
 function rebuyCost(P, ship, day) { const c = origin(P).currency.code; return {code: c, amount: TRADE.rebuy * S.value(ship) * rate(c, day)} }

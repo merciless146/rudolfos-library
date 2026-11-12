@@ -35,5 +35,11 @@ try {
 	ok('11. ...and refuses a player with negative money or fractional cargo', [{wallet: {ROA: -5}}, {cargo: {Iron: 1.5}}, {origin: 7}].every(bad => Sv.unpack(Object.assign(JSON.parse(JSON.stringify(Sv.pack(g3))), {player: Object.assign(JSON.parse(JSON.stringify(Sv.packPlayer(pl))), bad)}), known) === null));
 	ok('12. a version 2 save loads without a player (one is made from its origin)', (() => { const v2 = JSON.parse(JSON.stringify(Sv.pack(g))); v2.v = 2; delete v2.player; const b = Sv.unpack(v2, known); return b && b.player === null && b.star })());
 	ok('6. module health never comes back above its pool', M.get(Sv.restoreModules(M.fit(wren), {engines: 1e9}), 'engines').hp == M.get(M.fit(wren), 'engines').max);
+	ok('13. the player carries the hull\'s health, the magazines and war missions in hand (M4); a save without them still loads', (() => {
+		const p2 = JSON.parse(JSON.stringify(Sv.packPlayer(pl)));
+		const withM = Sv.unpackPlayer(Object.assign({}, p2, {combat: {hull: 0.4, ammo: [null, 90], missiles: 3, flares: 2}, missions: [{id: 'a:1', star: {id: 's', at: [1, 2, 3]}, due: 210, text: 'x'}, {id: 7}]}));
+		const without = Sv.unpackPlayer(p2);
+		return withM.combat.hull == 0.4 && withM.missions.length == 1 && without.combat === null && without.missions.length == 0;
+	})());
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

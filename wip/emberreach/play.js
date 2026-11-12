@@ -18,12 +18,22 @@
    ship or day starts fresh.
    Level of detail: planets and stars are lit sprites until 48 pixels across; stations are a detailed mesh within
    20 km, a simple one to 500 km, and a sprite beyond; ships are always drawn in full at the graphics setting.
+   - Combat (M4): the system's cast (encounters.js) flies the same flight model under AI pilots (combat.js): port
+     patrols and traders, pirates, war wings on the fronts, small factions' flagships, and what your war missions bring.
+     L or the left mouse button fires (lasers heat, mass drivers use rounds), K launches a missile at a locked target,
+     B drops a flare, U targets the nearest hostile. Shields soak hits and come back; the hull's damage reaches the
+     modules; at no hull the ship is lost. Kills pay bounties, anger factions or count as war effort; war missions
+     taken at a bulletin board are settled as you go.
+   - The cargo hatch (I): open, the ship drops into its scooping trim (slow, fine turning) and scoops cargo canisters
+     (canisters.js) that drift into it slowly enough; wrecks leave canisters. A broken hatch jams open and the hold
+     spills a tonne every 8 s.
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
-	Snd = window.EmberSound, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort;
+	Snd = window.EmberSound, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 const $ = id => document.getElementById(id);
@@ -38,18 +48,22 @@ const KEYS = {
 	strafeL: ['KeyQ', 'pad:14'], strafeR: ['KeyE', 'pad:15'], strafeU: ['Space', 'pad:12'], strafeD: ['ShiftLeft', 'pad:13'],
 	fa: ['KeyZ', 'pad:1'], cruise: ['KeyC', 'pad:3'], target: ['KeyT', 'Tab', 'pad:2'], dock: ['KeyN', 'pad:0'], view: ['KeyV', 'pad:11'],
 	map: ['KeyG', 'pad:8'], jump: ['KeyJ', 'pad:10'], route: ['Enter', 'NumpadEnter'], home: ['Home', 'KeyY'],
+	hatch: ['KeyI'], fire: ['KeyL', 'pad:7'], missile: ['KeyK', 'pad:6'], flare: ['KeyB'], hostile: ['KeyU'],
 	systems: ['KeyO'], mouse: ['KeyM'], help: ['KeyH', 'F1'], pause: ['KeyP', 'Escape', 'pad:9'],
-	dbgBreak: ['Digit9'], dbgCanopy: ['Digit0'], dbgNear: ['Digit7'], dbgRoute: ['Digit8']};
+	dbgPirates: ['Digit6'], dbgBreak: ['Digit9'], dbgCanopy: ['Digit0'], dbgNear: ['Digit7'], dbgRoute: ['Digit8']};
 const HELP = [['↑ ↓  or  W S', 'pitch (nose down / up)'], ['← →', 'roll'], ['A D', 'yaw'], ['R F', 'throttle up / down (FA on: a set speed; FA off: thrust)'], ['X', 'throttle to zero'],
 	['Q E, Space, Left Shift', 'strafe left / right / up / down'], ['Z', 'flight assist on / off'], ['C', 'cruise (out of a port\'s 20 km mass lock)'], ['T  or  Tab', 'next target'],
 	['N', 'request docking clearance (within 10 km of the port)'], ['G', 'star map: drag to turn, wheel to zoom, click a star, Enter to plot a route, Home (or Y) back to you'],
 	['J', 'jump to the next star on the route (or the star picked on the map)'], ['V', 'cockpit / chase view'], ['O', 'internal systems'], ['M', 'mouse flight (pointer from the centre: pitch and roll)'],
-	['P  or  Esc', 'pause'], ['Gamepad', 'left stick pitch and roll, right stick yaw and strafe, triggers throttle, A dock, B FA, X target, Y cruise, Back map, left stick click jump']];
+	['L  or  left mouse button', 'fire (lasers heat up; mass drivers use rounds)'], ['K', 'missile, once locked (keep the target in your sights for 2 s)'], ['B', 'flare (shakes off missiles)'], ['U', 'target the nearest hostile'],
+	['I', 'cargo hatch open / shut (open: slow, fine handling; drift onto a canister to scoop it)'],
+	['P  or  Esc', 'pause'], ['Gamepad', 'left stick pitch and roll, right stick yaw and throttle, RT fire, LT missile, A dock, B FA, X target, Y cruise, d-pad strafe, Back map, left stick click jump']];
 
 let W = 1, Hh = 1, view = null, R = null, scene = null, st = null, ship = null, s = null, fit = null, pilot = null, map = null;
 const game = {t: 0, day: 200, star: null, port: null, fuel: 1, route: null, jump: null, lastPort: null, mapOpen: false,
 	cruise: {on: false, v: 0, charge: 0}, throttle: 0, target: 0, clearance: null, docked: false, chase: false, systems: false, mouseFly: false, msgs: [], vision: null, gFelt: null, lastStep: null,
-	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: {stick: null, dx: 0, dy: 0, thr: null}};
+	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: {stick: null, dx: 0, dy: 0, thr: null, fire: null, msl: false},
+	tgt: null, npcs: [], shots: [], booms: [], cans: [], hatch: false, spill: {}, pcs: null, visits: 0, mouseFire: false, own: null};
 const say = (text, col) => { game.msgs.push({text, col, t: game.t}); if (game.msgs.length > 12) game.msgs.shift() };
 const at = x => [x.x, x.y, x.z];
 const owner = () => game.port ? F.byId(game.port.owner) : null;
@@ -114,7 +128,8 @@ function enterSystem(star) {
 	game.port = capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : T.portFor(star, game.day);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
 	st = scene.station;
-	game.target = 0; game.clearance = null;
+	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = [];
+	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
 	meshes();
 }
 /* every mesh, at the graphics setting */
@@ -122,6 +137,8 @@ function meshes() {
 	for (const b of scene.bodies) { R.upload(b.name, b.kind == 'star' ? Me.star(b.T, quality) : Me.planet(b, quality)); if (b.ring) R.upload(b.name + ':rings', Me.rings(b.ring, b.seed, quality)) }
 	if (st) for (const det of ['hi', 'lo']) Me.station(st.def, st.parts, det).forEach(g => R.upload('station:' + det + ':' + g.spin, g.mesh));
 	R.upload('ship', Me.ship(ship.length, quality));
+	R.upload('can', Me.box([0, 0, 0], [0.8, 0.8, 1.3], [0.86, 0.52, 0.18, 0]));
+	game.npcMeshes = new Set(); for (const n of game.npcs) npcMesh(n);
 	R.setSky(sky(game.star));
 }
 /* the sky: real neighbours by their light, out to 30 pc (closer where stars crowd: at most a few thousand); and
@@ -148,8 +165,9 @@ function launch(first) {
 		if (!first) s.q = Sc.lookRotation(st.axis, st.y);
 	}
 	s.radius = Math.max(2, ship.length / 2);
-	fit = fit || M.fit(ship); pilot = Pi.create(); M.apply(fit, s);
-	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = first ? 0 : 0.2; game.docked = false; game.target = 0; game.clearance = null; game.jump = null;
+	fit = fit || M.fit(ship); pilot = Pi.create(); M.apply(fit, s); arm();
+	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = first ? 0 : 0.2; game.docked = false; game.tgt = null; game.hatch = false; game.clearance = null; game.jump = null;
+	populate();
 	if (!first) { say('Launched from ' + st.name + '. Fly safe.'); Snd.cue('launch') }
 	else if (st) say('Holding 2.5 km off ' + st.name + '. Press N for docking clearance.');
 	persist();
@@ -157,7 +175,8 @@ function launch(first) {
 /* back where the save left off */
 function resume(sv) {
 	s = Fl.create(ship, {p: sv.p, v: sv.v, q: sv.q, w: sv.w, fa: sv.fa}); s.radius = Math.max(2, ship.length / 2);
-	fit = Sv.restoreModules(M.fit(ship), sv.modules); pilot = Pi.create(); M.apply(fit, s);
+	fit = Sv.restoreModules(M.fit(ship), sv.modules); pilot = Pi.create(); M.apply(fit, s); arm();
+	if (!sv.docked) populate();
 	game.t = sv.t; game.throttle = sv.throttle; game.docked = !!(sv.docked && st); game.clearance = game.docked && sv.pad ? {pad: sv.pad, until: Infinity} : null;
 	if (!game.lastPort) game.lastPort = st ? game.star : game.home.star;
 	say(game.docked ? 'Welcome back: docked at ' + st.name : st ? 'Welcome back, ' + H.fmtDist(len(sub(s.p, st.c))) + ' from ' + st.name : 'Welcome back, in the ' + game.star.name + ' system');
@@ -168,12 +187,15 @@ function persist() {
 	game.saving = true; game.savedAt = game.t;
 	const routeTo = game.route && game.route.toStar ? game.route.toStar : null;
 	game.P.day = game.day;
+	if (game.pcs && !game.docked) game.P.combat = C.keep(game.pcs);
 	RG.save(Sv.pack({player: game.P, power: game.power, port: st ? st.cls : null, ship: ship.id, day: game.day, t: game.t, docked: game.docked, pad: game.clearance && game.clearance.pad, s, throttle: game.throttle, fit,
 		star: game.star, fuel: game.fuel, lastPort: game.lastPort, routeTo, settings: {quality, sound: Snd.on}}))
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
 		.then(() => { setTimeout(() => { game.saving = false }, 1000) });
 }
-const targets = () => [...(st ? [st] : []), ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
+const targets = () => [...(st ? [st] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
+/* the target is kept by reference (ships come and go); a lost one falls back to the port, or the first body */
+function curTarget() { const L = targets(); if (!L.includes(game.tgt)) game.tgt = L[0]; return game.tgt }
 const posOf = x => x.pos || x.c;
 const radiusOf = x => x.radius || x.def.radius;
 const frameNear = () => st && len(sub(s.p, st.c)) < 8000 ? Sc.frame(st) : null;
@@ -184,7 +206,8 @@ function readPad() {
 	if (!g) return null;
 	const ax = i => { const v = g.axes[i] || 0; return Math.abs(v) < 0.12 ? 0 : (v - Math.sign(v) * 0.12) / 0.88 };
 	const bt = i => g.buttons[i] ? g.buttons[i].value || (g.buttons[i].pressed ? 1 : 0) : 0;
-	return {roll: -ax(0), pitch: ax(1), yaw: ax(2), strafeY: -ax(3), up: bt(7), down: bt(6)};
+	/* left stick pitch and roll; right stick yaw and throttle (the triggers fire guns and missiles) */
+	return {roll: -ax(0), pitch: ax(1), yaw: ax(2), thr: -ax(3)};
 }
 function controls(dt) {
 	if (game.mapOpen) return {pitch: 0, roll: 0, yaw: 0, strafe: [0, 0], throttle: game.throttle, thrust: s.fa ? 0 : 0};
@@ -194,7 +217,7 @@ function controls(dt) {
 	A.pitch = ease(A.pitch, d('pitchDown') - d('pitchUp'), 6); A.roll = ease(A.roll, d('rollLeft') - d('rollRight'), 6); A.yaw = ease(A.yaw, d('yawRight') - d('yawLeft'), 6);
 	let pitch = A.pitch, roll = A.roll, yaw = A.yaw, sx = d('strafeR') - d('strafeL'), sy = d('strafeU') - d('strafeD'), thr = 0;
 	const pad = readPad();
-	if (pad) { pitch += pad.pitch; roll += pad.roll; yaw += pad.yaw; sy += pad.strafeY; thr += pad.up - pad.down }
+	if (pad) { pitch += pad.pitch; roll += pad.roll; yaw += pad.yaw; thr += pad.thr }
 	if (game.mouseFly && game.ptr && !game.ptr.touch) { const mx = (game.ptr.x - W / 2) / (W / 2), my = (game.ptr.y - Hh / 2) / (Hh / 2), dz = v => Math.abs(v) < 0.06 ? 0 : v; roll -= dz(mx) * 1.4; pitch += dz(my) * 1.4 }
 	const Tt = game.touch;
 	if (Tt.stick) { pitch += Tt.dy; roll -= Tt.dx }
@@ -202,6 +225,8 @@ function controls(dt) {
 	if (s.fa || game.cruise.on) {
 		game.throttle = Math.max(game.cruise.on ? 0 : -0.3, Math.min(1, game.throttle + thr * 0.6 * dt));
 		if (Tt.thr != null) game.throttle = Tt.thr;
+		/* the hatch's trim: the set speed can't pass 12% of top speed */
+		if (s.hatch && !game.cruise.on) { const k = Fl.TUNE.hatch.speed; game.throttle = Math.max(-k, Math.min(k, game.throttle)) }
 		if (RG.pressed('stop')) game.throttle = 0;
 	} else game.throttle = Math.max(-1, Math.min(1, Tt.thr != null ? Tt.thr * 2 - 1 : thr));
 	const c = v => Math.max(-1, Math.min(1, v));
@@ -220,9 +245,12 @@ function actions(dt) {
 	if (!pilot.conscious) return;
 	if (RG.pressed('fa')) toggleFA();
 	if (RG.pressed('target')) nextTarget();
+	if (RG.pressed('hostile')) nearestHostile();
+	if (RG.pressed('hatch')) toggleHatch();
 	if (RG.pressed('dock')) requestDock();
 	if (RG.pressed('cruise')) toggleCruise();
 	if (RG.pressed('jump')) requestJump();
+	if (DEBUG && RG.pressed('dbgPirates')) debugPirates(3);
 	if (DEBUG && RG.pressed('dbgBreak')) { const h = M.hit(fit, 1e6, Math.random()); if (h.alert) moduleAlert(h.alert) }
 	if (DEBUG && RG.pressed('dbgCanopy')) { const a = M.damage(fit, 'canopy', 1e6); if (a) moduleAlert(a) }
 	/* debug: pick a star in range, or route to a neighbouring power's capital (the lanes are charted first) */
@@ -230,16 +258,34 @@ function actions(dt) {
 	if (DEBUG && RG.pressed('dbgRoute')) { T.lanes(); map.ready = true; const m = F.majors().find(x => x.cluster == game.home.cluster && x.id != game.home.id && F.relation(game.home.id, x.id) > 0) || F.majors()[1]; map.sel = m.star; plot(m.star) }
 }
 function toggleFA() { Fl.setAssist(s, !s.fa); game.throttle = s.fa ? Math.min(1, len(s.v) / s.spec.vmax) : 0; say('Flight assist ' + (s.fa ? 'on' : 'off'), s.fa ? '#6cc9e8' : '#f2a33a'); Snd.cue(s.fa ? 'faOn' : 'faOff') }
-function nextTarget() { const L = targets(); game.target = (game.target + 1) % L.length; say('Target: ' + L[game.target].name); Snd.cue('tick') }
+function nextTarget() { const L = targets(), i = L.indexOf(curTarget()); game.tgt = L[(i + 1) % L.length]; say('Target: ' + game.tgt.name); Snd.cue('tick') }
+/* the cargo hatch: shut, open, or (broken) jammed open */
+const hasHatch = () => !!M.get(fit, 'hatch');
+const hatchOpen = () => hasHatch() && (game.hatch || !M.works(fit, 'hatch'));
+function toggleHatch() {
+	if (!hasHatch()) { say('The ' + ship.name + ' has no hold, so no cargo hatch', '#f2a33a'); Snd.cue('refused'); return }
+	if (!M.works(fit, 'hatch')) { say('Cargo hatch jammed open: repair it at a port', '#e5484d'); Snd.cue('refused'); return }
+	if (game.cruise.on) { say('Drop out of cruise to open the hatch', '#f2a33a'); Snd.cue('refused'); return }
+	game.hatch = !game.hatch;
+	say(game.hatch ? 'Cargo hatch open: scooping trim. Drift onto a canister under 20 m/s.' : 'Cargo hatch shut', '#6cc9e8'); Snd.cue('hatch');
+}
+/* the hatch shuts itself for cruise and jumps (it can't if it's jammed) */
+function shutHatch(why) { if (game.hatch && M.works(fit, 'hatch')) { game.hatch = false; say('Cargo hatch shut for ' + why); Snd.cue('hatch') } }
+function nearestHostile() {
+	const h = game.npcs.filter(n => !n.cs.dead && isHostile(n)).sort((a, b) => len(sub(a.s.p, s.p)) - len(sub(b.s.p, s.p)))[0];
+	if (!h) { say('No hostiles on the scanner'); Snd.cue('tick'); return }
+	game.tgt = h; say('Target: ' + h.name + ' · ' + H.fmtDist(len(sub(h.s.p, s.p))), '#e5484d'); Snd.cue('tick');
+}
 function requestDock() {
 	if (!st) { say('There is no port in this system', '#f2a33a'); Snd.cue('refused'); return }
 	const d = len(sub(s.p, st.c));
 	if (d > 10000) { say('Docking clearance is given within 10 km of the port (' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
 	if (game.clearance) { say('Clearance already granted: pad ' + game.clearance.pad); return }
 	const o = owner();
+	if (o && game.P.bounties[o.currency.code] > 0 && game.npcs.some(n => n.role == 'patrol' && !n.cs.dead && n.faction == o.id)) { say(st.name + ': docking denied. You are wanted here: ' + Math.round(game.P.bounties[o.currency.code]).toLocaleString('en-US') + ' ' + o.currency.code + '.', '#e5484d'); Snd.cue('refused'); return }
 	if (o && o.id != game.home.id && F.relation(game.home.id, o.id) < 0) { say(st.name + ': docking denied. ' + o.name.replace(/^The /, '') + ' is at war with you.', '#e5484d'); Snd.cue('refused'); return }
 	game.clearance = {pad: 1 + Math.floor(Math.random() * 24), until: game.t + 600};
-	game.target = 0;
+	game.tgt = st;
 	const D = st.def.dock;
 	say(st.name + ': clearance granted, pad ' + game.clearance.pad + '. Approach along the axis' + (D.spins ? ', and match our spin.' : '.'), '#7fd1a8'); Snd.cue('clearance');
 }
@@ -248,7 +294,9 @@ function toggleCruise() {
 	if (cz.on) { const r = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say(r.emergency ? 'Emergency drop out: the drive took a knock' : 'Dropped out of cruise', r.emergency ? '#f2a33a' : undefined); Snd.cue(r.emergency ? 'emergency' : 'drop'); if (r.emergency) damage(25); return }
 	if (cz.charge > 0) { cz.charge = 0; say('Cruise cancelled'); return }
 	if (Sc.massLocked(scene, s.p)) { say('Mass locked by ' + st.name + ': cruise needs 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
+	if (shipLock()) { say('Mass locked by ' + shipLock().name + ': ships within 5 km hold you', '#f2a33a'); Snd.cue('refused'); return }
 	if (!M.status(fit).output.main) { say('Cruise needs working engines', '#e5484d'); Snd.cue('refused'); return }
+	shutHatch('cruise');
 	cz.charge = Sc.CRUISE.charge; say('Cruise charging…', '#6cc9e8'); Snd.cue('charge');
 }
 
@@ -268,6 +316,7 @@ function requestJump() {
 	if (Sc.massLocked(scene, s.p)) { say('Mass locked by ' + st.name + ': jumps need 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
 	const can = T.canMake(leg, ship.jump, game.fuel);
 	if (!can.ok) { say(can.why == 'range' ? leg.star.name + ' is ' + leg.d.toFixed(1) + ' pc away; the ' + ship.name + ' jumps ' + ship.jump + ' pc. Plot a route (Enter on the map).' : 'Not enough fuel: the jump needs ' + Math.round(can.cost * 100) + '% of a tank. Dock to refuel.', '#f2a33a'); Snd.cue('refused'); return }
+	shutHatch('the jump');
 	game.jump = {leg, charge: JUMP.charge, tunnel: null, cost: can.cost};
 	say((leg.kind == 'jump' ? 'Hyperspace: charging for ' : leg.kind == 'long' ? 'Long lane relay: charging for ' : 'Lane beacon: charging for ') + leg.star.name + ' (' + leg.d.toFixed(1) + ' pc)', '#6cc9e8'); Snd.cue('charge');
 }
@@ -278,6 +327,7 @@ function arrive() {
 	enterSystem(a.star);
 	const p = Sc.arrival(scene); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0];
 	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = 0;
+	settle(); populate();
 	const o = owner(), who = o ? (game.port && game.port.contested ? 'contested, held by ' : '') + o.name.replace(/^The /, '') : 'unclaimed space';
 	if (a.misjump) say('Misjump! The drive locked onto ' + a.star.name + ', near ' + leg.star.name, '#f2a33a');
 	say('Arrived: ' + a.star.name + ' · ' + who + (st ? ' · ' + st.def.name + ' at ' + game.port.world : ' · no port'), '#7fd1a8');
@@ -290,6 +340,9 @@ function arrive() {
 		else if (game.route) say('Next: ' + game.route.legs[0].star.name + ' (' + game.route.legs.length + ' to go)', '#6cc9e8');
 	}
 	if (map) { map.here = game.star; map.sel = null; map.info = null }
+	const foes = game.npcs.filter(n => isHostile(n)).length, mis = (game.P.missions || []).filter(m => m.star.id == game.star.id);
+	if (foes) say(foes + (foes == 1 ? ' hostile ship' : ' hostile ships') + ' on the scanner', '#e5484d');
+	for (const m of mis) say('Mission here: ' + En.need(m), '#6cc9e8');
 	persist();
 }
 /* plot a route to a star (needs the lanes, charted with the map) */
@@ -320,7 +373,7 @@ function mapKeys(dt) {
 	const d = a => RG.down(a) ? 1 : 0;
 	map.turn((d('rollLeft') - d('rollRight')) * 1.6 * dt, (d('pitchDown') - d('pitchUp')) * 1.2 * dt);
 	const z = d('slower') - d('faster'); if (z) map.zoom(Math.exp(z * 1.6 * dt));
-	const pad = readPad(); if (pad) { map.turn(-pad.roll * 1.6 * dt, pad.pitch * 1.2 * dt); if (pad.up || pad.down) map.zoom(Math.exp((pad.down - pad.up) * 1.6 * dt)) }
+	const pad = readPad(); if (pad) { map.turn(-pad.roll * 1.6 * dt, pad.pitch * 1.2 * dt); if (pad.thr) map.zoom(Math.exp(-pad.thr * 1.6 * dt)) }
 	if (RG.pressed('map') || RG.pressed('pause')) closeMap();
 	if (RG.pressed('home')) map.home();
 	if (RG.pressed('route')) mapAct('route');
@@ -341,6 +394,7 @@ function update(dt) {
 	game.t += dt;
 	if (game.clearance && game.t > game.clearance.until) { game.clearance = null; say('Docking clearance expired') }
 	M.apply(fit, s);
+	s.hatch = hatchOpen();
 	/* a jump: charging (flying on), then the tunnel (the ship out of normal space) */
 	const J = game.jump;
 	if (J) {
@@ -358,7 +412,7 @@ function update(dt) {
 		else if (cz.charge <= 0) { cz.on = true; cz.v = len(s.v); game.throttle = Math.max(game.throttle, 0.5); say('Cruise engaged'); Snd.cue('cruise') }
 	}
 	if (cz.on) {
-		const tgt = targets()[game.target];
+		const tgt = curTarget();
 		const res = Sc.cruiseStep(scene, s, cz, input, dt, tgt);
 		if (res == 'drop') { const d = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say('Dropped out near ' + Sc.nearest(scene, s.p).what.name + (d.emergency ? ' (emergency)' : '')); Snd.cue(d.emergency ? 'emergency' : 'drop'); if (d.emergency) damage(25) }
 		game.gFelt = null;
@@ -394,6 +448,8 @@ function update(dt) {
 		if (dmg > 0) { say('Collision with ' + st.name + ' at ' + Math.round(hit.impact) + ' m/s', '#f2a33a'); Snd.cue('collide', hit.impact); damage(dmg) }
 	}
 	game.lastStep = r;
+	cargo(dt, cz.on);
+	if (!cz.on) { const pc = game.pcs; combat(dt); if (game.pcs !== pc) return }
 	/* the sound follows the thrusters */
 	const Sp = s.spec, aB = r ? r.aBody : [0, 0, 0], al = r ? r.alpha : [0, 0, 0];
 	Snd.update({main: Math.max(0, aB[2]) / Sp.aMain, rcs: Math.min(1, (Math.abs(aB[0]) + Math.abs(aB[1])) / Sp.aRcs + Math.max(0, -aB[2]) / Sp.aRetro + al.reduce((t, a, i) => t + Math.abs(a) / Sp.alpha[i], 0) * 0.3),
@@ -401,13 +457,168 @@ function update(dt) {
 		strain: pilot.strain, conscious: pilot.conscious, docked: false, engines: M.works(fit, 'engines') && M.works(fit, 'power')});
 	if (game.t - (game.savedAt || 0) > 15) persist();
 }
+/* ---------------- combat ---------------- */
+/* the player's guns, shields and hull: a fresh fighting state on the fit, with the hull and magazines carried over */
+function arm() { game.pcs = C.restore(C.state(ship, fit), game.P.combat); game.pcs.id = 'me' }
+const shortName = id => { const f = F.byId(id); return f ? f.name.replace(/^The /, '') : 'Independent' };
+function npcMesh(n) { const k = 'npc:' + n.ship.length; if (!game.npcMeshes.has(k)) { game.npcMeshes.add(k); R.upload(k, Me.ship(n.ship.length, quality)) } }
+/* the system's cast, placed: around the port, or ahead of where you are */
+function populate() {
+	game.npcs = []; game.shots = []; game.booms = [];
+	if (!s) return;
+	place(En.cast(game.star, Math.floor(game.day), game.P, {port: game.port, visit: game.visits++}));
+}
+function place(list) {
+	const fwd = Fl.forward(s), rnd = Math.random;
+	for (const n of list) {
+		if (n.id == null) n.id = 'd' + game.visits++ + '_' + Math.floor(rnd() * 1e6);
+		const centre = n.where == 'port' && st ? st.c : s.p;
+		let dir = norm([rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1]);
+		if (n.where != 'port') dir = norm(add(mul(fwd, 1.3), dir));
+		const p = add(centre, mul(dir, n.range)), face = norm(sub(n.ai == 'attack' ? s.p : add(p, mul(dir, 1)), p));
+		n.s = Fl.create(n.ship, {p, q: Sc.lookRotation(Math.abs(face[1]) > 0.99 ? norm(add(face, [0.1, 0, 0])) : face, [0, 1, 0]), v: [0, 0, 0]});
+		n.s.radius = Math.max(2, n.ship.length / 2);
+		n.cs = C.state(n.ship); n.cs.id = n.id;
+		n.ai = {mode: n.ai, base: n.ai, fleeAt: n.role == 'pirate' ? 0.3 : n.role == 'trader' ? 2 : n.role == 'flagship' ? 0 : 0.15};
+		n.home = n.where == 'port' && st ? st.c : p;
+		n.pos = n.s.p; n.radius = n.s.radius; n.kind = 'ship'; n.next = 0; n.foe = null;
+		n.name = n.role == 'flagship' && n.name ? n.name : n.role == 'depot' ? shortName(n.faction) + ' supply depot' : shortName(n.faction) + ' ' + n.ship.name;
+		npcMesh(n);
+		game.npcs.push(n);
+	}
+}
+const isHostile = n => !n.cs.dead && En.hostile(game.P, n);
+/* hostile ships within 5 km hold you out of cruise */
+const shipLock = () => game.npcs.find(n => !n.cs.dead && isHostile(n) && n.role != 'depot' && len(sub(n.s.p, s.p)) < 5000);
+const ME = {player: true, id: 'me'};
+function combat(dt) {
+	const P = game.P, pc = game.pcs;
+	/* AI pilots: pick a foe now and then, fly, fire */
+	for (const n of game.npcs) {
+		if (n.cs.dead) continue;
+		C.tick(n.cs, game.t, dt);
+		if (n.role == 'depot') continue;
+		if (game.t >= n.next) {
+			n.next = game.t + 0.7 + Math.random() * 0.6;
+			let best = null, bd = 25000;
+			if (n.role != 'trader') {
+				if (En.hostile(P, n)) { const d = len(sub(s.p, n.s.p)); if (d < bd) { bd = d * 0.8; best = ME } }
+				for (const o of game.npcs) if (o != n && !o.cs.dead && o.role != 'depot' && En.enemies(n, o, P)) { const d = len(sub(o.s.p, n.s.p)); if (d < bd) { bd = d; best = o } }
+			} else if (n.provoked) best = ME;
+			n.foe = best;
+			if (best && n.ai.mode == n.ai.base && n.ai.base != 'hold') n.ai.mode = n.role == 'trader' ? 'flee' : 'attack';
+			if (!best && n.ai.mode == 'attack') n.ai.mode = n.ai.base;
+			if (best == ME && !n.provokedByPlayer) n.wasHostile = true;
+		}
+		const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, id: f.id} : null;
+		const c = C.think(n, tgt, n.home, game.t);
+		Fl.step(n.s, {pitch: c.pitch, yaw: c.yaw, roll: c.roll, throttle: c.throttle, strafe: [0, 0], thrust: 0}, dt);
+		n.pos = n.s.p;
+		if (tgt) {
+			const d = len(sub(tgt.p, n.s.p));
+			if (c.fire && d < (n.cs.load.turrets ? 4000 : 3500)) { const k = C.fire(n.cs, n.s, game.t, tgt, game.shots); if (k && d < 3000) Snd.cue(n.cs.load.guns[0].kind == 'driver' ? 'driver' : 'pulse') }
+			if (C.updateLock(n.cs, n.s, tgt, dt) && c.missile && Math.random() < dt * 0.12) { if (C.launch(n.cs, n.s, tgt, game.shots) && tgt.id == 'me') { say('Missile launched at you by ' + n.name + ': B for flares', '#e5484d'); Snd.cue('incoming') } }
+		}
+	}
+	/* your guns */
+	for (const a of C.tick(pc, game.t, dt)) moduleAlert(a);
+	if (pc.hot && !game.wasHot) say('Weapons overheated: guns locked until they cool', '#f2a33a');
+	game.wasHot = pc.hot;
+	const tg = curTarget(), foe = tg && tg.kind == 'ship' && !tg.cs.dead ? {p: tg.s.p, v: tg.s.v, id: tg.id} : null;
+	const hasMsl = pc.load.missiles > 0 || pc.load.guns.some(g => g.kind == 'torpedo' && g.ammo > 0);
+	const wasLocked = game.locked; game.locked = hasMsl && C.updateLock(pc, s, foe, dt); if (!hasMsl) pc.lock = {id: null, t: 0};
+	if (game.locked && !wasLocked) Snd.cue('lock');
+	const can = pilot.conscious && !game.jump;
+	if (can && (RG.down('fire') || game.mouseFire || game.touch.fire != null)) {
+		if (!pc.load.guns.length) { if (!game.saidUnarmed) { game.saidUnarmed = true; say('The ' + ship.name + ' carries no weapons', '#f2a33a') } }
+		else { const k = C.fire(pc, s, game.t, foe, game.shots); if (k) Snd.cue(pc.load.guns.some(g => g.kind == 'heavy') ? 'heavy' : pc.load.guns.some(g => g.kind == 'pulse') ? 'pulse' : 'driver') }
+	} else game.saidUnarmed = false;
+	if (can && (RG.pressed('missile') || game.touch.msl)) {
+		game.touch.msl = false;
+		const torp = pc.load.guns.some(g => g.kind == 'torpedo' && g.ammo > 0);
+		if (!pc.load.missiles && !torp) { say('No missiles left: restock at a port', '#f2a33a'); Snd.cue('refused') }
+		else if (!foe) { say('Target a ship first (T, or U for the nearest hostile)', '#f2a33a'); Snd.cue('refused') }
+		else if (!game.locked) { say('No lock yet: hold ' + tg.name + ' in your sights for 2 s', '#f2a33a'); Snd.cue('refused') }
+		else if (C.launch(pc, s, foe, game.shots)) { say('Missile away · ' + pc.load.missiles + ' left'); Snd.cue('missile'); if (!En.hostile(P, tg)) provoke(tg) }
+	}
+	if (RG.pressed('flare') || game.touch.flare) { game.touch.flare = false; if (pc.load.flares > 0) { const k = C.flare(pc, game.shots); say('Flare' + (k ? ': ' + k + (k == 1 ? ' missile' : ' missiles') + ' decoyed' : '') + ' · ' + pc.load.flares + ' left'); Snd.cue('flare') } else say('No flares left', '#f2a33a') }
+	/* everything in flight */
+	const ships = [{id: 'me', s, cs: pc}, ...game.npcs.filter(n => !n.cs.dead).map(n => ({id: n.id, s: n.s, cs: n.cs, n}))];
+	for (const h of C.stepProjectiles(game.shots, ships, dt)) {
+		const pr = h.proj, W = C.WEAPONS[pr.kind], big = pr.kind == 'missile' || pr.kind == 'torpedo';
+		game.booms.push({pos: pr.p.slice(), t: game.t, r: big ? 30 : 4, col: W.col, life: big ? 0.6 : 0.2});
+		if (h.ship.id == 'me') { hitMe(pr); if (game.pcs !== pc) return; continue }
+		const n = h.ship.n;
+		C.damage(n.cs, pr.dmg, pr.kind, game.t);
+		if (pr.owner == 'me' && !n.provoked && !En.hostile(P, n)) provoke(n);
+		else if (pr.owner != 'me' && n.role != 'trader') { const src = game.npcs.find(o => o.id == pr.owner); if (src && n.foe != ME) { n.foe = src; n.next = game.t + 3 } }
+		if (n.cs.dead) destroyed(n, pr.owner == 'me');
+	}
+	game.booms = game.booms.filter(b => game.t - b.t < b.life);
+	const inc = game.shots.filter(m => m.target == 'me').length;
+	if (inc > (game.incoming || 0)) Snd.cue('incoming');
+	game.incoming = inc;
+	En.tick(P, game.star.id, dt, false);
+	if (game.t - (game.settledAt || 0) > 1) settle();
+}
+/* debug: a pirate wing a few kilometres ahead */
+function debugPirates(k) {
+	const gang = F.minors().find(m => m.type == 'criminal'), hulls = S.ships().filter(x => x.who.includes('pirate') && ['XS', 'S'].includes(x.size));
+	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
+	say(k + ' pirates ahead (debug)', '#e5484d');
+}
+if (DEBUG) window.EmberDebug = {game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle};
+function provoke(n) {
+	En.provoke(n, game.npcs);
+	say('You fired on ' + n.name + (n.role == 'trader' ? ': a crime. The patrol will come.' : '. They are returning fire.'), '#f2a33a');
+}
+/* a hit on you: shields, then the hull and its modules */
+function hitMe(pr) {
+	const out = C.damage(game.pcs, pr.dmg, pr.kind, game.t);
+	game.hitAt = game.t;
+	Snd.cue(out.hull > 0 ? 'hullHit' : 'shieldHit');
+	for (const a of out.alerts) moduleAlert(a);
+	if (game.pcs.dead) { const src = game.npcs.find(o => o.id == pr.owner); lost('destroyed by ' + (src ? src.name : 'gunfire')) }
+}
+function destroyed(n, byMe) {
+	game.booms.push({pos: n.s.p.slice(), t: game.t, r: n.s.radius * 4, col: [1, 0.72, 0.4], life: 1.8});
+	for (const g of Ca.wreck(n.role, n.ship)) game.cans.push(Ca.make(g, n.s.p, n.s.v, game.t));
+	Snd.cue('boom', Math.max(0.15, Math.min(1, 3000 / (len(sub(n.s.p, s.p)) + 1))));
+	if (byMe) {
+		const res = En.killed(game.P, n, {star: game.star, day: game.day, own: game.own});
+		say(n.name + ' destroyed', '#7fd1a8');
+		for (const m of res.msg) say(m, /Crime/.test(m) ? '#e5484d' : '#7fd1a8');
+		settle();
+	} else say(n.name + ' destroyed', '#9fb0cc');
+	if (game.tgt == n) game.tgt = null;
+}
+/* canisters: drifting, scooped through the open hatch, spilt through a jammed one */
+function cargo(dt, cruising) {
+	Ca.step(game.cans, game.t, dt);
+	if (!hasHatch()) return;
+	const B = R.basis(s.q), down = mul(B.u, -1), back = mul(B.f, -1);
+	if (!M.works(fit, 'hatch')) {
+		const out = Ca.spill(game.P, s, back, game.t, dt, game.spill);
+		if (out.length) { if (!cruising) game.cans.push(...out); if (!game.saidSpill || game.t - game.saidSpill > 30) { game.saidSpill = game.t; say('Cargo spilling through the jammed hatch: ' + out[0].good, '#f2a33a') } }
+		return;
+	}
+	if (!game.hatch || cruising) return;
+	const r = Ca.scoop(game.cans, s, down, back, game.P, ship.cargo);
+	for (const g of r.got) { say('Scooped 1 t ' + g + ' · hold ' + Tr.held(game.P) + '/' + ship.cargo + ' t', '#7fd1a8'); Snd.cue('scoop') }
+	if ((r.full || r.fast) && (!game.saidScoop || game.t - game.saidScoop > 3)) { game.saidScoop = game.t; say(r.full ? 'Hold full: nothing more fits' : 'Too fast to scoop: under 20 m/s relative to the canister', '#f2a33a') }
+}
+/* war missions: pay what's done, fail what's late */
+function settle() {
+	game.settledAt = game.t;
+	for (const r of En.settle(game.P, game.day)) { say(r.text, r.ok ? '#7fd1a8' : '#e5484d'); Snd.cue(r.ok ? 'clearance' : 'warning') }
+}
 /* the ship is lost: a new one at the last port docked at */
 function lost(how) {
 	say('Ship destroyed: ' + how, '#e5484d'); Snd.cue('destroyed');
 	/* the cargo goes down with her; the insurance pays for a new hull, less 5% of its value */
 	const rb = Tr.rebuyCost(game.P, ship, game.day), paid = Tr.pay(game.P, rb.amount, rb.code, game.day);
 	say(paid.ok ? 'Insurance: a new ' + ship.name + ' for ' + Math.round(rb.amount).toLocaleString('en-US') + ' ' + rb.code : 'Insurance: the replacement is on credit this time', '#f2a33a');
-	game.P.cargo = {}; game.P.cost = {};
+	game.P.cargo = {}; game.P.cost = {}; game.P.combat = C.refill(ship, {hull: 1}); game.cans = [];
 	fit = M.fit(ship); game.fuel = 1; game.route = null;
 	enterSystem(game.lastPort || game.home.star);
 	launch(true);
@@ -415,6 +626,8 @@ function lost(how) {
 }
 function docked() {
 	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.lastPort = game.star;
+	game.P.combat = C.keep(game.pcs); game.npcs = []; game.shots = []; game.booms = [];
+	En.tick(game.P, game.star.id, 0, true); settle();
 	Snd.cue('docked'); Snd.update({main: 0, rcs: 0, speed: 0, cruise: 0, strain: 0, conscious: true, docked: true});
 	persist();
 	openPort();
@@ -423,7 +636,7 @@ function docked() {
 function openPort() {
 	Port.open({P: game.P, ship, fit, fuel: () => game.fuel, setFuel: f => { game.fuel = f; persist() }, star: game.star, port: game.port, stationName: st.name, day: game.day,
 		onLaunch: () => { persist(); launch(false); hud.focus() },
-		onShip: id => { ship = S.ships().find(x => x.id == id); fit = M.fit(ship); game.fuel = 1; R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist() },
+		onShip: id => { ship = S.ships().find(x => x.id == id); fit = M.fit(ship); game.fuel = 1; game.P.combat = C.refill(ship, {hull: 1}); arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist() },
 		say: t => say(t), cue: k => Snd.cue(k)});
 }
 /* after buying a ship, reopen with the new one (same screen) */
@@ -485,6 +698,19 @@ function draw() {
 		}
 	}
 	if (game.chase) items.push({id: 'ship', pos: s.p, rot: mat3(B.r, B.u, B.f), light: norm(sub(sun.pos, s.p)), amb: 0.15});
+	/* other ships, always in full; bolts and missiles as glows; explosions as growing glows */
+	for (const n of game.npcs) {
+		if (n.cs.dead) continue;
+		const nb = R.basis(n.s.q);
+		items.push({id: 'npc:' + n.ship.length, pos: n.s.p, rot: mat3(nb.r, nb.u, nb.f), light: norm(sub(sun.pos, n.s.p)), amb: 0.15});
+	}
+	for (const c of game.cans) {
+		if (len(sub(c.p, cam.p)) > 20000) continue;
+		const ax = norm(c.spin), a = c.angle, co = Math.cos(a), si = Math.sin(a), rotAx = v => add(add(mul(v, co), mul(cross(ax, v), si)), mul(ax, dot(ax, v) * (1 - co)));
+		items.push({id: 'can', pos: c.p, rot: mat3(rotAx([1, 0, 0]), rotAx([0, 1, 0]), rotAx([0, 0, 1])), light: norm(sub(sun.pos, c.p)), amb: 0.2});
+	}
+	for (const m of game.shots) { const W = C.WEAPONS[m.kind], big = m.kind == 'missile' || m.kind == 'torpedo'; glows.push({pos: m.p, radius: big ? 6 : 2.5, col: W.col, alpha: 1, scale: 4, min: big ? 0.012 : 0.007}) }
+	for (const b of game.booms) { const k = (game.t - b.t) / b.life; glows.push({pos: b.pos, radius: b.r * (0.4 + k), col: b.col, alpha: Math.max(0, 1 - k), scale: 3, min: 0.01}) }
 	glows.push({pos: add(cam.p, mul(game.coreDir, 1e18)), radius: 1e16, col: [1, 0.85, 0.6], alpha: 0.22, scale: 1, min: 0.6});
 	R.frame({cam, fov: 70, items, glows});
 	gl.style.filter = game.vision && game.vision.blur > 0.01 && pilot.conscious ? 'blur(' + (game.vision.blur * 5).toFixed(1) + 'px)' : '';
@@ -496,14 +722,28 @@ function project(cam, p) {
 	return {x: W / 2 + dot(d, B.r) * k / z, y: Hh / 2 - dot(d, B.u) * k / z, z, dx: dot(d, B.r), dy: -dot(d, B.u), k};
 }
 function hudDraw(cam) {
-	const ctx = view.begin(), L = targets(), Tg = L[Math.min(game.target, L.length - 1)], cz = game.cruise;
+	const ctx = view.begin(), Tg = curTarget(), cz = game.cruise;
 	const frame = frameNear(), rel = Fl.relative(s, frame), speed = cz.on ? cz.v : len(rel.v);
 	/* the target */
 	const tp = posOf(Tg), pr = project(cam, tp), dist = len(sub(tp, s.p)) - (Tg == st ? 0 : radiusOf(Tg));
 	const on = pr.z > 0 && pr.x > 0 && pr.x < W && pr.y > 0 && pr.y < Hh;
-	const target = {name: Tg.name, kind: Tg == st ? st.def.name + ' · ' + st.def.size : Tg.kind == 'planet' ? Tg.type + ' world' : 'star, class ' + (Tg.cls || ''), x: pr.x, y: pr.y, on, dist: Math.max(0, dist),
-		size: on ? radiusOf(Tg) * pr.k / pr.z : 0, dx: pr.dx, dy: pr.dy, closing: dot(cz.on ? mul(Fl.forward(s), cz.v) : s.v, norm(sub(tp, s.p)))};
+	const isShip = Tg.kind == 'ship', isCan = Tg.kind == 'canister';
+	const target = {name: Tg.name, kind: Tg == st ? st.def.name + ' · ' + st.def.size : isShip ? Tg.ship.size + ' ' + Tg.ship.role + ' · ' + Tg.role : isCan ? 'cargo canister · 1 t' : Tg.kind == 'planet' ? Tg.type + ' world' : 'star, class ' + (Tg.cls || ''), x: pr.x, y: pr.y, on, dist: Math.max(0, dist),
+		size: on ? radiusOf(Tg) * pr.k / pr.z : 0, dx: pr.dx, dy: pr.dy, closing: dot(cz.on ? mul(Fl.forward(s), cz.v) : sub(s.v, isShip ? Tg.s.v : isCan ? Tg.v : [0, 0, 0]), norm(sub(tp, s.p)))};
 	if (Tg == st) target.dock = dockCues(rel);
+	if (isCan) { const rv = len(sub(s.v, Tg.v)); target.dock = {line1: !hasHatch() ? 'No cargo hatch on this ship' : !M.works(fit, 'hatch') ? 'Hatch jammed: can\'t scoop' : !game.hatch ? 'Open the cargo hatch (I) to scoop' : rv > Ca.CAN.speed ? 'Slow down: ' + Math.round(rv) + ' m/s, under ' + Ca.CAN.speed : 'Drift it under the belly', col: game.hatch && rv <= Ca.CAN.speed ? '#7fd1a8' : '#f2a33a'} }
+	if (isShip) {
+		target.hostile = isHostile(Tg);
+		target.bars = {what: target.hostile ? 'HOSTILE' : Tg.role == 'trader' ? 'CIVILIAN' : 'NEUTRAL', shield: Tg.cs.shield / Math.max(1, Tg.cs.shieldMax), hull: Tg.cs.hull / Tg.cs.hullMax};
+		const g = game.pcs.load.guns.find(x => !C.WEAPONS[x.kind].homing);
+		if (g && dist < 6000) { const lp = project(cam, C.lead(s.p, s.v, Tg.s.p, Tg.s.v, C.WEAPONS[g.kind].speed)); target.lead = {x: lp.x, y: lp.y, on: lp.z > 0} }
+		const lk = game.pcs.lock; target.lock = lk.id == Tg.id ? Math.min(1, lk.t / C.COMBAT.lockTime) : 0; target.locked = !!game.locked;
+	}
+	/* the scanner: ships within 8 km, in the ship's frame */
+	const SB = R.basis(s.q), blips = game.npcs.filter(n => !n.cs.dead).map(n => { const d = sub(n.s.p, s.p); return {x: dot(d, SB.r), y: dot(d, SB.u), z: dot(d, SB.f), col: isHostile(n) ? '#e5484d' : n.role == 'trader' ? '#9fb0cc' : n.faction == game.P.origin || F.relation(game.P.origin, n.faction) > 0 ? '#7fd1a8' : '#f2d36a', big: n.ship.length > 100, target: n == Tg} });
+	for (const c of game.cans) { const d = sub(c.p, s.p); blips.push({x: dot(d, SB.r), y: dot(d, SB.u), z: dot(d, SB.f), col: '#c9a46a', target: c == Tg}) }
+	for (const m of game.shots) if (m.kind == 'missile' || m.kind == 'torpedo') { const d = sub(m.p, s.p); blips.push({x: dot(d, SB.r), y: dot(d, SB.u), z: dot(d, SB.f), col: '#ffffff'}) }
+	const pc = game.pcs, full = C.loadout(ship), ammoGuns = pc.load.guns.filter(g => g.ammo != null && g.kind != 'torpedo');
 	const vm = speed > 2 ? project(cam, add(cam.p, mul(norm(cz.on ? Fl.forward(s) : rel.v), 1e6))) : null;
 	const leg = nextLeg(), J = game.jump;
 	H.draw(ctx, W, Hh, {
@@ -512,7 +752,12 @@ function hudDraw(cam) {
 		messages: game.msgs, vision: game.vision, gFelt: game.gFelt, reduceFlash: RG.reduceFlash, thrustNote: s.fa ? null : 'Thrust ' + Math.round(game.throttle * 100) + '%',
 		fuel: game.fuel, jumpCharge: J && J.tunnel == null ? J.charge : 0, witch: J && J.tunnel != null ? 1 - J.tunnel / JUMP.tunnel : null, witchTo: J && J.leg.star.name,
 		nextLeg: leg ? 'Next: ' + leg.star.name + ' · ' + leg.d.toFixed(1) + ' pc' + (leg.kind != 'jump' ? ' (lane)' : '') + ' · J' : null,
-		touch: RG.lastInput == 'touch', touchUI: touchLayout()
+		touch: RG.lastInput == 'touch', touchUI: touchLayout(),
+		hatch: !hasHatch() ? null : !M.works(fit, 'hatch') ? 'jammed' : game.hatch ? 'open' : null,
+		scanner: M.works(fit, 'sensors') ? {range: 8000, blips} : null, incoming: game.incoming > 0, hitAge: game.hitAt != null ? game.t - game.hitAt : null,
+		combat: {shield: pc.shield / Math.max(1, pc.shieldMax), hull: pc.hull / pc.hullMax, heat: Math.min(1, pc.heat), hot: pc.hot, armed: pc.load.guns.length > 0,
+			ammo: ammoGuns.length ? ammoGuns.reduce((t, g) => t + g.ammo, 0) : null, missiles: pc.load.missiles + pc.load.guns.filter(g => g.kind == 'torpedo').reduce((t, g) => t + g.ammo, 0),
+			missileMax: full.missiles + full.guns.filter(g => g.kind == 'torpedo').length, flares: pc.load.flares}
 	}, game.t);
 }
 function dockCues(rel) {
@@ -528,7 +773,7 @@ function dockCues(rel) {
 /* ---------------- touch and mouse ---------------- */
 function touchLayout() {
 	const Tt = game.touch, r = Math.min(80, W * 0.12);
-	const list = [['FA', 'fa', s && s.fa], ['CRUISE', 'cruise', game.cruise.on], ['TARGET', 'target'], ['DOCK', 'dock'], ['MAP', 'map'], ['JUMP', 'jump', !!game.jump], ['VIEW', 'view'], ['II', 'pause']];
+	const list = [['FIRE', 'fire', Tt.fire != null], ['MSL', 'missile', game.locked], ['FLARE', 'flare'], ['HOSTILE', 'hostile'], ['HATCH', 'hatch', game.hatch], ['FA', 'fa', s && s.fa], ['CRUISE', 'cruise', game.cruise.on], ['TARGET', 'target'], ['DOCK', 'dock'], ['MAP', 'map'], ['JUMP', 'jump', !!game.jump], ['VIEW', 'view'], ['II', 'pause']];
 	return {stick: {x: r + 30, y: Hh - r - 30, r, dx: Tt.dx, dy: Tt.dy},
 		thr: {x: W - 70, y: Hh - 200, w: 48, h: 170},
 		buttons: list.map(([label, act, onFlag], i) => ({label, act, on: !!onFlag, x: W - 140 - (i % 4) * 72 - 80, y: Hh - 90 - Math.floor(i / 4) * 56, w: 64, h: 46}))};
@@ -542,14 +787,15 @@ function pointers() {
 		RG.lastInput = e.pointerType == 'touch' ? 'touch' : 'mouse';
 		try { hud.setPointerCapture(e.pointerId) } catch (x) {}
 		if (game.mapOpen) { const act = map.down(p); if (act) mapAct(act); return }
-		if (e.pointerType != 'touch') return;
+		if (e.pointerType != 'touch') { if (e.button == 0 && !game.docked) game.mouseFire = true; return }
 		const u = touchLayout();
 		const b = u.buttons.find(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
-		if (b) { ({fa: toggleFA, cruise: toggleCruise, target: nextTarget, dock: requestDock, map: openMap, jump: requestJump, view: () => { game.chase = !game.chase }, pause: () => RG.pause()})[b.act](); return }
+		if (b && b.act == 'fire') { Tt.fire = e.pointerId; return }
+		if (b) { ({missile: () => { Tt.msl = true }, flare: () => { Tt.flare = true }, hostile: nearestHostile, hatch: toggleHatch, fa: toggleFA, cruise: toggleCruise, target: nextTarget, dock: requestDock, map: openMap, jump: requestJump, view: () => { game.chase = !game.chase }, pause: () => RG.pause()})[b.act](); return }
 		if (Math.hypot(p.x - u.stick.x, p.y - u.stick.y) < u.stick.r * 1.6) { Tt.stick = {id: e.pointerId}; stickMove(p); return }
 		if (p.x >= u.thr.x - 20 && p.x <= u.thr.x + u.thr.w + 20 && p.y >= u.thr.y - 20 && p.y <= u.thr.y + u.thr.h + 20) { Tt.thrId = e.pointerId; thrMove(p) }
 	});
-	const up = e => { if (game.mapOpen) { map.up(pt(e)); return } if (Tt.stick && Tt.stick.id == e.pointerId) { Tt.stick = null; Tt.dx = Tt.dy = 0 } if (Tt.thrId == e.pointerId) Tt.thrId = null };
+	const up = e => { if (e.pointerType != 'touch' && e.button == 0) game.mouseFire = false; if (Tt.fire == e.pointerId) Tt.fire = null; if (game.mapOpen) { map.up(pt(e)); return } if (Tt.stick && Tt.stick.id == e.pointerId) { Tt.stick = null; Tt.dx = Tt.dy = 0 } if (Tt.thrId == e.pointerId) Tt.thrId = null };
 	hud.addEventListener('pointerup', up); hud.addEventListener('pointercancel', up);
 	function stickMove(p) { const u = touchLayout().stick; let dx = (p.x - u.x) / u.r, dy = (p.y - u.y) / u.r; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l } Tt.dx = dx; Tt.dy = dy }
 	function thrMove(p) { const u = touchLayout().thr; Tt.thr = Math.max(0, Math.min(1, 1 - (p.y - u.y) / u.h)) }
