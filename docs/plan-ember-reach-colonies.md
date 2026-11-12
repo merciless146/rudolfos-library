@@ -269,7 +269,26 @@ Colonies come after trade, combat and exploration work (M3–M5), as **M5b**, be
    - Saves keep colonies and contracts; the map shows your colonies' progress.
    - Not yet (M5b-2 and -3): slots and facilities, links, population and payments, forward bases, raids,
      independent colonies, rented carriers, belts.
-2. **M5b-2:** slots, facilities, development points, links and the economy; population; payments.
+2. **M5b-2:** slots, facilities, development points, links and the economy; population; payments. **Playable** (33 checks in
+   `tests/emberreach_colonies_t.js` with part 1):
+   - **Slots** per body as above (gas giants 2 to 4 in orbit, no surface; the primary port takes an orbital slot at
+     its world). Belts wait for the model.
+   - **Facilities:** the catalogue above, with these tonnages: mining 600, refinery 900 (gas giant or rings), farm 700
+     (air for the surface), habitat ring 1,000, tourist 800, relay 400, smugglers' den 600; industrial yard 2,500,
+     research 2,000, military 2,500, settlement 3,000, surface port 6,000, station 8,000; surface city 20,000, great
+     port 25,000. Goods by mix (base, farm, military, research, habitat). Surface builds over 1.5 g cost 25% more.
+   - **Points:** tier 1 builds earn a tier 2 point, tier 2 builds cost one and earn a tier 3 point, tier 3 builds
+     cost 4 tier 3 points, then 6, 8… The primary port earns its tier's point (outpost: tier 2; station: tier 3).
+   - **Building:** planned and started at the colonial office (any great power's port); goods handed over docked at
+     the colony's own port, or brought by haulers (per build). No time limit.
+   - **Links and the market:** strong links on the port's world, weak (5%) elsewhere, with the body boosts above. The
+     port's market (`economy.market`, `ctx.econ`) makes cheaper what its economies produce (up to −35%) and dearer,
+     and bought, what they use (up to +30%). The planner previews the mix before you build.
+   - **Population** grows towards its cap (about 30% of the gap a season): 20,000 in domes, 200,000 with air,
+     1,000,000 on an Earth-like world with air, 5,000,000 on a living one, plus habitats, settlements and ports.
+   - **Security, wealth, tech** from the facilities and the port's tier.
+   - **Pay:** each season from opening, the colony's trade (2 SU a head plus 5,000 SU per facility and the port)
+     times 5–10% by wealth, in the sponsor's coin.
 3. **M5b-3:** forward bases and the wars; raids; independent colonies and their scrip; rented carriers.
 
 ## Open questions

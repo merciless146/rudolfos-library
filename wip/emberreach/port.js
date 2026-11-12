@@ -32,7 +32,8 @@ const svg = k => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" st
 let env = null, root = null, screen = 'station', sel = {good: null, ship: null}, ex = {from: null, to: null, amount: ''}, mkt = null, naming = {};
 function open(e) {
 	env = e; root = document.getElementById('port'); root.hidden = false;
-	mkt = E.market(env.star, env.day, env.port && env.port.colony ? {holder: env.port.owner} : undefined);
+	const myCol = env.port && env.port.colony ? Co.colonyAt(env.P, env.star.id) : null;
+	mkt = E.market(env.star, env.day, myCol ? {holder: env.port.owner, econ: Co.economy(myCol, env.star)} : undefined);
 	screen = 'station'; sel = {good: Object.keys(mkt.prices)[0], ship: null};
 	const codes = Object.keys(env.P.wallet).filter(c => env.P.wallet[c] > 0);
 	ex = {from: mkt.currency != 'SU' && env.P.wallet[mkt.currency] > 0 ? mkt.currency : codes[0], to: mkt.currency != 'SU' ? mkt.currency : codes[0], amount: ''};
@@ -137,7 +138,32 @@ function carto() {
 }
 /* the colonial office: your colonies, haulage, and the planner */
 const STAGE = {claimed: 'Claimed: drop the beacon', building: 'Building', done: 'Built', lapsed: 'Lapsed (salvage)'};
-let colSel = null;
+let colSel = null, pick = {};
+const pct = v => Math.round(v * 100) + '%';
+const ECON_NAME = {extraction: 'extraction', refinery: 'refinery', agriculture: 'agriculture', industrial: 'industrial', hightech: 'high tech', military: 'military', tourism: 'tourism', contraband: 'contraband'};
+const econText = e => Object.entries(e).sort((a, b) => b[1] - a[1]).map(([k, v]) => ECON_NAME[k] + ' ' + pct(v)).join(', ') || 'none yet: the plain market';
+/* a finished colony: its numbers, its builds, and planning the next */
+function buildOut(c, office) {
+	const me = P(), d = env.day, star = Co.starOf(c); if (!star) return '';
+	const st = Co.stats(c, star), here = env.star.id == c.id && env.port.colony, sl = Co.slots(star), pk = pick[c.id] || (pick[c.id] = {fac: 'mining', at: ''});
+	const opts = sl.flatMap(x => ['orbit', 'surface'].filter(w => x[w] > Co.used(c, x.body, w)).map(w => [x.body + '|' + w, x.body + ' · ' + w + ' (' + (x[w] - Co.used(c, x.body, w)) + ' free)']));
+	if (!opts.some(o => o[0] == pk.at)) pk.at = opts[0] ? opts[0][0] : '';
+	const [body, where] = pk.at.split('|'), ck = body ? Co.canBuild(c, star, pk.fac, body, where) : {ok: false, why: 'No free slots.'};
+	let preview = '';
+	if (ck.ok && Co.FAC[pk.fac].econ) { const after = Co.economy({world: c.world, builds: [...c.builds, {fac: pk.fac, body, done: true}]}, star); preview = 'Economy after: ' + econText(after) }
+	const builds = c.builds.map(b => '<div class="pt-rep"><span>' + esc(Co.FAC[b.fac].name) + ' · ' + esc(b.body) + ' ' + b.where + '</span><span class="num">' + (b.done ? 'built' : pct(Co.progress(b))) + '</span><span class="muted">' + (b.done ? 'day ' + b.finished : Object.entries(Co.left(b)).map(([g, t]) => fmt(t) + ' ' + g).slice(0, 3).join(', ')) + '</span></div>').join('');
+	const active = c.builds.filter(b => !b.done);
+	const haul = active.length && mkt.currency != 'SU' ? active.slice(0, 2).map(b => Object.entries(Co.left(b)).filter(([g, t]) => t - ((b.coming || {})[g] || 0) > 0).slice(0, 6).map(([g, t]) => { const n = t - ((b.coming || {})[g] || 0), q = Co.haulQuote(office, mkt, c, g, n, d); return q ? '<button class="pt-ghost" data-act="haul" data-c="' + esc(c.id) + '" data-j="' + esc(b.id) + '" data-g="' + g + '" data-n="' + n + '">' + fmt(n) + ' t ' + g + ' · ' + money(q.cost, q.currency) + ' · ' + q.days + ' d</button>' : '' }).join('')).join('') : '';
+	return '<dl><dt>Population</dt><dd>' + fmt(c.pop || 0) + ' of ' + fmt(st.cap) + '</dd><dt>Security · wealth · tech</dt><dd>' + pct(st.security) + ' · ' + pct(st.wealth) + ' · ' + pct(st.tech) + '</dd><dt>Economy</dt><dd>' + esc(econText(st.econ)) + '</dd>'
+		+ '<dt>Points</dt><dd>tier 2: ' + c.points.t2 + ' · tier 3: ' + c.points.t3 + '</dd><dt>Next pay</dt><dd>day ' + (c.paid + Co.COL.seasonDays) + ' · about ' + money(Co.payment(c, star) * E.rate(F.byId(c.sponsor).currency.code, d), F.byId(c.sponsor).currency.code) + '</dd></dl>'
+		+ (builds ? '<h3>Facilities</h3><div class="pt-table">' + builds + '</div>' : '')
+		+ (here && active.length ? '<div class="pt-btns"><button class="pt-primary" data-act="givebuild" data-c="' + esc(c.id) + '">Hand over goods from the hold</button></div>' : active.length ? '<p class="muted small">Hand over goods docked at ' + esc(c.star.name) + '\'s own port.</p>' : '')
+		+ (haul ? '<h3>Haulage from here</h3><div class="pt-btns pt-wrap">' + haul + '</div>' : '')
+		+ '<h3>Plan a facility</h3><div class="pt-form"><label>Facility<select data-pick="fac" data-c="' + esc(c.id) + '">' + Object.entries(Co.FAC).map(([k, f]) => '<option value="' + k + '"' + (k == pk.fac ? ' selected' : '') + '>' + esc(f.name) + ' · tier ' + f.tier + '</option>').join('') + '</select></label>'
+		+ '<label>Where<select data-pick="at" data-c="' + esc(c.id) + '">' + opts.map(([v, t]) => '<option value="' + esc(v) + '"' + (v == pk.at ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label></div>'
+		+ '<p class="small">' + (ck.ok ? fmt(Object.values(ck.goods).reduce((t, v) => t + v, 0)) + ' t of goods' + (ck.cost.t2 ? ' · 1 tier 2 point' : ck.cost.t3 ? ' · ' + ck.cost.t3 + ' tier 3 points' : ' · earns a tier ' + (Co.FAC[pk.fac].tier + 1) + ' point') + (preview ? '<br>' + esc(preview) : '') : '<span class="bad">' + esc(ck.why) + '</span>') + '</p>'
+		+ '<div class="pt-btns"><button class="pt-ghost" data-act="startbuild" data-c="' + esc(c.id) + '"' + (ck.ok ? '' : ' disabled') + '>Start building</button></div>';
+}
 function colonies() {
 	const me = P(), o = holder(), d = env.day, office = {star: env.star, owner: o}, mine = (me.colonies || []), jump = env.ship.jump || 0;
 	const goodsRow = c => Object.entries(c.need).map(([g, t]) => { const got = Math.min(t, c.got[g] || 0), coming = (c.coming || {})[g] || 0; return '<div class="pt-rep"><span>' + g + '</span><span class="num">' + fmt(got) + ' / ' + fmt(t) + ' t</span><span class="muted">' + (coming ? fmt(coming) + ' t coming' : got >= t ? 'done' : (me.cargo[g] ? fmt(me.cargo[g]) + ' t aboard' : '')) + '</span></div>' }).join('');
@@ -146,7 +172,8 @@ function colonies() {
 		+ (c.stage == 'claimed' ? '<dt>Beacon by</dt><dd>day ' + c.beaconBy + '</dd>' : c.stage == 'building' ? '<dt>Due</dt><dd>day ' + c.due + ' · ' + Math.round(Co.progress(c) * 100) + '% built</dd>' : c.stage == 'done' ? '<dt>Opens</dt><dd>day ' + c.opens + '</dd>' : '') + '</dl>'
 		+ (c.stage == 'building' || c.stage == 'claimed' ? '<div class="pt-table">' + goodsRow(c) + '</div>' : '')
 		+ (c.stage == 'building' ? '<h3>Haulage from here</h3>' + (mkt.currency == 'SU' ? '<p class="muted small">Haulers here want a power\'s coin.</p>' : '<div class="pt-btns pt-wrap">' + (haulBtns(c) || '<span class="muted small">Everything is delivered or on its way.</span>') + '</div><p class="muted small">10–25% over this market, more the farther they go; paid now, delivered after the days shown.</p>') : '')
-		+ (c.stage == 'claimed' ? '<p class="small">Fly to ' + esc(c.star.name) + ' and press N near ' + esc(c.world) + ' to drop the beacon.</p>' : '') + '</section>';
+		+ (c.stage == 'claimed' ? '<p class="small">Fly to ' + esc(c.star.name) + ' and press N near ' + esc(c.world) + ' to drop the beacon.</p>' : '')
+		+ (c.stage == 'done' && d >= c.opens ? buildOut(c, office) : '') + '</section>';
 	/* the planner */
 	const cands = o ? Co.candidates(me, office, d, jump, 10) : [];
 	if (!colSel || !cands.some(s => s.id == colSel)) colSel = cands[0] && cands[0].id;
@@ -237,7 +264,9 @@ function click(e) {
 	if (act == 'selldata') { const o = holder(), r = X.sell(me, o, o ? here() : 'SU', d); env.say(r.ok ? 'Sold ' + r.items + ' charts and surveys for ' + money(r.amount, r.code) : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	if (act == 'rename') { const k = t.dataset.k, r = X.rename(me, k, naming[k] || ''); env.say(r.ok ? 'Named: ' + r.name + '. The name goes in the charts.' : r.why); env.cue(r.ok ? 'clearance' : 'refused'); if (r.ok) delete naming[k] }
 	if (act == 'claim') { const st = Co.candidates(me, {star: env.star, owner: holder()}, d, env.ship.jump || 0, 10).find(x => x.id == colSel), r = st ? Co.claim(me, {star: env.star, owner: holder()}, st, t.dataset.k, d, env.ship.jump || 0) : {ok: false, why: 'Pick a system.'}; env.say(r.ok ? 'Claim filed on ' + st.name + ': fly there by day ' + r.colony.beaconBy + ' and press N near ' + r.colony.world + ' to drop the beacon.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
-	if (act == 'haul') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = c ? Co.postHaul(me, {star: env.star, owner: holder()}, mkt, c, t.dataset.g, +t.dataset.n, d) : {ok: false, why: 'No such colony.'}; env.say(r.ok ? 'Haulage contracted: ' + r.quote.tons + ' t ' + r.quote.good + ' by ' + r.quote.ship + ', ' + r.quote.days + ' days' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
+	if (act == 'haul') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = c ? Co.postHaul(me, {star: env.star, owner: holder()}, mkt, c, t.dataset.g, +t.dataset.n, d, t.dataset.j) : {ok: false, why: 'No such colony.'}; env.say(r.ok ? 'Haulage contracted: ' + r.quote.tons + ' t ' + r.quote.good + ' by ' + r.quote.ship + ', ' + r.quote.days + ' days' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
+	if (act == 'startbuild') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), pk = pick[c.id], [body, where] = pk.at.split('|'), r = Co.startBuild(c, Co.starOf(c), pk.fac, body, where, d); env.say(r.ok ? 'Building ' + Co.FAC[pk.fac].name + ' at ' + body + ': bring ' + fmt(Object.values(r.build.need).reduce((a, b) => a + b, 0)) + ' t of goods' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
+	if (act == 'givebuild') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = Co.deliverBuilds(me, c, d), g = Object.entries(r.gave); env.say(g.length ? 'Handed over ' + g.map(([k, v]) => v + ' t ' + k).join(', ') + (r.done.length ? '. Built: ' + r.done.map(b => Co.FAC[b.fac].name).join(', ') : '') : 'Nothing in your hold the builds need'); env.cue(g.length ? 'docked' : 'refused') }
 	if (act == 'expct') { ex.amount = String(Math.floor((me.wallet[ex.from] || 0) * +t.dataset.n * 100) / 100) }
 	if (act == 'exchange') { const r = Tr.exchange(me, +ex.amount, ex.from, ex.to, d, holder()); if (r.ok) { env.say('Changed ' + money(+ex.amount, ex.from) + ' into ' + money(r.got, ex.to)); ex.amount = ''; env.cue('tick') } else env.say(r.why || 'The exchange refused') }
 	if (act == 'paybounty') { const c = F.byId(holder()).currency.code, b = me.bounties[c]; if (Tr.pay(me, b, c, d).ok) { delete me.bounties[c]; env.say('Bounty paid') } }
@@ -246,6 +275,7 @@ function click(e) {
 	const again = root.querySelector('[data-act="' + keep + '"]:not([disabled])'); if (again) again.focus();
 }
 function input(e) {
+	if (e.target.dataset.pick) { const id = e.target.dataset.c, k = e.target.dataset.pick; pick[id] = pick[id] || {}; pick[id][k] = e.target.value; render(); const el = root.querySelector('[data-pick="' + k + '"][data-c="' + id + '"]'); if (el) el.focus(); return }
 	if (e.target.dataset.name) { naming[e.target.dataset.name] = e.target.value; return }
 	const k = e.target.dataset.ex; if (!k) return;
 	ex[k] = e.target.value;

@@ -13,6 +13,21 @@
    - Done, the port opens the next day: a port of the sponsor's, with a market in its coin, and +150 standing with it.
    - Lapsed (beacon not dropped, or the season out): what was delivered stays as salvage, and a new claim on the
      system costs a third less.
+   Part 2 (M5b-2): building out a finished colony.
+   - Slots from the system's own bodies: in orbit 1 + 1 per 2 Earth radii + 1 if ringed (gas giants up to 4); on the
+     surface of rocky worlds under 2.5 g, 1 to 3 by size, +1 with air and water. The primary port takes an orbital
+     slot at its world.
+   - Facilities in three tiers: tier 1 builds earn a tier 2 point; tier 2 builds cost one and earn a tier 3 point;
+     tier 3 builds cost 4 tier 3 points, 2 more for each tier 3 build before. The primary port costs none and earns
+     its tier's points. No time limit after the primary port; goods are handed over docked at the colony's own port,
+     or brought by haulers.
+   - Links: each facility's economy counts fully (strong link) around or on the port's world, at 5% (weak) elsewhere
+     in the system, boosted or cut by its body and star (rings, life, water, ruins, metals, a dead star). The mix
+     sets the port's market (economy.js): what it produces sells cheap, what it consumes sells dear and is bought.
+   - Population grows each day towards a cap set by the best world and the habitats and ports; security, wealth and
+     tech come from the facilities.
+   - Each season (30 days from opening) the colony pays its architect a share of its trade (5-10% by wealth), in
+     the sponsor's coin.
    The record (P.colonies, P.hauls) is plain data, kept in the save. GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -107,7 +122,11 @@ function deliver(P, c, day) {
 	return {gave};
 }
 function finish(P, c, day) {
-	if (c.stage == 'building' && !Object.keys(left(c)).length) { c.stage = 'done'; c.opens = Math.floor(day) + 1; R.act(P, 'mission', c.sponsor, {amount: COL.finishRep / R.ACTIONS.mission.rep}); return true }
+	if (c.stage == 'building' && !Object.keys(left(c)).length) {
+		c.stage = 'done'; c.opens = Math.floor(day) + 1; c.paid = c.opens; c.last = c.opens; c.pop = 0; c.builds = c.builds || [];
+		c.points = {t2: PORT_TIER[c.port] == 1 ? 1 : 0, t3: PORT_TIER[c.port] == 2 ? 1 : 0};
+		R.act(P, 'mission', c.sponsor, {amount: COL.finishRep / R.ACTIONS.mission.rep}); return true;
+	}
 	return false;
 }
 /* haulage: NPC haulers bring goods from this port to a colony site. Quote in the port's coin */
@@ -119,15 +138,16 @@ function haulQuote(office, mkt, c, good, tons, day) {
 	const trips = Math.ceil(tons / ship.t), days = Math.max(1, Math.ceil(d / ship.jump)) + (trips - 1) * 2;
 	return {good, tons, cost: Math.round(q.price * tons * (1 + over)), currency: mkt.currency, days, ship: ship.ship, trips, over};
 }
-function postHaul(P, office, mkt, c, good, tons, day) {
-	if (c.stage != 'building') return {ok: false, why: 'Drop the beacon first: haulers deliver to a constructor.'};
-	tons = Math.min(Math.floor(tons), (left(c)[good] || 0) - ((c.coming || {})[good] || 0)); if (tons <= 0) return {ok: false, why: 'The build doesn\'t need more ' + good + '.'};
+function postHaul(P, office, mkt, c, good, tons, day, jobId) {
+	const job = jobId && jobId != 'port' ? (c.builds || []).find(b => b.id == jobId && !b.done) : c.stage == 'building' ? c : null;
+	if (!job) return {ok: false, why: c.stage == 'claimed' ? 'Drop the beacon first: haulers deliver to a constructor.' : 'Nothing is being built there.'};
+	tons = Math.min(Math.floor(tons), (left(job)[good] || 0) - ((job.coming || {})[good] || 0)); if (tons <= 0) return {ok: false, why: 'The build doesn\'t need more ' + good + '.'};
 	const q = haulQuote(office, mkt, c, good, tons, day), code = q.currency;
 	if (code == 'SU' || (P.wallet[code] || 0) < q.cost) return {ok: false, why: code == 'SU' ? 'Haulers here want a power\'s coin.' : 'The contract is ' + q.cost.toLocaleString('en') + ' ' + code + '.'};
 	P.wallet[code] -= q.cost;
-	(P.hauls = P.hauls || []).push({colony: c.id, good, tons, eta: Math.floor(day) + q.days, ship: q.ship});
+	(P.hauls = P.hauls || []).push({colony: c.id, job: job == c ? 'port' : job.id, good, tons, eta: Math.floor(day) + q.days, ship: q.ship});
 	/* counted as promised, so you don't over-order */
-	c.coming = c.coming || {}; c.coming[good] = (c.coming[good] || 0) + tons;
+	job.coming = job.coming || {}; job.coming[good] = (job.coming[good] || 0) + tons;
 	return {ok: true, quote: q};
 }
 /* the day's turn: haulers arrive, builds finish, claims lapse. Returns news [{text, ok}] */
@@ -136,11 +156,15 @@ function turn(P, day) {
 	for (const h of (P.hauls || []).slice()) {
 		if (day < h.eta) continue;
 		P.hauls.splice(P.hauls.indexOf(h), 1);
-		const c = colonyAt(P, h.colony); if (!c || c.stage != 'building') continue;
-		c.got[h.good] = (c.got[h.good] || 0) + h.tons; if (c.coming) c.coming[h.good] = Math.max(0, (c.coming[h.good] || 0) - h.tons);
+		const c = colonyAt(P, h.colony); if (!c) continue;
+		const job = h.job && h.job != 'port' ? (c.builds || []).find(b => b.id == h.job && !b.done) : c.stage == 'building' ? c : null; if (!job) continue;
+		job.got[h.good] = (job.got[h.good] || 0) + h.tons; if (job.coming) job.coming[h.good] = Math.max(0, (job.coming[h.good] || 0) - h.tons);
 		out.push({text: 'Haulers delivered ' + h.tons.toLocaleString('en') + ' t of ' + h.good + ' to ' + c.star.name, ok: true});
-		if (finish(P, c, day)) out.push({text: c.star.name + ': the ' + PORTS[c.port].name.toLowerCase() + ' is built. It opens tomorrow.', ok: true});
+		if (job == c) { if (finish(P, c, day)) out.push({text: c.star.name + ': the ' + PORTS[c.port].name.toLowerCase() + ' is built. It opens tomorrow.', ok: true}) }
+		else if (finishBuild(c, job, day)) out.push({text: c.star.name + ': ' + FAC[job.fac].name + ' at ' + job.body + ' is built', ok: true});
 	}
+	/* finished colonies: population, and the season's payment */
+	for (const c of list(P)) if (c.stage == 'done' && day >= c.opens) out.push(...grow(P, c, day));
 	for (const c of list(P)) {
 		if (c.stage == 'claimed' && day > c.beaconBy) { c.stage = 'lapsed'; out.push({text: 'Claim on ' + c.star.name + ' lapsed: no beacon in time', ok: false}) }
 		else if (c.stage == 'building' && day > c.due) { c.stage = 'lapsed'; out.push({text: 'The season ran out at ' + c.star.name + '. What you delivered stays as salvage.', ok: false}) }
@@ -154,6 +178,143 @@ function portOf(P, star, day) {
 	return {cls: PORTS[c.port].cls, world: c.world, owner: c.sponsor, capital: false, contested: false, colony: true};
 }
 
-const EmberColonies = {PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
+/* ---------------- part 2: building out ---------------- */
+const PORT_TIER = {outpost: 1, station: 2, great: 3};
+/* the goods mix for a facility (shares of its tonnage) */
+const MIX = {base: {Iron: .3, Aluminum: .2, Titanium: .1, Machinery: .15, Electronics: .1, Food: .05, Water: .05, Fuel: .05},
+	farm: {Iron: .15, Aluminum: .15, Machinery: .2, Water: .3, Food: .1, Electronics: .1}, military: {Iron: .25, Titanium: .2, Machinery: .15, Electronics: .15, Munitions: .25},
+	research: {Aluminum: .2, Titanium: .1, Electronics: .4, Machinery: .15, Medicine: .15}, habitat: {Iron: .2, Aluminum: .2, Food: .2, Water: .2, Medicine: .1, Machinery: .1}};
+/* the catalogue: where (orbit, surface, either), tier, tonnes, economy, and what else it gives */
+const FAC = {
+	mining: {name: 'Mining installation', where: 'either', tier: 1, t: 600, econ: 'extraction'},
+	refinery: {name: 'Refinery', where: 'orbit', tier: 1, t: 900, econ: 'refinery', needs: b => b.gas || !!b.ring, needsText: 'a gas giant or a ringed world'},
+	farm: {name: 'Agriculture', where: 'either', tier: 1, t: 700, econ: 'agriculture', mix: 'farm', needs: (b, w) => w == 'orbit' || b.atmo, needsText: 'air, on the surface'},
+	habitat: {name: 'Habitat ring', where: 'orbit', tier: 1, t: 1000, pop: 50000, mix: 'habitat'},
+	tourist: {name: 'Tourist installation', where: 'either', tier: 1, t: 800, econ: 'tourism', wealth: 0.1},
+	relay: {name: 'Relay beacon', where: 'orbit', tier: 1, t: 400, tech: 0.02},
+	smugglers: {name: 'Smugglers\' den', where: 'surface', tier: 1, t: 600, econ: 'contraband', security: -0.2},
+	industrial: {name: 'Industrial yard', where: 'orbit', tier: 2, t: 2500, econ: 'industrial', wealth: 0.05},
+	research: {name: 'Research station', where: 'either', tier: 2, t: 2000, econ: 'hightech', mix: 'research', tech: 0.15},
+	military: {name: 'Military outpost', where: 'orbit', tier: 2, t: 2500, econ: 'military', mix: 'military', security: 0.25},
+	settlement: {name: 'Settlement', where: 'surface', tier: 2, t: 3000, pop: 200000, mix: 'habitat'},
+	sport: {name: 'Surface port', where: 'surface', tier: 2, t: 6000, pop: 100000, port: true},
+	station: {name: 'Station', where: 'orbit', tier: 2, t: 8000, pop: 100000, port: true},
+	city: {name: 'Surface city', where: 'surface', tier: 3, t: 20000, pop: 500000, port: true, wealth: 0.1},
+	great: {name: 'Great port', where: 'orbit', tier: 3, t: 25000, pop: 500000, port: true, tech: 0.1}};
+/* the goods for a facility: its mix times its tonnage; surface builds on worlds over 1.5 g cost 25% more */
+function facGoods(fac, body, where) {
+	const F0 = FAC[fac], mix = MIX[F0.mix || 'base'], k = where == 'surface' && body.g > 1.5 ? 1.25 : 1, out = {};
+	let sum = 0; for (const g in mix) { out[g] = Math.round(F0.t * mix[g] * k); sum += out[g] }
+	return out;
+}
+/* slots per body */
+function slots(star) {
+	return G.system(star).planets.map(p => {
+		const orbit = p.gas ? Math.min(4, 2 + (p.ring ? 1 : 0) + Math.floor(p.R / 6)) : 1 + Math.floor(p.R / 2) + (p.ring ? 1 : 0);
+		const surface = p.gas || p.g >= 2.5 ? 0 : (p.R < 0.8 ? 1 : p.R < 1.5 ? 2 : 3) + (p.atmo && p.water ? 1 : 0);
+		return {body: p.name, type: p.type, orbit, surface, p};
+	});
+}
+/* what's taken: the primary port (an orbital slot at its world) and the builds */
+function used(c, body, where) { return (where == 'orbit' && body == c.world ? 1 : 0) + (c.builds || []).filter(b => b.body == body && b.where == where).length }
+const t3cost = c => 4 + 2 * (c.builds || []).filter(b => FAC[b.fac].tier == 3).length;
+const cost = (c, fac) => FAC[fac].tier == 2 ? {t2: 1} : FAC[fac].tier == 3 ? {t3: t3cost(c)} : {};
+/* can this facility go there? {ok, why, goods, cost} */
+function canBuild(c, star, fac, body, where) {
+	const F0 = FAC[fac]; if (!F0) return {ok: false, why: 'No such facility.'};
+	if (c.stage != 'done') return {ok: false, why: 'Finish the primary port first.'};
+	if (F0.where != 'either' && F0.where != where) return {ok: false, why: F0.name + ' goes ' + (F0.where == 'orbit' ? 'in orbit' : 'on the surface') + '.'};
+	const sl = slots(star).find(x => x.body == body); if (!sl) return {ok: false, why: 'No such body.'};
+	if (used(c, body, where) >= sl[where]) return {ok: false, why: sl[where] ? 'Every ' + where + ' slot at ' + body + ' is taken.' : body + ' has no ' + (where == 'orbit' ? 'orbital' : 'surface') + ' slots.'};
+	if (F0.needs && !F0.needs(sl.p, where)) return {ok: false, why: F0.name + ' needs ' + F0.needsText + '.'};
+	const k = cost(c, fac), pts = c.points || {t2: 0, t3: 0};
+	if ((k.t2 || 0) > pts.t2) return {ok: false, why: 'Needs a tier 2 point: build a tier 1 facility first.'};
+	if ((k.t3 || 0) > pts.t3) return {ok: false, why: 'Needs ' + k.t3 + ' tier 3 points (you have ' + pts.t3 + ').'};
+	return {ok: true, goods: facGoods(fac, sl.p, where), cost: k};
+}
+function startBuild(c, star, fac, body, where, day) {
+	const ck = canBuild(c, star, fac, body, where); if (!ck.ok) return ck;
+	c.points.t2 -= ck.cost.t2 || 0; c.points.t3 -= ck.cost.t3 || 0;
+	const b = {id: 'b' + (c.builds.length + 1) + '-' + fac, fac, body, where, need: ck.goods, got: {}, done: false, started: Math.floor(day)};
+	c.builds.push(b);
+	return {ok: true, build: b};
+}
+function finishBuild(c, b, day) {
+	if (b.done || Object.keys(left(b)).length) return false;
+	b.done = true; b.finished = Math.floor(day);
+	const tier = FAC[b.fac].tier; if (tier == 1) c.points.t2 += 1; else if (tier == 2) c.points.t3 += 1;
+	return true;
+}
+/* hand over goods to the colony's builds, in order (docked at its own port) */
+function deliverBuilds(P, c, day) {
+	const gave = {}, done = [];
+	for (const b of (c.builds || []).filter(x => !x.done)) {
+		for (const [g, t] of Object.entries(left(b))) {
+			const n = Math.min(t, P.cargo[g] || 0); if (!n) continue;
+			P.cargo[g] -= n; if (!P.cargo[g]) { delete P.cargo[g]; delete P.cost[g] }
+			b.got[g] = (b.got[g] || 0) + n; gave[g] = (gave[g] || 0) + n;
+		}
+		if (finishBuild(c, b, day)) done.push(b);
+	}
+	return {gave, done};
+}
+/* ---- links and the economy ---- */
+const ECONS = ['extraction', 'refinery', 'agriculture', 'industrial', 'hightech', 'military', 'tourism', 'contraband'];
+function boost(econ, p, star) {
+	let k = 1;
+	if (p.ring && (econ == 'refinery' || econ == 'extraction')) k *= 1.3;
+	if (p.alive) k *= econ == 'agriculture' || econ == 'tourism' ? 1.4 : econ == 'industrial' ? 0.8 : 1;
+	if (p.water && econ == 'agriculture') k *= 1.2;
+	if (p.ruins && econ == 'hightech') k *= 1.5;
+	if ((star.FeH || 0) > 0.1 && econ == 'extraction') k *= 1.2;
+	if (/dwarf|neutron/.test(star.kind || '')) k *= econ == 'hightech' ? 1.2 : econ == 'agriculture' ? 0.6 : 1;
+	return k;
+}
+/* the port's economy: strong links from its own world, weak (5%) from elsewhere; shares that add to 1 (or {} with
+   nothing built) */
+function economy(c, star) {
+	const by = {}, bodies = Object.fromEntries(G.system(star).planets.map(p => [p.name, p]));
+	for (const b of (c.builds || []).filter(x => x.done)) {
+		const e = FAC[b.fac].econ; if (!e) continue;
+		by[e] = (by[e] || 0) + (b.body == c.world ? 1 : 0.05) * boost(e, bodies[b.body] || {}, star);
+	}
+	const sum = Object.values(by).reduce((t, v) => t + v, 0);
+	return sum ? Object.fromEntries(Object.entries(by).map(([k, v]) => [k, v / sum])) : {};
+}
+/* population cap: the best world, the habitats and ports */
+function popCap(c, star) {
+	const best = G.system(star).planets.reduce((m, p) => Math.max(m, p.alive ? 5e6 : p.atmo && p.esi >= 0.8 ? 1e6 : p.atmo ? 2e5 : 2e4), 0);
+	const extra = (c.builds || []).filter(b => b.done).reduce((t, b) => t + (FAC[b.fac].pop || 0), 0);
+	return best + extra + {outpost: 0, station: 100000, great: 500000}[c.port];
+}
+function stats(c, star) {
+	const done = (c.builds || []).filter(b => b.done).map(b => FAC[b.fac]), add = k => done.reduce((t, f) => t + (f[k] || 0), 0), cl = v => Math.max(0, Math.min(1, v));
+	return {security: cl(0.35 + add('security') + 0.1 * (PORT_TIER[c.port] - 1)), wealth: cl(0.3 + add('wealth') + 0.02 * done.length), tech: cl(0.3 + add('tech') + 0.1 * (PORT_TIER[c.port] - 1)),
+		cap: popCap(c, star), econ: economy(c, star), facilities: done.length};
+}
+/* a season's trade, in SU, and the architect's share (5-10% by wealth) */
+function payment(c, star) { const st = stats(c, star), trade = (c.pop || 0) * 2 + 5000 * (1 + st.facilities); return Math.round(trade * (0.05 + 0.05 * st.wealth)) }
+/* the days since the last turn: population grows towards its cap (about 30% of the gap a season); each full season
+   since opening pays the architect */
+function grow(P, c, day) {
+	const out = [], star = starOf(c); if (!star) return out;
+	const days = Math.max(0, Math.floor(day) - (c.last == null ? c.opens : c.last)); c.last = Math.floor(day);
+	if (days) { const cap = popCap(c, star); c.pop = Math.round(cap - (cap - (c.pop || 0)) * Math.pow(0.7, days / COL.seasonDays)) }
+	while (day - c.paid >= COL.seasonDays) {
+		c.paid += COL.seasonDays;
+		const su = payment(c, star), sp = F.byId(c.sponsor), code = sp.currency.code, amount = su * E.rate(code, c.paid);
+		P.wallet[code] = (P.wallet[code] || 0) + amount;
+		out.push({text: c.star.name + ' pays its architect: ' + Math.round(amount).toLocaleString('en') + ' ' + code + ' for the season', ok: true});
+	}
+	return out;
+}
+const STARS = new Map();
+function starOf(c) {
+	if (STARS.has(c.id)) return STARS.get(c.id);
+	const p = c.star.at, s = G.starsNear(p[0], p[1], p[2], 0.05).find(x => x.id == c.id) || T.starAt(c.id, p);
+	STARS.set(c.id, s); return s;
+}
+
+const EmberColonies = {FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
 if (isNode) module.exports = EmberColonies; else root.EmberColonies = EmberColonies;
 })(typeof window != 'undefined' ? window : this);

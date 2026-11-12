@@ -867,8 +867,9 @@ home currency.
    discoveries and naming, Universal Cartographics, ruins with their sentinels and caches, and survey contracts.
    The move to `apps/` is its own step.
 7. **M5b:** colonies: claiming systems and building ports and facilities, after Elite Dangerous's Trailblazers
-   (see [plan-ember-reach-colonies.md](plan-ember-reach-colonies.md)). **M5b-1 is playable:** claims, the beacon, the primary
-   port's goods, haulage contracts, and the finished port.
+   (see [plan-ember-reach-colonies.md](plan-ember-reach-colonies.md)). **M5b-1 and M5b-2 are playable:** claims, the beacon,
+   the primary port's goods, haulage, and the finished port; then slots, facilities, points, links and the market,
+   population and the architect's pay.
 8. **M6:** the Core, the black hole, polish; phones (1.6.0).
 
 ## Open questions
