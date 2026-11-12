@@ -63,11 +63,15 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol * Math.abs(b);
 }
 /* the Drake equation and the civilisations */
 {
-	const D = G.drake(G.sampleGalaxy(3000, 99), true), C = G.civilizations();
-	ok('19. the Drake equation: a handful of civilisations alive now (at least six)', D.N >= 3 && D.N <= 15 && C.length == Math.max(6, Math.round(D.N)), D.N.toFixed(1) + ', ' + C.length);
+	const D = G.drake(G.sampleGalaxy(3000, 99), true), C = G.civilizations(), K = G.clusters();
+	ok('19. the Drake equation: about forty civilisations alive now, in six clusters of six to eight great powers', D.N >= 30 && D.N <= 60 && K.length == 6 && K.every(k => { const n = C.filter(c => c.cluster == k.id).length; return n >= G.MIN_CIVS && n <= 8 }), D.N.toFixed(1) + ', ' + K.map(k => C.filter(c => c.cluster == k.id).length).join('/'));
+	const N = G.GAL.north, north = C.filter(c => c.cluster == K[0].id);
+	ok('20. the North is around the North Point: 1,000-2,000 pc out, 30° north or more', K[0].name == 'North' && north.every(c => c.star.m >= N.mLo && c.star.m <= N.mHi && G.latitude(c.star.x, c.star.y, c.star.z) >= N.latMin));
+	ok('20b. the Hearth is close to the Core but not in it (45-90 pc); the Rim near the edge (2,150-2,350 pc), where neighbouring stars are still under 2.5 pc apart', K[1].m >= 45 && K[1].m <= 90 && C.filter(c => c.cluster == K[1].id).every(c => c.star.m > 30) && K[2].m >= 2150 && K[2].m <= 2350 && 0.554 * Math.pow(G.numberDensity(...K[2].at), -1 / 3) < 2.5, K[1].m.toFixed(0) + ' / ' + K[2].m.toFixed(0));
+	const ds = []; for (let i = 0; i < K.length; i++) for (let k = i + 1; k < K.length; k++) ds.push(Math.hypot(...K[i].at.map((v, j) => v - K[k].at[j])));
+	ok('20c. the clusters are fairly evenly spaced (distances vary by under 30%)', K.cv < 0.3 && Math.min(...ds) > 400, Math.round(Math.min(...ds)) + '-' + Math.round(Math.max(...ds)) + ' pc');
+	ok('20d. homes are real stars (found again where they are) on worlds with ESI 0.6 or more', C.every(c => c.home.esi >= 0.6 && G.starsNear(c.star.x, c.star.y, c.star.z, 0.001).some(s => s.id == c.star.id)));
 	const q = c => G.quietChance(c.star, 20, 4e9);
-	const N = G.GAL.north;
-	ok('20. each is at home on a world with ESI 0.75 or more, in the northern Middle Reach (1,000-2,000 pc out, 30° north or more), in quiet space, 110 pc or more from the others', C.every(c => c.home.esi >= 0.75 && q(c) > 0.9 && c.star.m >= N.mLo && c.star.m <= N.mHi && G.latitude(c.star.x, c.star.y, c.star.z) >= N.latMin && C.every(o => o == c || Math.hypot(o.star.x - c.star.x, o.star.y - c.star.y, o.star.z - c.star.z) >= N.apart)), C.map(c => c.star.m.toFixed(0) + '/' + G.latitude(c.star.x, c.star.y, c.star.z).toFixed(0)).join(' '));
 	/* ruins go on a rocky world, so stars with one get them at the Drake rate */
 	let ru = 0, withRocky = 0; const S = G.sampleGalaxy(12000, 21);
 	S.forEach(s => { const pl = G.system(s).planets; if (pl.some(p => !p.gas)) withRocky++; if (pl.some(p => p.ruins)) ru++ });
@@ -84,8 +88,8 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol * Math.abs(b);
 	const br = await chromium.launch(), pg = await br.newPage({viewport: {width: 1130, height: 720}}), errs = [];
 	pg.on('pageerror', e => errs.push(String(e))); pg.on('console', m => { if (m.type() == 'error') errs.push(m.text()) });
 	try {
-		await pg.goto(`http://127.0.0.1:${PORT}/viewer.html`); await pg.waitForFunction(() => /northern powers/.test(document.getElementById('northCap').textContent) && /civilisations alive now/.test(document.getElementById('galCap').textContent) && /planets/.test(document.getElementById('sysCap').textContent), null, {timeout: 60000});
-		ok('22. the viewer draws the northern powers, the galaxy, a close-up and a home system, without errors', !errs.length, errs.join(' | '));
+		await pg.goto(`http://127.0.0.1:${PORT}/viewer.html`); await pg.waitForFunction(() => /in 3D/.test(document.getElementById('northCap').textContent) && /civilisations alive now/.test(document.getElementById('galCap').textContent) && /planets/.test(document.getElementById('sysCap').textContent), null, {timeout: 60000});
+		ok('22. the viewer draws each cluster in 3D, the galaxy, a close-up and a home system, without errors', !errs.length, errs.join(' | '));
 	} catch (e) { ok('22. the viewer', false, String(e)) }
 	await br.close(); srv.kill(); done();
 })();

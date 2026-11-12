@@ -9,9 +9,11 @@ const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 try {
 	/* ---------- the great powers ---------- */
 	const M = F.majors(); F.relations();
-	ok('1. at least six great powers, each a species of its own with a currency', M.length >= 6 && new Set(M.map(m => m.species.name)).size == M.length && new Set(M.map(m => m.currency.code)).size == M.length);
+	const K = G.clusters();
+	ok('1. six clusters of at least six great powers, each power a species of its own with a currency', K.length == 6 && K.every(k => M.filter(m => m.cluster == k.id).length >= 6) && new Set(M.map(m => m.species.name)).size == M.length && new Set(M.map(m => m.currency.code)).size == M.length);
 	const N = G.GAL.north;
-	ok('2. all in the northern sector, midway between the Core and the Outer Clouds', M.every(m => m.star.m >= N.mLo && m.star.m <= N.mHi && G.latitude(...m.at) >= N.latMin));
+	ok('2. the North\'s powers are in the northern sector, midway between the Core and the Outer Clouds', M.filter(m => m.cluster == K[0].id).every(m => m.star.m >= N.mLo && m.star.m <= N.mHi && G.latitude(...m.at) >= N.latMin));
+	ok('2b. allies and enemies are within a cluster; powers in different clusters are neutral', M.every(a => [...a.allies, ...a.enemies].every(b => F.byId(b).cluster == a.cluster)));
 	ok('3. each has at least two allies and at least two enemies among the others', M.every(m => m.allies.length >= 2 && m.enemies.length >= 2), M.map(m => m.allies.length + '/' + m.enemies.length).join(' '));
 	ok('4. relations are mutual', M.every(a => M.every(b => a == b || F.relation(a.id, b.id) == F.relation(b.id, a.id))));
 	/* ---------- borders and wars ---------- */
@@ -47,7 +49,17 @@ try {
 	ok('17. effort for side a raises its score, for side b lowers it', sa.score > sn.score && sb.score < sn.score, [sb.score, sn.score, sa.score].map(v => v.toFixed(2)).join(' < '));
 	const ms = F.warMissions(M[0].id, 300);
 	ok('18. great powers offer missions about their wars: attacks on enemy systems they can reach, defence of their own; paid in their own currency', ms.length > 0 && ms.every(m => M[0].enemies.includes(m.against) && m.currency == M[0].currency.code && m.reward > 0 && m.effort > 0 && F.wars().find(x => x.id == m.war).systems.some(x => x.id == m.system)));
-	ok('19. borders never overlap: every point has one owner or is contested between two enemies', (() => { const r = G.rng(5), np = G.northPoint(); for (let k = 0; k < 3000; k++) { const p = np.map(v => v + (r() - .5) * 900), c = F.claimAt(p); if (c.owner && c.contested) return false; if (c.contested && F.relation(...c.contested) >= 0) return false; if (c.shared) return false } return true })());
+	ok('19. borders never overlap: every point has one owner or is contested between two enemies', (() => { const r = G.rng(5); for (let k = 0; k < 6000; k++) { const cl = K[k % 6], sp = M.find(m => m.cluster == cl.id).claim * 5, p = cl.at.map(v => v + (r() - .5) * sp), c = F.claimAt(p); if (c.owner && c.contested) return false; if (c.contested && F.relation(...c.contested) >= 0) return false; if (c.shared) return false } return true })());
+	/* how much the great powers hold: several hundred thousand systems in all (counted by sampling each cluster) */
+	{
+		let held = 0, cont = 0;
+		for (const cl of K) {
+			const C = M.filter(m => m.cluster == cl.id), lo = [0, 1, 2].map(i => Math.min(...C.map(m => m.at[i] - m.claim))), hi = [0, 1, 2].map(i => Math.max(...C.map(m => m.at[i] + m.claim)));
+			const V = (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]), r = G.rng(7), n = 60000;
+			for (let k = 0; k < n; k++) { const p = lo.map((v, i) => v + r() * (hi[i] - v)), q = F.claimAt(p); if (q.owner) held += G.numberDensity(...p) * V / n; else if (q.contested) cont += G.numberDensity(...p) * V / n }
+		}
+		ok('19b. the great powers hold and contest several hundred thousand systems in all (of ~16 billion)', held + cont > 2e5 && held + cont < 1.5e6 && cont > 0.05 * held, Math.round(held).toLocaleString() + ' held, ' + Math.round(cont).toLocaleString() + ' contested');
+	}
 	/* ---------- small factions ---------- */
 	const S = F.minors(), kinds = new Set(S.map(m => m.type));
 	ok('20. small factions: nomads, criminals, prospectors and free ports', ['nomad', 'criminal', 'prospector', 'freeport'].every(k => kinds.has(k)));

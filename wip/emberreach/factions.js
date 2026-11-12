@@ -40,8 +40,8 @@ function majors() {
 		const age = c.age;
 		return {id: c.id, kind: 'major', name: 'The ' + root + ' ' + GOV[Math.floor(r() * GOV.length)], species, home: c.home, star: c.star, at: pos(c.star),
 			currency: {code, name: root.toLowerCase() + ' ' + COIN[Math.floor(r() * COIN.length)], symbol: code[0] + '¤'},
-			/* a claim on space: 120-240 pc around home, by age; strength for wars and trade */
-			claim: 120 + 120 * Math.min(1, age / 15000), military: 0.6 + 0.8 * r(), economy: 0.6 + 0.8 * r(), age, colonies: c.radius};
+			/* a claim on space, sized for the systems it holds (8,000-14,000; galaxy.js); strength for wars and trade */
+			cluster: c.cluster, held: c.held, claim: c.claim, military: 0.6 + 0.8 * r(), economy: 0.6 + 0.8 * r(), age, colonies: c.radius};
 	});
 	return MAJORS;
 }
@@ -74,33 +74,36 @@ function border(a, b) {
 const canFight = (a, b) => border(a, b) >= 0.15;
 function relations() {
 	if (REL) return REL;
-	const M = majors(), n = M.length, pairs = [];
-	for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pairs.push([i, j]);
-	/* search the ways to set each pair ally, enemy or neutral; keep the first (in seeded order) that meets the rules,
-	   preferring enemies that are close (a long border) and allies that are not */
-	let best = null, bestScore = -1e9, fight;
-	/* a power with fewer than two neighbours to fight reaches further (its claim grows) until the rules can be met */
-	for (let grow = 0; grow < 8; grow++) {
-		fight = M.map(a => M.map(b => a != b && canFight(a, b)));
-		const lonely = M.filter((a, i) => fight[i].filter(x => x).length < 2);
-		if (!lonely.length) break;
-		lonely.forEach(a => a.claim *= 1.12); BORDER.clear();
-	}
-	const r = rng(hashStr('relations:' + M.map(m => m.id).join()));
-	for (let t = 0; t < 40000; t++) {
-		const rel = pairs.map(([i, j]) => { const u = r(); return fight[i][j] ? (u < 0.5 ? -1 : u < 0.8 ? 1 : 0) : (u < 0.6 ? 1 : 0) });
-		const A = new Array(n).fill(0), E = new Array(n).fill(0);
-		let okEnemies = true;
-		rel.forEach((v, k) => { const [i, j] = pairs[k]; if (v > 0) { A[i]++; A[j]++ } if (v < 0) { E[i]++; E[j]++; if (!fight[i][j]) okEnemies = false } });
-		if (!okEnemies || A.some(x => x < 2) || E.some(x => x < 2)) continue;
-		let score = 0; rel.forEach((v, k) => { const [i, j] = pairs[k], d = dist(M[i].at, M[j].at); score += v < 0 ? border(M[i], M[j]) * 3 - d / 300 : v > 0 ? d / 300 : 0 });
-		if (score > bestScore) { bestScore = score; best = rel }
-	}
-	if (!best) throw new Error('no arrangement of alliances fits these great powers');
 	const mat = {};
-	M.forEach(a => mat[a.id] = {});
-	best.forEach((v, k) => { const [i, j] = pairs[k]; mat[M[i].id][M[j].id] = mat[M[j].id][M[i].id] = v });
-	M.forEach(m => { m.allies = M.filter(o => mat[m.id][o.id] > 0).map(o => o.id); m.enemies = M.filter(o => mat[m.id][o.id] < 0).map(o => o.id) });
+	majors().forEach(a => { mat[a.id] = {}; majors().forEach(b => { if (a != b) mat[a.id][b.id] = 0 }) });
+	/* within each cluster; powers in different clusters are too far apart to be allies or enemies (neutral) */
+	for (const cl of G.clusters()) {
+		const M = majors().filter(m => m.cluster == cl.id), n = M.length, pairs = [];
+		for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pairs.push([i, j]);
+		/* search the ways to set each pair ally, enemy or neutral; keep the arrangement (in seeded order) that meets
+		   the rules with the longest borders between enemies and the widest spread between allies */
+		let best = null, bestScore = -1e9, fight;
+		/* a power with fewer than two neighbours to fight reaches further (its claim grows) until the rules can be met */
+		for (let grow = 0; grow < 8; grow++) {
+			fight = M.map(a => M.map(b => a != b && canFight(a, b)));
+			const lonely = M.filter((a, i) => fight[i].filter(x => x).length < 2);
+			if (!lonely.length) break;
+			lonely.forEach(a => a.claim *= 1.12); BORDER.clear();
+		}
+		const r = rng(hashStr('relations:' + M.map(m => m.id).join()));
+		for (let t = 0; t < 40000; t++) {
+			const rel = pairs.map(([i, j]) => { const u = r(); return fight[i][j] ? (u < 0.5 ? -1 : u < 0.8 ? 1 : 0) : (u < 0.6 ? 1 : 0) });
+			const A = new Array(n).fill(0), E = new Array(n).fill(0);
+			let okEnemies = true;
+			rel.forEach((v, k) => { const [i, j] = pairs[k]; if (v > 0) { A[i]++; A[j]++ } if (v < 0) { E[i]++; E[j]++; if (!fight[i][j]) okEnemies = false } });
+			if (!okEnemies || A.some(x => x < 2) || E.some(x => x < 2)) continue;
+			let score = 0; rel.forEach((v, k) => { const [i, j] = pairs[k], d = dist(M[i].at, M[j].at) / M[i].claim; score += v < 0 ? border(M[i], M[j]) * 3 - d / 3 : v > 0 ? d / 3 : 0 });
+			if (score > bestScore) { bestScore = score; best = rel }
+		}
+		if (!best) throw new Error('no arrangement of alliances fits the great powers of ' + cl.name);
+		best.forEach((v, k) => { const [i, j] = pairs[k]; mat[M[i].id][M[j].id] = mat[M[j].id][M[i].id] = v });
+	}
+	majors().forEach(m => { m.allies = majors().filter(o => mat[m.id][o.id] > 0).map(o => o.id); m.enemies = majors().filter(o => mat[m.id][o.id] < 0).map(o => o.id) });
 	REL = mat;
 	return REL;
 }
@@ -156,7 +159,7 @@ function frontSystems(a, b, want) {
 		/* somewhere across the zone's depth */
 		const w = BAND / (1 / a.claim + 1 / b.claim) * 0.95, along = (r() * 2 - 1) * w;
 		p = p.map((v, i) => v + u[i] * along);
-		const s = G.starsNear(p[0], p[1], p[2], Math.max(2.5, nearR(p))).find(s => s.kind == 'star' && s.M > 0.25 && !seen.has(s.id) && G.system(s).planets.length);
+		const s = G.starsNear(p[0], p[1], p[2], nearR(p)).find(s => s.kind == 'star' && s.M > 0.25 && !seen.has(s.id) && G.system(s).planets.length);
 		if (!s) continue;
 		const cl = claimAt(pos(s));
 		if (!cl.contested || !cl.contested.includes(a.id) || !cl.contested.includes(b.id)) continue;
@@ -284,16 +287,16 @@ function warMissions(powerId, day, events) {
 
 /* ---------- smaller factions ---------- */
 const MINOR_KINDS = {
-	nomad: {n: 6, carrier: 'fleet carrier', pattern: 'nomadic', words: ['Wanderers', 'Drift', 'Caravan', 'Flotilla', 'Exodus', 'Migration']},
-	criminal: {n: 8, carrier: 'dreadnought', pattern: 'rotating', words: ['Syndicate', 'Cartel', 'Reavers', 'Knives', 'Black Fleet', 'Brotherhood', 'Corsairs', 'Ring']},
-	prospector: {n: 5, carrier: 'fleet carrier', pattern: 'semi-permanent', words: ['Guild', 'Combine', 'Claimholders', 'Diggers', 'Consortium']},
-	freeport: {n: 5, carrier: null, pattern: 'fixed', words: ['Free Port', 'Haven', 'Exchange', 'Freehold', 'Crossing']}};
+	nomad: {n: 8, carrier: 'fleet carrier', pattern: 'nomadic', words: ['Wanderers', 'Drift', 'Caravan', 'Flotilla', 'Exodus', 'Migration']},
+	criminal: {n: 16, carrier: 'dreadnought', pattern: 'rotating', words: ['Syndicate', 'Cartel', 'Reavers', 'Knives', 'Black Fleet', 'Brotherhood', 'Corsairs', 'Ring']},
+	prospector: {n: 8, carrier: 'fleet carrier', pattern: 'semi-permanent', words: ['Guild', 'Combine', 'Claimholders', 'Diggers', 'Consortium']},
+	freeport: {n: 12, carrier: null, pattern: 'fixed', words: ['Free Port', 'Haven', 'Exchange', 'Freehold', 'Crossing']}};
 const SERVICES = {'fleet carrier': ['market', 'refinery', 'repairs', 'fuel', 'hangar', 'shipyard'], dreadnought: ['repairs', 'fuel', 'hangar', 'black market', 'armoury']};
 let MINORS = null;
 function minors() {
 	if (MINORS) return MINORS;
 	MINORS = [];
-	const M = majors(), np = G.northPoint();
+	const M = majors();
 	const fronts = wars().flatMap(w => w.systems.map(s => s.at));
 	for (const [kind, K] of Object.entries(MINOR_KINDS)) for (let i = 0; i < K.n; i++) {
 		const id = kind + i, r = rng(hashStr('minor:' + id)), root = starName(hashStr('minorname:' + id));
@@ -303,7 +306,9 @@ function minors() {
 			if (kind == 'criminal') return r() < 0.6 ? jitter(fronts[Math.floor(r() * fronts.length)], 25, r) : onShell(40 + r() * 400, r);
 			if (kind == 'prospector') return onShell(150 + r() * 700, r);
 			if (kind == 'nomad') return onShell(1000 + r() * 1900, r);
-			const a = M[Math.floor(r() * M.length)], b = M[Math.floor(r() * M.length)]; return jitter(a.at.map((v, k) => (v + b.at[k]) / 2), 30, r);
+			/* two per cluster, between two of its powers */
+			const cl = G.clusters()[i % G.clusters().length].id, CM = M.filter(m => m.cluster == cl), a = CM[Math.floor(r() * CM.length)], b = CM[Math.floor(r() * CM.length)];
+			return jitter(a.at.map((v, k) => (v + b.at[k]) / 2), Math.min(a.claim, b.claim) * 0.3, r);
 		};
 		const nSites = K.pattern == 'fixed' ? 1 : K.pattern == 'nomadic' ? 5 + Math.floor(r() * 4) : 2 + Math.floor(r() * 4);
 		const sites = [...Array(nSites)].map(() => { const p = site(); const s = G.starsNear(p[0], p[1], p[2], nearR(p))[0]; return s ? {id: s.id, name: s.name, at: pos(s)} : {id: 'deep:' + p.join(), name: 'deep space', at: p} });

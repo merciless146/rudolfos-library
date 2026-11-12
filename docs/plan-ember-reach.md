@@ -7,9 +7,9 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
 - **Package:** `rudolf-emberreach` (a Library game). The work sits in `wip/emberreach/` until it can be played, so
   the publish workflow doesn't put it in the App Store early (`tools/publish.sh` builds everything in `apps/`).
 - **Status:** the models are done and checked; the game itself is the milestones below.
-  - The galaxy: `wip/emberreach/galaxy.js` (`tests/emberreach_galaxy_t.js`, 22 checks).
+  - The galaxy: `wip/emberreach/galaxy.js` (`tests/emberreach_galaxy_t.js`, 25 checks).
   - Factions, front-line wars, money and reputation: `factions.js`, `economy.js`, `reputation.js`
-    (`tests/emberreach_factions_t.js`, 45 checks).
+    (`tests/emberreach_factions_t.js`, 47 checks).
   - The 40 stock ships: `ships.js` (`tests/emberreach_ships_t.js`, 15 checks).
   - `wip/emberreach/viewer.html` draws them, the north in 3D.
 
@@ -134,13 +134,13 @@ stars.
 | fp | 0.76 | the model (stars with planets) |
 | ne | 0.38 | the model: liquid-water worlds with ESI ≥ 0.8 that stay undisturbed for 4 Gyr, per star with planets |
 | fl, fi, fc | 0.5, 0.01, 0.2 | chosen (nobody knows them) |
-| L / T | 15,000 years / 10 Gyr | chosen |
-| **N, alive now** | **≈ 7** | |
+| L / T | 90,000 years / 10 Gyr | chosen |
+| **N, alive now** | **≈ 42** | |
 | Earlier civilisations | ≈ 4.6 million | N × T / L |
 
-- **Factions:** the 7 civilisations alive now are the game's great powers (at least six, whatever the Drake
-  numbers say). Where they live is set by the lore (see "The great powers"), and the physics agrees: their region
-  is quiet space.
+- **Factions:** the civilisations alive now are the game's great powers: 46 of them, in six clusters of six to
+  eight (see "The great powers"). L, the lifetime, was set at 90,000 years to give about that many. The number of
+  earlier civilisations (N × T / L) doesn't depend on L, so the ruins are unchanged.
 - **Ruins:** the earlier civilisations left ruins. Each one is counted in about ten systems, giving a ruin in about
   1 star system in 400.
 
@@ -178,9 +178,12 @@ WOS's flat mix stays available as a "rich galaxy" setting if playtests find the 
      there are thousands.
    - Jump accuracy suffers where stars crowd: the core is hard to navigate.
 
-   - **Lanes:** the great powers keep relay beacons that allow long jumps (about 50 pc) between their own systems
-     and their allies'. Their capitals are 140–460 pc apart, so it's a handful of lane jumps, or dozens of
-     ordinary ones. Enemies' lanes are closed to you, and fronts cut lanes.
+   - **Lanes:** the great powers keep relay beacons that allow long jumps (up to about 50 pc) between their own
+     systems and their allies'. Within a cluster, capitals are from 4 pc (the Hearth) to 134 pc (the Rim) apart,
+     so lane travel is quick. Enemies' lanes are closed to you, and fronts cut lanes.
+   - **The long lanes:** between clusters (677–1,714 pc apart), old relay chains make jumps of about 100 pc, so
+     a crossing takes 7–17 jumps. Free ports, nomads and syndicates live along them; whoever keeps a long lane
+     open is worth knowing.
 
 ### Regions
 
@@ -189,12 +192,13 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
   the richest resources and the most ruins, from an earlier era when the centre may have been calmer. The most
   dangerous flying.
 - **The Glow** (30–450 pc): dense, metal-rich and mostly sterile. Many white dwarfs and old giants, rich mining,
-  little law. Criminal syndicates and prospectors.
-- **The Inner Reach** (450–1,000 pc): quiet enough for life, still busy. Prospectors' claims; frontier.
-- **The Middle Reach** (1,000–2,000 pc): quiet, living worlds. In the north, the great powers and their wars.
+  little law. Criminal syndicates and prospectors, and one cluster against the odds: the Hearth, at 60 pc.
+- **The Inner Reach** (450–1,000 pc): quiet enough for life, still busy. Prospectors' claims, frontier, and one
+  cluster (a Reach, at 812 pc).
+- **The Middle Reach** (1,000–2,000 pc): quiet, living worlds. Three clusters (the North and two Reaches).
   Elsewhere, wide open: nomads, ruins, unclaimed living worlds.
 - **The Outer Clouds** (beyond 2,000 pc): a thin halo of old stars, a parsec or more apart. Nomad fleets, deep
-  ruins, the loneliest flying.
+  ruins, the loneliest flying, and the Rim cluster at 2,157 pc.
 
 ### Exploration
 
@@ -231,43 +235,69 @@ like every Library game.
 
 ## Factions, wars and money
 
-The model is in `wip/emberreach/factions.js`, `economy.js`, `reputation.js` and `ships.js` (45 checks in
-`tests/emberreach_factions_t.js`, 15 in `tests/emberreach_ships_t.js`). The viewer's first panel is the north in
-3D.
+The model is in `wip/emberreach/factions.js`, `economy.js`, `reputation.js` and `ships.js` (47 checks in
+`tests/emberreach_factions_t.js`, 15 in `tests/emberreach_ships_t.js`). The viewer's first panel shows each
+cluster in 3D.
 
-### The great powers
+### The great powers: six clusters
 
-- **How many:** at least six (`MIN_CIVS`). The Drake equation gives seven, so there are seven.
-- **Interstellar:** every one has been spacefaring for 6,000–15,000 years.
-- **Where:** all at home in the **northern Middle Reach**: 1,000–2,000 pc from the centre (midway between the Core
-  and the Outer Clouds), at 30° north or more. They cluster around the **North Point**, straight up the pole and
-  1,500 pc out.
-- **Why the north:** in the lore, a shared cradle. The seven arose within a few hundred parsecs of each other, which
-  is why they met, traded and went to war, while the rest of the galaxy is mostly empty of anyone alive. In the
-  physics it's quiet space: over 99% of planets there go 4 Gyr without a close pass.
-- **Homes:** each power is a **species** of its own, at home on a living world with ESI ≥ 0.75, 110 pc or more from
-  the others. The pick has some chance in it, so homes differ: 0.68 g to 1.33 g, 7 °C to 42 °C.
+- **How many:** 46 great powers in **six clusters** of six to eight (at least six per cluster, `MIN_CIVS`). That
+  agrees with the Drake equation's ≈ 42. All are interstellar.
+- **Why clusters:** in the lore, each cluster is a shared cradle. Its peoples arose within a few dozen parsecs of
+  each other, which is why they met, traded and went to war. Between the clusters lie hundreds of parsecs of space
+  where nobody lives: nomads, ruins, prospectors, criminals and the unexplored.
+- **Where the clusters are:**
+  - **the North:** around the North Point, straight up the pole, 1,500 pc out. This is the northern Middle Reach,
+    midway between the Core and the Outer Clouds.
+  - **the Hearth:** 60 pc from the centre, just outside the Core (which ends at 30 pc). It sits in the crowded,
+    harsh Glow, where stars are about 11,000 AU apart.
+  - **the Rim:** 2,157 pc out in the Outer Clouds. Stars there are about 1.8 pc apart, still well inside a jump
+    drive's 1–10 pc.
+  - **three Reaches:** 812, 1,556 and 1,645 pc out.
+  - A seeded search placed them so the distances between clusters are as even as the Hearth and the Rim allow:
+    677–1,714 pc, varying by about 22%.
+- **How much they hold:** each power's claim is sized by the **systems it holds**, 8,000–14,000 by its age, not by
+  a distance. So territories are a couple of parsecs across in the Hearth, and tens of parsecs at the Rim. Counted by
+  sampling, the 46 powers hold about **563,000 systems** and contest another **105,000**. That's **668,000 in
+  all**, 0.004% of the galaxy's 15.9 billion. A power on the outside of its cluster, with no neighbour to share
+  with on one side, can hold up to about 40,000.
+- **Homes:** each power is a **species** of its own. Its home is a real star, one a player can fly to, on a living
+  world with ESI ≥ 0.75. There's a fallback where life is too hard: a water world that held on, or a rocky world
+  with air (a people who built their own shelter). Today every home found a living world, even in the Hearth.
+  - Homes sit at least 0.85 claims apart, within about 1.6 claims of their cluster's centre, so neighbours' claims
+    meet.
+  - Some chance in the pick makes the homes differ: 0.5 g to 1.3 g, 2 °C to 40 °C in the North alone.
 - **What a home shapes:**
   - its world's gravity sets ship build (heavy, balanced or light);
   - its sun sets senses (infrared under red and orange suns, ultraviolet under hot ones);
-  - its age and a seeded military and economy set strength.
-- **Space:** each power claims space within 120–240 pc of home, strongest at home and fading to nothing at the
-  edge. Every point belongs to **one power at most**: the strongest claim there. Borders never overlap, allies'
-  included. Where two *enemies'* claims are within 0.2 of each other, the space between them is **contested**: a
-  zone about 40 pc deep, either side of the surface where their claims are equal. Borders are surfaces in three
-  dimensions.
+  - a seeded military and economy set strength.
+- **Space:** each power's claim is strongest at home and fades to nothing at the edge. Every point belongs to **one
+  power at most**: the strongest claim there. Borders never overlap, allies' included. Where two *enemies'* claims
+  are within 0.2 of each other, the space between them is **contested**, either side of the surface where their
+  claims are equal. Borders are surfaces in three dimensions.
 
-As the model makes them today (names and numbers come from the seed):
+| Cluster | Where | Stars per pc³ | Powers | Homes span | A claim reaches | Wars (contested systems on the fronts) | Systems held | Contested |
+|---|---|---|---|---|---|---|---|---|
+| **North** | 1500 pc out, 90° N | 0.11 | 8 | 84 pc | 32.6–40.1 pc | 13 (312) | 93,037 | 19,370 |
+| **Hearth** | 60 pc out, 9° N | 1.1e+3 | 8 | 4.3 pc | 1.5–1.7 pc | 14 (336) | 92,801 | 19,377 |
+| **Rim** | 2157 pc out, 42° N | 0.029 | 8 | 134 pc | 49.1–58.0 pc | 14 (336) | 95,794 | 16,656 |
+| **Ulensenilon Reach** | 812 pc out, 33° S | 1.0 | 8 | 38 pc | 15.6–17.8 pc | 13 (312) | 90,130 | 15,628 |
+| **Gemenveo Reach** | 1645 pc out, 18° N | 0.080 | 8 | 106 pc | 36.8–51.2 pc | 13 (312) | 112,618 | 18,905 |
+| **Draulon Reach** | 1556 pc out, 17° N | 0.099 | 6 | 84 pc | 36.9–39.4 pc | 7 (168) | 78,841 | 14,786 |
+| **All six** | | | 46 | | | 74 (1776) | **563,221** | **104,722** |
+
+The North's powers, as the model makes them today (names and numbers come from the seed):
 
 | Power | Species | Home | Currency, coins per SU (day 0) | Allies | Enemies |
 |---|---|---|---|---|---|
-| Kaigemarrd Compact | Kaigemarrdi (heavy, infrared) | Terra, 1.27 g, 26 °C | kaigemarrd bead (KAI), 2.87 | Linaeulutis, Veora | Kaitis, Ulasenarvin, Ixumth |
-| Kaitis Collective | Kaitisi (heavy, infrared) | Forest, 1.33 g, 42 °C | kaitis mark (KAQ), 9.62 | Linaeulutis, Ulasenarvin | Kaigemarrd, Veora, Faofaar, Ixumth |
-| Linaeulutis Theocracy | Linaeulutisians (light, infrared) | EarthLike, 0.70 g, 11 °C | linaeulutis crown (LIN), 12.02 | Kaigemarrd, Kaitis, Faofaar, Ixumth | Veora, Ulasenarvin |
-| Veora Throne | Veorans (heavy, infrared) | Forest, 1.18 g, 7 °C | veora talent (VEO), 4.92 | Kaigemarrd, Ulasenarvin, Ixumth | Kaitis, Linaeulutis, Faofaar |
-| Faofaar Assembly | Faofaarari (light, visible) | EarthLike, 0.68 g, 8 °C | faofaar talent (FAO), 5.72 | Linaeulutis, Ulasenarvin, Ixumth | Kaitis, Veora |
-| Ulasenarvin Theocracy | Ulasenarvinese (balanced, visible) | EarthLike, 1.08 g, 15 °C | ulasenarvin florin (ULA), 6.11 | Kaitis, Veora, Faofaar, Ixumth | Kaigemarrd, Linaeulutis |
-| Ixumth Collective | Ixumthese (heavy, infrared) | EarthLike, 1.30 g, 17 °C | ixumth tithe (IXU), 0.89 | Linaeulutis, Veora, Faofaar, Ulasenarvin | Kaigemarrd, Kaitis |
+| Gemitorimos Dominion | Gemitorimosians (balanced, infrared) | EarthLike, 0.94 g, 5 °C | gemitorimos crown (GEM), 1.66 | Torumk Dominion, Breeth Collective | Zeaerd Compact, Linuquaes Throne, Roorhalul Compact, Ixira Directorate |
+| Zeaerd Compact | Zeaerdi (balanced, infrared) | EarthLike, 0.99 g, 33 °C | zeaerd mark (ZEA), 5.65 | Linuquaes Throne, Torumk Dominion | Gemitorimos Dominion, Ishitorarrd Compact, Roorhalul Compact, Breeth Collective |
+| Linuquaes Throne | Linuquaesi (heavy, infrared) | Terra, 1.24 g, 7 °C | linuquaes shard (LIN), 10.77 | Zeaerd Compact, Roorhalul Compact, Breeth Collective | Gemitorimos Dominion, Torumk Dominion, Ishitorarrd Compact, Ixira Directorate |
+| Torumk Dominion | Torumkari (balanced, infrared) | EarthLike, 1.05 g, 2 °C | torumk sol (TOR), 5.98 | Gemitorimos Dominion, Zeaerd Compact, Ishitorarrd Compact, Ixira Directorate, Breeth Collective | Linuquaes Throne, Roorhalul Compact |
+| Ishitorarrd Compact | Ishitorarrdi (light, visible) | Terra, 0.53 g, 40 °C | ishitorarrd tithe (ISH), 0.82 | Torumk Dominion, Roorhalul Compact | Zeaerd Compact, Linuquaes Throne, Ixira Directorate, Breeth Collective |
+| Roorhalul Compact | Roorhaluli (balanced, infrared) | EarthLike, 0.95 g, 34 °C | roorhalul ingot (ROO), 0.80 | Linuquaes Throne, Ishitorarrd Compact, Ixira Directorate, Breeth Collective | Gemitorimos Dominion, Zeaerd Compact, Torumk Dominion |
+| Ixira Directorate | Ixirans (light, visible) | Terra, 0.52 g, 4 °C | ixira mark (IXI), 2.58 | Torumk Dominion, Roorhalul Compact, Breeth Collective | Gemitorimos Dominion, Linuquaes Throne, Ishitorarrd Compact |
+| Breeth Collective | Breethese (balanced, visible) | EarthLike, 1.05 g, 3 °C | breeth dram (BRE), 0.81 | Gemitorimos Dominion, Linuquaes Throne, Torumk Dominion, Roorhalul Compact, Ixira Directorate | Zeaerd Compact, Ishitorarrd Compact |
 
 ### Alliances and enmities
 
@@ -278,7 +308,10 @@ As the model makes them today (names and numbers come from the seed):
   that meets the rules with the longest borders between enemies and the widest spread between allies.
 - **When geography won't fit:** a power with too few neighbours to fight reaches further (its claim grows) until
   the rules can be met. This keeps working if the galaxy changes.
-- **Today:** 9 wars between 7 powers; each power has 2–4 allies and 2–4 enemies.
+- **Within each cluster:** alliances and wars are among a cluster's own powers. Powers in different clusters are
+  too far apart to be allies or enemies; they are neutral.
+- **Today:** 74 wars among 46 powers (7 to 14 per cluster); each power has two or more allies and two or more
+  enemies.
 
 ### Wars: front lines
 
@@ -332,18 +365,19 @@ The star map is **three-dimensional**. You turn it, zoom it, and move from the w
 - **Contested space** between enemies is drawn with **dashed lines**: the two edges of the zone, as dashed surfaces.
 - Inside contested space, the front's systems are drawn in the colour of today's holder, linked along their supply
   chains: solid where supplied, dashed where cut off.
-- The viewer's first panel (`viewer.html`) is a working version: drag to turn, wheel to zoom.
+- The viewer's first panel (`viewer.html`) is a working version, one cluster at a time: drag to turn, wheel to
+  zoom.
 
 ### Smaller factions
 
-24 of them, made from the seed. Most belong to one of the great powers' species; some are mixed.
+44 of them, made from the seed. Most belong to one of the great powers' species; some are mixed.
 
 | Kind | How many | Where | How they move | Flagship |
 |---|---|---|---|---|
-| **Nomads** | 6 | anywhere in the Middle Reach and Outer Clouds | **nomadic:** 5–8 stops, travelling for 6 days each season, then staying | a fleet carrier (most) |
-| **Criminal syndicates** | 8 | on the war fronts (60%) and in the Glow | **rotating:** a new hideout each season, from 2–5 | a dreadnought |
-| **Prospector guilds** | 5 | the Glow and the Inner Reach (metal-rich) | **semi-permanent:** a claim held 3–6 seasons, then the next | a fleet carrier |
-| **Free ports** | 5 | between the great powers | **fixed** | a station |
+| **Nomads** | 8 | anywhere in the Middle Reach and Outer Clouds | **nomadic:** 5–8 stops, travelling for 6 days each season, then staying | a fleet carrier (most) |
+| **Criminal syndicates** | 16 | on the war fronts (60%) and in the Glow | **rotating:** a new hideout each season, from 2–5 | a dreadnought |
+| **Prospector guilds** | 8 | the Glow and the Inner Reach (metal-rich) | **semi-permanent:** a claim held 3–6 seasons, then the next | a fleet carrier |
+| **Free ports** | 12 | two in each cluster, between its powers | **fixed** | a station |
 
 - **Flagships** keep their factions self-sustaining:
   - **fleet carriers** (about 1.1–2.1 km long, 12–48 ships in the hangar) carry a market, refinery, repairs, fuel
@@ -360,7 +394,8 @@ The star map is **three-dimensional**. You turn it, zoom it, and move from the w
 
 Forty stock designs that NPCs fly, and players can buy where a yard sells them (`wip/emberreach/ships.js`, 15
 checks in `tests/emberreach_ships_t.js`). They range from one-seat shuttles to fleet carriers and dreadnoughts.
-- **Who builds them:** each of the seven great powers' yards, and three independent yards (Brask & Orrel Free Yards,
+- **Who builds them:** a great power's yards in each of the six clusters (two in the North), and three independent
+  yards (Brask & Orrel Free Yards,
   the Tamsin Mining Cooperative, Greyhook Salvage Works).
 - **Species:** a great power's yards build to its species' bodies. Heavy-bodied builders add 15% armour and lose
   10% agility; light ones lose 10% armour, gain 10% shields and turn 12% faster.
@@ -382,53 +417,53 @@ checks in `tests/emberreach_ships_t.js`). They range from one-seat shuttles to f
 - **In the shops:** prices are in the station's currency at the day's rate. A ship costs list price in its maker's
   own space, +10% at an ally's yard, +25% elsewhere and +40% near a front. Enemies' designs aren't sold.
 
-The catalogue, with prices in SU and in the Kaigemarrd Compact's bead at home on day 0 (2.86 beads per SU):
+The catalogue, with prices in SU and in the Gemitorimos Dominion's crown at home on day 0 (1.66 crowns per SU):
 
-| Ship | Size | Role | Yard | Hull / shields | Speed m/s, turn °/s | Cargo t | Jump pc | Guns S/M/L/H | Crew | Tech | Price, SU | In KAI at home |
+| Ship | Size | Role | Yard | Hull / shields | Speed m/s, turn °/s | Cargo t | Jump pc | Guns S/M/L/H | Crew | Tech | Price, SU | In GEM at home |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Wren | XS | shuttle | Brask & Orrel Free Yards | 90 / 40 | 220, 70 | 4 | 2 | 0/0/0/0 | 1 | 1 | 15 k – 20 k | 44 k – 56 k |
-| Kestrel | XS | fighter | Kaigemarrd Compact yards | 161 / 90 | 320, 86 | 0 | – | 2/0/0/0 | 1 | 2 | 48 k – 61 k | 137 k – 175 k |
-| Dart | XS | interceptor | Faofaar Assembly yards | 99 / 88 | 380, 123 | 0 | – | 2/0/0/0 | 1 | 3 | 53 k – 68 k | 151 k – 193 k |
-| Hob | XS | mining pod | Tamsin Mining Cooperative | 160 / 30 | 150, 50 | 12 | 1.5 | 1/0/0/0 | 1 | 1 | 18 k – 23 k | 51 k – 65 k |
-| Gnat | XS | racer | Linaeulutis Theocracy yards | 72 / 66 | 420, 118 | 2 | 3 | 0/0/0/0 | 1 | 3 | 52 k – 67 k | 149 k – 191 k |
-| Spur | XS | bomber | Veora Throne yards | 230 / 100 | 240, 54 | 0 | – | 0/1/0/0 | 2 | 2 | 50 k – 63 k | 141 k – 181 k |
-| Mote | XS | scout | Greyhook Salvage Works | 70 / 50 | 300, 90 | 1 | 4 | 0/0/0/0 | 1 | 2 | 27 k – 34 k | 76 k – 97 k |
-| Tinker | XS | repair tender | Ulasenarvin Theocracy yards | 150 / 70 | 200, 60 | 6 | 2 | 0/0/0/0 | 2 | 2 | 41 k – 53 k | 119 k – 151 k |
-| Lark | S | courier | Faofaar Assembly yards | 270 / 242 | 330, 84 | 20 | 6 | 1/0/0/0 | 2 | 3 | 219 k – 279 k | 625 k – 798 k |
-| Packet | S | light hauler | Brask & Orrel Free Yards | 380 / 150 | 210, 45 | 120 | 4 | 2/0/0/0 | 2 | 1 | 80 k – 102 k | 227 k – 290 k |
-| Pike | S | gunship | Ixumth Collective yards | 598 / 300 | 260, 50 | 10 | 4 | 2/2/0/0 | 3 | 2 | 233 k – 298 k | 667 k – 852 k |
-| Finch | S | explorer | Linaeulutis Theocracy yards | 297 / 286 | 250, 62 | 30 | 9 | 1/0/0/0 | 2 | 3 | 271 k – 346 k | 773 k – 988 k |
-| Burrow | S | miner | Tamsin Mining Cooperative | 480 / 180 | 170, 40 | 160 | 4 | 1/1/0/0 | 3 | 1 | 100 k – 127 k | 284 k – 363 k |
-| Shrike | S | heavy fighter | Kaigemarrd Compact yards | 483 / 320 | 300, 63 | 5 | 5 | 3/1/0/0 | 2 | 3 | 326 k – 417 k | 931 k – 1.2 m |
-| Jackal | S | raider | Greyhook Salvage Works | 400 / 250 | 310, 68 | 40 | 5 | 2/1/0/0 | 3 | 2 | 163 k – 209 k | 466 k – 596 k |
-| Wisp | S | stealth scout | Ulasenarvin Theocracy yards | 280 / 300 | 290, 65 | 10 | 8 | 1/0/0/0 | 2 | 4 | 367 k – 469 k | 1.0 m – 1.3 m |
-| Tern | S | passenger shuttle | Kaitis Collective yards | 402 / 200 | 240, 41 | 30 | 5 | 0/0/0/0 | 2 | 2 | 134 k – 172 k | 383 k – 490 k |
-| Drover | M | hauler | Brask & Orrel Free Yards | 1,100 / 500 | 180, 30 | 600 | 5 | 2/1/0/0 | 5 | 1 | 348 k – 445 k | 994 k – 1.3 m |
-| Corsair | M | multirole | Veora Throne yards | 1,610 / 900 | 240, 38 | 150 | 6 | 2/2/1/0 | 6 | 3 | 1.2 m – 1.5 m | 3.4 m – 4.4 m |
-| Halberd | M | corvette | Ixumth Collective yards | 2,415 / 1,300 | 230, 34 | 60 | 6 | 3/3/1/0 | 18 | 3 | 1.7 m – 2.2 m | 4.9 m – 6.2 m |
-| Seeker | M | long-range explorer | Linaeulutis Theocracy yards | 900 / 1,210 | 220, 45 | 120 | 14 | 1/1/0/0 | 5 | 4 | 1.8 m – 2.3 m | 5.2 m – 6.7 m |
-| Delver | M | miner | Tamsin Mining Cooperative | 1,600 / 600 | 150, 28 | 700 | 5 | 2/1/0/0 | 8 | 2 | 624 k – 797 k | 1.8 m – 2.3 m |
-| Mule | M | armoured trader | Kaitis Collective yards | 2,070 / 800 | 170, 27 | 500 | 6 | 2/2/0/0 | 7 | 2 | 992 k – 1.3 m | 2.8 m – 3.6 m |
-| Lancet | M | strike craft | Faofaar Assembly yards | 1,080 / 1,210 | 290, 56 | 40 | 7 | 2/3/0/0 | 6 | 4 | 1.5 m – 1.9 m | 4.4 m – 5.6 m |
-| Ferry | M | liner | Ulasenarvin Theocracy yards | 1,300 / 1,000 | 200, 30 | 200 | 7 | 1/0/0/0 | 30 | 3 | 956 k – 1.2 m | 2.7 m – 3.5 m |
-| Scavenger | M | salvager | Greyhook Salvage Works | 1,500 / 500 | 170, 32 | 450 | 5 | 2/1/0/0 | 8 | 1 | 384 k – 491 k | 1.1 m – 1.4 m |
-| Bulwark | L | frigate | Kaigemarrd Compact yards | 5,980 / 3,200 | 190, 22 | 300 | 7 | 4/4/2/0 | 60 | 3 | 5.8 m – 7.4 m | 16.5 m – 21.1 m |
-| Caravel | L | freighter | Brask & Orrel Free Yards | 4,200 / 1,600 | 150, 18 | 3,000 | 6 | 2/2/0/0 | 20 | 1 | 2.2 m – 2.7 m | 6.1 m – 7.9 m |
-| Warden | L | patrol cruiser | Veora Throne yards | 8,970 / 4,200 | 180, 18 | 250 | 7 | 4/4/3/0 | 90 | 3 | 7.3 m – 9.4 m | 20.9 m – 26.7 m |
-| Atlas | L | mining refinery | Tamsin Mining Cooperative | 6,500 / 2,000 | 120, 14 | 4,000 | 5 | 2/2/1/0 | 40 | 2 | 4.5 m – 5.8 m | 12.9 m – 16.5 m |
-| Pilgrim | L | deep explorer | Linaeulutis Theocracy yards | 3,420 / 4,180 | 170, 22 | 600 | 20 | 2/2/0/0 | 30 | 5 | 13.9 m – 17.8 m | 39.8 m – 50.8 m |
-| Reaver | L | raider | Greyhook Salvage Works | 5,000 / 2,600 | 210, 24 | 800 | 7 | 4/3/2/0 | 45 | 2 | 3.8 m – 4.8 m | 10.8 m – 13.8 m |
-| Wellspring | L | fuel tanker | Ulasenarvin Theocracy yards | 4,500 / 1,800 | 140, 15 | 2,500 | 8 | 2/1/0/0 | 25 | 2 | 3.8 m – 4.9 m | 10.8 m – 13.9 m |
-| Citadel | XL | destroyer (4 in hangar) | Ixumth Collective yards | 20,700 / 11,000 | 160, 11 | 800 | 8 | 6/6/4/1 | 320 | 4 | 47.5 m – 60.7 m | 135.8 m – 173.5 m |
-| Leviathan | XL | bulk freighter | Brask & Orrel Free Yards | 15,000 / 5,000 | 110, 8 | 30,000 | 6 | 3/3/1/0 | 120 | 1 | 18.7 m – 23.9 m | 53.4 m – 68.2 m |
-| Sovereign | XL | battlecruiser (6 in hangar) | Kaitis Collective yards | 29,900 / 16,000 | 170, 10 | 1,000 | 8 | 6/8/5/2 | 600 | 4 | 84.5 m – 108.0 m | 241.4 m – 308.4 m |
-| Ark | XL | colony ship (2 in hangar) | Ulasenarvin Theocracy yards | 20,000 / 9,000 | 100, 7 | 12,000 | 10 | 2/2/1/0 | 3,000 | 3 | 50.8 m – 64.9 m | 145.0 m – 185.3 m |
-| Bastion | Capital | fleet carrier (36 in hangar) | Brask & Orrel Free Yards | 90,000 / 40,000 | 90, 4 | 60,000 | 12 | 8/8/4/2 | 8,000 | 4 | 1.63 bn – 2.08 bn | 4.65 bn – 5.94 bn |
-| Tyrant | Capital | dreadnought (24 in hangar) | Kaigemarrd Compact yards | 184,000 / 70,000 | 80, 3 | 8,000 | 10 | 12/12/8/4 | 12,000 | 4 | 1.48 bn – 1.89 bn | 4.23 bn – 5.40 bn |
-| Monolith | Capital | battleship (12 in hangar) | Veora Throne yards | 138,000 / 60,000 | 85, 3 | 5,000 | 9 | 10/10/8/4 | 9,000 | 5 | 912.6 m – 1.17 bn | 2.61 bn – 3.33 bn |
+| Wren | XS | shuttle | Brask & Orrel Free Yards | 90 / 40 | 220, 70 | 4 | 2 | 0/0/0/0 | 1 | 1 | 15 k – 20 k | 26 k – 33 k |
+| Kestrel | XS | fighter | Gemitorimos Dominion yards | 140 / 90 | 320, 95 | 0 | – | 2/0/0/0 | 1 | 2 | 42 k – 54 k | 70 k – 90 k |
+| Dart | XS | interceptor | Kaenkauth Hegemony yards | 110 / 80 | 380, 110 | 0 | – | 2/0/0/0 | 1 | 3 | 51 k – 65 k | 85 k – 109 k |
+| Hob | XS | mining pod | Tamsin Mining Cooperative | 160 / 30 | 150, 50 | 12 | 1.5 | 1/0/0/0 | 1 | 1 | 18 k – 23 k | 30 k – 38 k |
+| Gnat | XS | racer | Gemebreamos Theocracy yards | 92 / 60 | 420, 95 | 2 | 3 | 0/0/0/0 | 1 | 3 | 55 k – 70 k | 91 k – 116 k |
+| Spur | XS | bomber | Roarmaren Republic yards | 180 / 110 | 240, 67 | 0 | – | 0/1/0/0 | 2 | 2 | 51 k – 65 k | 84 k – 107 k |
+| Mote | XS | scout | Greyhook Salvage Works | 70 / 50 | 300, 90 | 1 | 4 | 0/0/0/0 | 1 | 2 | 27 k – 34 k | 44 k – 56 k |
+| Tinker | XS | repair tender | Ixis Compact yards | 135 / 77 | 200, 67 | 6 | 2 | 0/0/0/0 | 2 | 2 | 41 k – 53 k | 69 k – 88 k |
+| Lark | S | courier | Kaenkauth Hegemony yards | 300 / 220 | 330, 75 | 20 | 6 | 1/0/0/0 | 2 | 3 | 211 k – 270 k | 351 k – 448 k |
+| Packet | S | light hauler | Brask & Orrel Free Yards | 380 / 150 | 210, 45 | 120 | 4 | 2/0/0/0 | 2 | 1 | 80 k – 102 k | 132 k – 169 k |
+| Pike | S | gunship | Zeaerd Compact yards | 520 / 300 | 260, 55 | 10 | 4 | 2/2/0/0 | 3 | 2 | 222 k – 284 k | 369 k – 471 k |
+| Finch | S | explorer | Gemebreamos Theocracy yards | 379 / 260 | 250, 50 | 30 | 9 | 1/0/0/0 | 2 | 3 | 281 k – 359 k | 467 k – 596 k |
+| Burrow | S | miner | Tamsin Mining Cooperative | 480 / 180 | 170, 40 | 160 | 4 | 1/1/0/0 | 3 | 1 | 100 k – 127 k | 165 k – 211 k |
+| Shrike | S | heavy fighter | Gemitorimos Dominion yards | 420 / 320 | 300, 70 | 5 | 5 | 3/1/0/0 | 2 | 3 | 290 k – 370 k | 482 k – 616 k |
+| Jackal | S | raider | Greyhook Salvage Works | 400 / 250 | 310, 68 | 40 | 5 | 2/1/0/0 | 3 | 2 | 163 k – 209 k | 271 k – 347 k |
+| Wisp | S | stealth scout | Ixis Compact yards | 252 / 330 | 290, 73 | 10 | 8 | 1/0/0/0 | 2 | 4 | 381 k – 487 k | 633 k – 809 k |
+| Tern | S | passenger shuttle | Fainyivin Hegemony yards | 402 / 200 | 240, 41 | 30 | 5 | 0/0/0/0 | 2 | 2 | 138 k – 177 k | 230 k – 294 k |
+| Drover | M | hauler | Brask & Orrel Free Yards | 1,100 / 500 | 180, 30 | 600 | 5 | 2/1/0/0 | 5 | 1 | 348 k – 445 k | 578 k – 739 k |
+| Corsair | M | multirole | Roarmaren Republic yards | 1,260 / 990 | 240, 47 | 150 | 6 | 2/2/1/0 | 6 | 3 | 1.2 m – 1.6 m | 2.1 m – 2.6 m |
+| Halberd | M | corvette | Zeaerd Compact yards | 2,100 / 1,300 | 230, 38 | 60 | 6 | 3/3/1/0 | 18 | 3 | 1.6 m – 2.1 m | 2.7 m – 3.4 m |
+| Seeker | M | long-range explorer | Gemebreamos Theocracy yards | 1,150 / 1,100 | 220, 36 | 120 | 14 | 1/1/0/0 | 5 | 4 | 1.9 m – 2.4 m | 3.1 m – 3.9 m |
+| Delver | M | miner | Tamsin Mining Cooperative | 1,600 / 600 | 150, 28 | 700 | 5 | 2/1/0/0 | 8 | 2 | 624 k – 797 k | 1.0 m – 1.3 m |
+| Mule | M | armoured trader | Fainyivin Hegemony yards | 2,070 / 800 | 170, 27 | 500 | 6 | 2/2/0/0 | 7 | 2 | 1.0 m – 1.3 m | 1.7 m – 2.2 m |
+| Lancet | M | strike craft | Kaenkauth Hegemony yards | 1,200 / 1,100 | 290, 50 | 40 | 7 | 2/3/0/0 | 6 | 4 | 1.5 m – 1.9 m | 2.4 m – 3.1 m |
+| Ferry | M | liner | Ixis Compact yards | 1,170 / 1,100 | 200, 34 | 200 | 7 | 1/0/0/0 | 30 | 3 | 979 k – 1.3 m | 1.6 m – 2.1 m |
+| Scavenger | M | salvager | Greyhook Salvage Works | 1,500 / 500 | 170, 32 | 450 | 5 | 2/1/0/0 | 8 | 1 | 384 k – 491 k | 638 k – 816 k |
+| Bulwark | L | frigate | Gemitorimos Dominion yards | 5,200 / 3,200 | 190, 24 | 300 | 7 | 4/4/2/0 | 60 | 3 | 5.1 m – 6.5 m | 8.5 m – 10.8 m |
+| Caravel | L | freighter | Brask & Orrel Free Yards | 4,200 / 1,600 | 150, 18 | 3,000 | 6 | 2/2/0/0 | 20 | 1 | 2.2 m – 2.7 m | 3.6 m – 4.6 m |
+| Warden | L | patrol cruiser | Roarmaren Republic yards | 7,020 / 4,620 | 180, 22 | 250 | 7 | 4/4/3/0 | 90 | 3 | 7.5 m – 9.6 m | 12.5 m – 16.0 m |
+| Atlas | L | mining refinery | Tamsin Mining Cooperative | 6,500 / 2,000 | 120, 14 | 4,000 | 5 | 2/2/1/0 | 40 | 2 | 4.5 m – 5.8 m | 7.5 m – 9.6 m |
+| Pilgrim | L | deep explorer | Gemebreamos Theocracy yards | 4,370 / 3,800 | 170, 18 | 600 | 20 | 2/2/0/0 | 30 | 5 | 14.2 m – 18.2 m | 23.6 m – 30.2 m |
+| Reaver | L | raider | Greyhook Salvage Works | 5,000 / 2,600 | 210, 24 | 800 | 7 | 4/3/2/0 | 45 | 2 | 3.8 m – 4.8 m | 6.3 m – 8.0 m |
+| Wellspring | L | fuel tanker | Ixis Compact yards | 4,050 / 1,980 | 140, 17 | 2,500 | 8 | 2/1/0/0 | 25 | 2 | 3.8 m – 4.8 m | 6.3 m – 8.0 m |
+| Citadel | XL | destroyer (4 in hangar) | Zeaerd Compact yards | 18,000 / 11,000 | 160, 12 | 800 | 8 | 6/6/4/1 | 320 | 4 | 45.2 m – 57.8 m | 75.1 m – 96.0 m |
+| Leviathan | XL | bulk freighter | Brask & Orrel Free Yards | 15,000 / 5,000 | 110, 8 | 30,000 | 6 | 3/3/1/0 | 120 | 1 | 18.7 m – 23.9 m | 31.1 m – 39.7 m |
+| Sovereign | XL | battlecruiser (6 in hangar) | Fainyivin Hegemony yards | 29,900 / 16,000 | 170, 10 | 1,000 | 8 | 6/8/5/2 | 600 | 4 | 87.1 m – 111.3 m | 144.7 m – 184.9 m |
+| Ark | XL | colony ship (2 in hangar) | Ixis Compact yards | 18,000 / 9,900 | 100, 8 | 12,000 | 10 | 2/2/1/0 | 3,000 | 3 | 50.8 m – 64.9 m | 84.4 m – 107.8 m |
+| Bastion | Capital | fleet carrier (36 in hangar) | Brask & Orrel Free Yards | 90,000 / 40,000 | 90, 4 | 60,000 | 12 | 8/8/4/2 | 8,000 | 4 | 1.63 bn – 2.08 bn | 2.71 bn – 3.46 bn |
+| Tyrant | Capital | dreadnought (24 in hangar) | Gemitorimos Dominion yards | 160,000 / 70,000 | 80, 3 | 8,000 | 10 | 12/12/8/4 | 12,000 | 4 | 1.27 bn – 1.63 bn | 2.12 bn – 2.70 bn |
+| Monolith | Capital | battleship (12 in hangar) | Roarmaren Republic yards | 108,000 / 66,000 | 85, 3 | 5,000 | 9 | 10/10/8/4 | 9,000 | 5 | 903.3 m – 1.15 bn | 1.50 bn – 1.92 bn |
 
 **Starting out:** a new player gets the cheapest jump-capable design their home yards sell under 100,000 SU (the
-Linaeulutis Gnat, the Ulasenarvin Tinker), or the independent Wren. They also get money worth 20,000 SU in their
+Gemebreamos Gnat, the Ixis Tinker), or the independent Wren (44 of the 46 powers). They also get money worth 20,000 SU in their
 home currency.
 
 ### Money

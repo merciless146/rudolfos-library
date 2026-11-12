@@ -15,7 +15,7 @@ b{color:#fff}
 </head>
 <body>
 <div class="row">
-  <figure><canvas id="north" width="620" height="520"></canvas><figcaption id="northCap"></figcaption></figure>
+  <figure><div id="clusterBtns" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px"></div><canvas id="north" width="620" height="520"></canvas><figcaption id="northCap"></figcaption></figure>
   <figure><canvas id="gal" width="620" height="620"></canvas><figcaption id="galCap"></figcaption></figure>
   <figure><canvas id="loc" width="460" height="460"></canvas><figcaption id="locCap"></figcaption>
     <canvas id="sys" width="460" height="140" style="margin-top:10px"></canvas><figcaption id="sysCap"></figcaption></figure>
@@ -41,8 +41,15 @@ function tColor(T) {
    contested zone between them, dashed. In the zone: the front's systems in the colour of today's holder, linked
    along their supply chains (solid where supplied, dashed where cut off). */
 (function () {
-	const F = EmberFactions, E = EmberEconomy, M = F.majors(); F.relations();
-	const cv = document.getElementById('north'), x = cv.getContext('2d'), W = cv.width, H = cv.height, np = G.northPoint(), day = 200;
+	const F = EmberFactions, E = EmberEconomy, ALL = F.majors(); F.relations();
+	const cv = document.getElementById('north'), x = cv.getContext('2d'), W = cv.width, H = cv.height, day = 200;
+	let M, np, span, layers, fronts, cloud, CL;
+	function load(cl) {
+		CL = cl; M = ALL.filter(m => m.cluster == cl.id);
+		const c = [0, 1, 2].map(k => M.reduce((t, m) => t + m.at[k], 0) / M.length); np = c;
+		span = 2.6 * Math.max(...M.map(m => Math.hypot(m.at[0] - c[0], m.at[1] - c[1], m.at[2] - c[2]) + m.claim));
+		build();
+	}
 	const hue = (i, a) => 'hsla(' + (i * 360 / M.length + 20) + ',72%,60%,' + (a == null ? 1 : a) + ')', idx = id => M.findIndex(m => m.id == id);
 	const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], nrm = v => { const l = Math.hypot(...v); return v.map(q => q / l) };
 	/* a grid on the surface where strength(a) - strength(b) = level, inside both claims and not inside a third power */
@@ -57,7 +64,8 @@ function tColor(T) {
 		} pts.push(row) }
 		return pts;
 	}
-	const layers = [];
+	function build() {
+	layers = [];
 	for (let i = 0; i < M.length; i++) for (let j = i + 1; j < M.length; j++) {
 		const a = M[i], b = M[j], enemy = F.relation(a.id, b.id) < 0;
 		if (!enemy) {
@@ -67,17 +75,18 @@ function tColor(T) {
 			for (const lv of [F.BAND * 0.999, -F.BAND * 0.999]) layers.push({g: surface(a, b, lv, p => { const c = F.claimAt(p); return (c.contested && c.contested.includes(a.id) && c.contested.includes(b.id)) || c.owner == a.id || c.owner == b.id }), dash: [4, 4], col: 'rgba(255,95,80,.6)', w: 1});
 		}
 	}
-	const fronts = F.wars().map(w => ({w, st: F.warState(w, day)}));
+	fronts = F.wars().filter(w => M.some(m => m.id == w.a)).map(w => ({w, st: F.warState(w, day)}));
 	/* territory: a light scatter of each power's own space (no two powers in one place) */
-	const cloud = []; const r = G.rng(3);
-	for (let k = 0; k < 9000; k++) { const p = np.map(v => v + (r() - .5) * 1000), c = F.claimAt(p); if (c.owner) cloud.push([p, idx(c.owner)]) }
+	cloud = []; const r = G.rng(3);
+	for (let k = 0; k < 9000; k++) { const p = np.map(v => v + (r() - .5) * span), c = F.claimAt(p); if (c.owner) cloud.push([p, idx(c.owner)]) }
+	}
 	let yaw = 0.6, pitch = 0.45, zoom = 1;
 	function proj(p) {
 		let X = p[0] - np[0], Y = p[1] - np[1], Z = p[2] - np[2];
 		const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
 		const x1 = X * cy - Y * sy, y1 = X * sy + Y * cy;          /* turn about the pole */
 		const z2 = Z * cp - y1 * sp, y2 = Z * sp + y1 * cp;        /* tip towards the viewer */
-		const f = 1400 / (1400 + y2), s = W / 1000 * zoom * f;
+		const f = 1.4 * span / (1.4 * span + y2), s = W / span * zoom * f;
 		return [W / 2 + x1 * s, H / 2 - z2 * s, y2];
 	}
 	function draw() {
@@ -108,7 +117,7 @@ function tColor(T) {
 		M.forEach((m, i) => { const [px, py] = proj(m.at); x.fillStyle = hue(i); x.beginPath(); x.arc(px, py, 5, 0, 7); x.fill(); x.strokeStyle = '#fff'; x.lineWidth = 1; x.stroke();
 			const t = m.name.replace(/^The /, '') + ' · ' + m.currency.code + ' ' + E.rate(m.currency.code, day).toFixed(2); x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(px + 7, py - 17, x.measureText(t).width + 6, 15); x.fillStyle = '#fff'; x.fillText(t, px + 10, py - 6) });
 		/* the pole */
-		const a = proj(np), b = proj([np[0], np[1], np[2] + 160]); x.strokeStyle = 'rgba(255,255,255,.5)'; x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke(); x.fillStyle = '#fff'; x.font = '11px system-ui'; x.fillText('north', b[0] + 4, b[1]);
+		const a = proj(np), b = proj([np[0], np[1], np[2] + span * 0.16]); x.strokeStyle = 'rgba(255,255,255,.5)'; x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke(); x.fillStyle = '#fff'; x.font = '11px system-ui'; x.fillText('north', b[0] + 4, b[1]);
 		x.fillText('drag to turn · wheel to zoom', 10, H - 10);
 	}
 	let drag = null;
@@ -116,10 +125,14 @@ function tColor(T) {
 	cv.addEventListener('pointermove', e => { if (!drag) return; yaw += (e.clientX - drag[0]) * 0.008; pitch = Math.max(-1.5, Math.min(1.5, pitch + (e.clientY - drag[1]) * 0.008)); drag = [e.clientX, e.clientY]; draw() });
 	cv.addEventListener('pointerup', () => drag = null);
 	cv.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.max(0.4, Math.min(5, zoom * Math.exp(-e.deltaY * 0.0015))); draw() }, {passive: false});
-	window.__view3d = (y, p, z) => { yaw = y; pitch = p; zoom = z || 1; draw() };
-	draw();
-	const nw = F.wars().length, nf = F.wars().reduce((t, w) => t + w.systems.length, 0);
-	document.getElementById('northCap').innerHTML = '<b>The northern powers in 3D</b> (drag to turn, wheel to zoom), around the North Point ' + (np[2] / G.GAL.axes[2]).toFixed(0) + ' pc out. ' + M.length + ' great powers (labels: currency, coins per Standard Unit on day ' + day + '); faint dots: each power\'s own space, never shared. Solid white grids: peaceful borders. Red dashed grids: the edges of contested space, where the ' + nw + ' wars are fought over ' + nf + ' systems: dots in the colour of today\'s holder, linked along supply chains (dashed and ringed white: cut off).';
+	function caption() {
+		const ws = fronts.length, nf = fronts.reduce((t, f) => t + f.w.systems.length, 0);
+		document.getElementById('northCap').innerHTML = '<b>' + CL.name + ' in 3D</b> (drag to turn, wheel to zoom), ' + CL.m.toFixed(0) + ' pc from the centre, ' + Math.abs(CL.lat).toFixed(0) + '° ' + (CL.lat >= 0 ? 'north' : 'south') + '; ' + span.toFixed(span < 10 ? 1 : 0) + ' pc across. ' + M.length + ' great powers (labels: currency, coins per Standard Unit on day ' + day + '); faint dots: each power\'s own space, never shared. Solid white grids: peaceful borders. Red dashed grids: the edges of contested space, where ' + ws + ' wars are fought over ' + nf + ' systems: dots in the colour of today\'s holder, linked along supply chains (dashed and ringed white: cut off).';
+	}
+	const btns = document.getElementById('clusterBtns');
+	G.clusters().forEach(cl => { const b = document.createElement('button'); b.textContent = cl.name; b.style.cssText = 'font:12px system-ui;padding:3px 8px;border-radius:5px;border:1px solid #445;background:#141a28;color:#dde'; b.onclick = () => { load(cl); caption(); draw() }; btns.appendChild(b) });
+	window.__view3d = (y, p, z, k) => { if (k != null) { load(G.clusters()[k]); caption() } yaw = y; pitch = p; zoom = z || 1; draw() };
+	load(G.clusters()[0]); caption(); draw();
 })();
 /* ---- the whole galaxy, seen down its short axis: light added up star by star ---- */
 (function () {
@@ -146,13 +159,13 @@ function tColor(T) {
 	/* Re */
 	x.strokeStyle = 'rgba(255,255,255,.35)'; x.beginPath(); x.ellipse(W / 2, H / 2, G.GAL.Re * sc, G.GAL.Re * G.GAL.axes[1] * sc, 0, 0, 7); x.stroke();
 	/* the civilisations and their reach */
-	const C = G.civilizations();
+	const C = G.civilizations(), K = G.clusters();
 	x.font = '11px system-ui';
-	C.forEach(c => { const px = W / 2 + c.star.x * sc, py = H / 2 - c.star.y * sc; x.strokeStyle = '#7fd4ff'; x.beginPath(); x.arc(px, py, Math.max(3, c.radius * sc), 0, 7); x.stroke(); x.fillStyle = '#7fd4ff'; x.fillText(c.name, px + 6, py - 5) });
+	K.forEach(k => { const px = W / 2 + k.at[0] * sc, py = H / 2 - k.at[1] * sc, n = C.filter(c => c.cluster == k.id).length; x.strokeStyle = '#7fd4ff'; x.lineWidth = 1.5; x.beginPath(); x.arc(px, py, 6, 0, 7); x.stroke(); x.fillStyle = '#7fd4ff'; x.fillText(k.name + ' (' + n + ')', px + 9, py - 6) });
 	/* scale bar */
 	x.fillStyle = '#fff'; x.fillRect(16, H - 22, 500 * sc, 2); x.fillText('500 pc', 16, H - 28);
 	const D = G.drake(G.sampleGalaxy(3000, 99), true);
-	document.getElementById('galCap').innerHTML = '<b>The galaxy</b>, ' + (G.STARS_TOTAL / 1e9).toFixed(1) + ' billion stars (160,000 drawn), seen down its short axis; 4.8 kpc across. White ring: the effective radius (300 pc). Dashed: where a Sun-like star\'s planets have a 50% and 90% chance of 4 billion years without a close pass. Blue: the ' + C.length + ' civilisations alive now (Drake: N ≈ ' + D.N.toFixed(1) + ').';
+	document.getElementById('galCap').innerHTML = '<b>The galaxy</b>, ' + (G.STARS_TOTAL / 1e9).toFixed(1) + ' billion stars (160,000 drawn), seen down its short axis; 4.8 kpc across. White ring: the effective radius (300 pc). Dashed: where a Sun-like star\'s planets have a 50% and 90% chance of 4 billion years without a close pass. Blue: the six clusters of great powers, ' + C.length + ' civilisations alive now (Drake: N ≈ ' + D.N.toFixed(1) + ').';
 })();
 /* ---- a local view: 6 pc around a civilisation's home ---- */
 (function () {
@@ -165,7 +178,7 @@ function tColor(T) {
 		counts[s.kind == 'star' ? s.cls : s.kind] = (counts[s.kind == 'star' ? s.cls : s.kind] || 0) + 1;
 		const g = x.createRadialGradient(px, py, 0, px, py, r * 2.5); g.addColorStop(0, 'rgba(' + col + ',1)'); g.addColorStop(1, 'rgba(' + col + ',0)'); x.fillStyle = g; x.beginPath(); x.arc(px, py, r * 2.5, 0, 7); x.fill();
 	}
-	x.strokeStyle = '#7fd4ff'; x.beginPath(); x.arc(W / 2, H / 2, 9, 0, 7); x.stroke(); x.fillStyle = '#7fd4ff'; x.font = '12px system-ui'; x.fillText(c.star.name + ' (home of the ' + c.name + ')', W / 2 + 12, H / 2 - 10);
+	x.strokeStyle = '#7fd4ff'; x.beginPath(); x.arc(W / 2, H / 2, 9, 0, 7); x.stroke(); x.fillStyle = '#7fd4ff'; x.font = '12px system-ui'; x.fillText(c.star.name + ' (home of ' + EmberFactions.majors()[0].name.replace(/^The /, 'the ') + ')', W / 2 + 12, H / 2 - 10);
 	x.fillStyle = '#fff'; x.fillRect(14, H - 20, sc, 2); x.fillText('1 pc', 14, H - 26);
 	document.getElementById('locCap').innerHTML = '<b>Close up</b>: the ' + near.length.toLocaleString() + ' stars within 6 pc of ' + c.star.name + ', ' + c.star.m.toFixed(0) + ' pc from the centre. ' + Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, v]) => k + ' ' + v).join(', ') + '.';
 	/* ---- its planets, with the habitable zone ---- */

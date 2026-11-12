@@ -1,6 +1,7 @@
 /* ===== Ember Reach: the stock ships (docs/plan-ember-reach.md, "Ships").
    Forty designs the NPCs fly (and players can buy, where a yard sells them): from one-seat shuttles to fleet
    carriers and dreadnoughts. Each is built by one of the great powers' shipyards or by an independent yard.
+   - Builders: one great power in each of the six clusters (two in the North), and three independent yards.
    - Stats: hull and shields (how much it takes), speed and agility, cargo, jump range (pc), hardpoints
      (small, medium, large, huge), crew, tech level (1-5), length.
    - A great power's yards build to its species' bodies: heavy-bodied builders add armour and lose agility, light
@@ -74,7 +75,8 @@ function ships() {
 	if (SHIPS) return SHIPS;
 	const M = F.majors();
 	SHIPS = STOCK.map(([name, size, role, maker, hull, shield, speed, agility, cargo, jump, hard, crew, tech, length, hangar, who]) => {
-		const m = typeof maker == 'number' ? M[maker % M.length] : null, b = BUILD[m ? m.species.build : 'balanced'];
+		/* yard k: a power of cluster k (mod 6), so every cluster builds ships (the seventh, the North's second power) */
+		const K = G.clusters(), m = typeof maker == 'number' ? M.filter(x => x.cluster == K[maker % K.length].id)[Math.floor(maker / K.length)] : null, b = BUILD[m ? m.species.build : 'balanced'];
 		const s = {id: name.toLowerCase(), name, size, role, maker: m ? m.id : 'yard' + maker, makerName: m ? m.name.replace(/^The /, '') + ' yards' : INDEPENDENT[maker],
 			hull: Math.round(hull * b.hull), shield: Math.round(shield * b.shield), speed, agility: Math.round(agility * b.agility), cargo, jump, hard, crew, tech, length, hangar, who: who.split(' ')};
 		s.value = value(s);
