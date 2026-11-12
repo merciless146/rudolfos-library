@@ -374,6 +374,25 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
 - Hostile ships within 5 km hold you out of cruise.
 - **Old defences around ruins** come with exploration (M5).
 
+### Cargo hatch and canisters
+
+`wip/emberreach/canisters.js`, with the trim in `flight.js` (11 checks in `tests/emberreach_canisters_t.js`).
+
+- **Canisters:** goods loose in space are cargo canisters, one tonne of one good each, drifting and tumbling. They
+  break up after 15 minutes. Wrecks leave them: a trader 3 to 8 (mostly one good, up to half its hold), a pirate up
+  to 3, a navy ship sometimes a tonne of Munitions, a depot 4 to 8 tonnes of Munitions. They show on the scanner and
+  can be targeted.
+- **The hatch:** every ship with a hold has a cargo hatch on its belly, opened and shut by the pilot (I, or HATCH on
+  touch). Open, the ship drops into its **scooping trim**:
+  - the hatch's drag slows the ship (it loses 63% of its speed in 1.5 s, flight assist or not);
+  - flight assist holds it to 12% of top speed (pushing against the drag, so the set speed is the speed);
+  - the stick turns at 40% of its rates, for fine work.
+  A canister that drifts into the hatch at under 20 m/s relative to the ship comes aboard if the hold has room.
+  Scooped goods cost nothing, so they lower the hold's average price. The hatch shuts itself for cruise and jumps.
+- **In combat** it's the hatch that takes hits, not the hold. A broken hatch is stuck open: the ship stays in its
+  scooping trim, it can't scoop (the mechanism is wrecked), and the hold spills a tonne every 8 s, the commonest good
+  first, as canisters drifting off behind. Ports repair it.
+
 ### Modules and damage
 
 Every ship carries the same core modules, each with its own health pool, shown on the **internal-systems HUD**
@@ -393,7 +412,7 @@ points (at least 10), and a hit lands on a module in proportion to its size. A m
 | Life support | 8% | (Later: a clock before the pilot passes out.) |
 | Sensors | 6% | No scanner. |
 | Weapons (armed ships) | 6% | The guns and missiles don't fire. |
-| Cargo hold (ships with cargo) | 6% | (Later: cargo lost to space.) |
+| Cargo hatch (ships with a hold) | 6% | Jammed open: the ship is held to its scooping trim, can't scoop, and the hold spills a tonne every 8 s (see "Cargo hatch and canisters"). |
 
 So a Wren's canopy has 10 points and its engines 13; a Kestrel's 10 and 18; a Monolith's 6,480 and 15,120.
 
@@ -823,6 +842,8 @@ home currency.
    - **The starport:** restocking (munitions at the market's price), repairs that mend the hull too, contracts on
      the bulletin board, the loadout on Outfitting, missions on Status.
    - **Saves** carry the hull's health, the magazines and the missions in hand.
+   - **Cargo hatch and canisters** (`canisters.js`): wrecks leave canisters; the hatch (I) opens into the scooping
+     trim to collect them; a broken hatch jams open and spills the hold.
    - **Sound:** gunfire, hits on shields and hull, explosions, the missile lock and the incoming-missile warning.
 6. **M5:** exploration in full: scanning, surveys, ruins, naming, missions. The package moves to `apps/` and
    reaches the App Store.

@@ -6,7 +6,9 @@
    - engines (main drive), RCS, ACS: that thrust is gone; flight assist flies on what's left (flight.js);
    - hyperspace drive: no jumps;
    - canopy: the pilot feels g-forces. While the canopy holds, its field takes them and the pilot feels none.
-   - shields, sensors, weapons, life support, cargo hold: their own effects arrive with M4.
+   - shields: no shields; sensors: no scanner; weapons: no guns or missiles (combat.js, play.js);
+   - cargo hatch (ships with a hold): stuck open, so the ship is held to its scooping trim and the hold spills a
+     tonne at a time (canisters.js); life support: later.
    A broken module raises a HUD alert: the ship's side profile, top left, with the module flashing, and a console
    line "<module> inoperable" under a warning triangle: orange, or red for the critical modules (power plant,
    engines, hyperspace drive).
@@ -25,7 +27,7 @@ const MODULES = [
 	{id: 'life', name: 'Life support', share: 0.08},
 	{id: 'sensors', name: 'Sensors', share: 0.06},
 	{id: 'weapons', name: 'Weapons', share: 0.06, needs: s => s.hard && s.hard.some(n => n > 0)},
-	{id: 'cargo', name: 'Cargo hold', share: 0.06, needs: s => s.cargo > 0}];
+	{id: 'hatch', name: 'Cargo hatch', share: 0.06, needs: s => s.cargo > 0}];
 const COLORS = {warning: '#f2a33a', critical: '#e5484d'};
 const G0 = 9.81;
 

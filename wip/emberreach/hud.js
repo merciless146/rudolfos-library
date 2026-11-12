@@ -20,7 +20,7 @@ const MONO = '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace', SANS 
 /* the ship's side profile (nose right), the same zones as the HUD mockup */
 const PROFILE = {hull: 'M20 50 L60 34 L200 30 L250 40 L300 58 L250 74 L200 84 L60 86 L20 72 Z',
 	engines: ['M6 46 L36 42 L36 80 L6 76 Z'], rcs: ['M44 36h14v8h-14z', 'M44 76h14v8h-14z'], power: ['M70 40h50v22h-50z'], jump: ['M70 65h50v17h-50z'],
-	shields: ['M126 38h48v20h-48z'], weapons: ['M140 72h44v9h-44z'], cargo: ['M140 72h44v9h-44z'], life: ['M126 60h48v10h-48z', 'M180 44h24v22h-24z'],
+	shields: ['M126 38h48v20h-48z'], weapons: ['M140 72h44v9h-44z'], hatch: ['M138 84h48v5h-48z'], life: ['M126 60h48v10h-48z', 'M180 44h24v22h-24z'],
 	acs: ['M210 66h22v9h-22z', 'M210 44h16v8h-16z'], canopy: ['M198 31 C214 15 246 17 268 43 L250 41 L200 33 Z'], sensors: ['M272 50 L304 58 L272 66 Z']};
 let P2 = null;
 const path = d => (P2 = P2 || {}, P2[d] || (P2[d] = new Path2D(d)));
@@ -116,14 +116,19 @@ function draw(ctx, W, H, h, t) {
 	const bw = small ? 240 : 290, bh = 118, bx = 16, by = H - bh - (h.touch ? 190 : 16);
 	box(ctx, bx, by, bw, bh);
 	if (h.combat) {
-		const k = h.combat, py = by - 66;
-		box(ctx, bx, py, bw, 60);
+		const k = h.combat, py = by - 84;
+		box(ctx, bx, py, bw, 78);
 		const rows = [['SHLD', k.shield, C.cyan], ['HULL', k.hull, k.hull < 0.3 ? C.red : k.hull < 0.6 ? C.amber : C.green], ['HEAT', k.heat, k.hot ? C.red : k.heat > 0.75 ? C.amber : '#c9a46a']];
 		rows.forEach(([l, v, col], i) => { const yy = py + 10 + i * 16; text(ctx, l, bx + 10, yy + 8, {mono: true, size: 10, col: C.muted}); bar(ctx, bx + 50, yy, bw - 150, 8, v, col) });
 		if (k.hot) text(ctx, 'OVERHEAT', bx + bw - 92, py + 34, {mono: true, size: 10, weight: 700, col: C.red});
 		const inv = [k.ammo != null ? 'RND ' + k.ammo : null, k.missileMax ? 'MSL ' + k.missiles : null, 'FLR ' + k.flares].filter(Boolean);
 		inv.forEach((t2, i) => text(ctx, t2, bx + bw - 10, py + 18 + i * 16, {mono: true, size: 10, col: C.muted, align: 'right'}));
-		if (!k.armed) text(ctx, 'UNARMED', bx + bw - 10, py + 50, {mono: true, size: 10, col: C.muted, align: 'right'});
+		/* the status line: the hatch, an incoming missile */
+		const sts = [];
+		if (h.hatch) sts.push([h.hatch == 'jammed' ? 'HATCH JAMMED · SPILLING' : 'HATCH OPEN · SCOOPING', h.hatch == 'jammed' ? C.red : C.cyan]);
+		if (h.incoming) sts.push(['MISSILE INBOUND', C.red]);
+		if (!k.armed && !sts.length) sts.push(['UNARMED', C.muted]);
+		let sx2 = bx + 10; for (const [t2, col] of sts) { text(ctx, t2, sx2, py + 68, {mono: true, size: 10, weight: 700, col}); ctx.font = '700 10px ' + MONO; sx2 += ctx.measureText(t2).width + 14 }
 	}
 	text(ctx, h.cruise ? 'CRUISE' : 'SPEED', bx + 12, by + 22, {col: C.muted, size: 11, mono: true});
 	text(ctx, fmtSpeed(h.speed), bx + 12, by + 50, {size: 26, weight: 600, mono: true, col: h.cruise ? C.cyan : C.text});
@@ -137,7 +142,6 @@ function draw(ctx, W, H, h, t) {
 	if (h.cruise) chips.push(['CRUISE', C.cyan]); else if (h.charging) chips.push(['CHARGING ' + Math.ceil(h.charging), C.cyan]); else if (h.massLocked) chips.push(['MASS LOCKED', C.muted]);
 	if (h.jumpCharge) chips.push(['JUMP ' + Math.ceil(h.jumpCharge), C.cyan]);
 	if (h.fuel != null) chips.push(['FUEL ' + Math.round(h.fuel * 100) + '%', h.fuel < 0.25 ? C.amber : C.muted]);
-	if (h.incoming) chips.push(['MISSILE', C.red]);
 	if (h.gFelt != null) chips.push([h.gFelt.toFixed(1) + ' g', h.gFelt > 4 ? C.amber : C.muted]);
 	let chx = bx + 12;
 	for (const [s, col] of chips) { ctx.font = '600 11px ' + MONO; const w = ctx.measureText(s).width + 12; ctx.strokeStyle = col; ctx.strokeRect(chx + 0.5, by + 72.5, w, 20); text(ctx, s, chx + 6, by + 86, {mono: true, size: 11, col, weight: 600}); chx += w + 6 }

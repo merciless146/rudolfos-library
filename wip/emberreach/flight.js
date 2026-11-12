@@ -14,6 +14,8 @@
    (for heat and fuel later).
    Frames: FA can fly relative to a moving or spinning frame (a station), so docking at a spinning port means
    matching its spin. The thrusters still set the limits.
+   The cargo hatch: with it open (s.hatch) the ship is in its scooping trim: the hatch's drag slows it, FA holds
+   it to 12% of top speed, and the stick turns at 40% of its rates, so it can be eased up to a cargo container.
    Axes, body frame: x right, y up, z forward (the nose). Pitch is about x, yaw about y, roll about z.
    GPL-2.0-or-later. ===== */
 (function (root) {
@@ -31,7 +33,9 @@ const TUNE = {
 	strafe: 0.3,     /* FA's top strafe and reverse speed, as a fraction of top speed */
 	keelF: 0.25,     /* FA's time constants, as fractions of reach (speed) and spin (turns): small = firm */
 	keelL: 0.08,
-	keelW: 0.25
+	keelW: 0.25,
+	hatch: {speed: 0.12, rates: 0.4, drag: 1.5}   /* with the cargo hatch open: FA's top speed (of top speed), the
+	                    stick's share of the turn rates, and the hatch's drag (s to lose 63% of the speed) */
 };
 
 /* ---- vectors and quaternions (arrays) ---- */
@@ -90,23 +94,26 @@ function step(s, input, dt, frame) {
 	/* what the thrusters can give now: modules.js sets s.output when the main drive, RCS, ACS or power plant fail */
 	const out = s.output || {main: 1, rcs: 1, acs: 1}, aMain = S.aMain * out.main, aRcs = S.aRcs * out.rcs, aRetro = S.aRetro * out.rcs;
 	const aAlpha = S.alpha.map(a => a * out.acs);
-	const lim = [[-aRcs, aRcs], [-aRcs, aRcs], [-aRetro, aMain]];
+	const lim = [[-aRcs, aRcs], [-aRcs, aRcs], [-aRetro, aMain]], H = s.hatch ? TUNE.hatch : null, fine = H ? H.rates : 1;
 	let aB, alpha;
 	if (s.fa) {
 		/* linear: the velocity FA wants (relative to the frame), approached with keel-like firmness sideways and a
 		   softer hand fore and aft */
-		const f = frameAt(frame, s.p), thr = clamp(I.throttle == null ? 0 : I.throttle, -TUNE.strafe, 1);
-		const want = [clamp(st[0], -1, 1) * S.vStrafe, clamp(st[1], -1, 1) * S.vStrafe, thr * S.vmax];
+		const f = frameAt(frame, s.p), thr = clamp(I.throttle == null ? 0 : I.throttle, H ? -H.speed : -TUNE.strafe, H ? H.speed : 1);
+		const vs = H ? Math.min(S.vStrafe, H.speed * S.vmax) : S.vStrafe;
+		const want = [clamp(st[0], -1, 1) * vs, clamp(st[1], -1, 1) * vs, thr * S.vmax];
 		const err = toBody(s.q, sub(add(f.v, toWorld(s.q, want)), s.v));
 		/* feed-forward: the wanted velocity turns with the nose (spin × want), and a spinning frame's velocity at
 		   the ship changes at w × v; FA thrusts for both as they happen instead of waiting for the slide */
-		const ff = add(toBody(s.q, cross(f.w, s.v)), cross(sub(s.w, toBody(s.q, f.w)), want));
+		let ff = add(toBody(s.q, cross(f.w, s.v)), cross(sub(s.w, toBody(s.q, f.w)), want));
+		/* with the hatch open, FA also leans on the thrusters against its drag, so the set speed is the speed */
+		if (H) ff = add(ff, mul(toBody(s.q, sub(s.v, f.v)), 1 / H.drag));
 		const tau = [S.tauL, S.tauL, S.tauF];
 		aB = err.map((e, i) => clamp(e / Math.max(tau[i], dt) + ff[i], lim[i][0], lim[i][1]));
 		/* angular: the turn rate the stick asks for (relative to the frame's spin), reached on the ACS and held */
 		/* at speed, pitch and yaw are held to the turn the thrusters can follow (radius = speed² / lateral thrust),
 		   as a swimmer can't turn on the spot at a sprint; roll doesn't bend the path, so it isn't held */
-		const asked = [I.pitch || 0, I.yaw || 0, I.roll || 0].map((c, i) => clamp(c, -1, 1) * S.rates[i]);
+		const asked = [I.pitch || 0, I.yaw || 0, I.roll || 0].map((c, i) => clamp(c, -1, 1) * S.rates[i] * fine);
 		/* (with the RCS out FA can't bend the path at all, so it stops holding the turn back: the ship slides) */
 		const vr = len(sub(s.v, f.v)), turn = Math.hypot(asked[0], asked[1]), hold = TUNE.grip * aRcs / Math.max(vr, 1e-6);
 		if (aRcs > 0 && turn > hold) { asked[0] *= hold / turn; asked[1] *= hold / turn }
@@ -116,10 +123,12 @@ function step(s, input, dt, frame) {
 		/* direct: the stick fires the ACS, the throttle the main drive or the retros, the strafe the RCS */
 		const th = clamp(I.thrust || 0, -1, 1);
 		aB = [clamp(st[0], -1, 1) * aRcs, clamp(st[1], -1, 1) * aRcs, th >= 0 ? th * aMain : th * aRetro];
-		alpha = [I.pitch || 0, I.yaw || 0, I.roll || 0].map((c, i) => clamp(c, -1, 1) * aAlpha[i]);
+		alpha = [I.pitch || 0, I.yaw || 0, I.roll || 0].map((c, i) => clamp(c, -1, 1) * aAlpha[i] * fine);
 	}
 	/* integrate (semi-implicit Euler): a symmetric ship, so no gyroscopic coupling */
-	const aW = toWorld(s.q, aB);
+	let aW = toWorld(s.q, aB);
+	/* the open hatch's drag, against the motion relative to the frame */
+	if (H) aW = add(aW, mul(sub(frameAt(frame, s.p).v, s.v), 1 / H.drag));
 	s.v = add(s.v, mul(aW, dt));
 	s.p = add(s.p, mul(s.v, dt));
 	s.w = add(s.w, mul(alpha, dt));

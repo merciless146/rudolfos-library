@@ -123,6 +123,8 @@ A.cue = function (k, arg) {
 	case 'hullHit': burst(t, 0.3, 0.6, 'lowpass', 300); tone(t, 90, 0.2, 'square', 0.05, 50); break;
 	case 'boom': burst(t, 1.4, 0.2 + 0.6 * (arg == null ? 1 : arg), 'lowpass', 260); break;
 	case 'lock': tone(t, 1800, 0.06, 'sine', 0.05); tone(t + 0.08, 1800, 0.06, 'sine', 0.05); tone(t + 0.16, 2400, 0.2, 'sine', 0.05); break;
+	case 'hatch': burst(t, 0.6, 0.25, 'lowpass', 500); tone(t, 180, 0.5, 'square', 0.03, 120); break;
+	case 'scoop': tone(t, 520, 0.08, 'triangle', 0.06); tone(t + 0.1, 780, 0.12, 'triangle', 0.06); burst(t, 0.3, 0.2, 'lowpass', 700); break;
 	case 'incoming': for (let i = 0; i < 4; i++) tone(t + i * 0.09, 2100, 0.05, 'square', 0.05); break;
 	}
 };
