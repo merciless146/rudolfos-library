@@ -18,7 +18,7 @@ const req = (n, g) => isNode ? require('./' + n) : root[g];
 const F = req('factions.js', 'EmberFactions'), R = req('reputation.js', 'EmberReputation'), S = req('ships.js', 'EmberShips'), T = req('travel.js', 'EmberTravel'), E = req('economy.js', 'EmberEconomy');
 
 const ENC = {pirateOdds: {unclaimed: 0.5, contested: 0.45, claimed: 0.18, capital: 0.04}, missionDays: 10, maxMissions: 3, kills: 3, reconTime: 30, supplyTons: 5, bountyShare: 0.01, gangHarm: 40};
-const NEEDS = {strike: 'kills', blockade: 'kills', defend: 'kills', escort: 'kills', recon: 'stay', sabotage: 'depot', supply: 'deliver'};
+const NEEDS = {strike: 'kills', blockade: 'kills', defend: 'kills', escort: 'kills', recon: 'stay', sabotage: 'depot', supply: 'deliver', survey: 'surveyed', ruin: 'surveyed'};
 /* a depot: a target that doesn't fly or shoot */
 const DEPOT = {id: 'depot', name: 'Supply depot', size: 'L', role: 'depot', hull: 6000, shield: 1500, speed: 0, agility: 0, cargo: 0, jump: 0, hard: [0, 0, 0, 0], length: 120, value: 0, who: []};
 
@@ -85,6 +85,7 @@ function cast(star, day, P, ctx) {
 /* will this ship attack the player? */
 function hostile(P, npc, ctx) {
 	if (npc.provoked) return true;
+	if (npc.role == 'sentinel') return true;   /* the old defences around ruins answer to nobody living */
 	if (npc.role == 'trader' || npc.role == 'depot') return false;
 	const rep = P.rep[npc.faction] || 0;
 	if (npc.role == 'pirate') return rep < 500;
@@ -99,7 +100,7 @@ function hostile(P, npc, ctx) {
 function enemies(a, b, P) {
 	if (b.player) return hostile(P, a);
 	if (a.player) return hostile(P, b);
-	if (a.role == 'depot' || b.role == 'depot' || a.role == 'flagship' && b.role == 'flagship') return false;
+	if (a.role == 'depot' || b.role == 'depot' || a.role == 'sentinel' || b.role == 'sentinel' || a.role == 'flagship' && b.role == 'flagship') return false;
 	if (a.role == 'pirate' || b.role == 'pirate') return (a.role == 'pirate') != (b.role == 'pirate');
 	if (a.faction == b.faction) return false;
 	const fa = F.byId(a.faction), fb = F.byId(b.faction);
@@ -112,7 +113,8 @@ function killed(P, npc, ctx) {
 	const day = ctx.day, star = ctx.star, own = ctx.own || {}, msg = [], pay = [];
 	const f = F.byId(npc.faction), value = npc.ship.value || 0;
 	if (npc.wasHostile == null) npc.wasHostile = !npc.provokedByPlayer && hostile(P, npc);
-	if (npc.role == 'pirate') {
+	if (npc.role == 'sentinel') msg.push('An old defence falls silent');
+	else if (npc.role == 'pirate') {
 		const owner = own.owner || P.origin, code = currencyOf(owner) || currencyOf(P.origin), amount = Math.round(Math.max(50, value * ENC.bountyShare) * E.rate(code, day));
 		P.wallet[code] = (P.wallet[code] || 0) + amount; pay.push({code, amount});
 		if (own.owner) R.act(P, 'killPirate', own.owner);
@@ -164,6 +166,7 @@ function need(m) {
 	if (k == 'kills') return Math.max(0, ENC.kills - m.kills) + ' ' + F.byId(m.against).name.replace(/^The /, '') + ' ship' + (ENC.kills - m.kills == 1 ? '' : 's') + ' to destroy at ' + m.star.name;
 	if (k == 'stay') return 'Scan at ' + m.star.name + ': ' + Math.max(0, Math.ceil(ENC.reconTime - m.stay)) + ' s in the system';
 	if (k == 'depot') return 'Destroy the depot at ' + m.star.name;
+	if (k == 'surveyed') return 'Survey ' + m.planet + ' at ' + m.star.name + ': fly within 6 radii with it targeted, for 12 s';
 	return 'Deliver ' + ENC.supplyTons + ' t of Munitions to a port at ' + m.star.name;
 }
 /* progress that isn't a kill: time in a system, docking with munitions */
@@ -174,13 +177,17 @@ function tick(P, starId, dt, docked) {
 		if (NEEDS[m.type] == 'deliver' && docked && (P.cargo.Munitions || 0) >= ENC.supplyTons) { P.cargo.Munitions -= ENC.supplyTons; if (!P.cargo.Munitions) delete P.cargo.Munitions; m.delivered = true }
 	}
 }
-const complete = m => NEEDS[m.type] == 'kills' ? m.kills >= ENC.kills : NEEDS[m.type] == 'stay' ? m.stay >= ENC.reconTime : NEEDS[m.type] == 'depot' ? m.depot : !!m.delivered;
+const complete = m => NEEDS[m.type] == 'surveyed' ? !!m.surveyed : NEEDS[m.type] == 'kills' ? m.kills >= ENC.kills : NEEDS[m.type] == 'stay' ? m.stay >= ENC.reconTime : NEEDS[m.type] == 'depot' ? m.depot : !!m.delivered;
 /* finished missions pay and play into the war; late ones fail. Returns [{mission, ok, text}] */
 function settle(P, day) {
 	const out = [];
 	for (const m of P.missions || []) {
 		if (m.done) continue;
-		if (complete(m)) { R.warEffort(P, m, day); m.done = true; out.push({mission: m, ok: true, text: 'Mission complete: ' + m.text + '. Paid ' + m.reward.toLocaleString('en') + ' ' + m.currency}) }
+		if (complete(m)) {
+			/* war missions play into the front; exploration contracts are paid and please the issuer */
+			if (m.war) R.warEffort(P, m, day); else { R.act(P, 'mission', m.issuer); P.wallet[m.currency] = (P.wallet[m.currency] || 0) + m.reward }
+			m.done = true; out.push({mission: m, ok: true, text: 'Mission complete: ' + m.text + '. Paid ' + m.reward.toLocaleString('en') + ' ' + m.currency});
+		}
 		else if (day > m.due) { R.act(P, 'missionFailed', m.issuer); m.done = true; out.push({mission: m, ok: false, text: 'Mission failed: ' + m.text}) }
 	}
 	P.missions = (P.missions || []).filter(m => !m.done);

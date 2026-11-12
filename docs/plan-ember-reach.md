@@ -311,11 +311,28 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
 
 ### Exploration
 
-- Scanning reveals a system's planets, then their details: type, gravity, temperature, atmosphere, resources, ESI,
-  life and ruins.
-- Survey data sells to cartographers. First discovery of a living world or a ruin is credited to the player, who
-  may name it; names are kept in the save.
-- The star map is the model itself, from the whole galaxy down to one system.
+`wip/emberreach/explore.js` (13 checks in `tests/emberreach_explore_t.js`).
+
+- **The sweep:** arriving in a system, the sensors sweep it for 8 s and chart it: the star and every planet's type.
+- **Surveys:** fly within 6 radii of a targeted planet for 12 s to survey it: gravity, temperature, atmosphere,
+  Earth similarity (ESI), resources, life and ruins. The target panel shows the progress, then the findings.
+  Both need working sensors and power.
+- **First discoveries:** the great powers have charted their own claimed and contested space, and every system with
+  a port. Elsewhere the first survey is yours, and so is any ruin away from a port, even in claimed space. A living
+  world or a ruin you found first can be named (2 to 24 letters, digits, spaces, apostrophes and hyphens) at any
+  port's Universal Cartographics; the name shows wherever the planet does.
+- **Selling data:** Universal Cartographics buys each chart and survey once, in the port's coin (in SU through free
+  traders at contested ports, at their 8% cut). A system chart is 40 SU. A survey pays by type, from 90 SU (barren)
+  to 900 SU (forest and terra worlds), times (1 + ESI). Life adds 1,500 SU, ruins 6,000 SU, and a first discovery
+  pays 2.5 times. Selling pleases the port's holder a little.
+- **Ruins** (about one system in 330): coming within 25 radii of a ruin's world wakes its old defences, two to four
+  sentinels that attack anyone. Surveying a ruin turns up a cache: two to four canisters of Artefacts drift up, to
+  scoop through the hatch.
+- **Contracts:** a port's cartographers offer surveys of worlds in nearby systems you haven't charted (within
+  8 pc), and now and then a ruin rumoured within 20 pc. Each is due in 20 days, paid in their coin, and they count
+  towards the three missions you can hold.
+- The star map says which systems you've charted, and which unclaimed ones are uncharted.
+- The record is in the save (charts, surveys, what's sold, names).
 
 ### Trade
 
@@ -372,7 +389,7 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
   flares, red brackets and a lead pip on a hostile target, its shields and hull, the missile lock closing in, a red
   edge when you're hit, and a MISSILE warning.
 - Hostile ships within 5 km hold you out of cruise.
-- **Old defences around ruins** come with exploration (M5).
+- **Old defences around ruins:** sentinels (see "Exploration").
 
 ### Cargo hatch and canisters
 
@@ -846,7 +863,9 @@ home currency.
      trim to collect them; a broken hatch jams open and spills the hold.
    - **Sound:** gunfire, hits on shields and hull, explosions, the missile lock and the incoming-missile warning.
 6. **M5:** exploration in full: scanning, surveys, ruins, naming, missions. The package moves to `apps/` and
-   reaches the App Store.
+   reaches the App Store. **Exploration is playable** in `play.html` (see "Exploration"): the sweep, surveys, first
+   discoveries and naming, Universal Cartographics, ruins with their sentinels and caches, and survey contracts.
+   The move to `apps/` is its own step.
 7. **M5b:** colonies: claiming systems and building ports and facilities, after Elite Dangerous's Trailblazers
    (see [plan-ember-reach-colonies.md](plan-ember-reach-colonies.md)).
 8. **M6:** the Core, the black hole, polish; phones (1.6.0).

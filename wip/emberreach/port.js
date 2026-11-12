@@ -7,12 +7,13 @@
    and part-exchange (trade.js), the war office's contracts (factions.js), your reputation (reputation.js).
    EmberPort.open(env): env = {P, ship (stats), fit, fuel(), setFuel(f), star, port, stationName, day, onLaunch(),
    onShip(id), say(text), cue(name)}. M4: restocking munitions, repairs that mend the hull too, war contracts taken at
-   the bulletin board, and the missions in hand on the Status screen.
+   the bulletin board, and the missions in hand on the Status screen. M5: Universal Cartographics buys your survey
+   data and lets you name your first discoveries; the bulletin board carries the cartographers' contracts.
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -26,7 +27,7 @@ const ICON = {
 	carto: '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>', status: '<path d="M4 17a8 8 0 0 1 16 0"/><path d="M12 17l4-5"/>'};
 const svg = k => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[k] + '</svg>';
 
-let env = null, root = null, screen = 'station', sel = {good: null, ship: null}, ex = {from: null, to: null, amount: ''}, mkt = null;
+let env = null, root = null, screen = 'station', sel = {good: null, ship: null}, ex = {from: null, to: null, amount: ''}, mkt = null, naming = {};
 function open(e) {
 	env = e; root = document.getElementById('port'); root.hidden = false;
 	mkt = E.market(env.star, env.day);
@@ -75,7 +76,7 @@ function body() {
 	case 'shipyard': return shipyard();
 	case 'outfitting': return outfitting();
 	case 'contacts': return contacts();
-	case 'carto': return h1('Cartographics & lounges') + '<div class="pt-grid3">' + ['Universal cartographics|Sell scans of the systems you surveyed. Exploration (scanning, surveys, ruins) arrives in M5.', 'Passenger lounge|Travellers looking for berths. Passenger contracts arrive with missions.', 'Crew lounge|Pilots and gunners for larger hulls, paid each season. Crew arrive with the larger ships\' needs.'].map(x => { const [a, b] = x.split('|'); return '<section class="pt-card"><h2>' + a + '</h2><p>' + b + '</p></section>' }).join('') + '</div>';
+	case 'carto': return carto();
 	case 'status': return status();
 	}
 	return '';
@@ -111,10 +112,25 @@ const HOW = {kills: 'Destroy 3 enemy ships there', stay: 'Stay 30 s in the syste
 function bulletin() {
 	const o = holder(), me = P();
 	if (!o) return h1('Bulletin board') + '<section class="pt-card pt-narrow"><p>No great power posts here while the system is fought over.</p></section>';
-	const ms = En.offers(me, env.port, env.day), held = (me.missions || []).length, here = [env.star.x, env.star.y, env.star.z];
+	const ms = En.offers(me, env.port, env.day), xs = X.offers(me, env.star, env.port, env.day), held = (me.missions || []).length, here = [env.star.x, env.star.y, env.star.z];
+	const xad = m => '<div class="pt-ad"><span class="tag">' + (m.type == 'ruin' ? 'ruin' : 'survey') + '</span><div><b>' + esc(m.text) + '</b><span class="muted">' + esc('at ' + m.systemName + ' · ' + m.dist.toFixed(1) + ' pc · due in 20 days') + '</span></div><span class="gold num">' + money(m.reward, m.currency) + '</span>'
+		+ '<button class="pt-ghost" data-act="acceptx" data-m="' + esc(m.id) + '"' + (held >= En.ENC.maxMissions ? ' disabled' : '') + '>Accept</button></div>';
 	const ad = m => { const st = En.missionStar(m), d = st ? pc(here, st.at) : 0; return '<div class="pt-ad"><span class="tag">' + esc(m.type) + '</span><div><b>' + esc(m.text) + '</b><span class="muted">' + esc('against the ' + nm(m.against) + ' · ' + d.toFixed(1) + ' pc · ' + HOW[En.NEEDS[m.type]]) + '</span></div><span class="gold num">' + money(m.reward, m.currency) + '</span>'
 		+ '<button class="pt-ghost" data-act="accept" data-m="' + esc(m.id) + '"' + (held >= En.ENC.maxMissions ? ' disabled' : '') + '>Accept</button></div>' };
-	return h1('Bulletin board', 'The ' + nm(o) + '\'s war office') + '<section class="pt-card"><div class="pt-list">' + (ms.length ? ms.map(ad).join('') : '<p class="muted">No war contracts today.</p>') + '</div><p class="muted small">' + (held ? 'You hold ' + held + ' of ' + En.ENC.maxMissions + ' war missions (Status, F9). ' : '') + 'Missions are due in 10 days; the work counts on the front, double with a commission. Taking one makes its enemy\'s ships fight you there.</p></section>';
+	return h1('Bulletin board', 'The ' + nm(o) + '\'s war office') + '<section class="pt-card"><div class="pt-list">' + (ms.length ? ms.map(ad).join('') : '<p class="muted">No war contracts today.</p>') + '</div><h2>Cartographers</h2><div class="pt-list">' + (xs.length ? xs.map(xad).join('') : '<p class="muted">No survey contracts today.</p>') + '</div><p class="muted small">' + (held ? 'You hold ' + held + ' of ' + En.ENC.maxMissions + ' war missions (Status, F9). ' : '') + 'Missions are due in 10 days; the work counts on the front, double with a commission. Taking one makes its enemy\'s ships fight you there.</p></section>';
+}
+/* Universal Cartographics: sell the data; name your first discoveries */
+function carto() {
+	const me = P(), items = X.unsold(me), su = items.reduce((t, x) => t + x.su, 0), cur = here(), rate = cur == 'SU' ? 0.92 : E.rate(cur, env.day);
+	const X0 = me.explore || {sys: {}, pl: {}}, firsts = Object.values(X0.pl).filter(e => e.f).length;
+	const list = items.slice(0, 40).map(x => '<div class="pt-rep"><span>' + esc(x.kind == 'system' ? 'System chart · ' + (X.starById(x.key) || {name: x.key}).name : x.label) + '</span><span class="num">' + fmt(x.su * rate) + '</span><span class="' + (x.first ? 'good' : 'muted') + '">' + (x.first ? 'first' : '') + '</span></div>').join('');
+	const names = X.nameable(me).map(n => '<div class="pt-name-row"><span>' + esc(n.name) + ' · ' + esc(n.p.alive ? 'living world' : 'ruins') + '</span><input data-name="' + esc(n.key) + '" maxlength="24" placeholder="' + esc(n.named || 'A name') + '" value="' + esc(naming[n.key] != null ? naming[n.key] : '') + '"><button class="pt-ghost" data-act="rename" data-k="' + esc(n.key) + '">Name it</button>' + (n.named ? '<span class="good">' + esc(n.named) + '</span>' : '') + '</div>').join('');
+	return h1('Cartographics & lounges', 'Universal Cartographics buys charts and surveys, once each')
+		+ '<div class="pt-split"><section class="pt-card pt-table"><h2>Data to sell · ' + items.length + '</h2>' + (list || '<p class="muted">Nothing new. Arriving in a system charts it; flying close to a targeted planet surveys it.</p>') + (items.length > 40 ? '<p class="muted small">…and ' + (items.length - 40) + ' more</p>' : '')
+		+ '<div class="pt-btns"><button class="pt-primary" data-act="selldata"' + (items.length ? '' : ' disabled') + '>Sell all for ' + money(su * rate, cur == 'SU' ? (F.byId(me.origin).currency.code + ' (via free traders)') : cur) + '</button></div></section>'
+		+ '<aside class="pt-card pt-side"><h2>Explorer</h2><dl><dt>Systems charted</dt><dd>' + Object.keys(X0.sys).length + '</dd><dt>Planets surveyed</dt><dd>' + Object.keys(X0.pl).length + '</dd><dt>First discoveries</dt><dd>' + firsts + '</dd></dl>'
+		+ '<h2>Name your discoveries</h2>' + (names || '<p class="muted small">Living worlds and ruins you are first to survey can be named here.</p>')
+		+ '<h2>Lounges</h2><p class="muted small">Passengers and crew arrive with the larger ships\' needs.</p></aside></div>';
 }
 function outfitting() {
 	const L = C.loadout(env.ship), k = P().combat, guns = {};
@@ -185,6 +201,9 @@ function click(e) {
 	if (act == 'buyship') { const r = Tr.buyShip(me, env.ship.id, sel.ship, env.star, d); if (r.ok) { env.onShip(sel.ship); env.say('Bought a ' + env.ship.name + ': paid ' + fmt(Math.max(0, r.cost)) + ' ' + r.currency); env.cue('docked') } else env.say(r.why == 'hold' ? 'Your cargo won\'t fit its hold' : 'Not enough ' + (r.code || '') + ' for that ship') }
 	if (act == 'restock') { const c = restockCost(), r = Tr.pay(me, c.cost, here(), d); if (r.ok) { me.combat = C.refill(env.ship, me.combat); env.say('Restocked: ' + fmt(c.tons, 1) + ' t of munitions for ' + money(r.amount, r.code)); env.cue('clearance') } else env.say('Not enough ' + r.code + ' to restock') }
 	if (act == 'accept') { const m = En.offers(me, env.port, d).find(x => x.id == t.dataset.m), r = m ? En.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Mission accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
+	if (act == 'acceptx') { const m = X.offers(me, env.star, env.port, d).find(x => x.id == t.dataset.m), r = m ? X.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Contract accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
+	if (act == 'selldata') { const o = holder(), r = X.sell(me, o, o ? here() : 'SU', d); env.say(r.ok ? 'Sold ' + r.items + ' charts and surveys for ' + money(r.amount, r.code) : r.why); env.cue(r.ok ? 'docked' : 'refused') }
+	if (act == 'rename') { const k = t.dataset.k, r = X.rename(me, k, naming[k] || ''); env.say(r.ok ? 'Named: ' + r.name + '. The name goes in the charts.' : r.why); env.cue(r.ok ? 'clearance' : 'refused'); if (r.ok) delete naming[k] }
 	if (act == 'expct') { ex.amount = String(Math.floor((me.wallet[ex.from] || 0) * +t.dataset.n * 100) / 100) }
 	if (act == 'exchange') { const r = Tr.exchange(me, +ex.amount, ex.from, ex.to, d, holder()); if (r.ok) { env.say('Changed ' + money(+ex.amount, ex.from) + ' into ' + money(r.got, ex.to)); ex.amount = ''; env.cue('tick') } else env.say(r.why || 'The exchange refused') }
 	if (act == 'paybounty') { const c = F.byId(holder()).currency.code, b = me.bounties[c]; if (Tr.pay(me, b, c, d).ok) { delete me.bounties[c]; env.say('Bounty paid') } }
@@ -193,6 +212,7 @@ function click(e) {
 	const again = root.querySelector('[data-act="' + keep + '"]:not([disabled])'); if (again) again.focus();
 }
 function input(e) {
+	if (e.target.dataset.name) { naming[e.target.dataset.name] = e.target.value; return }
 	const k = e.target.dataset.ex; if (!k) return;
 	ex[k] = e.target.value;
 	if (k != 'amount') { render(); const s = root.querySelector('[data-ex="' + k + '"]'); if (s) s.focus() }

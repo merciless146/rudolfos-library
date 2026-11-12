@@ -108,7 +108,7 @@ function build(star, opts) {
 		const axis = [Math.sin(tilt) * Math.cos(az), Math.sin(tilt) * Math.sin(az), Math.cos(tilt)];
 		const dayLen = pl.locked ? P : pl.type == 'Gas' ? 0.35 + 0.35 * q() : 0.4 + 2.6 * q();
 		bodies.push({kind: 'planet', name: pl.name, type: pl.type, pos: [a * Math.cos(th), a * Math.sin(th), a * Math.sin(inc) * Math.sin(th)], radius: pl.R * RE, g: pl.g, Ts: pl.Ts, ring: pl.ring, life: pl.life, seed: G.hashStr(pl.name),
-			atmo: !!pl.atmo, locked: !!pl.locked, axis, period: dayLen * 86400, phase: q() * 2 * Math.PI});
+			atmo: !!pl.atmo, locked: !!pl.locked, axis, period: dayLen * 86400, phase: q() * 2 * Math.PI, src: pl});
 	}
 	const planets = bodies.filter(b => b.kind == 'planet');
 	const portWorld = (opts.portWorld != null ? (typeof opts.portWorld == 'string' ? planets.find(b => b.name == opts.portWorld) : planets[opts.portWorld]) : null) || planets[planets.length - 1] || null;
