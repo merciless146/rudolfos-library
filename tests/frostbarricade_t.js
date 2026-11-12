@@ -1,4 +1,4 @@
-/* Frost Barricade in Chromium (Playwright), as the Rudolf OS desktop opens it: shooting (mouse, keys, a controller,
+/* 25 Days (formerly Frost Barricade) in Chromium (Playwright), as the Rudolf OS desktop opens it: shooting (mouse, keys, a controller,
    touch), the weapons' effects, the barricade, day planning, losing and retrying a night, the weather radio and the weather, the wendigo, the last night's rescue, saves.
      node tests/frostbarricade_t.js [PORT] */
 const {chromium} = require('playwright');
@@ -76,7 +76,7 @@ async function open(pg) {
 			const shoot = (k, n) => { __fb.pick(k); N.cd = 0; N.reload = 0; for (let i = 0; i < (n || 1); i++) { __fb.fire(); __fb.run(1); N.cd = 0; N.burst = 0 } };
 			line(4); shoot('hail'); out.hail = N.elves.filter(e => e.hp < 5000).length;
 			line(4); shoot('aurora'); out.aurora = N.elves.filter(e => e.hp < 5000).length; out.stun = N.elves.every(e => e.hp == 5000 || e.stun > 0);
-			line(3); shoot('bauble'); out.boom = N.elves.filter(e => e.hp < 5000).length;
+			line(3); shoot('bauble'); __fb.run(25); out.boom = N.elves.filter(e => e.hp < 5000).length;
 			line(1); const x0 = N.elves[0].x; shoot('snowplow'); out.knock = N.elves[0].x - x0;
 			line(1); __fb.pick('flurry'); N.cd = 0; __fb.hold(true); let ch = false; for (let i = 0; i < 120 && !ch; i++) { __fb.run(1); ch = N.elves[0].chill > 0 } __fb.hold(false); out.chill = ch;
 			line(1); N.elves[0].x = 300; { const b = __fb.bodyOf(N.elves[0]); __fb.cross.x = b.x; __fb.cross.y = b.y } __fb.pick('hearth'); __fb.hold(true); __fb.run(20); __fb.hold(false); out.burn = N.elves[0].burn > 0;
@@ -124,7 +124,7 @@ async function open(pg) {
 			/* a second one gets away */
 			N.elves = []; __fb.spawn('mugger'); const m2 = N.elves[0]; m2.lane = m2.tl = 7; m2.x = FBART.front(7) - 1; __fb.run(3); const took = G.surv[0].disarmed; m2.x = __fb.W + 20; __fb.run(20); const lost = G.surv[0].disarmed && m2.dead;
 			N.elves = []; return {flips, span, walked, stole, fled, back, took, lost} });
-		ok('11i. a mugger comes on slowly, shifting lanes quickly back and forth', mg.flips >= 3 && mg.span >= 2 && mg.walked < 60, mg);
+		ok('11i. a mugger comes on slowly, shifting lanes quickly back and forth', mg.flips >= 3 && mg.span >= 2 && mg.walked < 80, mg);   /* (25 Days: elves are 30% faster) */
 		ok('11j. at the barricade it steals a survivor’s weapon (a guard’s first) and runs for the woods', mg.stole.loot == 0 && mg.stole.hazel && !mg.stole.moss && mg.fled > 30, mg);
 		ok('11k. brought down before it gets away: the weapon is back; if it escapes: gone for the night', mg.back && mg.took && mg.lost, mg);
 		const nn = await f.evaluate(() => { __fb.G.wx = Array(26).fill('clear'); __fb.G.night = 7; __fb.startNight(); return __fb.G.surv.every(s => !s.disarmed && !s.out) });
@@ -219,7 +219,7 @@ async function open(pg) {
 			const c = mk('shambler', 420, 7); c.hp = c.hp0 = 500; const behind = mk('shambler', 560, 7); behind.hp = behind.hp0 = 500; const s0 = a.hp; const cb = __fb.bodyOf(c); shoot(cb.x, cb.y, 'hail'); const pierce = {front: c.hp < 500, shield: a.hp == s0, behind: behind.hp == 500};
 			c.dead = true; behind.dead = true; N.run && 0;
 			/* a blast knocks it loose and back */
-			const x1 = a.x; G.wp.bauble.have = true; shoot(a.x - 4, __fb.bodyOf(a).y, 'bauble'); const blast = {dropped: !a.shield, back: a.x - x1, onField: N.shields.length};
+			const x1 = a.x; G.wp.bauble.have = true; shoot(a.x - 4, __fb.bodyOf(a).y, 'bauble'); __fb.run(25); const blast = {dropped: !a.shield, back: a.x - x1, onField: N.shields.length};
 			return {base, blocked, legs, covers, pierce, blast} });
 		ok('S1. shielders: cyan eyes, tougher than ordinary elves', sh.base.eye == '#3ff0ff' && sh.base.hp > sh.base.sham * 1.5, sh.base);
 		ok('S2. the shield stops shots at the body and head; the lower legs can be hit; it covers waist, chest and head', sh.blocked && sh.legs && sh.covers, sh);
@@ -252,7 +252,7 @@ async function open(pg) {
 		const cap = await f.evaluate(() => { for (let i = 0; i < 20; i++) document.querySelector('[data-h=train][data-d="1"]').click(); const p = __fb.G.plan; return p.repair + p.search + p.train });
 		ok('15. the hours cannot go past twelve', cap == 12, cap);
 		const day = await f.evaluate(() => { __fb.G.plan = {repair: 2, search: 10, train: 0}; __fb.G.bar = 500; __fb.runDay(); return {txt: document.getElementById('ovBody').textContent, bar: __fb.G.bar} });
-		ok('16. the day: the barricade repaired, and the search turns things up', day.bar == 640 && /Repaired the barricade/.test(day.txt) && /(Found|Ammunition|joins|Searched|bandages)/.test(day.txt), day);
+		ok('16. the day: the barricade repaired, and the search turns things up', day.bar >= 640 && /Repaired the barricade/.test(day.txt) && /(Found|Scrap|joins|Searched|bandages)/.test(day.txt) && !/Ammunition/.test(day.txt), day);
 		await f.click('#ovBtns button.main'); await sleep(200);
 		ok('17. ...and Night 2 falls', await f.evaluate(() => __fb.N && __fb.G.night == 2 && !__fb.N.over));
 		/* a controller: the right stick aims, the trigger fires */
@@ -285,6 +285,47 @@ async function open(pg) {
 		await sleep(400); await pg.reload(); const fr2 = () => pg.frames().find(x => x.url().includes('/www/index.html')); for (let i = 0; i < 60 && !(fr2() && await fr2().evaluate(() => !!window.__fb).catch(() => false)); i++) await sleep(100); const o2 = {f: fr2()}; await sleep(300);
 		const carry = await o2.f.evaluate(() => [...document.querySelectorAll('#ovBtns button')].map(b => b.textContent)[0]);
 		ok('24. opened again: "Carry on · Night 5"', /Carry on · Night 5/.test(carry), carry);
+		/* 25 Days (1.3) */
+		const d25 = await o2.f.evaluate(async () => {
+			const out = {}; document.getElementById('ov').hidden = true; __fb.newRun('normal'); __fb.G.wx = Array(26).fill('clear'); __fb.startNight(); const N = __fb.N, G = __fb.G; N.q = [[1e9, 'shambler']]; N.elves = [];
+			out.title = document.title; out.W = __fb.W;
+			/* moving: S takes Rudolf down the lanes, smoothly */
+			const r0 = N.rl; window.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyS', key: 's'})); document.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyS', key: 's', bubbles: true}));
+			for (let i = 0; i < 30; i++) __fb.run(1);
+			window.dispatchEvent(new KeyboardEvent('keyup', {code: 'KeyS', key: 's'})); document.dispatchEvent(new KeyboardEvent('keyup', {code: 'KeyS', key: 's', bubbles: true})); __fb.run(30);
+			out.moved = N.rl - r0;
+			/* the aim stops at 15 degrees */
+			N.rl = 7; __fb.cross.x = 300; __fb.cross.y = 40; out.aimUp = __fb.aimAngle(); __fb.cross.y = 430; out.aimDown = __fb.aimAngle();
+			/* a shot flies past the crosshair to an elf far behind it (Rudolf put in lane 7, the crosshair's follow reset) */
+			N.rl = 7; N.rv = 0; N.lastSy = null;
+			__fb.spawn('shambler'); const e = N.elves.at(-1); e.lane = e.tl = 7; e.x = 900; e.sp = 0; e.changer = e.sprinter = false; e.hp = e.hp0 = 500;
+			const b = __fb.bodyOf(e), s = __fb.shoulder(); __fb.cross.x = 400; __fb.cross.y = s.y + (b.y - s.y) * (400 - s.x) / (b.x - s.x);
+			__fb.pick('icicle'); N.cd = 0; N.reload = 0; G.wp.icicle.mag = 10; const sp0 = __fb.WEP.icicle.spread; __fb.WEP.icicle.spread = 0; __fb.fire(); __fb.run(1); __fb.WEP.icicle.spread = sp0; out.past = e.hp < 500;
+			/* unlimited ammunition: an empty magazine reloads, and quicker than before */
+			G.wp.icicle.mag = 0; N.cd = 0; __fb.run(1); out.reload = N.reload; out.inf = Object.values(__fb.WEP).every(w => w.inf);
+			/* survivors fire in their own time, and miss more untrained */
+			N.elves = []; for (let i = 0; i < 6; i++) { __fb.spawn('brute'); const x = N.elves.at(-1); x.x = 500 + i * 30; x.sp = 0; x.hp = x.hp0 = 1e6 }
+			G.surv = [0, 1, 2].map(i => ({name: 'S' + i, kind: 'fox', role: 'guard'})); G.surv.forEach((sv, i) => { sv.cd = [.4, 1.3, 2.2][i] });
+			const firstShot = []; for (let t = 0; t < 180; t++) { __fb.run(1); G.surv.forEach((sv, i) => { if (sv.fire > 0 && firstShot[i] == null) firstShot[i] = t }) }
+			out.stagger = firstShot;
+			G.skill = 0; G.surv.forEach(sv => { sv.missed = 0 }); let shots = 0; for (let t = 0; t < 60 * 60; t++) { G.surv.forEach(sv => { if (sv.fire == .12) shots++ }); __fb.run(1) }
+			const missed0 = G.surv.reduce((a, sv) => a + (sv.missed || 0), 0);
+			G.skill = 30; G.surv.forEach(sv => { sv.missed = 0 }); for (let t = 0; t < 60 * 60; t++) __fb.run(1);
+			const missed30 = G.surv.reduce((a, sv) => a + (sv.missed || 0), 0); out.miss = [missed0, missed30];
+			/* below 5% the survivors panic, drop their crossbows and run */
+			G.bar = G.barMax * .04; __fb.run(2); out.panic = {fled: G.surv.every(sv => sv.fled), drops: N.drops.length}; __fb.run(120); out.gone = G.surv.every(sv => sv.runX < 0);
+			/* faster elves, sprinters most */
+			__fb.spawn('sprinter'); out.sprint = N.elves.at(-1).sp; __fb.spawn('shambler'); out.shamb = N.elves.at(-1).sp;
+			return out });
+		ok('27. 25 Days: the new name, a wider field', d25.title == '25 Days' && d25.W > 1000, [d25.title, d25.W]);
+		ok('28. W/S move Rudolf up and down behind the barricade, quickly', d25.moved > 3, d25.moved);
+		ok('29. the aim stops at 15 degrees up and down', Math.abs(Math.abs(d25.aimUp) - Math.PI / 12) < .001 && Math.abs(d25.aimDown - Math.PI / 12) < .001, [d25.aimUp, d25.aimDown]);
+		ok('30. a shot flies on past the crosshair and hits an elf behind it', d25.past, d25);
+		ok('31. unlimited ammunition, quicker reloads', d25.inf && d25.reload > 0 && d25.reload < 1.1 * .7, [d25.inf, d25.reload]);
+		ok('32. the survivors fire each in their own time', new Set(d25.stagger).size == 3 && d25.stagger.every(v => v != null), d25.stagger);
+		ok('33. untrained survivors miss much more than trained ones', d25.miss[0] > d25.miss[1] * 2, d25.miss);
+		ok('34. below 5% the survivors panic: they drop their crossbows and run off', d25.panic.fled && d25.panic.drops == 3 && d25.gone, d25.panic);
+		ok('35. the elves are faster, the sprinters most of all', d25.sprint > 38 * .85 && d25.shamb > 22 * .85 * 1.2, [d25.sprint, d25.shamb]);
 		/* a phone on its side, and upright */
 		const ph = await br.newContext({viewport: {width: 740, height: 360}, hasTouch: true, isMobile: true});
 		const pp = await ph.newPage(); const m = await open(pp); await m.f.click('#ovBtns button');
