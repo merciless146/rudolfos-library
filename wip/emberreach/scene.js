@@ -89,7 +89,8 @@ function sdPart(p, q) {
 }
 
 /* ---------- the system ---------- */
-/* opts: day (orbits), port (station class), portWorld (index of the planet the port orbits) */
+/* opts: day (orbits), port (station class), portWorld (the planet the port orbits: its name or index; the last
+   planet if not given) */
 function build(star, opts) {
 	opts = opts || {};
 	const day = opts.day || 0, sys = G.system(star), r = G.rng(G.hashStr('scene:' + star.id));
@@ -101,23 +102,36 @@ function build(star, opts) {
 	for (const pl of sys.planets) {
 		const P = Math.sqrt(Math.pow(pl.a, 3) / Math.max(0.05, star.M)) * 365.25, th = r() * 2 * Math.PI + 2 * Math.PI * day / P, inc = (r() - 0.5) * 0.06;
 		const a = pl.a * AU;
-		bodies.push({kind: 'planet', name: pl.name, type: pl.type, pos: [a * Math.cos(th), a * Math.sin(th), a * Math.sin(inc) * Math.sin(th)], radius: pl.R * RE, g: pl.g, Ts: pl.Ts, ring: pl.ring, life: pl.life, seed: G.hashStr(pl.name)});
+		/* tilt and day: not in the galaxy model yet, so drawn per planet from its own seed (the orbits above keep
+		   theirs); a tidally locked world turns once per orbit, a gas giant fast, a rock in 0.4 to 3 days */
+		const q = G.rng(G.hashStr('spin:' + pl.name)), tilt = (pl.locked ? 0.02 : 0.45) * q(), az = q() * 2 * Math.PI;
+		const axis = [Math.sin(tilt) * Math.cos(az), Math.sin(tilt) * Math.sin(az), Math.cos(tilt)];
+		const dayLen = pl.locked ? P : pl.type == 'Gas' ? 0.35 + 0.35 * q() : 0.4 + 2.6 * q();
+		bodies.push({kind: 'planet', name: pl.name, type: pl.type, pos: [a * Math.cos(th), a * Math.sin(th), a * Math.sin(inc) * Math.sin(th)], radius: pl.R * RE, g: pl.g, Ts: pl.Ts, ring: pl.ring, life: pl.life, seed: G.hashStr(pl.name),
+			atmo: !!pl.atmo, locked: !!pl.locked, axis, period: dayLen * 86400, phase: q() * 2 * Math.PI});
 	}
 	const planets = bodies.filter(b => b.kind == 'planet');
-	const portWorld = planets[opts.portWorld != null ? opts.portWorld : planets.length - 1] || null;
+	const portWorld = (opts.portWorld != null ? (typeof opts.portWorld == 'string' ? planets.find(b => b.name == opts.portWorld) : planets[opts.portWorld]) : null) || planets[planets.length - 1] || null;
 	const cls = opts.port || 'halo';
-	/* the port: in orbit at one planetary radius up, on the day side; its axis points out from the planet, so the
+	/* the port: in orbit at one planetary radius up (two if the world has rings), on the day side; its axis points out from the planet, so the
 	   mouth faces open space */
 	let c, axis;
 	if (portWorld) {
 		const toStar = norm(mul(portWorld.pos, -1)), side = norm(cross(toStar, [0, 0, 1])), u = norm(add(mul(toStar, 0.8), mul(side, 0.6)));
-		c = add(portWorld.pos, mul(u, portWorld.radius * 2)); axis = u;
+		c = add(portWorld.pos, mul(u, portWorld.radius * (portWorld.ring ? 3 : 2))); axis = u;   /* clear of any rings (they reach 2.3 radii) */
 	} else { c = [AU, 0, 0]; axis = [-1, 0, 0] }
 	const xAx = norm(cross([0, 0, 1], axis).every(v => Math.abs(v) < 1e-9) ? [1, 0, 0] : cross([0, 0, 1], axis)), yAx = cross(axis, xAx);
 	const station = {cls, def: STATION[cls], name: (portWorld ? portWorld.name : star.name) + ' ' + STATION[cls].name, c, axis, x: xAx, y: yAx, spin: spinOf(cls), parts: partsOf(cls), world: portWorld};
 	return {star, bodies, station, day};
 }
 
+/* how far round a planet has turned (radians) at a game time: days since the epoch plus seconds */
+const turnOf = (b, day, t) => b.period ? b.phase + 2 * Math.PI * ((day * 86400 + t) % b.period) / b.period : 0;
+/* a planet's frame: its axis as z, and an x and y perpendicular, turned by its rotation */
+function bodyFrame(b, ang) {
+	const z = b.axis || [0, 0, 1], x0 = norm(Math.abs(z[2]) < 0.9 ? cross([0, 0, 1], z) : cross([1, 0, 0], z)), y0 = cross(z, x0), c = Math.cos(ang || 0), s = Math.sin(ang || 0);
+	return {x: add(mul(x0, c), mul(y0, s)), y: add(mul(x0, -s), mul(y0, c)), z};
+}
 /* station-local coordinates of a world point (unspun), and back */
 const toLocal = (st, p) => { const d = sub(p, st.c); return [dot(d, st.x), dot(d, st.y), dot(d, st.axis)] };
 const toWorldPt = (st, l) => add(st.c, add(add(mul(st.x, l[0]), mul(st.y, l[1])), mul(st.axis, l[2])));
@@ -237,7 +251,7 @@ function spawn(scene, dist) {
 	return {p, q: lookRotation(mul(st.axis, -1), st.y)};
 }
 
-const EmberScene = {AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
+const EmberScene = {AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
 	inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, lookRotation, rotZ,
 	v: {add, sub, mul, dot, cross, len, norm}};
 if (isNode) module.exports = EmberScene; else root.EmberScene = EmberScene;

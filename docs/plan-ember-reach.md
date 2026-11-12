@@ -14,8 +14,9 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
   - Flight, with flight assist: `flight.js` (`tests/emberreach_flight_t.js`, 19 checks).
   - Modules, damage and HUD alerts: `modules.js` (`tests/emberreach_modules_t.js`, 15 checks).
   - The pilot under g, with the canopy broken: `pilot.js` (`tests/emberreach_pilot_t.js`, 10 checks).
-  - A system to fly in, its ports, docking, cruise and collisions: `scene.js` (`tests/emberreach_scene_t.js`, 20
+  - A system to fly in, its ports, docking, cruise and collisions: `scene.js` (`tests/emberreach_scene_t.js`, 22
     checks).
+  - The save: `save.js` (`tests/emberreach_save_t.js`, 6 checks).
   - **The flight screen (M1):** `play.html`, with `play.js`, `render.js`, `meshes.js` and `hud.js`. Open it from a
     checkout (it loads gamekit from `lib/`); `?port=trefoil|bloom|lantern|halo`, `?ship=kestrel`, `?power=N`,
     `?canvas` for the fallback, `?debug` to break modules.
@@ -693,7 +694,8 @@ home currency.
   - finding the stars within 15 pc takes under 0.1 s, run off the frame loop (a worker where available);
   - with WebGL, 60 fps on any graphics card;
   - on the Canvas fallback on the Vivobook, under about 3,000 polygons per frame.
-- **Size:** code and ship models a few hundred KB, sound about 1.5 MB, within 2 MB.
+- **Size:** code and ship models a few hundred KB, sound about 1.5 MB, within 2 MB. In practice the sound is made in
+  Web Audio, so it costs a few KB; the flight screen and every model together are about 200 KB.
 
 ## Milestones
 
@@ -702,8 +704,20 @@ home currency.
 2. **M1:** fly a ship in one system, with WebGL and the Canvas fallback; planets, a star and a station to dock at.
    Gamekit controls. **Playable** (`wip/emberreach/play.html`): the home system of any great power from the model,
    its port in any of the four classes, flight with FA, cruise, docking, collisions and module damage, the HUD (with
-   the alerts, internal systems and g-strain vision), and level of detail. Still to come in M1: sound, saving the
-   ship between sessions, and planets' rotation and rings.
+   the alerts, internal systems and g-strain vision), and level of detail. **Done** with:
+   - **sound** (`sound.js`), all made in Web Audio, so nothing to download:
+     - the main drive's roar, the thrusters' hiss with every correction FA makes, a cruise drone and the cockpit hum;
+     - cues for alerts (orange two tones, red three fast), clearance, docking, collisions, cruise and FA;
+     - under g the sound muffles and a heartbeat comes in, and it's nearly silent while blacked out;
+     - on and off in the pause menu;
+   - **saves** (`save.js`, through gamekit):
+     - where you are and how you're moving, the ship's module damage, docked or not, and the settings;
+     - saved every 15 s, on docking, launching and pausing;
+     - saving to and loading from a file, and New game, in the pause menu;
+     - a damaged save starts a new game rather than breaking;
+   - **planets** that turn (tidally locked worlds once per orbit, others in 0.4 to 3 days, gas giants faster), tilted,
+     with **rings** (Ice or Stone, as the galaxy model gives them) and a rim of **haze** on worlds with air. Ports orbit
+     their power's own homeworld, clear of any rings.
 3. **M2:** the 3D star map and jumping: the whole galaxy, zoom to a region, plot a route; borders and contested
    space; lanes. The sky from real neighbours.
 4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.

@@ -110,6 +110,26 @@ function starColour(T) {
 	const r = t < 6600 ? 1 : Math.max(0.6, 1.3 - (t - 6600) / 9000), g = t < 6600 ? Math.min(1, 0.35 + (t - 2000) / 5800 * 0.62) : Math.max(0.75, 1 - (t - 6600) / 20000), b = t < 6600 ? Math.min(1, Math.max(0.1, (t - 2500) / 4600)) : 1;
 	return [r, g, b];
 }
+/* a planet's rings: flat bands between 1.35 and 2.3 radii (unit radius), with gaps; both faces lit. Ice is pale,
+   stone is brown and grey */
+function rings(kind, seed, quality) {
+	const m = new Mesh(), seg = quality == 'low' ? 48 : 96, bands = 14, base = kind == 'Ice' ? [0.82, 0.86, 0.9] : [0.55, 0.48, 0.4];
+	for (let b = 0; b < bands; b++) {
+		const n = hash3(b, 3, 7, seed); if (n < 0.22) continue;   /* gaps */
+		const r0 = 1.35 + 0.95 * b / bands, r1 = 1.35 + 0.95 * (b + 1) / bands, k = 0.7 + 0.45 * n, col = [base[0] * k, base[1] * k, base[2] * k, 0];
+		for (let i = 0; i < seg; i++) {
+			const a0 = i / seg * 2 * Math.PI, a1 = (i + 1) / seg * 2 * Math.PI, P = (r, a) => [r * Math.cos(a), r * Math.sin(a), 0];
+			m.tri(P(r0, a0), P(r1, a0), P(r1, a1), col, [0, 0, 1], [0, 0, 1], [0, 0, 1]).tri(P(r0, a0), P(r1, a1), P(r0, a1), col, [0, 0, 1], [0, 0, 1], [0, 0, 1]);
+			m.tri(P(r0, a0), P(r1, a1), P(r1, a0), col, [0, 0, -1], [0, 0, -1], [0, 0, -1]).tri(P(r0, a0), P(r0, a1), P(r1, a1), col, [0, 0, -1], [0, 0, -1], [0, 0, -1]);
+		}
+	}
+	return m;
+}
+/* the haze of a world with air, by type: rgb and strength */
+function atmosphere(type) {
+	return /Terra|Forest|EarthLike|Ocean/.test(type) ? [0.45, 0.66, 1.0, 0.75] : type == 'Exotic' ? [0.95, 0.72, 0.4, 0.55] : type == 'Desert' ? [0.95, 0.78, 0.58, 0.4]
+		: type == 'Tundra' ? [0.72, 0.86, 1.0, 0.45] : type == 'Gas' ? [0.88, 0.82, 0.7, 0.35] : [0.7, 0.7, 0.75, 0.25];
+}
 function star(T, quality) { const c = starColour(T); return sphere(quality == 'low' ? 2 : 3, () => [...c, 1]) }
 
 /* ---- stations: from scene.js's parts, grouped by how they spin. detail 'hi' (up close) or 'lo' (from afar:
@@ -169,6 +189,6 @@ function ship(length, quality) {
 	return m;
 }
 
-const EmberMeshes = {Mesh, COL, cylinder, torus, box, sphere, planet, planetColour, star, starColour, station, ship, noise};
+const EmberMeshes = {Mesh, COL, cylinder, torus, box, sphere, planet, planetColour, rings, atmosphere, star, starColour, station, ship, noise};
 if (typeof module != 'undefined') module.exports = EmberMeshes; else root.EmberMeshes = EmberMeshes;
 })(typeof window != 'undefined' ? window : this);
