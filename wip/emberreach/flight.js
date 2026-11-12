@@ -87,7 +87,10 @@ function relative(s, frame) {
    Returns the thrust used: linear acceleration (body and world), angular acceleration (body), effort (0..6). */
 function step(s, input, dt, frame) {
 	const S = s.spec, I = input || {}, st = I.strafe || [0, 0];
-	const lim = [[-S.aRcs, S.aRcs], [-S.aRcs, S.aRcs], [-S.aRetro, S.aMain]];
+	/* what the thrusters can give now: modules.js sets s.output when the main drive, RCS, ACS or power plant fail */
+	const out = s.output || {main: 1, rcs: 1, acs: 1}, aMain = S.aMain * out.main, aRcs = S.aRcs * out.rcs, aRetro = S.aRetro * out.rcs;
+	const aAlpha = S.alpha.map(a => a * out.acs);
+	const lim = [[-aRcs, aRcs], [-aRcs, aRcs], [-aRetro, aMain]];
 	let aB, alpha;
 	if (s.fa) {
 		/* linear: the velocity FA wants (relative to the frame), approached with keel-like firmness sideways and a
@@ -104,15 +107,16 @@ function step(s, input, dt, frame) {
 		/* at speed, pitch and yaw are held to the turn the thrusters can follow (radius = speed² / lateral thrust),
 		   as a swimmer can't turn on the spot at a sprint; roll doesn't bend the path, so it isn't held */
 		const asked = [I.pitch || 0, I.yaw || 0, I.roll || 0].map((c, i) => clamp(c, -1, 1) * S.rates[i]);
-		const vr = len(sub(s.v, f.v)), turn = Math.hypot(asked[0], asked[1]), hold = TUNE.grip * S.aRcs / Math.max(vr, 1e-6);
-		if (turn > hold) { asked[0] *= hold / turn; asked[1] *= hold / turn }
+		/* (with the RCS out FA can't bend the path at all, so it stops holding the turn back: the ship slides) */
+		const vr = len(sub(s.v, f.v)), turn = Math.hypot(asked[0], asked[1]), hold = TUNE.grip * aRcs / Math.max(vr, 1e-6);
+		if (aRcs > 0 && turn > hold) { asked[0] *= hold / turn; asked[1] *= hold / turn }
 		const wf = toBody(s.q, f.w), cmd = asked.map((c, i) => c + wf[i]);
-		alpha = cmd.map((c, i) => clamp((c - s.w[i]) / Math.max(S.tauW, dt), -S.alpha[i], S.alpha[i]));
+		alpha = cmd.map((c, i) => clamp((c - s.w[i]) / Math.max(S.tauW, dt), -aAlpha[i], aAlpha[i]));
 	} else {
 		/* direct: the stick fires the ACS, the throttle the main drive or the retros, the strafe the RCS */
 		const th = clamp(I.thrust || 0, -1, 1);
-		aB = [clamp(st[0], -1, 1) * S.aRcs, clamp(st[1], -1, 1) * S.aRcs, th >= 0 ? th * S.aMain : th * S.aRetro];
-		alpha = [I.pitch || 0, I.yaw || 0, I.roll || 0].map((c, i) => clamp(c, -1, 1) * S.alpha[i]);
+		aB = [clamp(st[0], -1, 1) * aRcs, clamp(st[1], -1, 1) * aRcs, th >= 0 ? th * aMain : th * aRetro];
+		alpha = [I.pitch || 0, I.yaw || 0, I.roll || 0].map((c, i) => clamp(c, -1, 1) * aAlpha[i]);
 	}
 	/* integrate (semi-implicit Euler): a symmetric ship, so no gyroscopic coupling */
 	const aW = toWorld(s.q, aB);

@@ -12,6 +12,7 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
     (`tests/emberreach_factions_t.js`, 51 checks).
   - The 40 stock ships: `ships.js` (`tests/emberreach_ships_t.js`, 15 checks).
   - Flight, with flight assist: `flight.js` (`tests/emberreach_flight_t.js`, 19 checks).
+  - Modules, damage and HUD alerts: `modules.js` (`tests/emberreach_modules_t.js`, 15 checks).
   - `wip/emberreach/viewer.html` draws them, the north in 3D.
 
 ## Exceptions to the games plan's rules
@@ -281,6 +282,41 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
 - **Enemies:** pirates in the Glow, faction patrols to anyone wanted, and old defences around ruins.
 - **Controls:** the same on keyboard and mouse, controller, and touch (a virtual stick, plus throttle, fire and FA
   buttons). See "Flight".
+
+### Modules and damage
+
+Every ship carries the same core modules, each with its own health pool, shown on the **internal-systems HUD**
+(`wip/emberreach/modules.js`, 15 checks in `tests/emberreach_modules_t.js`). A pool is a share of the hull's
+points (at least 10), and a hit lands on a module in proportion to its size. A module at zero health is
+**inoperable** until it's repaired at a station (or by a repair tender).
+
+| Module | Share of hull | When it's inoperable |
+|---|---|---|
+| **Power plant** (critical) | 16% | Everything powered goes dark: no thrust, no turning, no jump, no shields. The ship drifts. |
+| **Engines** (critical) | 14% | No main drive. The RCS can still push, at strafe speed. |
+| **Hyperspace drive** (critical) | 12% | No jumps. |
+| Canopy | 6% | The pilot feels g-forces (below). |
+| RCS thrusters | 8% | No strafing or braking, and flight assist can't hold the path: turns at speed slide. |
+| ACS thrusters | 8% | No turning; a spin already going can't be stopped, even with flight assist. |
+| Shield generator | 10% | No shields (M4). |
+| Life support | 8% | (M4.) |
+| Sensors | 6% | (M4.) |
+| Weapons (armed ships) | 6% | (M4.) |
+| Cargo hold (ships with cargo) | 6% | (M4.) |
+
+So a Wren's canopy has 10 points and its engines 13; a Kestrel's 10 and 20; a Monolith's 6,480 and 15,120.
+
+**G-forces.** The canopy is more than glass: while it holds, its field takes the g-forces and the pilot feels
+none, which is why fighters can turn at 35 g (see "Flight"). Once the canopy breaks, the pilot feels everything
+the thrusters do (`gForce`: the step's acceleration in g, felt only with the canopy down). Repair the canopy and
+the protection comes back.
+
+**The alert.** When a module breaks, the HUD shows it at once:
+- **Top left:** a screen with the ship's 2D side profile, the broken module flashing on it.
+- **Below it:** a textbox in the style of a command console: `> CANOPY INOPERABLE`.
+- **The icon:** an `!` in a triangle. **Orange** for most modules; **red** for the critical ones (power plant,
+  engines, hyperspace drive).
+- With several modules down, critical alerts come first. The mockup is on the design canvas ("Ship HUD").
 
 ### Factions
 
@@ -628,9 +664,9 @@ home currency.
   possible because the galaxy and the wars are deterministic; not before M5.
 - The great powers' names: generated today; hand-written names and cultures may suit them better.
 - Game time: how long a season feels in play (30 game days; jumps and lanes take days).
-- Flight: whether FA-off should have a speed cap (today it has none: the main drive is the only limit), and
-  whether pilots feel g-forces (fighters turn at up to 35 g). The 40% blue zone and the time constants are
-  starting values for playtests.
+- Flight: whether FA-off should have a speed cap (today it has none: the main drive is the only limit). The 40%
+  blue zone and the time constants are starting values for playtests.
+- G-forces with the canopy broken: what the pilot feels (greyout, blackout, a shaking view) and from how many g.
 
 ## Sources
 
