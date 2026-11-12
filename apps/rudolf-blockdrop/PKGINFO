@@ -1,0 +1,10 @@
+name = rudolf-blockdrop
+version = 1.0.0
+kind = webapp
+title = Block Drop
+summary = A falling-blocks puzzle with prism blocks that clear a whole colour
+icon = 🧱
+license = GPL-2.0-or-later
+homepage = https://github.com/merciless146/rudolfos-library
+category = Games
+description = Stack falling blocks into full rows to clear them. Every block has a colour and a mark of its own, and now and then a prism falls: where it lands, every block of its colour bursts, the blocks above tumble down, and new full rows clear in a chain. Classic gets faster as you go, Relaxed keeps one steady speed, and the Daily game is three minutes on the same blocks for everyone. Plays with the keyboard, a controller, a mouse or touch (swipe to move, tap to turn, flick down to drop). Made for Rudolf OS.
