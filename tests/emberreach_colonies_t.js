@@ -58,6 +58,38 @@ try {
 	/* the save */
 	const back = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(pl))));
 	ok('18. colonies and haulage come back from the save exactly', JSON.stringify(back.colonies) == JSON.stringify(pl.colonies) && JSON.stringify(back.hauls) == JSON.stringify(pl.hauls || []));
+	/* ---- part 2: building out (the finished outpost from above) ---- */
+	const sl = Co.slots(s1), sys = G.system(s1);
+	ok('20. slots follow the bodies: rings add an orbital slot, no surface on gas giants or over 2.5 g, more surface with air and water',
+		sl.length == sys.planets.length && sl.every(x => x.surface == 0 || (!x.p.gas && x.p.g < 2.5)) && sl.every(x => x.orbit >= 1) && sl.filter(x => x.p.ring && !x.p.gas).every(x => x.orbit >= 2));
+	const portBody = sl.find(x => x.body == c.world), freeOrbit = sl.find(x => x.orbit > Co.used(c, x.body, 'orbit')).body;
+	ok('21. the primary port takes an orbital slot at its world', Co.used(c, c.world, 'orbit') == 1);
+	ok('22. points: an outpost earns one tier 2 point; tier 2 needs it, tier 3 needs tier 3 points', c.points.t2 == 1 && c.points.t3 == 0 && !Co.canBuild(c, s1, 'great', freeOrbit, 'orbit').ok && /tier 3/.test(Co.canBuild(c, s1, 'great', freeOrbit, 'orbit').why));
+	const b1 = Co.startBuild(c, s1, 'mining', c.world, portBody.surface ? 'surface' : 'orbit', day + 12);
+	ok('23. a tier 1 build starts with its goods to bring (no points)', b1.ok && Object.values(b1.build.need).reduce((t, v) => t + v, 0) >= 590 && c.points.t2 == 1);
+	const ind = Co.startBuild(c, s1, 'industrial', freeOrbit, 'orbit', day + 12);
+	ok('24. a tier 2 build spends the tier 2 point, and slots run out', ind.ok && c.points.t2 == 0 && !Co.canBuild(c, s1, 'habitat', c.world, 'orbit').ok, ind.why);
+	for (const [g, t] of Object.entries(Co.left(b1.build))) pl.cargo[g] = t;
+	const dv = Co.deliverBuilds(pl, c, day + 13);
+	ok('25. goods handed over finish the build, and it earns a tier 2 point', b1.build.done && dv.done.includes(b1.build) && c.points.t2 >= 1);
+	const ec = Co.economy(c, s1);
+	ok('26. the port\'s economy comes from its links: here all extraction', Math.abs((ec.extraction || 0) - 1) < 1e-9);
+	ok('27. the market follows it: the system\'s ores sell cheaper, food dearer', (() => { const a = E.market(s1, day + 13, {holder: home.id}), b = E.market(s1, day + 13, {holder: home.id, econ: ec}), ore = Object.keys(a.prices).find(g => ['Iron', 'Copper', 'Coal', 'Lead', 'Aluminum', 'Titanium', 'Uranium', 'Beryllium', 'Jade', 'Gold', 'Diamond'].includes(g) && sys.planets.some(p => p.res.includes(g)));
+		return b.prices[ore].su < a.prices[ore].su && b.prices.Food.su > a.prices.Food.su && b.prices.Food.buy })());
+	const fake = {world: 'A', builds: [{fac: 'farm', body: 'A', done: true}, {fac: 'mining', body: 'B', done: true}]};
+	const starX = {FeH: 0, kind: 'star', x: s1.x, y: s1.y, z: s1.z};
+	ok('28. strong links from the port\'s world, weak (5%) from elsewhere, and body boosts (life ×1.4 for farms)', Co.boost('agriculture', {alive: true}, starX) == 1.4 && Co.boost('extraction', {ring: 'Ice'}, starX) == 1.3 && Co.boost('hightech', {ruins: true}, {kind: 'white dwarf'}) == 1.5 * 1.2);
+	ok('29. tier 3 builds cost 4 points, then 2 more each', Co.t3cost({builds: []}) == 4 && Co.t3cost({builds: [{fac: 'great'}]}) == 6);
+	/* population and payment */
+	const w1 = pl.wallet[cur], news2 = Co.turn(pl, c.opens + 31);
+	ok('30. population grows towards its cap, and each season the colony pays its architect in the sponsor\'s coin', c.pop > 0 && c.pop < Co.popCap(c, s1) && pl.wallet[cur] > w1 && news2.some(n => /pays its architect/.test(n.text)));
+	ok('31. a season\'s pay is 5-10% of its trade', (() => { const st = Co.stats(c, s1), tr = c.pop * 2 + 5000 * (1 + st.facilities), pay = Co.payment(c, s1); return pay >= tr * 0.05 - 1 && pay <= tr * 0.1 + 1 })());
+	/* haulage to a build */
+	const b2 = Co.startBuild(c, s1, 'habitat', sl.find(x => x.orbit > Co.used(c, x.body, 'orbit')).body, 'orbit', c.opens + 31);
+	const hb = b2.ok && Co.postHaul(pl, office, mkt, c, Object.keys(b2.build.need)[0], 50, c.opens + 31, b2.build.id);
+	ok('32. haulers can bring a facility\'s goods too', !b2.ok || (hb.ok && pl.hauls.some(h => h.job == b2.build.id)), b2.why || (hb && hb.why));
+	const t1 = Date.now(); for (let i = 0; i < 100; i++) Co.grow(pl, c, c.opens + 40 + i);
+	ok('33. a colony\'s daily step is quick', (Date.now() - t1) / 100 < 1, ((Date.now() - t1) / 100).toFixed(2) + ' ms');
 	const t0 = Date.now(); Co.candidates(pl, office, day, JUMP, 12);
 	ok('19. the planner\'s listing is quick', Date.now() - t0 < 500, (Date.now() - t0) + ' ms');
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }

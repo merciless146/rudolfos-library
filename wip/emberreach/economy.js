@@ -64,6 +64,11 @@ function exchangeAnywhere(amount, from, to, day, cut, ctx) { return amount * cro
 
 /* ---------- prices at a station ---------- */
 /* supply and demand for each good from the system itself: what its planets mine and grow, and what a front needs */
+/* what each economy makes and uses ('res': the system's own ores) */
+const ECON = {extraction: {makes: 'res', uses: ['Food', 'Machinery', 'Water']}, refinery: {makes: ['Fuel', 'Aluminum', 'Titanium'], uses: ['Iron', 'Copper']},
+	agriculture: {makes: ['Food', 'Water'], uses: ['Machinery', 'Medicine']}, industrial: {makes: ['Machinery', 'Munitions'], uses: ['Iron', 'Aluminum', 'Titanium']},
+	hightech: {makes: ['Electronics', 'Medicine'], uses: ['Beryllium', 'Gold']}, military: {makes: ['Munitions'], uses: ['Food', 'Fuel', 'Medicine']},
+	tourism: {makes: [], uses: ['Food', 'Medicine', 'Artefacts']}, contraband: {makes: [], uses: []}};
 function market(star, day, ctx) {
 	const sy = G.system(star), claim = F.claimAt([star.x, star.y, star.z]), r = rng(hashStr('market:' + star.id));
 	/* a contested system trades in the currency of whichever side holds its part of the front today (the nearest key
@@ -76,6 +81,9 @@ function market(star, day, ctx) {
 	const have = {};
 	for (const p of sy.planets) { for (const res of p.res) have[res] = (have[res] || 0) + 1; if (p.alive) have.Food = (have.Food || 0) + 3; if (p.water) have.Water = (have.Water || 0) + 2; if (p.gas) have.Fuel = (have.Fuel || 0) + 2; if (p.ruins) have.Artefacts = (have.Artefacts || 0) + 1 }
 	const metals = Math.pow(10, star.FeH || 0), front = !!claim.contested;
+	/* a colony's economy (colonies.js): what it makes sells cheap, what it uses sells dear and is bought */
+	const econ = (ctx && ctx.econ) || {}, made = {}, used = {};
+	for (const [e, share] of Object.entries(econ)) { const L = ECON[e]; if (!L) continue; for (const g of L.makes === 'res' ? Object.keys(have).filter(g => MINED.includes(g)) : L.makes) made[g] = (made[g] || 0) + share; for (const g of L.uses) used[g] = (used[g] || 0) + share }
 	const prices = {};
 	for (const [g, base] of Object.entries(GOODS)) {
 		let f = 1 + (r() - 0.5) * 0.2;
@@ -85,12 +93,14 @@ function market(star, day, ctx) {
 		if (g == 'Artefacts' && !have[g]) f *= 1.5;
 		/* a gentle seasonal swing, so routes worth running change */
 		f *= 1 + 0.08 * Math.sin(2 * Math.PI * (day / F.SEASON_DAYS + r()) / 4);
+		if (made[g]) f *= 1 - 0.35 * Math.min(1, made[g]);
+		if (used[g]) f *= 1 + 0.3 * Math.min(1, used[g]);
 		const su = base * f;
-		prices[g] = {su, price: code ? su * rate(code, day, ctx) : su, buy: !!have[g] || r() < 0.5};
+		prices[g] = {su, price: code ? su * rate(code, day, ctx) : su, buy: !!have[g] || !!used[g] || r() < 0.5};
 	}
 	return {star: star.id, holder, contested: claim.contested, currency: code || 'SU', prices};
 }
 
-const EmberEconomy = {GOODS, BASKET, basketCost, rate, crossRate, exchange, exchangeAnywhere, market};
+const EmberEconomy = {ECON, GOODS, BASKET, basketCost, rate, crossRate, exchange, exchangeAnywhere, market};
 if (isNode) module.exports = EmberEconomy; else root.EmberEconomy = EmberEconomy;
 })(typeof window != 'undefined' ? window : this);
