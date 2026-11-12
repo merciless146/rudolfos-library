@@ -29,8 +29,10 @@ apps/<name>/www/        the files, served by Rudolf OS at /pkg/<name>/www/
 apps/<name>/source/     (programs built from source) the corresponding source, published as source/<name>-<version>-src.tar.xz
 lib/gamekit/            rudolf-gamekit: input, window shapes, saves and pausing shared by the games; copied into each
                         game whose index.html loads gamekit.js when the Library is built
+wip/<game>/             games still being made (not built or published until they move to apps/)
+docs/                   plans for games in the works (docs/plan-ember-reach.md)
 tests/                  each game's browser test (Chromium, in a sandboxed frame as the desktop opens it)
-tools/                  rpk-tool.py (from RudolfOS iso/pkgtools), publish.sh, catalog.py, keycheck.py
+tools/                  rpk-tool.py (from RudolfOS iso/pkgtools), publish.sh, catalog.py, keycheck.py, wos-stats.py
 site/                   the Library's web page
 .github/workflows/publish.yml   builds, signs and publishes on every change to main
 .github/workflows/check.yml     runs the games' tests on pull requests

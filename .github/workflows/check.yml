@@ -3,10 +3,10 @@
 name: Check the games
 on:
   pull_request:
-    paths: ['apps/**', 'lib/**', 'tests/**', 'tools/**', '.github/workflows/check.yml']
+    paths: ['apps/**', 'lib/**', 'tests/**', 'tools/**', 'wip/**', '.github/workflows/check.yml']
   push:
     branches: [main]
-    paths: ['apps/**', 'lib/**', 'tests/**', '.github/workflows/check.yml']
+    paths: ['apps/**', 'lib/**', 'tests/**', 'wip/**', '.github/workflows/check.yml']
   workflow_dispatch:
 permissions:
   contents: read
