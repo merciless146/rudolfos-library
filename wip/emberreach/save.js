@@ -5,6 +5,8 @@
    the home system) still load.
    Version 3 adds the player (M3): origin, money in each currency, cargo and what it cost, reputation with every
    faction, lawfulness, bounties and any commission. Older saves load with a fresh player from the same origin.
+   The player also carries (M4) the hull's health and ammunition, and the war missions in hand; saves without them
+   load with a whole hull, full magazines and no missions.
    unpack() checks everything, and gives null for anything it can't trust (another version, a damaged file), so a
    bad save starts a new game instead of breaking one.
    GPL-2.0-or-later. ===== */
@@ -51,7 +53,8 @@ function unpack(raw, known) {
 function packPlayer(P) {
 	const r = (o, d) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v).map(([k, v]) => [k, +v.toFixed(d)]));
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
-		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, day: P.day || 0};
+		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, day: P.day || 0,
+		combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done)};
 }
 const numMap = o => o && typeof o == 'object' && !Array.isArray(o) && Object.values(o).every(num);
 function unpackPlayer(x) {
@@ -59,7 +62,10 @@ function unpackPlayer(x) {
 	if (Object.values(x.wallet).some(v => v < 0) || Object.values(x.cargo).some(v => v < 0 || !Number.isInteger(v))) return null;
 	return {v: 1, origin: x.origin, species: x.species || '', wallet: Object.assign({}, x.wallet), cargo: Object.assign({}, x.cargo), cost: numMap(x.cost) ? Object.assign({}, x.cost) : {}, rep: Object.assign({}, x.rep),
 		start: numMap(x.start) ? Object.assign({}, x.start) : {}, lawful: num(x.lawful) ? x.lawful : 0, bounties: numMap(x.bounties) ? Object.assign({}, x.bounties) : {}, commission: typeof x.commission == 'string' ? x.commission : null,
-		warEvents: Array.isArray(x.warEvents) ? x.warEvents : [], ship: {model: x.ship.model, build: x.ship.build, sensors: x.ship.sensors}, day: num(x.day) ? x.day : 0, at: {}};
+		warEvents: Array.isArray(x.warEvents) ? x.warEvents : [], ship: {model: x.ship.model, build: x.ship.build, sensors: x.ship.sensors}, day: num(x.day) ? x.day : 0, at: {},
+		/* M4: the hull's health and ammunition carried over; war missions in hand */
+		combat: x.combat && typeof x.combat == 'object' && num(x.combat.hull) ? x.combat : null,
+		missions: Array.isArray(x.missions) ? x.missions.filter(m => m && typeof m.id == 'string' && m.star && typeof m.star.id == 'string' && Array.isArray(m.star.at) && num(m.due)) : []};
 }
 /* put saved module health back on a fresh fit (unknown modules are ignored; health never above the pool) */
 function restoreModules(fit, saved) {

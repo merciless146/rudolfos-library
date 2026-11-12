@@ -5,7 +5,8 @@
    - cruise: a drone that climbs with the cruise speed;
    - a quiet cockpit hum.
    Under g with the canopy broken, everything muffles as the strain rises and a heartbeat comes in; a blackout is
-   near silence. One-off cues (EmberSound.cue): alerts (orange: two tones; red: three fast), clearance, docking,
+   near silence. One-off cues (EmberSound.cue): (M4) gunfire, hits on shields and hull, explosions, missile lock and
+   incoming-missile warnings; alerts (orange: two tones; red: three fast), clearance, docking,
    collisions, cruise spool-up and drop-out, flight assist on and off, targeting.
    GPL-2.0-or-later. ===== */
 (function () {
@@ -91,7 +92,7 @@ const last = {};
 A.cue = function (k, arg) {
 	if (!A.on || !ctx() || held) return;
 	const t = C.currentTime, now = performance.now();
-	const gap = {collide: 250, warning: 400, critical: 400, tick: 60}[k] || 0; if (gap && now - (last[k] || 0) < gap) return; last[k] = now;
+	const gap = {collide: 250, warning: 400, critical: 400, tick: 60, pulse: 70, driver: 120, heavy: 200, shieldHit: 90, hullHit: 120, boom: 150, lock: 600, incoming: 900}[k] || 0; if (gap && now - (last[k] || 0) < gap) return; last[k] = now;
 	switch (k) {
 	case 'warning': tone(t, 880, 0.14, 'square', 0.05); tone(t + 0.17, 660, 0.18, 'square', 0.05); break;
 	case 'critical': for (let i = 0; i < 3; i++) tone(t + i * 0.11, 1250, 0.08, 'square', 0.06); break;
@@ -112,6 +113,17 @@ A.cue = function (k, arg) {
 	case 'jump': burst(t, 2.6, 0.5, 'bandpass', 700); tone(t, 110, 2.4, 'sawtooth', 0.05, 1400); tone(t + 0.4, 220, 2.0, 'triangle', 0.05, 1800); break;
 	case 'arrive': burst(t, 1.2, 0.45, 'lowpass', 600); tone(t, 900, 1.0, 'triangle', 0.06, 140); break;
 	case 'destroyed': burst(t, 2.2, 1, 'lowpass', 180); tone(t, 80, 1.8, 'sawtooth', 0.08, 30); break;
+	/* combat (M4): guns, hits, explosions at a distance (arg: 0..1 loudness), missile lock and warning */
+	case 'pulse': tone(t, 1400, 0.07, 'square', 0.025, 500); break;
+	case 'driver': burst(t, 0.12, 0.25, 'bandpass', 1200); tone(t, 260, 0.1, 'square', 0.03, 90); break;
+	case 'heavy': tone(t, 700, 0.25, 'sawtooth', 0.04, 160); break;
+	case 'missile': burst(t, 0.9, 0.3, 'bandpass', 1600); tone(t, 400, 0.6, 'sawtooth', 0.025, 1200); break;
+	case 'flare': burst(t, 0.3, 0.3, 'highpass', 2500); break;
+	case 'shieldHit': tone(t, 300, 0.18, 'sine', 0.06, 900); burst(t, 0.15, 0.15, 'highpass', 1800); break;
+	case 'hullHit': burst(t, 0.3, 0.6, 'lowpass', 300); tone(t, 90, 0.2, 'square', 0.05, 50); break;
+	case 'boom': burst(t, 1.4, 0.2 + 0.6 * (arg == null ? 1 : arg), 'lowpass', 260); break;
+	case 'lock': tone(t, 1800, 0.06, 'sine', 0.05); tone(t + 0.08, 1800, 0.06, 'sine', 0.05); tone(t + 0.16, 2400, 0.2, 'sine', 0.05); break;
+	case 'incoming': for (let i = 0; i < 4; i++) tone(t + i * 0.09, 2100, 0.05, 'square', 0.05); break;
 	}
 };
 })();

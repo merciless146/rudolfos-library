@@ -246,8 +246,8 @@ a fluid, not floating in empty space. Pilots who want raw Newtonian flight can s
 - The throttle fires the main drive (or the retros); the strafe controls fire the RCS. With no thrust the ship
   coasts, and turning the nose doesn't change where it's going.
 - **The trade:** the full turn rate is there at any speed, so you can point the guns anywhere while sliding past.
-  Coasting costs nothing, where FA keeps working the thrusters (FA reports its `effort`, which feeds heat and fuel
-  in M4).
+  Coasting costs nothing, where FA keeps working the thrusters (FA reports its `effort`, which may feed heat and
+  fuel later).
 - Switching FA back on catches a drifting, tumbling ship and brings it to the commanded state.
 
 **The thrusters, from the ship's stats.** The stock ships' speed, agility and length set everything, so all 40
@@ -326,11 +326,53 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
 
 ### Combat
 
-- **Weapons:** lasers (heat), mass drivers (ammo, travel time) and missiles (lock-on, counter-measures). Shields and
-  hull, with heat management.
-- **Enemies:** pirates in the Glow, faction patrols to anyone wanted, and old defences around ruins.
-- **Controls:** the same on keyboard and mouse, controller, and touch (a virtual stick, plus throttle, fire and FA
-  buttons). See "Flight".
+`wip/emberreach/combat.js` (15 checks in `tests/emberreach_combat_t.js`) and `encounters.js` (14 checks in
+`tests/emberreach_encounters_t.js`).
+
+- **Weapons,** one per hardpoint, by size, fixed forward with a 5° gimbal (capital ships' are turrets):
+
+  | Size | Weapon | Damage × rate | Speed, range | Notes |
+  |---|---|---|---|---|
+  | Small | Pulse laser | 1.2 × 6/s | 4 km/s, 2.5 km | heat; 1.2× against shields, 0.7× against hulls |
+  | Medium | Mass driver | 4.5 × 2/s | 1.5 km/s, 3 km | 150 rounds; 0.6× shields, 1.3× hulls; and a pylon of 4 missiles |
+  | Large | Heavy laser | 9 × 1.5/s | 3.5 km/s, 4 km | heat |
+  | Huge | Torpedo rack | 150 × 0.2/s | 0.4 km/s, homing | 8 torpedoes, launched with the missiles |
+  | (pylon) | Missile | 30 | 0.6 km/s, homing | needs a lock: the target 2 s inside a 15° cone |
+
+  Tuned so a duel between fighters lasts about a minute. Lasers heat the ship: past full the guns lock until it
+  falls to 60%, and staying past 115% cooks the modules. Six **flares**: each decoys a missile chasing you with a
+  70% chance.
+- **Shields and hull:** hits meet the shields first; they come back over 15 s after 2.5 s without a hit, if the
+  shield generator and power plant work. What gets through hits the hull, and 60% of it lands on the modules. At no
+  hull the ship is lost. The hull's health and the magazines carry over between flights; ports repair and restock.
+- **AI pilots** fly the same flight model with flight assist, through the same controls: attack (lead the target,
+  roll into the turn, match its speed near 600 m, fire when the nose is on), jink when hit, break off when too close,
+  flee when badly hurt (pirates at 30% hull, navies at 15%; traders always), patrol, trade, or hold station
+  (flagships, with turrets).
+- **Who you meet** on arriving in a system, drawn from the star, the day and the visit:
+  - a port's patrol of its own navy (more at a capital) and some traders;
+  - pirates: 50% of arrivals in unclaimed space, 45% on the fronts, 18% in claimed space, 4% at capitals, and 90%
+    where a criminal gang's dreadnought lies that season;
+  - war wings of both sides in contested systems where the fighting is (and sometimes elsewhere on the front),
+    which fight each other;
+  - small factions' fleet carriers and dreadnoughts, where they are that season;
+  - what your war missions bring: three enemy ships to destroy, or a depot and its guard.
+- **Who shoots:** pirates attack anyone not Allied with their gang; a power's ships attack its enemies (Unfriendly
+  pilots, and pilots commissioned against it); patrols attack the wanted; anyone attacks who's been shot at, and
+  their wing with them. Firing on a ship that wasn't hostile is a crime.
+- **What it costs:** a pirate's death pays a bounty of 1% of its value in the local currency and pleases the space's
+  owner (the gang minds). Killing anyone else angers their faction and, if they never shot first, puts a bounty on
+  you, and a wanted pilot can't dock where the patrol is. In a contested system, killing a side's ships counts as war
+  effort for the other.
+- **Controls:** L or the left mouse button fires; K launches a missile at a locked target; B drops a flare; U
+  targets the nearest hostile. A gamepad's RT fires and LT launches (the right stick's other axis is now the
+  throttle); touch has FIRE, MSL, FLARE and HOSTILE buttons.
+- **The HUD:** the scanner (ships within 8 km, hostile red, friendly green, civilian grey, missiles white, on
+  stalks above and below your plane; gone with the sensors), shields, hull and heat with rounds, missiles and
+  flares, red brackets and a lead pip on a hostile target, its shields and hull, the missile lock closing in, a red
+  edge when you're hit, and a MISSILE warning.
+- Hostile ships within 5 km hold you out of cruise.
+- **Old defences around ruins** come with exploration (M5).
 
 ### Modules and damage
 
@@ -347,11 +389,11 @@ points (at least 10), and a hit lands on a module in proportion to its size. A m
 | Canopy | 6% | The pilot feels g-forces (below). |
 | RCS thrusters | 8% | No strafing or braking, and flight assist can't hold the path: turns at speed slide. |
 | ACS thrusters | 8% | No turning; a spin already going can't be stopped, even with flight assist. |
-| Shield generator | 10% | No shields (M4). |
-| Life support | 8% | (M4.) |
-| Sensors | 6% | (M4.) |
-| Weapons (armed ships) | 6% | (M4.) |
-| Cargo hold (ships with cargo) | 6% | (M4.) |
+| Shield generator | 10% | No shields: they take no hits and don't come back. |
+| Life support | 8% | (Later: a clock before the pilot passes out.) |
+| Sensors | 6% | No scanner. |
+| Weapons (armed ships) | 6% | The guns and missiles don't fire. |
+| Cargo hold (ships with cargo) | 6% | (Later: cargo lost to space.) |
 
 So a Wren's canopy has 10 points and its engines 13; a Kestrel's 10 and 18; a Monolith's 6,480 and 15,120.
 
@@ -761,7 +803,7 @@ home currency.
        an enemy's designs), bought with your ship in part-exchange, your cargo transferred if it fits;
      - **Contacts:** the authority (bounties), the war office (fronts, enlisting) and the exchange (spreads by
        relation, enemies' coin refused);
-     - **Bulletin board:** today's war contracts (taking them comes with M4);
+     - **Bulletin board:** today's war contracts (taken from M4);
      - **Status:** wallet in every currency, worth, hold, reputation;
      - **Station**, **Outfitting** and **Carto & lounges** screens, the last two pointing to M4 and M5.
    - **Trade** (`trade.js`, 18 checks): wallets in many currencies; free traders at contested systems taking SU
@@ -769,7 +811,19 @@ home currency.
      ships lost replaced for 5% of their value, the cargo lost with them.
    - **Saves** (version 3) carry the player: money, cargo, reputation, bounties, commission.
 5. **M4:** combat and war: weapons, shields, heat, pirates, patrols; war missions, commissions, moving fronts;
-   carriers and dreadnoughts.
+   carriers and dreadnoughts. **Playable** in `play.html` (see "Combat"):
+   - **Combat** (`combat.js`): weapons by hardpoint, shields, hull damage reaching the modules, heat, homing
+     missiles and flares, and AI pilots on the flight model.
+   - **Encounters** (`encounters.js`): every system's cast (patrols, traders, pirates, war wings, flagships), who's
+     hostile, and what kills cost or pay: bounties, crimes and war effort.
+   - **War missions:** taken at a port's bulletin board (up to three, due in 10 days): strike, blockade, defend and
+     escort (destroy three enemy ships in the mission's system), recon (30 s there), sabotage (destroy a depot) and
+     supply (bring 5 t of Munitions and dock there). Done, they pay in the issuer's coin and their effort moves the
+     front (double with a commission); late, they fail and the issuer minds.
+   - **The starport:** restocking (munitions at the market's price), repairs that mend the hull too, contracts on
+     the bulletin board, the loadout on Outfitting, missions on Status.
+   - **Saves** carry the hull's health, the magazines and the missions in hand.
+   - **Sound:** gunfire, hits on shields and hull, explosions, the missile lock and the incoming-missile warning.
 6. **M5:** exploration in full: scanning, surveys, ruins, naming, missions. The package moves to `apps/` and
    reaches the App Store.
 7. **M5b:** colonies: claiming systems and building ports and facilities, after Elite Dangerous's Trailblazers
