@@ -109,6 +109,8 @@ A.cue = function (k, arg) {
 	case 'tick': tone(t, 1600, 0.03, 'square', 0.03); break;
 	case 'blackout': burst(t, 1.6, 0.3, 'lowpass', 120); break;
 	case 'wake': tone(t, 300, 0.6, 'sine', 0.05, 600); break;
+	case 'jump': burst(t, 2.6, 0.5, 'bandpass', 700); tone(t, 110, 2.4, 'sawtooth', 0.05, 1400); tone(t + 0.4, 220, 2.0, 'triangle', 0.05, 1800); break;
+	case 'arrive': burst(t, 1.2, 0.45, 'lowpass', 600); tone(t, 900, 1.0, 'triangle', 0.06, 140); break;
 	case 'destroyed': burst(t, 2.2, 1, 'lowpass', 180); tone(t, 80, 1.8, 'sawtooth', 0.08, 30); break;
 	}
 };
