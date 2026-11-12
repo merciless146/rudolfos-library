@@ -1,7 +1,11 @@
-/* ===== Frost Barricade: the art, drawn in Canvas each frame (no image files). GPL-2.0-or-later.
+/* ===== 25 Days (formerly Frost Barricade): the art, drawn in Canvas each frame (no image files). GPL-2.0-or-later.
+   A gritty look, like the old violent Flash games: dark and washed-out colours, heavy outlines, film grain and a
+   vignette, smoke and spent casings, and the corrupted elves bursting in dark ichor that stains the snow all night.
    The corrupted elves follow Night Flight's corruption: jagged dark silhouettes, dark skin and clothes, narrow glowing
-   eyes without highlights, static at their edges. They crumble into black slush and static, never blood.
-   Friends (Rudolf, the survivors, Captain Quill and his owls) are soft and round, in Night Flight's style.
+   eyes without highlights, static at their edges.
+   Rudolf is angular and faceted like Rudolf OS's portrait (the boot splash): a white low-poly stag with big branching
+   antlers, diamond ears, narrow eyes, a shaggy ruff and the red nose. The survivors, Captain Quill and his owls stay
+   soft and round.
    The scene is seen from the side: the barricade on the left, the horde coming from the right. ===== */
 (function () {
 'use strict';
@@ -17,15 +21,15 @@ function glow(r, col) { return mk(r * 2, r * 2, x => { const g = x.createRadialG
 A.warm = glow(30, 'rgba(255,200,110,1)'); A.eyeW = glow(16, 'rgba(235,240,255,1)'); A.eyeR = glow(16, 'rgba(255,50,50,1)'); A.eyeY = glow(16, 'rgba(255,210,63,1)'); A.eyeG = glow(16, 'rgba(125,255,74,1)'); A.eyeC = glow(16, 'rgba(63,240,255,1)'); A.lime = glow(16, 'rgba(214,255,74,1)'); A.pink = glow(16, 'rgba(255,79,163,1)'); A.white = glow(30, 'rgba(255,255,255,1)'); A.fire = glow(20, 'rgba(255,130,40,1)'); A.ice = glow(20, 'rgba(140,220,255,1)');
 
 /* ---------- the night: a dark field before the workshop woods ---------- */
-A.GROUND = 300;
-/* fifteen lanes, far (0, higher up and smaller) to near (14) */
-A.LANES = 15; A.TOP = 246;
-A.laneY = l => 262 + l * 9;
+A.GROUND = 290;
+/* fifteen lanes, far (0, higher up and smaller) to near (14); 25 Days: wider apart, on a longer field (1040 wide) */
+A.LANES = 15; A.TOP = 232;
+A.laneY = l => 250 + l * 11.4;
 A.depth = l => .8 + l * .025;
 A.scene = function (x, W, H, t, night, dawn) {
 	const g = x.createLinearGradient(0, 0, 0, A.GROUND);
 	const k = dawn || 0;
-	g.addColorStop(0, mix('#05070f', '#3a3f7a', k)); g.addColorStop(.7, mix('#141a33', '#c78a7a', k)); g.addColorStop(1, mix('#262c45', '#f2c08a', k));
+	g.addColorStop(0, mix('#040508', '#3a3a5a', k)); g.addColorStop(.7, mix('#11141f', '#a87a6a', k)); g.addColorStop(1, mix('#1e212c', '#d9ae84', k));
 	x.fillStyle = g; x.fillRect(0, 0, W, A.GROUND);
 	for (let i = 0; i < 70; i++) { x.fillStyle = `rgba(230,235,255,${(.2 + .5 * hash(i, 3)) * (1 - k)})`; x.fillRect(hash(i, 1) * W, hash(i, 2) * 170, 1.3, 1.3) }
 	/* a pale moon behind moving cloud */
@@ -37,18 +41,31 @@ A.scene = function (x, W, H, t, night, dawn) {
 	const wx = W * .62; x.fillStyle = mix('#151a2c', '#5a4560', k * .6); x.fillRect(wx, A.TOP - 45, 120, 50); x.beginPath(); x.moveTo(wx - 8, A.TOP - 43); x.lineTo(wx + 60, A.TOP - 80); x.lineTo(wx + 128, A.TOP - 43); x.fill();
 	for (let i = 0; i < 4; i++) { const on = hash(i, Math.floor(t * 3) + night) > .7; x.fillStyle = on ? 'rgba(214,255,74,.55)' : 'rgba(40,30,60,.9)'; x.fillRect(wx + 12 + i * 27, A.TOP - 28, 10, 10) }
 	/* the field */
-	const gg = x.createLinearGradient(0, A.TOP, 0, H); gg.addColorStop(0, mix('#2a3352', '#c9b8c8', k)); gg.addColorStop(1, mix('#3b466b', '#efe0dc', k));
+	const gg = x.createLinearGradient(0, A.TOP, 0, H); gg.addColorStop(0, mix('#2a2e3c', '#b9aeb4', k)); gg.addColorStop(1, mix('#3a3f4e', '#ddd0c8', k));
 	x.fillStyle = gg; x.beginPath(); x.moveTo(0, A.TOP); for (let X = 0; X <= W; X += 20) x.lineTo(X, A.TOP + Math.sin(X * .02) * 3); x.lineTo(W, H); x.lineTo(0, H); x.fill();
 	/* faint furrows: the lanes */
 	for (let l = 0; l < A.LANES; l += 2) { x.fillStyle = 'rgba(10,12,30,.07)'; x.fillRect(0, A.laneY(l) + 1, W, 2) }
+	/* dead trees and broken fence posts along the woods' edge */
+	x.strokeStyle = mix('#07080c', '#3a2f3a', k * .6);
+	for (let i = 0; i < 9; i++) { const tx = 260 + hash(i, 31) * (W - 300), th = 40 + hash(i, 32) * 50; x.lineWidth = 3; x.beginPath(); x.moveTo(tx, A.TOP + 6); x.lineTo(tx + 3, A.TOP + 6 - th); x.stroke(); x.lineWidth = 1.6; x.beginPath(); x.moveTo(tx + 2, A.TOP + 6 - th * .6); x.lineTo(tx - 10, A.TOP - th * .9); x.moveTo(tx + 3, A.TOP + 6 - th * .8); x.lineTo(tx + 13, A.TOP - th); x.stroke() }
+	for (let i = 0; i < 14; i++) { const px = 240 + i * 58 + hash(i, 33) * 10; x.fillStyle = 'rgba(20,16,14,.8)'; x.save(); x.translate(px, A.TOP + 12); x.rotate((hash(i, 34) - .5) * .5); x.fillRect(-2, -16, 4, 16); x.restore() }
 	/* drifting fog */
 	for (let i = 0; i < 6; i++) { const fx = ((t * (8 + i * 3) + i * 150) % (W + 260)) - 130; x.fillStyle = 'rgba(120,130,170,.08)'; oval(x, fx, A.TOP + 14 + i * 24, 160, 12); x.fill() }
+};
+/* grit: film grain (a few cached frames) and a dark vignette over everything */
+const GRAIN = [];
+A.grit = function (x, W, H, t, still) {
+	if (!GRAIN.length) for (let f = 0; f < 4; f++) GRAIN.push(mk(160, 160, (g) => { for (let i = 0; i < 900; i++) { const v = hash(i, f * 7 + 1) > .5 ? 255 : 0; g.fillStyle = `rgba(${v},${v},${v},${.05 + hash(i, f + 40) * .08})`; g.fillRect(hash(i, f + 11) * 160, hash(i, f + 23) * 160, 1, 1) } }));
+	const fr = GRAIN[still ? 0 : Math.floor(t * 18) % 4];
+	for (let gx = 0; gx < W; gx += 160) for (let gy = 0; gy < H; gy += 160) x.drawImage(fr, gx, gy, 160, 160);
+	if (!A.VIG || A.VIG.w != W) { A.VIG = mk(W, H, (v) => { const g = v.createRadialGradient(W / 2, H * .55, H * .35, W / 2, H * .55, W * .62); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.62)'); v.fillStyle = g; v.fillRect(0, 0, W, H) }) }
+	x.drawImage(A.VIG, 0, 0, W, H);
 };
 A.snow = function (x, W, H, t) { for (let i = 0; i < 80; i++) { const sx = (hash(i, 7) * W - t * (12 + hash(i, 8) * 20) + W * 4) % W, sy = (hash(i, 9) * H + t * (25 + hash(i, 10) * 30)) % H; x.fillStyle = 'rgba(235,240,255,.7)'; x.fillRect(sx, sy, 1.6, 1.6) } };
 function mix(a, b, k) { const p = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16)); const A_ = p(a), B = p(b); return 'rgb(' + A_.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',') + ')' }
 
 /* ---------- the barricade: crates, a sled, sacks of snow; it loses pieces as it weakens ---------- */
-A.BX = 150;
+A.BX = 172;
 /* the wall's front edge in a lane (where the elves stop) */
 A.wallX = l => A.BX + (14 - l) * 3;
 A.front = l => A.wallX(l) + 56 * A.depth(l) + 4;
@@ -59,8 +76,8 @@ A.barricade = function (x, frac, t, hitT) {
 	/* a snowbank along its foot, from the far lane to the near one */
 	x.fillStyle = 'rgba(205,215,240,.55)'; x.beginPath(); x.moveTo(A.wallX(0) - 6, A.laneY(0) + 4); x.lineTo(A.front(0) + 6, A.laneY(0) + 4); x.lineTo(A.front(14) + 8, A.laneY(14) + 8); x.lineTo(A.wallX(14) - 8, A.laneY(14) + 8); x.closePath(); x.fill();
 	/* segments from the far lane to the near one, each a stack of crates, sacks and boards */
-	for (let k = 0; k <= 12; k++) {
-		const l = k * 14 / 12, G = A.laneY(l) + 4, d = A.depth(l), X = A.wallX(l);
+	for (let k = 0; k <= 16; k++) {
+		const l = k * 14 / 16, G = A.laneY(l) + 4, d = A.depth(l), X = A.wallX(l);
 		const n = Math.ceil(pieces.length * Math.max(0, frac) - hash(k, 77) * 1.5);
 		for (let i = 0; i < pieces.length; i++) {
 			if (i >= n) continue;
@@ -77,31 +94,65 @@ A.barricade = function (x, frac, t, hitT) {
 	x.restore();
 };
 
-/* ---------- Rudolf, side view, aiming over the barricade ---------- */
-A.RX = 96; A.RY = A.laneY(7) - 40;
-A.rudolf = function (x, aim, weapon, t, recoil, hurtT) {
-	const X = A.RX, Y = A.RY + Math.sin(t * 2) * .8;
-	x.save();
+/* ---------- Rudolf, side view, aiming over the barricade ----------
+   Angular and faceted like Rudolf OS's portrait: a white low-poly stag standing on his hind legs, big branching antlers
+   with sharp tines, a diamond ear, a narrow slanted eye, a shaggy ruff, the red nose; a bandolier across his chest.
+   25 Days: he moves up and down behind the barricade (at lane l, a float); his feet are on that lane's line. */
+A.RX = 108;
+A.rudolfScale = l => A.depth(l) * 1.05;
+A.rudolfFeet = l => A.laneY(l);
+/* where his shoulder (the weapon's pivot) and his nose are, at lane l */
+A.rShoulder = l => { const s = A.rudolfScale(l); return {x: A.RX + 6 * s, y: A.laneY(l) - 34 * s} };
+A.rNose = l => { const s = A.rudolfScale(l); return {x: A.RX + 16 * s, y: A.laneY(l) - 52 * s} };
+A.rudolf = function (x, aim, weapon, t, recoil, hurtT, l, walk) {
+	const s = A.rudolfScale(l), X = A.RX, Y = A.laneY(l), bob = Math.sin(t * 2) * .6, st = Math.sin(walk || 0);
+	const ink = '#0a0c14', W1 = '#f2f4f8', W2 = '#c9cfdc', W3 = '#9aa3b6';
+	x.save(); x.translate(X, Y); x.scale(s, s);
 	if (hurtT > 0 && Math.floor(t * 20) % 2) x.globalAlpha = .6;
-	/* body */
-	oval(x, X - 4, Y + 22, 13, 15); fl(x, '#f6eddc', '#6b4a35');
-	x.beginPath(); x.moveTo(X - 12, Y + 6); x.quadraticCurveTo(X, Y + 12, X + 10, Y + 6); x.lineTo(X + 10, Y + 11); x.quadraticCurveTo(X, Y + 17, X - 12, Y + 11); x.closePath(); fl(x, '#3aa7c9', '#6b4a35', 1.1);
-	/* antlers */
-	x.strokeStyle = '#6b4a35'; x.lineWidth = 5.5; const ant = () => { x.beginPath(); x.moveTo(X - 6, Y - 12); x.quadraticCurveTo(X - 10, Y - 22, X - 4, Y - 28); x.moveTo(X - 8, Y - 20); x.lineTo(X - 15, Y - 23); x.stroke() };
-	ant(); x.strokeStyle = '#d9a85b'; x.lineWidth = 3.6; ant();
-	/* head */
-	circ(x, X, Y - 4, 11); fl(x, '#f6eddc', '#6b4a35');
-	oval(x, X - 9, Y - 10, 6, 3, -.6); fl(x, '#f6eddc', '#6b4a35', 1.1);
-	oval(x, X + 8, Y, 6, 4.5); fl(x, '#e9c9a0');
-	oval(x, X + 3, Y - 7, 2.4, 3.2); x.fillStyle = '#2b2230'; x.fill(); circ(x, X + 3.8, Y - 8.2, .9); x.fillStyle = '#fff'; x.fill();
-	x.strokeStyle = '#2b2230'; x.lineWidth = 1.4; x.beginPath(); x.moveTo(X + .5, Y - 12); x.lineTo(X + 5, Y - 11); x.stroke();   /* a determined brow */
-	circ(x, X + 13, Y - 1, 3.2); fl(x, '#e3283e', '#7a1420', 1); circ(x, X + 12.2, Y - 2, .9); x.fillStyle = 'rgba(255,255,255,.7)'; x.fill();
-	x.drawImage(A.pink, X + 13 - 8, Y - 1 - 8, 16, 16);
+	const P = (pts, f, w) => { x.beginPath(); x.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) x.lineTo(pts[i][0], pts[i][1]); x.closePath(); x.fillStyle = f; x.fill(); x.strokeStyle = ink; x.lineWidth = w || 1.3; x.lineJoin = 'miter'; x.stroke() };
+	/* a shadow */
+	x.fillStyle = 'rgba(0,0,0,.4)'; oval(x, 0, 1, 15, 3); x.fill();
+	/* legs: the far one darker; thigh, shin, a dark hoof */
+	const leg = (dx, ph, c) => { const k = Math.sin(ph) * 4; P([[dx - 4, -19], [dx + 3, -19], [dx + 4 + k * .4, -9], [dx + 2 + k, -2], [dx - 2 + k, -2], [dx - 3 + k * .4, -10]], c); P([[dx - 3 + k, -3], [dx + 3 + k, -3], [dx + 4 + k, 0], [dx - 3 + k, 0]], '#1c1a22', 1) };
+	leg(-3, (walk || 0) + PI, W3); leg(2, walk || 0, W2);
+	/* the torso: faceted, lighter at the front */
+	x.translate(0, bob);
+	P([[-9, -44], [5, -45], [10, -33], [8, -19], [-6, -17], [-12, -29]], W1, 1.5);
+	P([[-9, -44], [-12, -29], [-6, -17], [-2, -30]], W2, .9);
+	x.strokeStyle = 'rgba(10,12,20,.5)'; x.lineWidth = .8; x.beginPath(); x.moveTo(5, -45); x.lineTo(-2, -30); x.lineTo(8, -19); x.stroke();
+	/* a bandolier with brass, worn and scuffed */
+	x.strokeStyle = '#2e2620'; x.lineWidth = 3.2; x.beginPath(); x.moveTo(-9, -42); x.lineTo(8, -21); x.stroke();
+	x.fillStyle = '#b8913a'; for (let i = 0; i < 4; i++) x.fillRect(-6 + i * 3.8, -38 + i * 4.3, 1.6, 2.6);
+	x.fillStyle = 'rgba(60,50,50,.35)'; x.fillRect(-7, -26, 3, 1); x.fillRect(2, -36, 4, 1);
+	/* the far antler (behind the head), grey */
+	const antler = (ox, c, w) => { x.strokeStyle = ink; x.lineWidth = w + 2.2; x.lineCap = 'butt'; x.lineJoin = 'miter';
+		const path = () => { x.beginPath(); x.moveTo(ox - 2, -60); x.lineTo(ox - 8, -72); x.lineTo(ox - 6, -84); x.lineTo(ox - 13, -96);
+			x.moveTo(ox - 8, -72); x.lineTo(ox + 3, -78); x.moveTo(ox - 6, -84); x.lineTo(ox + 2, -92); x.moveTo(ox - 7, -80); x.lineTo(ox - 15, -84); x.moveTo(ox - 11, -93); x.lineTo(ox - 19, -98) };
+		path(); x.stroke(); x.strokeStyle = c; x.lineWidth = w; path(); x.stroke() };
+	antler(4, W3, 2.6);
+	/* the ruff: a shaggy, spiky fringe under the chin, down the neck */
+	P([[-7, -50], [8, -46], [6, -40], [3, -43], [1, -36], [-2, -42], [-5, -35], [-6, -42], [-10, -38]], W1, 1.2);
+	/* the head: faceted, the muzzle to the right */
+	const hx = 3, hy = -55;
+	P([[hx - 8, hy - 7], [hx + 3, hy - 9], [hx + 9, hy - 5], [hx + 15, hy + 1], [hx + 13, hy + 5], [hx + 5, hy + 7], [hx - 3, hy + 7], [hx - 9, hy + 1]], W1, 1.5);
+	P([[hx - 8, hy - 7], [hx + 1, hy - 1], [hx - 3, hy + 7], [hx - 9, hy + 1]], W2, .9);
+	x.strokeStyle = 'rgba(10,12,20,.75)'; x.lineWidth = 1; x.beginPath(); x.moveTo(hx + 3, hy - 9); x.lineTo(hx + 1, hy - 1); x.lineTo(hx + 13, hy + 5); x.moveTo(hx + 1, hy - 1); x.lineTo(hx + 5, hy + 7); x.stroke();
+	/* the diamond ear, dark inside */
+	P([[hx - 6, hy - 6], [hx - 15, hy - 12], [hx - 21, hy - 8], [hx - 12, hy - 2]], W1, 1.3);
+	P([[hx - 9, hy - 6], [hx - 15, hy - 10], [hx - 18, hy - 8], [hx - 12, hy - 4]], '#1a1d28', .6);
+	/* the near antler, white */
+	antler(0, W1, 3);
+	/* a narrow, slanted eye */
+	x.fillStyle = ink; x.beginPath(); x.moveTo(hx + 3, hy - 3); x.lineTo(hx + 9, hy - 2.2); x.lineTo(hx + 4, hy - .8); x.closePath(); x.fill();
+	x.strokeStyle = ink; x.lineWidth = 1.2; x.beginPath(); x.moveTo(hx + 2, hy - 5.5); x.lineTo(hx + 9, hy - 4); x.stroke();   /* the brow */
+	/* the red nose, glowing */
+	x.drawImage(A.pink, hx + 15 - 9, hy + 2 - 9, 18, 18);
+	P([[hx + 12, hy], [hx + 16, hy - .5], [hx + 18, hy + 2], [hx + 16, hy + 4.5], [hx + 12, hy + 4]], '#e3283e', 1);
+	x.fillStyle = 'rgba(255,255,255,.7)'; x.fillRect(hx + 14, hy + .5, 1.6, 1);
 	/* the arm and the weapon, turned to the aim */
-	const sx = X + 4, sy = Y + 16;
-	x.translate(sx, sy); x.rotate(aim); x.translate(-recoil * 4, 0);
+	x.translate(6, -34 - bob); x.rotate(aim); x.translate(-recoil * 4, 0);
 	A.weapon(x, weapon);
-	oval(x, 4, 2, 6, 4); fl(x, '#f6eddc', '#6b4a35', 1.1);
+	P([[-2, -3], [8, -3], [9, 3], [-1, 4]], W1, 1.1);
 	x.restore();
 };
 /* the weapons, each its own shape and colours (drawn pointing right from the shoulder) */
@@ -168,7 +219,7 @@ A.elf = function (x, e, t, rf) {
 	if (e.chill > 0) { x.globalAlpha = .9 }
 	const jit = rf ? 0 : (hash(e.id, Math.floor(t * 12)) > .93 ? (hash(e.id, 3) - .5) * 3 : 0);
 	x.translate(jit, 0); x.scale(s, s);
-	const lineC = e.hitT > 0 ? '#ffffff' : '#120a18';
+	const lineC = e.hitT > 0 ? '#ffd8d8' : '#06030a';
 	if (e.kind == 'wendigo') { wendigo(x, e, t, rf, lineC, D); x.restore(); return }
 	if (e.kind == 'crawler') {
 		/* dragging itself low along the snow */
@@ -251,12 +302,17 @@ function head(x, X, Y, D, e, t, rf, lineC) {
 	x.beginPath(); x.moveTo(X - 1, Y - 1); x.lineTo(X + 3, Y); x.lineTo(X - 1, Y + 1.3); x.closePath(); x.fill();
 	x.strokeStyle = D.eye; x.lineWidth = .9; x.beginPath(); x.moveTo(X - 5, Y + 4.5); x.lineTo(X - 3, Y + 3.5); x.lineTo(X - 1, Y + 4.5); x.lineTo(X + 1, Y + 3.5); x.stroke();
 }
-/* what is left when one falls: a spreading black slush that fades */
+/* what is left when one falls: a splash of dark ichor that stains the snow for the rest of the night */
 A.slush = function (x, d, t) {
-	const a = Math.max(0, 1 - d.t / 6);
-	x.fillStyle = `rgba(14,8,20,${.75 * a})`; oval(x, d.x, d.y, d.r * Math.min(1, d.t * 3), 3 + d.r * .1); x.fill();
-	x.fillStyle = `rgba(176,77,255,${.4 * a})`; for (let i = 0; i < 3; i++) x.fillRect(d.x + (hash(d.id, i) - .5) * d.r * 1.6, d.y - 1 - hash(i, d.id) * 3, 2, 2);
+	const a = .85 - Math.min(.35, d.t / 120), r = d.r * Math.min(1, d.t * 4);
+	x.fillStyle = `rgba(28,6,14,${a})`; oval(x, d.x, d.y, r * 1.3, 3 + d.r * .14); x.fill();
+	for (let i = 0; i < 6; i++) { const sx = d.x + (hash(d.id, i) - .5) * r * 3.2, sy = d.y + (hash(i, d.id) - .5) * 6; oval(x, sx, sy, 1.5 + hash(d.id, i + 9) * 3 * Math.min(1, d.t * 4), 1 + hash(d.id, i + 3) * 1.4); x.fill() }
+	x.fillStyle = `rgba(120,40,150,${.35 * a})`; for (let i = 0; i < 3; i++) x.fillRect(d.x + (hash(d.id, i) - .5) * d.r * 1.6, d.y - 1 - hash(i, d.id) * 3, 2, 2);
 };
+/* a chunk of a fallen elf, tumbling (fb.js moves it) */
+A.gib = function (x, g) { x.save(); x.translate(g.x, g.y); x.rotate(g.a); x.fillStyle = g.col; x.strokeStyle = '#08040a'; x.lineWidth = 1; x.beginPath(); x.moveTo(-g.r, -g.r * .5); x.lineTo(g.r * .3, -g.r); x.lineTo(g.r, g.r * .2); x.lineTo(-g.r * .2, g.r * .8); x.closePath(); x.fill(); x.stroke(); x.restore() };
+/* a crossbow a panicking survivor dropped */
+A.dropped = function (x, X, Y) { x.strokeStyle = '#4a3220'; x.lineWidth = 2; x.beginPath(); x.moveTo(X - 7, Y - 1); x.lineTo(X + 7, Y - 3); x.stroke(); x.strokeStyle = '#8a7a5a'; x.lineWidth = 1; x.beginPath(); x.moveTo(X + 2, Y - 7); x.lineTo(X + 4, Y + 2); x.stroke() };
 
 /* ---------- Captain Quill and his sleigh (Night 15) ---------- */
 /* an original character: a rockhopper penguin (slate-blue back, spiky yellow crest, orange-red beak, pink feet) in a red
