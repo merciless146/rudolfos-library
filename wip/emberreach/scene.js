@@ -112,6 +112,8 @@ function build(star, opts) {
 	}
 	const planets = bodies.filter(b => b.kind == 'planet');
 	const portWorld = (opts.portWorld != null ? (typeof opts.portWorld == 'string' ? planets.find(b => b.name == opts.portWorld) : planets[opts.portWorld]) : null) || planets[planets.length - 1] || null;
+	/* no port: opts.port === null (most of the galaxy) */
+	if (opts.port === null) return {star, bodies, station: null, day};
 	const cls = opts.port || 'halo';
 	/* the port: in orbit at one planetary radius up (two if the world has rings), on the day side; its axis points out from the planet, so the
 	   mouth faces open space */
@@ -190,7 +192,7 @@ function collide(scene, s, t) {
 		const d = sub(s.p, b.pos), r = len(d);
 		if (r < b.radius + shipR) return {what: b, kind: b.kind, normal: norm(d), depth: b.radius + shipR - r, impact: Math.max(0, -dot(s.v, norm(d)))};
 	}
-	if (len(sub(s.p, st.c)) > st.def.radius + 200) return null;
+	if (!st || len(sub(s.p, st.c)) > st.def.radius + 200) return null;
 	if (inMouth(st, s.p, t, shipR)) return null;   /* the mouth is open: dockCheck decides */
 	const n = nearestPart(st, s.p, t);
 	if (n.d > shipR) return null;
@@ -211,12 +213,11 @@ const CRUISE = {k: 1, cap: 200 * C, min: 2000, charge: 3, lock: 20000, drop: {st
 function nearest(scene, p) {
 	let best = {d: Infinity, what: null};
 	for (const b of scene.bodies) { const d = len(sub(p, b.pos)) - b.radius; if (d < best.d) best = {d, what: b} }
-	const ds = len(sub(p, scene.station.c)) - scene.station.def.radius;
-	if (ds < best.d) best = {d: ds, what: scene.station};
+	if (scene.station) { const ds = len(sub(p, scene.station.c)) - scene.station.def.radius; if (ds < best.d) best = {d: ds, what: scene.station} }
 	return best;
 }
 /* a station's mass lock: no cruise within 20 km */
-const massLocked = (scene, p) => len(sub(p, scene.station.c)) < CRUISE.lock;
+const massLocked = (scene, p) => !!scene.station && len(sub(p, scene.station.c)) < CRUISE.lock;
 /* the fastest cruise allowed here */
 const cruiseLimit = (scene, p) => Math.min(CRUISE.cap, Math.max(CRUISE.min, CRUISE.k * Math.max(0, nearest(scene, p).d)));
 /* how close to a target (its surface, m) the cruise drops out */
@@ -245,6 +246,13 @@ function dropOut(s, cz) {
 	return {emergency};
 }
 
+/* where a jump arrives: out from the star (40 of its radii, at least 0.02 AU) on the side of the port (or of the
+   first planet), facing that way, so cruising straight ahead heads there */
+function arrival(scene) {
+	const sun = scene.bodies[0], goal = scene.station ? scene.station.c : (scene.bodies.find(b => b.kind == 'planet') || {pos: [AU, 0, 0]}).pos;
+	const u = norm(sub(goal, sun.pos)), D = Math.max(40 * sun.radius, 0.02 * AU);
+	return {p: add(sun.pos, mul(u, D)), q: lookRotation(u, Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0])};
+}
 /* where a ship starts: outside the mouth, facing it */
 function spawn(scene, dist) {
 	const st = scene.station, D = st.def.dock, p = toWorldPt(st, [0, 0, D.z + (dist || 2500)]);
@@ -252,7 +260,7 @@ function spawn(scene, dist) {
 }
 
 const EmberScene = {AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
-	inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, lookRotation, rotZ,
+	inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
 	v: {add, sub, mul, dot, cross, len, norm}};
 if (isNode) module.exports = EmberScene; else root.EmberScene = EmberScene;
 })(typeof window != 'undefined' ? window : this);

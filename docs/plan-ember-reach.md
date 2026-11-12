@@ -14,9 +14,11 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
   - Flight, with flight assist: `flight.js` (`tests/emberreach_flight_t.js`, 19 checks).
   - Modules, damage and HUD alerts: `modules.js` (`tests/emberreach_modules_t.js`, 15 checks).
   - The pilot under g, with the canopy broken: `pilot.js` (`tests/emberreach_pilot_t.js`, 10 checks).
-  - A system to fly in, its ports, docking, cruise and collisions: `scene.js` (`tests/emberreach_scene_t.js`, 22
+  - A system to fly in, its ports, docking, cruise and collisions: `scene.js` (`tests/emberreach_scene_t.js`, 23
     checks).
-  - The save: `save.js` (`tests/emberreach_save_t.js`, 6 checks).
+  - The save: `save.js` (`tests/emberreach_save_t.js`, 9 checks).
+  - Travel between stars: fuel, misjumps, ports, lanes and routes: `travel.js` (`tests/emberreach_travel_t.js`, 16
+    checks). The star map: `map.js`.
   - **The flight screen (M1):** `play.html`, with `play.js`, `render.js`, `meshes.js` and `hud.js`. Open it from a
     checkout (it loads gamekit from `lib/`); `?port=trefoil|bloom|lantern|halo`, `?ship=kestrel`, `?power=N`,
     `?canvas` for the fallback, `?debug` to break modules.
@@ -193,13 +195,23 @@ WOS's flat mix stays available as a "rich galaxy" setting if playtests find the 
    AU takes about a minute. It needs 3 s to charge, can't engage within a port's 20 km mass lock, and drops out
    at the target (or near anything it gets too close to, a star from three of its radii). Dropping out above
    300 km/s is an emergency drop that knocks the ship's modules. (`scene.js`.)
-3. **Jump:** star to star. Range 1–10 pc, depending on the drive and its fuel.
+3. **Jump:** star to star. Range 1–10 pc (up to 20 on the longest-legged ships), depending on the drive and its
+   fuel. Fuel is a tank: a jump at full range burns a quarter of it, a shorter one less, by the square of the
+   distance; a lane leg burns 8%. (`travel.js`.)
    - In the outskirts a jump crosses one or two neighbours. In the Glow there are dozens within reach. In the core
      there are thousands.
-   - Jump accuracy suffers where stars crowd: the core is hard to navigate.
+   - Jump accuracy suffers where stars crowd: the core is hard to navigate. A misjump locks onto a neighbour of the
+     target, with a chance set by how many stars sit within 0.05 pc of it: about 56% in the core, 9% in the Glow,
+     practically never in the outskirts.
+   - **Ports** (`travel.js`): a capital has a Halo; a power's other systems with a living world a Lantern; most
+     others with planets a Trefoil outpost, and most contested ones a Trefoil forward base under today's holder.
+     Unclaimed space has none. An enemy's port won't let you dock.
+   - **Routes:** hops of best progress, each within range (fast even in the Glow, where tens of thousands of stars
+     are within reach), or through the lanes when that takes fewer jumps.
 
    - **Lanes:** the great powers keep relay beacons that allow long jumps (up to about 50 pc) between their own
-     systems and their allies'. Within a cluster, capitals are from 4.5 pc (the Hearth) to 171 pc (the Rim) apart,
+     systems and their allies'. As built: a power's capital and hubs about 25 pc apart through its own space, never
+     in contested space (so the fronts cut them): 499 beacons in all. Within a cluster, capitals are from 4.5 pc (the Hearth) to 171 pc (the Rim) apart,
      so lane travel is quick. Enemies' lanes are closed to you, and fronts cut lanes.
    - **The long lanes:** between clusters (677–1,714 pc apart), old relay chains make jumps of about 100 pc, so
      a crossing takes 7–17 jumps. Free ports, nomads and syndicates live along them; whoever keeps a long lane
@@ -719,7 +731,21 @@ home currency.
      with **rings** (Ice or Stone, as the galaxy model gives them) and a rim of **haze** on worlds with air. Ports orbit
      their power's own homeworld, clear of any rings.
 3. **M2:** the 3D star map and jumping: the whole galaxy, zoom to a region, plot a route; borders and contested
-   space; lanes. The sky from real neighbours.
+   space; lanes. The sky from real neighbours. **Playable** in `play.html`:
+   - **The map** (G, `map.js`):
+     - zooms from the whole galaxy (its shape, a scatter of its stars, the six clusters, the long lanes) to a
+       cluster (each power's space in its colour, peaceful borders as solid grids, contested space as dashed
+       grids, the fronts' systems and supply chains, the powers' lanes) to the real stars around you, with your
+       jump range;
+     - pick a star to see who holds it, its port, its planets, its distance and the risk of a misjump;
+     - Enter plots a route; turn, zoom and pick by mouse, touch (pinch) or keys.
+   - **Jumping** (J): 5 s to charge, out of a port's mass lock, with fuel for the leg; then the tunnel, and you
+     arrive near the new star, facing its port. A jump takes a day, a lane leg half a day. A misjump re-plots the
+     route.
+   - **Systems everywhere:** every star you reach is built from the model, with its port (or none) and its own sky
+     of real neighbours. Docking refuels and repairs. A lost ship is replaced at the last port you docked at.
+   - **Saves** keep the system you're in, your fuel, your last port and your route's destination (save version 2;
+     M1 saves still load).
 4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.
 5. **M4:** combat and war: weapons, shields, heat, pirates, patrols; war missions, commissions, moving fronts;
    carriers and dreadnoughts.

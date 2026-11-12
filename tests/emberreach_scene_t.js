@@ -75,6 +75,9 @@ try {
 	const ringed = F.majors().map(m => ({m, sc: Sc.build(m.star, {portWorld: m.home.name})})).find(x => x.sc.station.world.ring);
 	ok('20. every power\'s port orbits its own homeworld, and clears any rings', F.majors().slice(0, 12).every(m => Sc.build(m.star, {portWorld: m.home.name}).station.world.name == m.home.name)
 		&& (!ringed || len(sub(ringed.sc.station.c, ringed.sc.station.world.pos)) - ringed.sc.station.def.radius > 2.3 * ringed.sc.station.world.radius));
+	const bare = Sc.build(home.star, {port: null}), arr = Sc.arrival(bare), wa = Fl.create(wren, arr); wa.radius = 4;
+	ok('21. a system with no port: no station, no mass lock, nothing to hit but its bodies; a jump arrives clear of the star, facing on', bare.station === null && !Sc.massLocked(bare, arr.p) && !Sc.collide(bare, wa, 0)
+		&& len(sub(arr.p, bare.bodies[0].pos)) > 30 * bare.bodies[0].radius && Sc.cruiseLimit(bare, arr.p) > 1e9);
 	ok('18. the same system every time', JSON.stringify(Sc.build(home.star, {day: 200}).bodies) == JSON.stringify(sc.bodies));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

@@ -51,6 +51,19 @@ function draw(ctx, W, H, h, t) {
 		const d = h.vision.dark, g = ctx.createRadialGradient(cx, cy, Math.max(W, H) * 0.62 * (1 - d), cx, cy, Math.max(W, H) * (0.78 - 0.35 * d));
 		g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,' + Math.min(1, 0.55 + d) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 	}
+	/* ---- a jump: the drive's tunnel, streaks racing out from the centre ---- */
+	if (h.witch != null) {
+		const k = h.witch;
+		ctx.fillStyle = 'rgba(2,4,10,' + (0.55 + 0.4 * Math.sin(Math.PI * k)).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
+		const R = Math.hypot(W, H) / 2;
+		for (let i = 0; i < 140; i++) {
+			const a = i * 2.39996, ph = (t * (1.2 + (i % 7) * 0.15) + i * 0.137) % 1, r0 = R * Math.pow(ph, 2.2), r1 = r0 + R * 0.08 * (0.5 + ph) * (0.6 + Math.sin(Math.PI * k));
+			ctx.strokeStyle = 'rgba(' + (150 + (i % 3) * 40) + ',' + (200 + (i % 2) * 30) + ',255,' + (0.25 + 0.6 * ph).toFixed(2) + ')'; ctx.lineWidth = 1 + 1.5 * ph;
+			ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.stroke();
+		}
+		if (h.witchTo) text(ctx, 'HYPERSPACE · ' + h.witchTo.toUpperCase(), cx, H - 40, {mono: true, align: 'center', size: 13, col: C.cyan, weight: 600});
+		ctx.restore(); return;
+	}
 	/* ---- the reticle ---- */
 	ctx.strokeStyle = 'rgba(108,201,232,0.75)'; ctx.lineWidth = 1.4;
 	ctx.beginPath(); ctx.arc(cx, cy, 16, 0, 7); ctx.moveTo(cx - 30, cy); ctx.lineTo(cx - 22, cy); ctx.moveTo(cx + 22, cy); ctx.lineTo(cx + 30, cy); ctx.moveTo(cx, cy - 30); ctx.lineTo(cx, cy - 22); ctx.moveTo(cx, cy + 22); ctx.lineTo(cx, cy + 30); ctx.stroke();
@@ -73,7 +86,7 @@ function draw(ctx, W, H, h, t) {
 		}
 	}
 	/* ---- bottom left: flight ---- */
-	const bw = small ? 200 : 240, bh = 118, bx = 16, by = H - bh - (h.touch ? 190 : 16);
+	const bw = small ? 240 : 290, bh = 118, bx = 16, by = H - bh - (h.touch ? 190 : 16);
 	box(ctx, bx, by, bw, bh);
 	text(ctx, h.cruise ? 'CRUISE' : 'SPEED', bx + 12, by + 22, {col: C.muted, size: 11, mono: true});
 	text(ctx, fmtSpeed(h.speed), bx + 12, by + 50, {size: 26, weight: 600, mono: true, col: h.cruise ? C.cyan : C.text});
@@ -85,10 +98,13 @@ function draw(ctx, W, H, h, t) {
 	ctx.fillStyle = C.muted; ctx.fillRect(tx - 4, zero, 20, 1);
 	const chips = [[h.fa ? 'FA ON' : 'FA OFF', h.fa ? C.cyan : C.amber]];
 	if (h.cruise) chips.push(['CRUISE', C.cyan]); else if (h.charging) chips.push(['CHARGING ' + Math.ceil(h.charging), C.cyan]); else if (h.massLocked) chips.push(['MASS LOCKED', C.muted]);
+	if (h.jumpCharge) chips.push(['JUMP ' + Math.ceil(h.jumpCharge), C.cyan]);
+	if (h.fuel != null) chips.push(['FUEL ' + Math.round(h.fuel * 100) + '%', h.fuel < 0.25 ? C.amber : C.muted]);
 	if (h.gFelt != null) chips.push([h.gFelt.toFixed(1) + ' g', h.gFelt > 4 ? C.amber : C.muted]);
 	let chx = bx + 12;
 	for (const [s, col] of chips) { ctx.font = '600 11px ' + MONO; const w = ctx.measureText(s).width + 12; ctx.strokeStyle = col; ctx.strokeRect(chx + 0.5, by + 72.5, w, 20); text(ctx, s, chx + 6, by + 86, {mono: true, size: 11, col, weight: 600}); chx += w + 6 }
-	text(ctx, h.fa ? 'Set ' + fmtSpeed(Math.max(0, thr) * h.vmax) : (h.thrustNote || 'Thrust ' + Math.round(thr * 100) + '%'), bx + 12, by + 110, {size: 11, col: C.muted});
+	if (h.nextLeg) text(ctx, h.nextLeg, bx + 12, by + 110, {size: 11, col: C.cyan, weight: 600});
+	else text(ctx, h.fa ? 'Set ' + fmtSpeed(Math.max(0, thr) * h.vmax) : (h.thrustNote || 'Thrust ' + Math.round(thr * 100) + '%'), bx + 12, by + 110, {size: 11, col: C.muted});
 	/* ---- bottom right: target ---- */
 	if (h.target) {
 		const T = h.target, w = small ? 210 : 280, x = W - w - 16, y = H - 118 - (h.touch ? 190 : 16);
