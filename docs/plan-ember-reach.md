@@ -14,6 +14,11 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
   - Flight, with flight assist: `flight.js` (`tests/emberreach_flight_t.js`, 19 checks).
   - Modules, damage and HUD alerts: `modules.js` (`tests/emberreach_modules_t.js`, 15 checks).
   - The pilot under g, with the canopy broken: `pilot.js` (`tests/emberreach_pilot_t.js`, 10 checks).
+  - A system to fly in, its ports, docking, cruise and collisions: `scene.js` (`tests/emberreach_scene_t.js`, 20
+    checks).
+  - **The flight screen (M1):** `play.html`, with `play.js`, `render.js`, `meshes.js` and `hud.js`. Open it from a
+    checkout (it loads gamekit from `lib/`); `?port=trefoil|bloom|lantern|halo`, `?ship=kestrel`, `?power=N`,
+    `?canvas` for the fallback, `?debug` to break modules.
   - `wip/emberreach/viewer.html` draws them, the north in 3D.
 
 ## Exceptions to the games plan's rules
@@ -182,8 +187,11 @@ WOS's flat mix stays available as a "rich galaxy" setting if playtests find the 
 
 1. **Flight:** Newtonian under the hood, flown like Oolite with flight assist; for combat, docking and landing
    approaches. Speeds in m/s to km/s. See "Flight" below.
-2. **Cruise:** within a system, up to a sizeable fraction of light speed, so crossing a few AU takes a minute or
-   two. Gravity wells slow it, and it drops out near planets and stations.
+2. **Cruise:** within a system, a warp whose speed is the distance to the nearest surface per second (up to 200 c),
+   so it spools up in open space, slows on its own near planets, stars and ports, and never hits one; crossing an
+   AU takes about a minute. It needs 3 s to charge, can't engage within a port's 20 km mass lock, and drops out
+   at the target (or near anything it gets too close to, a star from three of its radii). Dropping out above
+   300 km/s is an emergency drop that knocks the ship's modules. (`scene.js`.)
 3. **Jump:** star to star. Range 1–10 pc, depending on the drive and its fuel.
    - In the outskirts a jump crosses one or two neighbours. In the Glow there are dozens within reach. In the core
      there are thousands.
@@ -251,7 +259,25 @@ How some stock ships handle:
 
 **Controls.** On keyboard and mouse, controller and touch alike: pitch and roll on the stick (or mouse), yaw on
 a pair of keys or a second axis, the throttle on an axis or keys, strafe on a hat or keys, and one button to switch
-FA, shown on the HUD. NPCs fly with FA on, through the same model and the same controls.
+FA, shown on the HUD. NPCs fly with FA on, through the same model and the same controls. As built (`play.js`):
+
+| Keyboard | Gamepad | Touch | |
+|---|---|---|---|
+| ↑ ↓ or W S, ← → | left stick | the stick, bottom left | pitch (↑ noses down), roll |
+| A D | right stick, LB / RB | | yaw |
+| R F, X | triggers | the slider, bottom right | throttle up / down; X to zero |
+| J L I K | right stick (vertical), d-pad | | strafe |
+| Z | B | FA | flight assist |
+| C | Y | CRUISE | cruise |
+| T or Tab | X | TARGET | next target |
+| N | A | DOCK | docking clearance |
+| V, O, M, H, P or Esc | Back, Start | VIEW, II | chase view, internal systems, mouse flight, help, pause |
+
+**Docking** (`scene.js`): ask for clearance within 10 km (a pad is assigned), then fly through the dock mouth on
+the port's axis, nose in, under 60 m/s. At a spinning port (Trefoil, Bloom) the ship must also turn with it, within
+0.08 rad/s; flight assist does that inside 8 km of the port. Without clearance, too fast, off the axis or not
+turning with the port, the mouth turns you away (and hitting it hard hurts). The port's parts are solid, its ring
+and spokes turning, and collisions damage modules by how hard they are.
 
 ### Regions
 
@@ -653,6 +679,15 @@ home currency.
   lines and points sorted back to front, like the viewer.
 - **The sky:** the nearest few thousand stars as points from `starsNear`. Farther away, the galaxy's integrated light
   as a precomputed sky texture: in the Glow, the core fills half the sky.
+- **Level of detail, to keep the frame rate up** (`play.js`, `render.js`):
+  - **planets and stars** are drawn as one lit sprite (a quad shaded as a sphere; a star flat and bright) until they
+    are 48 pixels across, then as a mesh;
+  - **stations** are a detailed mesh within 20 km, a simplified one (coarser curves, no trusses, radiators or lit
+    windows) out to 500 km, and a sprite beyond;
+  - **ships** are always drawn in full, at the player's graphics setting (High or Low, in the pause menu), however
+    far away they are. The setting also sets how fine the planet meshes are and how many stars the sky shows.
+- **Depth:** logarithmic, with positions kept in doubles and made relative to the camera, so a 9 m ship, a 1.8 km
+  port and a planet an AU away draw in one pass.
 - **Performance:**
   - generating a system takes under 1 ms;
   - finding the stars within 15 pc takes under 0.1 s, run off the frame loop (a worker where available);
@@ -665,7 +700,10 @@ home currency.
 1. **M0 (this plan):** the galaxy model; the great powers, alliances, front-line wars, small factions, money,
    reputation and the 40 stock ships as models; their checks and the 3D viewer. Done.
 2. **M1:** fly a ship in one system, with WebGL and the Canvas fallback; planets, a star and a station to dock at.
-   Gamekit controls. The flight model and its checks are done (`flight.js`).
+   Gamekit controls. **Playable** (`wip/emberreach/play.html`): the home system of any great power from the model,
+   its port in any of the four classes, flight with FA, cruise, docking, collisions and module damage, the HUD (with
+   the alerts, internal systems and g-strain vision), and level of detail. Still to come in M1: sound, saving the
+   ship between sessions, and planets' rotation and rings.
 3. **M2:** the 3D star map and jumping: the whole galaxy, zoom to a region, plot a route; borders and contested
    space; lanes. The sky from real neighbours.
 4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.
