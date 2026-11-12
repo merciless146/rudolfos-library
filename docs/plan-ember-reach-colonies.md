@@ -289,7 +289,26 @@ Colonies come after trade, combat and exploration work (M3–M5), as **M5b**, be
    - **Security, wealth, tech** from the facilities and the port's tier.
    - **Pay:** each season from opening, the colony's trade (2 SU a head plus 5,000 SU per facility and the port)
      times 5–10% by wealth, in the sponsor's coin.
-3. **M5b-3:** forward bases and the wars; raids; independent colonies and their scrip; rented carriers.
+3. **M5b-3:** forward bases and the wars; raids; independent colonies and their scrip; rented carriers. **Playable**
+   (41 checks in `tests/emberreach_colonies_t.js` with parts 1 and 2):
+   - **Forward bases** (a fourth primary port: 200,000 SU, 2,500 t of iron, titanium, machinery, electronics and
+     munitions): only in contested space, through the office of the side you're commissioned with, where that side
+     holds the system and its supply chain reaches it. Each season while its side holds the system, a base adds war
+     effort there (5, or 5.5 when supplied), played through the front like any other; if the enemy holds the system
+     at a season's turn, the base is lost. A base counts as guarded (no raids) and has 25% more security.
+   - **Raids:** arriving at a colony with anything being built, raiders come half the time in unclaimed space (a
+     quarter in claimed space) unless a military outpost or base guards it. Haulers on the way are raided 10% of runs
+     in unclaimed space, 5% in claimed, never past a military outpost; the goods are lost.
+   - **Independent colonies:** claimed at any great power's colonial office, but only in unclaimed space, with the
+     fee in SU through free traders (outposts and stations). They mint a scrip (a code like XQR), worth about 1 SU
+     at first and floating with the colony's wealth (`economy.registerScrip`); their market trades through free
+     traders. They pay 10–15% of their trade, in scrip, and have 15% less security: below 30% security for two
+     seasons running, a syndicate takes the colony over and it's lost. The budget follows your best standing with
+     any power. (Free ports as offices of their own wait for docking at free ports.)
+   - **Rented carriers:** a prospector guild's or nomads' fleet carrier (one not moving and not against you) parks
+     at a build for a season for 40,000 SU in the local coin: haulage to that colony costs 30% less and takes half
+     the days. It waits at the site in flight.
+   - Lost colonies free their systems for new claims.
 
 ## Open questions
 

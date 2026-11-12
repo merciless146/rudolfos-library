@@ -94,6 +94,7 @@ async function start() {
 	game.home = majors[game.power];
 	game.P = ok && sv.player ? sv.player : Tr.newPlayer(game.home.id);
 	if (Q.has('ship') && !ok) game.P.ship.model = Q.get('ship');
+	Co.registerScrips(game.P);
 	game.homePort = !ok && Sc.STATION[Q.get('port')] ? Q.get('port') : ok && sv.version == 1 ? sv.port : 'halo';
 	ship = S.ships().find(x => x.id == game.P.ship.model) || S.ships().find(x => x.id == 'wren');
 	game.day = ok ? sv.day : +(Q.get('day') || 200);
@@ -480,6 +481,18 @@ function populate() {
 	game.npcs = []; game.shots = []; game.booms = [];
 	if (!s) return;
 	place(En.cast(game.star, Math.floor(game.day), game.P, {port: game.port, visit: game.visits++}));
+	/* a colony here: construction draws raiders; a rented carrier waits at the site */
+	const c = Co.colonyAt(game.P, game.star.id);
+	if (c) {
+		const building = c.stage == 'building' || (c.builds || []).some(b => !b.done), guarded = (c.builds || []).some(b => b.done && b.fac == 'military') || Co.PORTS[c.port].base;
+		if (building && !guarded && Math.random() < (F.claimAt(c.star.at).owner ? 0.25 : 0.5)) {
+			const gang = F.minors().filter(m => m.type == 'criminal')[Math.floor(Math.random() * 16)], hulls = S.ships().filter(x => x.who.includes('pirate') && ['XS', 'S', 'M'].includes(x.size));
+			place([0, 1].map(i => ({role: 'pirate', faction: gang.id, ship: hulls[Math.floor(Math.random() * hulls.length)], where: 'arrival', range: 5000 + i * 600, ai: 'attack', wing: 'raid'})));
+			say('Raiders are circling your construction at ' + c.star.name, '#e5484d');
+		}
+		const r = Co.rented(c, game.day);
+		if (r && building) place([{role: 'flagship', faction: r.id, ship: S.ships().find(x => x.id == 'bastion'), name: r.name, where: 'arrival', range: 30000, ai: 'hold'}]);
+	}
 }
 function place(list) {
 	const fwd = Fl.forward(s), rnd = Math.random;
