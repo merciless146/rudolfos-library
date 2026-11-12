@@ -7,7 +7,8 @@
    faction, lawfulness, bounties and any commission. Older saves load with a fresh player from the same origin.
    The player also carries (M4) the hull's health and ammunition, and the war missions in hand; saves without them
    load with a whole hull, full magazines and no missions. And (M5) the exploration record: systems charted,
-   planets surveyed (first discoveries marked), what's been sold, and the names given.
+   planets surveyed (first discoveries marked), what's been sold, and the names given. And (M5b) colonies and the
+   haulage contracts on their way.
    unpack() checks everything, and gives null for anything it can't trust (another version, a damaged file), so a
    bad save starts a new game instead of breaking one.
    GPL-2.0-or-later. ===== */
@@ -55,7 +56,8 @@ function packPlayer(P) {
 	const r = (o, d) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v).map(([k, v]) => [k, +v.toFixed(d)]));
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
 		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, day: P.day || 0,
-		combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null};
+		combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
+		colonies: P.colonies || [], hauls: P.hauls || []};
 }
 const numMap = o => o && typeof o == 'object' && !Array.isArray(o) && Object.values(o).every(num);
 function unpackPlayer(x) {
@@ -68,6 +70,9 @@ function unpackPlayer(x) {
 		combat: x.combat && typeof x.combat == 'object' && num(x.combat.hull) ? x.combat : null,
 		/* M5: what you've charted, surveyed, sold and named */
 		explore: exploreOk(x.explore) ? x.explore : null,
+		/* M5b: colonies and haulage contracts */
+		colonies: Array.isArray(x.colonies) ? x.colonies.filter(c => obj(c) && typeof c.id == 'string' && obj(c.star) && Array.isArray(c.star.at) && obj(c.need) && obj(c.got) && typeof c.stage == 'string') : [],
+		hauls: Array.isArray(x.hauls) ? x.hauls.filter(h => obj(h) && typeof h.colony == 'string' && num(h.tons) && num(h.eta)) : [],
 		missions: Array.isArray(x.missions) ? x.missions.filter(m => m && typeof m.id == 'string' && m.star && typeof m.star.id == 'string' && Array.isArray(m.star.at) && num(m.due)) : []};
 }
 const obj = o => o && typeof o == 'object' && !Array.isArray(o);

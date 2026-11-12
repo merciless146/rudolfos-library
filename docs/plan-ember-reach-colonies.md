@@ -250,7 +250,25 @@ easily in a save.
 
 Colonies come after trade, combat and exploration work (M3–M5), as **M5b**, before the Core and polish (M6):
 1. **M5b-1:** claims, beacons, the primary port and goods delivery, with haulage contracts. A finished outpost with a
-   market.
+   market. **Playable** (`wip/emberreach/colonies.js`, 19 checks in `tests/emberreach_colonies_t.js`):
+   - **The colonial office** (Contacts, at any great power's port, your own colonies' included): your colonies and
+     their builds, haulage from that port, and the **planner**: the ten nearest claimable systems within one jump,
+     each with its planets, the port world (the most Earth-like) and the three primary ports' fees and goods.
+   - **Claims** follow the rules above: one jump, planets, not the Core, not contested, no port already, a charter
+     (Friendly) inside a power's own space, Neutral or better in unclaimed space; one open claim at a time and the
+     budget by standing. Fees: 120,000 / 300,000 / 750,000 SU in the sponsor's coin.
+   - **The beacon:** in the system within 2 days, N within 30 radii of the port world. A constructor ship arrives.
+   - **Goods:** N within 3 km of the constructor (under 60 m/s) hands over what the build needs from your hold. The
+     outpost takes 1,500 t (iron, aluminium, titanium, machinery, electronics, food, water, fuel); a station
+     9,000 t; a great port 25,000 t.
+   - **Haulage contracts:** from any port that trades in a power's coin, for each good still wanted, at 10–25% over
+     its market plus 0.4% a parsec, paid up front. A Drover, Caravel or Leviathan brings it (by size) after the days
+     of its journey, at the next day's turn (each jump).
+   - **Done:** the port opens the next day as the sponsor's port (Trefoil, Lantern or Halo), with a market in its
+     coin, and the sponsor's standing rises by 150. **Lapses** keep the salvage and take a third off a new claim.
+   - Saves keep colonies and contracts; the map shows your colonies' progress.
+   - Not yet (M5b-2 and -3): slots and facilities, links, population and payments, forward bases, raids,
+     independent colonies, rented carriers, belts.
 2. **M5b-2:** slots, facilities, development points, links and the economy; population; payments.
 3. **M5b-3:** forward bases and the wars; raids; independent colonies and their scrip; rented carriers.
 

@@ -31,13 +31,16 @@
      of a targeted planet surveys it (12 s). First discoveries out of the powers' charted space are yours, and
      living worlds and ruins you found first can be named at a port's cartographers, who buy the data. Ruins are
      guarded by old sentinels, and surveying one turns up a cache of Artefacts.
+   - Colonies (M5b, colonies.js): claimed at a colonial office (Contacts); in the system, N near the chosen world
+     drops the beacon, and a constructor arrives; N within 3 km of it hands over the goods in your hold. Haulers on
+     contract bring the rest. Finished, the colony's port opens the next day.
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
-	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore;
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 const $ = id => document.getElementById(id);
@@ -129,12 +132,13 @@ async function start() {
 function enterSystem(star) {
 	game.star = star;
 	const capHome = star.id == game.home.star.id;
-	game.port = capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : T.portFor(star, game.day);
+	game.port = capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day) || T.portFor(star, game.day);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
 	st = scene.station;
 	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = [];
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
+	site();
 	meshes();
 }
 /* every mesh, at the graphics setting */
@@ -142,6 +146,7 @@ function meshes() {
 	for (const b of scene.bodies) { R.upload(b.name, b.kind == 'star' ? Me.star(b.T, quality) : Me.planet(b, quality)); if (b.ring) R.upload(b.name + ':rings', Me.rings(b.ring, b.seed, quality)) }
 	if (st) for (const det of ['hi', 'lo']) Me.station(st.def, st.parts, det).forEach(g => R.upload('station:' + det + ':' + g.spin, g.mesh));
 	R.upload('ship', Me.ship(ship.length, quality));
+	R.upload('constructor', Me.ship(600, quality));
 	R.upload('can', Me.box([0, 0, 0], [0.8, 0.8, 1.3], [0.86, 0.52, 0.18, 0]));
 	game.npcMeshes = new Set(); for (const n of game.npcs) npcMesh(n);
 	R.setSky(sky(game.star));
@@ -198,7 +203,7 @@ function persist() {
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
 		.then(() => { setTimeout(() => { game.saving = false }, 1000) });
 }
-const targets = () => [...(st ? [st] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
+const targets = () => [...(st ? [st] : []), ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
 /* the target is kept by reference (ships come and go); a lost one falls back to the port, or the first body */
 function curTarget() { const L = targets(); if (!L.includes(game.tgt)) game.tgt = L[0]; return game.tgt }
 const posOf = x => x.pos || x.c;
@@ -282,6 +287,7 @@ function nearestHostile() {
 	game.tgt = h; say('Target: ' + h.name + ' · ' + H.fmtDist(len(sub(h.s.p, s.p))), '#e5484d'); Snd.cue('tick');
 }
 function requestDock() {
+	if (!st && Co.colonyAt(game.P, game.star.id)) { colonyAct(); return }
 	if (!st) { say('There is no port in this system', '#f2a33a'); Snd.cue('refused'); return }
 	const d = len(sub(s.p, st.c));
 	if (d > 10000) { say('Docking clearance is given within 10 km of the port (' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
@@ -332,7 +338,7 @@ function arrive() {
 	enterSystem(a.star);
 	const p = Sc.arrival(scene); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0];
 	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = 0;
-	settle(); populate();
+	settle(); colonyTurn(); populate();
 	const o = owner(), who = o ? (game.port && game.port.contested ? 'contested, held by ' : '') + o.name.replace(/^The /, '') : 'unclaimed space';
 	if (a.misjump) say('Misjump! The drive locked onto ' + a.star.name + ', near ' + leg.star.name, '#f2a33a');
 	say('Arrived: ' + a.star.name + ' · ' + who + (st ? ' · ' + st.def.name + ' at ' + game.port.world : ' · no port'), '#7fd1a8');
@@ -362,7 +368,7 @@ function plot(toStar, quiet) {
 /* ---------------- the map ---------------- */
 function openMap() {
 	game.mapOpen = true;
-	map.explore = game.P.explore; map.info = null;
+	map.explore = game.P.explore; map.player = game.P; map.info = null;
 	map.here = game.star; map.range = ship.jump; map.origin = game.home.id; map.day = game.day; map.fuel = game.fuel; map.route = game.route;
 	if (!map.opened) { map.opened = true; map.home() }
 	if (!map.ready) { map.charting = 1; setTimeout(() => { T.lanes(); map.ready = true; map.charting = 0; if (game.pendingRoute) { const t = T.starAt(game.pendingRoute.id, game.pendingRoute.p); game.pendingRoute = null; if (t) plot(t, true) } }, 60) }
@@ -617,6 +623,39 @@ function cargo(dt, cruising) {
 	for (const g of r.got) { say('Scooped 1 t ' + g + ' · hold ' + Tr.held(game.P) + '/' + ship.cargo + ' t', '#7fd1a8'); Snd.cue('scoop') }
 	if ((r.full || r.fast) && (!game.saidScoop || game.t - game.saidScoop > 3)) { game.saidScoop = game.t; say(r.full ? 'Hold full: nothing more fits' : 'Too fast to scoop: under 20 m/s relative to the canister', '#f2a33a') }
 }
+/* ---------------- colonies ---------------- */
+/* the claim here: the beacon site (a world), or the constructor once the beacon is down */
+function site() {
+	const c = game.P && Co.colonyAt(game.P, game.star.id);
+	game.site = null;
+	if (!c || (c.stage != 'claimed' && c.stage != 'building')) return;
+	const w = scene.bodies.find(b => b.kind == 'planet' && b.name == c.world); if (!w) return;
+	const out = norm(add(mul(norm(w.pos), -1), [0.2, 0.3, 0.1]));
+	game.site = {kind: 'site', colony: c, world: w, name: c.stage == 'building' ? 'Constructor · ' + c.star.name : 'Beacon site · ' + pname(w), pos: c.stage == 'building' ? add(w.pos, mul(out, w.radius * 3)) : w.pos, radius: c.stage == 'building' ? 300 : w.radius};
+}
+/* N in a claimed system: drop the beacon near the world, or hand over goods at the constructor */
+function colonyAct() {
+	const c = Co.colonyAt(game.P, game.star.id), w = game.site && game.site.world;
+	if (!c || !w) { say('Nothing to build here', '#f2a33a'); return }
+	if (c.stage == 'claimed') {
+		const d = len(sub(s.p, w.pos)), need = w.radius * Co.COL.beaconRadii;
+		if (d > need) { game.tgt = game.site; say('Drop the beacon within ' + H.fmtDist(need) + ' of ' + pname(w) + ' (' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
+		const r = Co.beacon(game.P, c, game.day); if (!r.ok) { say(r.why, '#f2a33a'); return }
+		site(); game.tgt = game.site;
+		say('Beacon down: you are ' + c.star.name + '\'s architect. A constructor is on station. Bring the goods by day ' + c.due + '.', '#7fd1a8'); Snd.cue('docked'); persist(); return;
+	}
+	if (c.stage == 'building') {
+		const d = len(sub(s.p, game.site.pos)) - game.site.radius;
+		if (d > Co.COL.deliverRange || len(s.v) > 60) { game.tgt = game.site; say('Deliver within ' + H.fmtDist(Co.COL.deliverRange) + ' of the constructor, under 60 m/s (' + H.fmtDist(Math.max(0, d)) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
+		const r = Co.deliver(game.P, c, game.day), list = Object.entries(r.gave);
+		if (!list.length) { say('Nothing in your hold the build needs: ' + Object.keys(Co.left(c)).join(', '), '#f2a33a'); Snd.cue('refused'); return }
+		say('Delivered ' + list.map(([g, t]) => t + ' t ' + g).join(', ') + ' · ' + Math.round(Co.progress(c) * 100) + '% built', '#7fd1a8'); Snd.cue('scoop');
+		if (c.stage == 'done') { say(c.star.name + ': the ' + Co.PORTS[c.port].name.toLowerCase() + ' is built. It opens tomorrow (after your next jump).', '#7fd1a8'); Snd.cue('docked'); game.site = null }
+		persist();
+	}
+}
+/* the day's turn for colonies: haulers, finished builds, lapses */
+function colonyTurn() { for (const n of Co.turn(game.P, game.day)) { say(n.text, n.ok ? '#7fd1a8' : '#e5484d'); Snd.cue(n.ok ? 'clearance' : 'warning') } site() }
 /* ---------------- exploration ---------------- */
 const pname = b => b.kind == 'planet' ? X.nameOf(game.P, game.star.id, b.name) : b.name;
 const TYPE = {EarthLike: 'Earth-like', Gas: 'gas giant'};
@@ -770,6 +809,7 @@ function draw() {
 		const nb = R.basis(n.s.q);
 		items.push({id: 'npc:' + n.ship.length, pos: n.s.p, rot: mat3(nb.r, nb.u, nb.f), light: norm(sub(sun.pos, n.s.p)), amb: 0.15});
 	}
+	if (game.site && game.site.kind == 'site' && game.site.colony.stage == 'building') items.push({id: 'constructor', pos: game.site.pos, rot: mat3([1, 0, 0], [0, 1, 0], [0, 0, 1]), light: norm(sub(sun.pos, game.site.pos)), amb: 0.2});
 	for (const c of game.cans) {
 		if (len(sub(c.p, cam.p)) > 20000) continue;
 		const ax = norm(c.spin), a = c.angle, co = Math.cos(a), si = Math.sin(a), rotAx = v => add(add(mul(v, co), mul(cross(ax, v), si)), mul(ax, dot(ax, v) * (1 - co)));
@@ -797,6 +837,12 @@ function hudDraw(cam) {
 	const target = {name: pname(Tg), kind: Tg == st ? st.def.name + ' · ' + st.def.size : isShip ? Tg.ship.size + ' ' + Tg.ship.role + ' · ' + Tg.role : isCan ? 'cargo canister · 1 t' : Tg.kind == 'planet' ? Tg.type + ' world' : 'star, class ' + (Tg.cls || ''), x: pr.x, y: pr.y, on, dist: Math.max(0, dist),
 		size: on ? radiusOf(Tg) * pr.k / pr.z : 0, dx: pr.dx, dy: pr.dy, closing: dot(cz.on ? mul(Fl.forward(s), cz.v) : sub(s.v, isShip ? Tg.s.v : isCan ? Tg.v : [0, 0, 0]), norm(sub(tp, s.p)))};
 	if (Tg == st) target.dock = dockCues(rel);
+	if (Tg.kind == 'site') {
+		const c = Tg.colony, d = len(sub(s.p, Tg.pos)) - (c.stage == 'building' ? Tg.radius : 0);
+		target.kind = c.stage == 'building' ? 'constructor · ' + Co.PORTS[c.port].name.toLowerCase() : 'your claim · ' + Co.PORTS[c.port].name.toLowerCase();
+		target.dock = c.stage == 'claimed' ? {line1: d < Tg.radius * Co.COL.beaconRadii ? 'Press N to drop the beacon' : 'Beacon: within ' + H.fmtDist(Tg.radius * Co.COL.beaconRadii), line2: 'Due by day ' + c.beaconBy, col: d < Tg.radius * Co.COL.beaconRadii ? '#7fd1a8' : '#f2a33a'}
+			: {line1: Math.round(Co.progress(c) * 100) + '% built · due day ' + c.due, line2: d < Co.COL.deliverRange ? 'Press N to hand over goods' : 'Deliver within ' + H.fmtDist(Co.COL.deliverRange), col: d < Co.COL.deliverRange ? '#7fd1a8' : '#6cc9e8'};
+	}
 	if (Tg.kind == 'planet') {
 		const done = X.surveyed(game.P, game.star.id, Tg.name), p = Tg.src, near = len(sub(s.p, Tg.pos)) < Tg.radius * X.EXPLORE.surveyRadii;
 		target.dock = done ? {line1: 'Surveyed · ' + p.g.toFixed(2) + ' g · ' + Math.round(p.Ts) + ' K · ESI ' + p.esi.toFixed(2), line2: [p.alive ? 'life' : p.life ? 'traces of life' : null, p.ruins ? 'ruins' : null, p.atmo ? 'air ' + Math.round(p.bars * 10) / 10 + ' bar' : 'no air'].filter(Boolean).join(' · '), col: p.ruins || p.alive ? '#f2d36a' : '#7fd1a8'}
