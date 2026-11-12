@@ -15,12 +15,15 @@ b{color:#fff}
 </head>
 <body>
 <div class="row">
+  <figure><canvas id="north" width="620" height="520"></canvas><figcaption id="northCap"></figcaption></figure>
   <figure><canvas id="gal" width="620" height="620"></canvas><figcaption id="galCap"></figcaption></figure>
   <figure><canvas id="loc" width="460" height="460"></canvas><figcaption id="locCap"></figcaption>
     <canvas id="sys" width="460" height="140" style="margin-top:10px"></canvas><figcaption id="sysCap"></figcaption></figure>
 </div>
 <script src="wos-stats.js"></script>
 <script src="galaxy.js"></script>
+<script src="factions.js"></script>
+<script src="economy.js"></script>
 <script>
 'use strict';
 const G = EmberGalaxy;
@@ -33,6 +36,42 @@ function tColor(T) {
 	b = t >= 66 ? 255 : t <= 19 ? 0 : 138.5 * Math.log(t - 10) - 305.0;
 	return [r, g, b].map(v => Math.max(0, Math.min(255, v | 0)));
 }
+/* ---- the north, seen from above (from galactic north): who holds what, in a slice through the North Point;
+   alliances, wars and their fronts; the small factions today ---- */
+(function () {
+	const F = EmberFactions, E = EmberEconomy, M = F.majors(); F.relations();
+	const cv = document.getElementById('north'), x = cv.getContext('2d'), W = cv.width, H = cv.height;
+	const np = G.northPoint(), span = 1000, sc = W / span;
+	const P = p => [W / 2 + (p[0] - np[0]) * sc, H / 2 - (p[1] - np[1]) * sc];
+	const hue = (i, a) => 'hsla(' + (i * 360 / M.length + 20) + ',70%,58%,' + (a == null ? 1 : a) + ')';
+	x.fillStyle = '#04050a'; x.fillRect(0, 0, W, H);
+	/* territory in the slice: owner's colour, contested borders red, shared (allied) space lighter */
+	const step = 4;
+	for (let py = 0; py < H; py += step) for (let px = 0; px < W; px += step) {
+		const p = [np[0] + (px - W / 2) / sc, np[1] - (py - H / 2) / sc, np[2]], c = F.claimAt(p);
+		if (c.contested) x.fillStyle = 'rgba(255,60,50,.55)';
+		else if (c.owner) x.fillStyle = hue(M.findIndex(m => m.id == c.owner), 0.12 + 0.2 * c.strength);
+		else continue;
+		x.fillRect(px, py, step, step);
+	}
+	/* alliances (blue) and wars (red, dashed) */
+	for (let i = 0; i < M.length; i++) for (let j = i + 1; j < M.length; j++) {
+		const r = F.relation(M[i].id, M[j].id); if (!r) continue;
+		const [a1, a2] = P(M[i].at), [b1, b2] = P(M[j].at);
+		x.strokeStyle = r > 0 ? 'rgba(140,190,255,.5)' : 'rgba(255,110,90,.9)'; x.lineWidth = r > 0 ? 1 : 1.5; x.setLineDash(r > 0 ? [] : [6, 4]);
+		x.beginPath(); x.moveTo(a1, a2); x.lineTo(b1, b2); x.stroke();
+	}
+	x.setLineDash([]);
+	const day = 200;
+	for (const w of F.wars()) { const st = F.warState(w, day); w.systems.forEach((s, k) => { const [px, py] = P(s.at), h = st.systems[k].holder; x.fillStyle = h ? hue(M.findIndex(m => m.id == h)) : '#fff'; x.beginPath(); x.arc(px, py, 2.6, 0, 7); x.fill(); x.strokeStyle = '#000'; x.lineWidth = .8; x.stroke() }) }
+	for (const m of F.minors()) { const wh = F.whereIs(m, day), p = wh.site ? wh.site.at : wh.at, [px, py] = P(p); if (px < 0 || py < 0 || px > W || py > H) continue; x.fillStyle = m.type == 'criminal' ? '#ff9f1a' : m.type == 'nomad' ? '#c9a7ff' : m.type == 'prospector' ? '#9be37a' : '#e6e6e6'; x.save(); x.translate(px, py); x.rotate(Math.PI / 4); x.fillRect(-3.5, -3.5, 7, 7); x.restore() }
+	x.font = '600 11px system-ui';
+	M.forEach((m, i) => { const [px, py] = P(m.at); x.fillStyle = hue(i); x.beginPath(); x.arc(px, py, 5, 0, 7); x.fill(); x.strokeStyle = '#fff'; x.stroke();
+		const t = m.name.replace(/^The /, '') + ' · ' + m.currency.code + ' ' + E.rate(m.currency.code, day).toFixed(2); x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(px + 7, py - 17, x.measureText(t).width + 6, 15); x.fillStyle = '#fff'; x.fillText(t, px + 10, py - 6) });
+	x.font = '11px system-ui'; x.fillStyle = '#fff'; x.fillRect(14, H - 20, 100 * sc, 2); x.fillText('100 pc', 14, H - 26);
+	const nw = F.wars().length, nf = F.wars().reduce((t, w) => t + w.systems.length, 0);
+	document.getElementById('northCap').innerHTML = '<b>The northern powers</b>, seen from galactic north: a slice through the North Point, ' + (np[2] / G.GAL.axes[2]).toFixed(0) + ' pc out. ' + M.length + ' great powers in their colours (labels: currency, coins per Standard Unit on day ' + day + '); red: contested borders. Blue lines: alliances; red dashes: the ' + nw + ' wars, fought over ' + nf + ' contested systems (dots, in the colour of today\'s holder; white: being fought over). Diamonds: small factions today (orange criminals, violet nomads, green prospectors, grey free ports).';
+})();
 /* ---- the whole galaxy, seen down its short axis: light added up star by star ---- */
 (function () {
 	const cv = document.getElementById('gal'), x = cv.getContext('2d'), W = cv.width, H = cv.height, span = 4800, sc = W / span;

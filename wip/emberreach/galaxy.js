@@ -36,7 +36,14 @@ const GAL = {
 	sigma: 76,           /* km/s: velocity dispersion */
 	ageOld: 10e9, ageYoung: 3e9, youngCentre: 0.3,   /* share of young stars at the centre, falling outward */
 	FeHCentre: 0.15, FeHSlope: -0.35, FeHScatter: 0.15,
-	cell: 4, splitAt: 48, maxDepth: 10};
+	cell: 4, splitAt: 48, maxDepth: 10,
+	/* galactic north is +z, the short axis; the great powers live in the northern Middle Reach */
+	north: {mLo: 1000, mHi: 2000, latMin: 30, apart: 110, spread: 300}};
+/* the regions, by ellipsoidal radius (pc) */
+const REGIONS = [['Core', 0, 30], ['Glow', 30, 450], ['Inner Reach', 450, 1000], ['Middle Reach', 1000, 2000], ['Outer Clouds', 2000, 3000]];
+/* galactic latitude, degrees: +90 at the north pole */
+function latitude(x, y, z) { const d = Math.hypot(x, y, z); return d ? Math.asin(z / d) * 180 / Math.PI : 0 }
+function regionAt(x, y, z) { const m = mRad(x, y, z), r = REGIONS.find(([, lo, hi]) => m >= lo && m < hi) || REGIONS[4]; return {name: r[0], m, lat: latitude(x, y, z)} }
 const A = GAL.Re / 1.8153, Q = GAL.axes[0] * GAL.axes[1] * GAL.axes[2];
 const PC_PER_KMS_YR = 1.0227e-6;
 
@@ -254,28 +261,48 @@ function sampleGalaxy(n, seed) {
 	return out;
 }
 
-/* ---------- the civilisations alive now ---------- */
-/* as many as the Drake equation gives, each at home on a living world in quiet space, at least 400 pc apart;
-   each has spread about 45 pc in its 15,000 years (a hundredth of light speed, colony to colony) */
+/* ---------- the great powers ---------- */
+/* At least six civilisations alive now (the Drake equation gives about seven), all interstellar, all at home in the
+   northern Middle Reach: 1,000-2,000 pc out (halfway between the Core and the Outer Clouds), 30° north or more.
+   That is the lore's choice (a shared cradle; see the plan), and quiet space by the physics: 99.5% of planets there
+   go 4 Gyr without a close pass. Each home is a living world, at least 110 pc from the others; each has spread
+   40-80 pc, colony to colony. */
+/* stars drawn from one region only: Hernquist inverted between two radii, directions inside the northern cap */
+function sampleRegion(n, seed, mLo, mHi, latMin) {
+	const r = rng(seed), out = [], f = m => (m / (m + A)) ** 2, uLo = f(mLo), uHi = f(mHi), cMin = Math.sin(latMin * Math.PI / 180);
+	for (let i = 0; i < n; i++) {
+		const u = uLo + r() * (uHi - uLo), m = A * Math.sqrt(u) / (1 - Math.sqrt(u));
+		let x, y, z, k = 0;
+		do { const ct = cMin + r() * (1 - cMin), st = Math.sqrt(1 - ct * ct), ph = 2 * Math.PI * r(); x = m * st * Math.cos(ph) * GAL.axes[0]; y = m * st * Math.sin(ph) * GAL.axes[1]; z = m * ct * GAL.axes[2] } while (latitude(x, y, z) < latMin && ++k < 20);
+		out.push(star('region:' + seed + ':' + i, x, y, z));
+	}
+	return out;
+}
 let CIVS = null;
+const MIN_CIVS = 6;
+/* the North Point: the pole direction, halfway between the Core and the Outer Clouds */
+function northPoint() { const N = GAL.north; return [0, 0, (N.mLo + N.mHi) / 2 * GAL.axes[2]] }
 function civilizations() {
 	if (CIVS) return CIVS;
-	const want = Math.max(3, Math.round(drake(sampleGalaxy(3000, 99), true).N)), cand = [];
-	for (const s of sampleGalaxy(40000, 4242)) {
-		if (s.kind != 'star' || s.M < 0.5) continue;
+	const N = GAL.north, NP = northPoint(), want = Math.max(MIN_CIVS, Math.round(drake(sampleGalaxy(3000, 99), true).N)), cand = [];
+	for (const s of sampleRegion(30000, 4242, N.mLo, N.mHi, N.latMin)) {
+		if (s.kind != 'star' || s.M < 0.5 || latitude(s.x, s.y, s.z) < N.latMin) continue;
 		const sy = system(s), home = sy.planets.filter(p => p.alive && p.esi >= 0.75 && /EarthLike|Terra|Forest/.test(p.type)).sort((a, b) => b.esi - a.esi)[0];
-		if (home) cand.push({s, home, score: home.esi * quietChance(s, 20, 4e9)});
+		/* clustered around the North Point (straight up from the centre, halfway out), with some chance in which
+		   living worlds they are, so their homes differ: heavier and lighter, warmer and colder */
+		if (home) cand.push({s, home, score: quietChance(s, 20, 4e9) + 0.6 * rng(hashStr('pick:' + s.id))() - Math.hypot(s.x - NP[0], s.y - NP[1], s.z - NP[2]) / N.spread});
 	}
 	cand.sort((a, b) => b.score - a.score);
 	CIVS = [];
 	for (const c of cand) {
 		if (CIVS.length >= want) break;
-		if (CIVS.some(o => Math.hypot(o.star.x - c.s.x, o.star.y - c.s.y, o.star.z - c.s.z) < 400)) continue;
-		CIVS.push({name: starName(hashStr('civ:' + c.s.id)) + ' ' + ['Compact', 'Concord', 'Assembly', 'Reach', 'Union', 'Hegemony', 'Commonwealth', 'Choir'][CIVS.length % 8], star: c.s, home: c.home, radius: 45});
+		if (CIVS.some(o => Math.hypot(o.star.x - c.s.x, o.star.y - c.s.y, o.star.z - c.s.z) < N.apart)) continue;
+		const r = rng(hashStr('civ:' + c.s.id));
+		CIVS.push({id: 'major' + CIVS.length, star: c.s, home: c.home, radius: 40 + Math.round(r() * 40), age: Math.round(6000 + r() * 9000)});
 	}
 	return CIVS;
 }
 
-const EmberGalaxy = {civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
+const EmberGalaxy = {MIN_CIVS, northPoint, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
 if (typeof module != 'undefined') module.exports = EmberGalaxy; else root.EmberGalaxy = EmberGalaxy;
 })(typeof window != 'undefined' ? window : this);
