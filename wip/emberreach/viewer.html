@@ -36,41 +36,90 @@ function tColor(T) {
 	b = t >= 66 ? 255 : t <= 19 ? 0 : 138.5 * Math.log(t - 10) - 305.0;
 	return [r, g, b].map(v => Math.max(0, Math.min(255, v | 0)));
 }
-/* ---- the north, seen from above (from galactic north): who holds what, in a slice through the North Point;
-   alliances, wars and their fronts; the small factions today ---- */
+/* ---- the north in three dimensions: drag to turn, wheel to zoom ----
+   Borders are surfaces: a solid grid where two powers meet in peace; where enemies meet, the two edges of the
+   contested zone between them, dashed. In the zone: the front's systems in the colour of today's holder, linked
+   along their supply chains (solid where supplied, dashed where cut off). */
 (function () {
 	const F = EmberFactions, E = EmberEconomy, M = F.majors(); F.relations();
-	const cv = document.getElementById('north'), x = cv.getContext('2d'), W = cv.width, H = cv.height;
-	const np = G.northPoint(), span = 1000, sc = W / span;
-	const P = p => [W / 2 + (p[0] - np[0]) * sc, H / 2 - (p[1] - np[1]) * sc];
-	const hue = (i, a) => 'hsla(' + (i * 360 / M.length + 20) + ',70%,58%,' + (a == null ? 1 : a) + ')';
-	x.fillStyle = '#04050a'; x.fillRect(0, 0, W, H);
-	/* territory in the slice: owner's colour, contested borders red, shared (allied) space lighter */
-	const step = 4;
-	for (let py = 0; py < H; py += step) for (let px = 0; px < W; px += step) {
-		const p = [np[0] + (px - W / 2) / sc, np[1] - (py - H / 2) / sc, np[2]], c = F.claimAt(p);
-		if (c.contested) x.fillStyle = 'rgba(255,60,50,.55)';
-		else if (c.owner) x.fillStyle = hue(M.findIndex(m => m.id == c.owner), 0.12 + 0.2 * c.strength);
-		else continue;
-		x.fillRect(px, py, step, step);
+	const cv = document.getElementById('north'), x = cv.getContext('2d'), W = cv.width, H = cv.height, np = G.northPoint(), day = 200;
+	const hue = (i, a) => 'hsla(' + (i * 360 / M.length + 20) + ',72%,60%,' + (a == null ? 1 : a) + ')', idx = id => M.findIndex(m => m.id == id);
+	const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], nrm = v => { const l = Math.hypot(...v); return v.map(q => q / l) };
+	/* a grid on the surface where strength(a) - strength(b) = level, inside both claims and not inside a third power */
+	function surface(a, b, level, keep) {
+		const ax = a.at.map((v, k) => b.at[k] - v), d = Math.hypot(...ax), u = ax.map(v => v / d), t = Math.abs(u[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], e1 = nrm(cross(u, t)), e2 = cross(u, e1);
+		const R = Math.min(a.claim, b.claim), rings = 6, spokes = 20, pts = [];
+		for (let ri = 0; ri <= rings; ri++) { const row = []; for (let si = 0; si < spokes; si++) {
+			const rad = R * ri / rings, ang = si / spokes * 2 * Math.PI, off = e1.map((v, k) => v * Math.cos(ang) * rad + e2[k] * Math.sin(ang) * rad);
+			let lo = 0, hi = d, p; for (let q = 0; q < 26; q++) { const mid = (lo + hi) / 2; p = a.at.map((v, k) => v + u[k] * mid + off[k]); if (F.strength(a, p) - F.strength(b, p) > level) lo = mid; else hi = mid }
+			const sa = F.strength(a, p), sb = F.strength(b, p);
+			row.push(sa > 0 && sb > 0 && Math.abs(sa - sb - level) < 0.01 && keep(p) ? p : null);
+		} pts.push(row) }
+		return pts;
 	}
-	/* alliances (blue) and wars (red, dashed) */
+	const layers = [];
 	for (let i = 0; i < M.length; i++) for (let j = i + 1; j < M.length; j++) {
-		const r = F.relation(M[i].id, M[j].id); if (!r) continue;
-		const [a1, a2] = P(M[i].at), [b1, b2] = P(M[j].at);
-		x.strokeStyle = r > 0 ? 'rgba(140,190,255,.5)' : 'rgba(255,110,90,.9)'; x.lineWidth = r > 0 ? 1 : 1.5; x.setLineDash(r > 0 ? [] : [6, 4]);
-		x.beginPath(); x.moveTo(a1, a2); x.lineTo(b1, b2); x.stroke();
+		const a = M[i], b = M[j], enemy = F.relation(a.id, b.id) < 0;
+		if (!enemy) {
+			const g = surface(a, b, 0, p => { const c = F.claimAt(p); return c.owner == a.id || c.owner == b.id });
+			layers.push({g, dash: [], col: 'rgba(210,220,235,.4)', w: 0.9});
+		} else {
+			for (const lv of [F.BAND * 0.999, -F.BAND * 0.999]) layers.push({g: surface(a, b, lv, p => { const c = F.claimAt(p); return (c.contested && c.contested.includes(a.id) && c.contested.includes(b.id)) || c.owner == a.id || c.owner == b.id }), dash: [4, 4], col: 'rgba(255,95,80,.6)', w: 1});
+		}
 	}
-	x.setLineDash([]);
-	const day = 200;
-	for (const w of F.wars()) { const st = F.warState(w, day); w.systems.forEach((s, k) => { const [px, py] = P(s.at), h = st.systems[k].holder; x.fillStyle = h ? hue(M.findIndex(m => m.id == h)) : '#fff'; x.beginPath(); x.arc(px, py, 2.6, 0, 7); x.fill(); x.strokeStyle = '#000'; x.lineWidth = .8; x.stroke() }) }
-	for (const m of F.minors()) { const wh = F.whereIs(m, day), p = wh.site ? wh.site.at : wh.at, [px, py] = P(p); if (px < 0 || py < 0 || px > W || py > H) continue; x.fillStyle = m.type == 'criminal' ? '#ff9f1a' : m.type == 'nomad' ? '#c9a7ff' : m.type == 'prospector' ? '#9be37a' : '#e6e6e6'; x.save(); x.translate(px, py); x.rotate(Math.PI / 4); x.fillRect(-3.5, -3.5, 7, 7); x.restore() }
-	x.font = '600 11px system-ui';
-	M.forEach((m, i) => { const [px, py] = P(m.at); x.fillStyle = hue(i); x.beginPath(); x.arc(px, py, 5, 0, 7); x.fill(); x.strokeStyle = '#fff'; x.stroke();
-		const t = m.name.replace(/^The /, '') + ' · ' + m.currency.code + ' ' + E.rate(m.currency.code, day).toFixed(2); x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(px + 7, py - 17, x.measureText(t).width + 6, 15); x.fillStyle = '#fff'; x.fillText(t, px + 10, py - 6) });
-	x.font = '11px system-ui'; x.fillStyle = '#fff'; x.fillRect(14, H - 20, 100 * sc, 2); x.fillText('100 pc', 14, H - 26);
+	const fronts = F.wars().map(w => ({w, st: F.warState(w, day)}));
+	/* territory: a light scatter of each power's own space (no two powers in one place) */
+	const cloud = []; const r = G.rng(3);
+	for (let k = 0; k < 9000; k++) { const p = np.map(v => v + (r() - .5) * 1000), c = F.claimAt(p); if (c.owner) cloud.push([p, idx(c.owner)]) }
+	let yaw = 0.6, pitch = 0.45, zoom = 1;
+	function proj(p) {
+		let X = p[0] - np[0], Y = p[1] - np[1], Z = p[2] - np[2];
+		const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+		const x1 = X * cy - Y * sy, y1 = X * sy + Y * cy;          /* turn about the pole */
+		const z2 = Z * cp - y1 * sp, y2 = Z * sp + y1 * cp;        /* tip towards the viewer */
+		const f = 1400 / (1400 + y2), s = W / 1000 * zoom * f;
+		return [W / 2 + x1 * s, H / 2 - z2 * s, y2];
+	}
+	function draw() {
+		x.fillStyle = '#04050a'; x.fillRect(0, 0, W, H);
+		for (const [p, i] of cloud) { const [px, py] = proj(p); x.fillStyle = hue(i, .22); x.fillRect(px, py, 1.6, 1.6) }
+		for (const L of layers) {
+			x.strokeStyle = L.col; x.lineWidth = L.w; x.setLineDash(L.dash); x.beginPath();
+			const g = L.g;
+			for (let ri = 0; ri < g.length; ri++) for (let si = 0; si < g[ri].length; si++) {
+				const p = g[ri][si]; if (!p) continue; const a = proj(p);
+				const n1 = g[ri][(si + 1) % g[ri].length], n2 = g[ri + 1] && g[ri + 1][si];
+				if (n1 && ri) { const b = proj(n1); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]) }
+				if (n2) { const b = proj(n2); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]) }
+			}
+			x.stroke();
+		}
+		x.setLineDash([]);
+		/* fronts: supply links, then the systems */
+		for (const {w, st} of fronts) {
+			const S = w.systems;
+			S.forEach((s, i) => s.links.forEach(j => { if (j < i) return; const A = st.systems[i], B = st.systems[j]; if (!A.holder || A.holder != B.holder) return;
+				const a = proj(s.at), b = proj(S[j].at), sup = A.supplied && B.supplied; x.strokeStyle = sup ? hue(idx(A.holder), .9) : 'rgba(200,200,200,.8)'; x.setLineDash(sup ? [] : [3, 3]); x.lineWidth = 1.3; x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke() }));
+			x.setLineDash([]);
+			S.forEach((s, i) => { const [px, py] = proj(s.at), h = st.systems[i].holder; x.fillStyle = h ? hue(idx(h)) : '#fff'; x.beginPath(); x.arc(px, py, st.systems[i].supplied ? 2.6 : 2, 0, 7); x.fill(); if (!st.systems[i].supplied) { x.strokeStyle = '#fff'; x.lineWidth = .8; x.stroke() } });
+		}
+		/* capitals */
+		x.font = '600 11px system-ui';
+		M.forEach((m, i) => { const [px, py] = proj(m.at); x.fillStyle = hue(i); x.beginPath(); x.arc(px, py, 5, 0, 7); x.fill(); x.strokeStyle = '#fff'; x.lineWidth = 1; x.stroke();
+			const t = m.name.replace(/^The /, '') + ' · ' + m.currency.code + ' ' + E.rate(m.currency.code, day).toFixed(2); x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(px + 7, py - 17, x.measureText(t).width + 6, 15); x.fillStyle = '#fff'; x.fillText(t, px + 10, py - 6) });
+		/* the pole */
+		const a = proj(np), b = proj([np[0], np[1], np[2] + 160]); x.strokeStyle = 'rgba(255,255,255,.5)'; x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke(); x.fillStyle = '#fff'; x.font = '11px system-ui'; x.fillText('north', b[0] + 4, b[1]);
+		x.fillText('drag to turn · wheel to zoom', 10, H - 10);
+	}
+	let drag = null;
+	cv.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId) });
+	cv.addEventListener('pointermove', e => { if (!drag) return; yaw += (e.clientX - drag[0]) * 0.008; pitch = Math.max(-1.5, Math.min(1.5, pitch + (e.clientY - drag[1]) * 0.008)); drag = [e.clientX, e.clientY]; draw() });
+	cv.addEventListener('pointerup', () => drag = null);
+	cv.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.max(0.4, Math.min(5, zoom * Math.exp(-e.deltaY * 0.0015))); draw() }, {passive: false});
+	window.__view3d = (y, p, z) => { yaw = y; pitch = p; zoom = z || 1; draw() };
+	draw();
 	const nw = F.wars().length, nf = F.wars().reduce((t, w) => t + w.systems.length, 0);
-	document.getElementById('northCap').innerHTML = '<b>The northern powers</b>, seen from galactic north: a slice through the North Point, ' + (np[2] / G.GAL.axes[2]).toFixed(0) + ' pc out. ' + M.length + ' great powers in their colours (labels: currency, coins per Standard Unit on day ' + day + '); red: contested borders. Blue lines: alliances; red dashes: the ' + nw + ' wars, fought over ' + nf + ' contested systems (dots, in the colour of today\'s holder; white: being fought over). Diamonds: small factions today (orange criminals, violet nomads, green prospectors, grey free ports).';
+	document.getElementById('northCap').innerHTML = '<b>The northern powers in 3D</b> (drag to turn, wheel to zoom), around the North Point ' + (np[2] / G.GAL.axes[2]).toFixed(0) + ' pc out. ' + M.length + ' great powers (labels: currency, coins per Standard Unit on day ' + day + '); faint dots: each power\'s own space, never shared. Solid white grids: peaceful borders. Red dashed grids: the edges of contested space, where the ' + nw + ' wars are fought over ' + nf + ' systems: dots in the colour of today\'s holder, linked along supply chains (dashed and ringed white: cut off).';
 })();
 /* ---- the whole galaxy, seen down its short axis: light added up star by star ---- */
 (function () {

@@ -6,8 +6,9 @@
      way, its enemies the other way, and small factions by their own stance.
    - Alignment: where reputation says a player's loyalties lie: the great power they lean to most, how far, and a
      second axis from lawful to outlaw (bounties earned against crimes committed).
-   - War: a player Friendly with a great power may take a commission with it; their war effort then counts double for
-     that side, and its enemies treat them as a combatant.
+   - War: what a player does in a war (missions, kills in contested systems) is kept as dated war effort, which the
+     front plays through season by season. A player Friendly with a great power may take a commission with it; their
+     war effort then counts double for that side, and its enemies treat them as a combatant.
    - Standing drifts slowly back towards where the player started (5% of the gap a season), so old deeds fade.
    - Crimes in a power's space earn a bounty in its currency.
    The state is plain data, kept in the save. GPL-2.0-or-later. ===== */
@@ -33,6 +34,13 @@ const ACTIONS = {
 	scanRuins: {rep: 10, lawful: 0},         /* surveys sold to it */
 	rescue: {rep: 25, lawful: 1}};
 
+/* the cheapest jump-capable ship from home yards that sells for under 100,000 SU; else the independent Wren */
+function starter(o) {
+	const S = typeof module != 'undefined' ? require('./ships.js') : root.EmberShips;
+	if (!S) return 'wren';
+	const own = S.ships().filter(s => s.maker == o.id && s.jump > 0 && s.priceSU[1] <= 100000).sort((a, b) => a.value - b.value)[0];
+	return own ? own.id : 'wren';
+}
 /* a new player, from the great power they choose */
 function newPlayer(originId, opts) {
 	const o = F.byId(originId);
@@ -40,9 +48,11 @@ function newPlayer(originId, opts) {
 	const rep = {};
 	for (const m of F.majors()) rep[m.id] = m.id == o.id ? 350 : F.relation(o.id, m.id) > 0 ? 150 : F.relation(o.id, m.id) < 0 ? -150 : 0;
 	for (const m of F.minors()) rep[m.id] = m.type == 'criminal' ? (m.sponsor == o.id ? 0 : -200) : (m.parent == o.id ? 100 : 0);
-	return {v: 1, origin: o.id, species: o.species.name, start: Object.assign({}, rep), rep, lawful: 0, bounties: {}, commission: null, effort: {}, day: 0,
-		wallet: {[o.currency.code]: (opts && opts.credits) || 5000}, at: {star: o.star.id, home: o.home.name},
-		ship: {build: o.species.build, sensors: o.species.sight}};
+	return {v: 1, origin: o.id, species: o.species.name, start: Object.assign({}, rep), rep, lawful: 0, bounties: {}, commission: null, warEvents: [], day: 0,
+		/* money worth 20,000 SU in the home currency, and a starter ship from home yards (an independent shuttle if
+		   they build none small enough) */
+		wallet: {[o.currency.code]: Math.round(((opts && opts.credits) || 20000) * E.rate(o.currency.code, 0))}, at: {star: o.star.id, home: o.home.name},
+		ship: {build: o.species.build, sensors: o.species.sight, model: starter(o)}};
 }
 /* the news spreads: allies of the target feel it the same way (40%), enemies the other way (40%), small factions
    by their stance towards the target (25%); a commission makes harm to its enemies count for it (and against you) */
@@ -64,15 +74,22 @@ function act(P, kind, targetId, opt) {
 	}
 	return out;
 }
-/* a war mission done (or a kill in a contested system): reputation, and war effort on that front */
-function warEffort(P, mission) {
-	const sideA = F.wars().find(w => w.id == mission.war), double = P.commission == mission.issuer ? 2 : 1;
-	P.effort[mission.system] = (P.effort[mission.system] || 0) + mission.effort * double;
+/* a war mission done (or a kill in a contested system): reputation, and war effort on that front, on that day
+   (doubled with a commission). It counts only where the front lets it: a side can't take what it can't reach */
+function warEffort(P, mission, day) {
+	const double = P.commission == mission.issuer ? 2 : 1, d = day == null ? P.day : day;
+	P.warEvents.push({war: mission.war, system: mission.system, side: mission.issuer, effort: mission.effort * double, day: d});
 	const out = act(P, 'warMission', mission.issuer);
 	/* the other side takes it as harm, on top of the spread */
-	P.rep[mission.against] = clamp(P.rep[mission.against] - ACTIONS.warMission.rep * (P.commission == mission.issuer ? 1.5 : 1));
+	P.rep[mission.against] = clamp(P.rep[mission.against] - ACTIONS.warMission.rep * (double > 1 ? 1.5 : 1));
 	if (P.wallet) P.wallet[mission.currency] = (P.wallet[mission.currency] || 0) + mission.reward;
-	return {rep: out, war: sideA && sideA.id, effort: P.effort[mission.system]};
+	return {rep: out, war: mission.war, events: P.warEvents.length};
+}
+/* destroying an enemy's ship in a contested system, for a side: war effort, like a small strike */
+function warKill(P, war, system, forSide, day) {
+	const w = F.wars().find(x => x.id == war), enemy = w.a == forSide ? w.b : w.a;
+	P.warEvents.push({war, system, side: forSide, effort: 3 * (P.commission == forSide ? 2 : 1), day: day == null ? P.day : day});
+	return act(P, 'killShipAtWar', enemy);
 }
 /* a commission: Friendly or better, and not already enlisted with one of its enemies */
 function enlist(P, powerId) {
@@ -100,6 +117,6 @@ function alignment(P) {
 /* will a faction's ships shoot? */
 function hostile(P, factionId) { return P.rep[factionId] <= -500 || (P.commission && F.relation(P.commission, factionId) < 0) }
 
-const EmberReputation = {TIERS, tier, ACTIONS, newPlayer, act, warEffort, enlist, age, alignment, hostile};
+const EmberReputation = {TIERS, tier, ACTIONS, newPlayer, act, warEffort, warKill, enlist, age, alignment, hostile};
 if (isNode) module.exports = EmberReputation; else root.EmberReputation = EmberReputation;
 })(typeof window != 'undefined' ? window : this);

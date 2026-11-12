@@ -114,42 +114,60 @@ function relation(a, b) {
 }
 
 /* ---------- space: who holds where ---------- */
-/* a claim's strength falls from 1 at home to 0 at its edge */
+/* Every point belongs to at most one great power: the strongest claim there (claims fall from 1 at home to 0 at the
+   edge). Borders never overlap, allies' included. Between two enemies, a zone either side of the surface where their
+   claims are equal is contested space: a band about 40 pc deep, where the war is fought. */
+const BAND = 0.2;
 function strength(m, p) { return Math.max(0, 1 - dist(m.at, p) / m.claim) }
 function claimAt(p) {
 	const s = majors().map(m => [m, strength(m, p)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]);
 	if (!s.length) return {owner: null, contested: null};
 	const [a, b] = s;
-	/* contested: two enemies' claims nearly equal here */
-	if (b && relation(a[0].id, b[0].id) < 0 && a[1] - b[1] < 0.12) return {owner: null, contested: [a[0].id, b[0].id], strength: a[1]};
-	return {owner: a[0].id, contested: null, strength: a[1], shared: b && relation(a[0].id, b[0].id) > 0 ? b[0].id : null};
+	if (b && relation(a[0].id, b[0].id) < 0 && a[1] - b[1] < BAND) {
+		/* depth across the zone: 0 at the edge on the first power's side (by id), 1 at the other's */
+		const [x, y] = a[0].id < b[0].id ? [a, b] : [b, a];
+		return {owner: null, contested: [x[0].id, y[0].id], depth: (1 - (x[1] - y[1]) / BAND) / 2, strength: a[1]};
+	}
+	return {owner: a[0].id, contested: null, strength: a[1], neighbour: b ? b[0].id : null};
 }
 
-/* ---------- wars ---------- */
+/* ---------- wars: front lines ---------- */
+/* A war is fought over the star systems in the contested zone between two enemies. The systems are linked to their
+   near neighbours; those at the edges touch each side's own space (its rear).
+   - Claims chain from the rear: a side can take a system only from one it holds next to it, or from its rear.
+   - Supply: a held system is supplied if a chain of systems held by the same side runs back to its rear.
+     Isolated (cut-off) systems defend at a third of their strength and wear away each season.
+   - Depth: pushing past the middle of the zone towards the enemy's rear gets harder and harder (a multiplier that
+     falls to almost nothing at the far edge), so no side loses all of its contested space.
+   - The front moves every season (30 game days): one side's offensive or a truce, supplied systems dig in, cut-off
+     ones wear away; and players' war effort, on the day they made it. */
 let WARS = null;
 const warKey = (a, b) => a < b ? a + ':' + b : b + ':' + a;
-/* the contested systems of a pair of enemies: stars along the surface where their claims are equal */
+const WAR = {systems: 24, links: 3, rear: 0.2, start: 0.6, dig: 0.08, digMax: 0.7, attrition: 0.18, cutOff: 0.33, depthPow: 3, effortScale: 100};
 function frontSystems(a, b, want) {
 	const r = rng(hashStr('front:' + warKey(a.id, b.id))), axis = a.at.map((v, i) => b.at[i] - v), d = Math.hypot(...axis), u = axis.map(v => v / d);
-	/* two directions across the axis */
 	const t = Math.abs(u[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], e1 = norm(cross(u, t)), e2 = cross(u, e1);
 	const out = [], seen = new Set();
-	for (let k = 0; k < want * 30 && out.length < want; k++) {
+	for (let k = 0; k < want * 40 && out.length < want; k++) {
 		const ang = r() * 2 * Math.PI, rad = Math.sqrt(r()) * Math.min(a.claim, b.claim) * 0.6;
 		const off = e1.map((v, i) => v * Math.cos(ang) * rad + e2[i] * Math.sin(ang) * rad);
-		/* slide along the axis to where the two claims are equal */
 		let lo = 0, hi = d, p;
 		for (let q = 0; q < 30; q++) { const mid = (lo + hi) / 2; p = a.at.map((v, i) => v + u[i] * mid + off[i]); if (strength(a, p) > strength(b, p)) lo = mid; else hi = mid }
-		if (!(strength(a, p) > 0 && strength(b, p) > 0)) continue;
-		/* the nearest worthwhile system (a star with planets) */
+		/* somewhere across the zone's depth */
+		const w = BAND / (1 / a.claim + 1 / b.claim) * 0.95, along = (r() * 2 - 1) * w;
+		p = p.map((v, i) => v + u[i] * along);
 		const s = G.starsNear(p[0], p[1], p[2], Math.max(2.5, nearR(p))).find(s => s.kind == 'star' && s.M > 0.25 && !seen.has(s.id) && G.system(s).planets.length);
 		if (!s) continue;
-		/* only where these two are the claimants (not inside a third power's space) */
 		const cl = claimAt(pos(s));
 		if (!cl.contested || !cl.contested.includes(a.id) || !cl.contested.includes(b.id)) continue;
 		seen.add(s.id);
-		out.push({id: s.id, name: s.name, at: pos(s), star: s});
+		out.push({id: s.id, name: s.name, at: pos(s), star: s, depth: cl.depth});
 	}
+	/* depth by rank across the zone (0: side a's rear, 1: side b's), so each side has systems against its rear */
+	out.slice().sort((x, y) => x.depth - y.depth).forEach((s, k, arr) => s.depth = k / (arr.length - 1));
+	/* links: each system to its nearest few in the zone */
+	out.forEach((s, i) => { s.links = out.map((o, j) => [j, dist(s.at, o.at)]).filter(([j]) => j != i).sort((x, y) => x[1] - y[1]).slice(0, WAR.links).map(x => x[0]) });
+	out.forEach((s, i) => s.links.forEach(j => { if (!out[j].links.includes(i)) out[j].links.push(i) }));
 	return out;
 }
 function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]] }
@@ -160,58 +178,105 @@ function wars() {
 	WARS = [];
 	const M = majors();
 	for (let i = 0; i < M.length; i++) for (let j = i + 1; j < M.length; j++) if (relation(M[i].id, M[j].id) < 0) {
-		const [a, b] = [M[i], M[j]];
-		WARS.push({id: warKey(a.id, b.id), a: a.id, b: b.id, systems: frontSystems(a, b, 10)});
+		const [a, b] = M[i].id < M[j].id ? [M[i], M[j]] : [M[j], M[i]];
+		WARS.push({id: warKey(a.id, b.id), a: a.id, b: b.id, systems: frontSystems(a, b, WAR.systems)});
 	}
 	return WARS;
 }
-/* the state of a war on a game day. effort: the players' war effort per system ({systemId: signed, + for side a});
-   control per system runs from -1 (b holds it) to +1 (a holds it) */
-function warState(war, day, effort) {
-	const a = byId(war.a), b = byId(war.b), S = seasonOf(day), r0 = rng(hashStr('war:' + war.id));
-	const edge = Math.log(a.military / b.military);
-	const out = {war, day, season: S, truce: false, systems: []};
-	/* each season: a truce (about one in ten), or an offensive by one side on a few systems */
-	const pushes = new Map(war.systems.map(s => [s.id, (r0() - 0.5) * 0.6]));
-	for (let k = Math.max(0, S - 12); k <= S; k++) {   /* the last twelve seasons shape today's front */
-		const r = rng(hashStr('season:' + war.id + ':' + k)), truce = r() < 0.1;
-		if (k == S) out.truce = truce;
-		if (truce) continue;
-		const side = r() < 1 / (1 + Math.exp(-edge * 2)) ? 1 : -1, n = 1 + Math.floor(r() * 4), w = Math.pow(0.8, S - k);
-		for (let q = 0; q < n; q++) { const s = war.systems[Math.floor(r() * war.systems.length)]; pushes.set(s.id, pushes.get(s.id) + side * (0.25 + 0.35 * r()) * w) }
+/* side a's rear is depth 0, side b's depth 1 */
+const atRear = (s, side) => side > 0 ? s.depth < WAR.rear : s.depth > 1 - WAR.rear;
+/* how hard it is for a side to push into a system: 1 up to the middle, falling to almost nothing at the far rear */
+function depthMult(s, side) { const into = side > 0 ? s.depth : 1 - s.depth, q = Math.max(0, (into - 0.5) / 0.5); return Math.pow(1 - Math.min(0.98, q), WAR.depthPow) }
+/* which systems each side's supply reaches: chains of its own systems back to its rear */
+function supplied(sys, c, side) {
+	const ok = new Array(sys.length).fill(false), q = [];
+	sys.forEach((s, i) => { if (c[i] * side > 0 && atRear(s, side)) { ok[i] = true; q.push(i) } });
+	while (q.length) { const i = q.pop(); for (const j of sys[i].links) if (!ok[j] && c[j] * side > 0) { ok[j] = true; q.push(j) } }
+	return ok;
+}
+/* can a side reach a system to claim it: from its rear, or from a supplied system it holds next door */
+function reach(sys, c, sup, side, i) { return atRear(sys[i], side) || sys[i].links.some(j => c[j] * side > 0 && sup[j]) }
+/* push a system's control towards a side, if that side can reach it; a side can't take what it can't reach */
+function push(sys, c, sup, side, i, amount) {
+	if (c[i] * side >= 0) { c[i] = Math.max(-1, Math.min(1, c[i] + side * amount)); return }   /* its own: reinforce */
+	const can = reach(sys, c, sup, side, i), next = c[i] + side * amount * depthMult(sys[i], side);
+	c[i] = Math.max(-1, Math.min(1, can ? next : side > 0 ? Math.min(next, -0.01) : Math.max(next, 0.01)));
+}
+/* one season */
+function stepSeason(war, a, b, c, k, events) {
+	const sys = war.systems, r = rng(hashStr('season:' + war.id + ':' + k)), truce = r() < 0.1;
+	const supA = supplied(sys, c, 1), supB = supplied(sys, c, -1);
+	/* supplied systems dig in; cut-off ones wear away */
+	for (let i = 0; i < sys.length; i++) {
+		const side = Math.sign(c[i]); if (!side) continue;
+		const sup = side > 0 ? supA[i] : supB[i];
+		c[i] = sup ? (Math.abs(c[i]) < WAR.digMax ? side * Math.min(WAR.digMax, Math.abs(c[i]) + WAR.dig) : c[i]) : c[i] - side * WAR.attrition;
 	}
-	for (const s of war.systems) {
-		const e = effort && effort[s.id] || 0;
-		const c = Math.tanh(pushes.get(s.id) + e / 100);   /* 100 points of effort swing a system about as much as an offensive */
-		out.systems.push({id: s.id, name: s.name, control: c, holder: c > 0.33 ? war.a : c < -0.33 ? war.b : null});
+	if (!truce) {
+		const edge = Math.log(a.military / b.military), side = r() < 1 / (1 + Math.exp(-edge * 2)) ? 1 : -1;
+		const sA = supplied(sys, c, 1), sB = supplied(sys, c, -1), mine = side > 0 ? sA : sB;
+		/* the offensive goes for enemy systems it can reach, cut-off ones first */
+		const targets = sys.map((s, i) => i).filter(i => c[i] * side <= 0 && reach(sys, c, mine, side, i));
+		const enemySup = side > 0 ? sB : sA;
+		targets.sort((x, y) => (enemySup[x] ? 1 : 0) - (enemySup[y] ? 1 : 0) || r() - 0.5);
+		const n = 1 + Math.floor(r() * 3);
+		for (let q = 0; q < n && q < targets.length; q++) { const i = targets[q]; push(sys, c, mine, side, i, (0.35 + 0.3 * r()) * (enemySup[i] ? 1 : 1 / WAR.cutOff)) }
 	}
-	out.score = out.systems.reduce((t, s) => t + s.control, 0) / out.systems.length;   /* + : side a is winning */
+	/* the players' effort this season, in the order it was made */
+	for (const e of events) {
+		const i = sys.findIndex(s => s.id == e.system); if (i < 0) continue;
+		const side = e.side == war.a ? 1 : -1, sup = supplied(sys, c, side), def = supplied(sys, c, -side);
+		push(sys, c, sup, side, i, e.effort / WAR.effortScale * (c[i] * side < 0 && !def[i] ? 1 / WAR.cutOff : 1));
+	}
+	return truce;
+}
+/* the war on a game day. events: players' war effort, [{war, system, side, effort, day}] */
+const WAR_CACHE = new Map();
+function warState(war, day, events) {
+	const a = byId(war.a), b = byId(war.b), S = seasonOf(day), sys = war.systems;
+	const evs = (events || []).filter(e => e.war == war.id && e.day <= day);
+	const first = evs.length ? Math.min(...evs.map(e => seasonOf(e.day))) : Infinity;
+	/* the war without players is cached season by season; players' effort replays from their first season */
+	let cache = WAR_CACHE.get(war.id);
+	if (!cache) { cache = [{c: sys.map(s => s.depth < 0.5 ? WAR.start : -WAR.start), truce: false}]; WAR_CACHE.set(war.id, cache) }
+	const upto = Math.min(S, first);
+	while (cache.length <= upto) { const c = cache[cache.length - 1].c.slice(), k = cache.length; const truce = stepSeason(war, a, b, c, k, []); cache.push({c, truce}) }
+	let c = cache[Math.min(S, Math.max(0, first - 1))].c.slice(), truce = cache[Math.min(S, cache.length - 1)].truce;
+	for (let k = first; k <= S; k++) truce = stepSeason(war, a, b, c, k, evs.filter(e => seasonOf(e.day) == k));
+	const supA = supplied(sys, c, 1), supB = supplied(sys, c, -1);
+	const out = {war, day, season: S, truce, systems: sys.map((s, i) => ({id: s.id, name: s.name, depth: s.depth, control: c[i], holder: c[i] > 0 ? war.a : c[i] < 0 ? war.b : null,
+		fighting: Math.abs(c[i]) < 0.3, supplied: c[i] > 0 ? supA[i] : c[i] < 0 ? supB[i] : false, links: s.links}))};
+	out.score = c.reduce((t, v) => t + v, 0) / c.length;   /* + : side a is winning */
+	out.held = {[war.a]: c.filter(v => v > 0).length, [war.b]: c.filter(v => v < 0).length};
 	return out;
 }
 
 /* ---------- missions about the wars ---------- */
 const MISSION = {
-	supply: {effort: 6, pay: 1.0, text: 'Carry supplies to the front at'},
-	escort: {effort: 9, pay: 1.4, text: 'Escort a convoy to'},
-	recon: {effort: 5, pay: 0.9, text: 'Scan enemy positions at'},
-	strike: {effort: 14, pay: 2.2, text: 'Strike enemy ships at'},
-	defend: {effort: 12, pay: 1.8, text: 'Hold the line at'},
-	sabotage: {effort: 16, pay: 2.6, text: 'Sabotage the enemy depot at'},
-	blockade: {effort: 10, pay: 1.6, text: 'Run the blockade into'}};
-/* the war missions a great power offers on a day: one or more for each of its wars */
-function warMissions(powerId, day) {
+	supply: {effort: 6, pay: 1.0, attack: false, text: 'Carry supplies to the front at'},
+	escort: {effort: 9, pay: 1.4, attack: false, text: 'Escort a convoy to'},
+	defend: {effort: 12, pay: 1.8, attack: false, text: 'Hold the line at'},
+	recon: {effort: 5, pay: 0.9, attack: true, text: 'Scan enemy positions at'},
+	blockade: {effort: 10, pay: 1.6, attack: true, text: 'Blockade the enemy at'},
+	strike: {effort: 14, pay: 2.2, attack: true, text: 'Strike enemy ships at'},
+	sabotage: {effort: 16, pay: 2.6, attack: true, text: 'Sabotage the enemy depot at'}};
+/* the war missions a great power offers on a day: attacks on enemy systems it can reach (cut-off ones pay best),
+   and the defence of its own systems that are threatened or cut off */
+function warMissions(powerId, day, events) {
 	const p = byId(powerId), out = [];
 	for (const w of wars().filter(w => w.a == powerId || w.b == powerId)) {
-		const st = warState(w, day), enemy = w.a == powerId ? w.b : w.a, sign = w.a == powerId ? 1 : -1;
+		const st = warState(w, day, events), enemy = w.a == powerId ? w.b : w.a, side = w.a == powerId ? 1 : -1;
 		if (st.truce) continue;
+		const sys = w.systems, c = st.systems.map(s => s.control), sup = supplied(sys, c, side);
+		const attack = st.systems.filter((s, i) => s.holder == enemy && reach(sys, c, sup, side, i));
+		const defend = st.systems.filter(s => s.holder == powerId && (s.fighting || !s.supplied));
 		const r = rng(hashStr('missions:' + powerId + ':' + w.id + ':' + day));
-		/* fronts that matter most: systems the enemy holds or that are being fought over */
-		const targets = st.systems.filter(s => s.control * sign < 0.5).sort((x, y) => x.control * sign - y.control * sign);
-		const n = 1 + Math.floor(r() * 3);
-		for (let k = 0; k < n && targets.length; k++) {
-			const t = targets[Math.floor(r() * Math.min(4, targets.length))], types = Object.keys(MISSION), type = types[Math.floor(r() * types.length)], M = MISSION[type];
+		const kinds = Object.entries(MISSION);
+		for (let k = 0, n = 2 + Math.floor(r() * 3); k < n; k++) {
+			const atk = attack.length && (!defend.length || r() < 0.6), pool = atk ? attack : defend; if (!pool.length) continue;
+			const t = pool[Math.floor(r() * pool.length)], opts = kinds.filter(([, m]) => m.attack == !!atk), [type, M] = opts[Math.floor(r() * opts.length)];
 			out.push({id: powerId + ':' + day + ':' + w.id + ':' + k, issuer: powerId, against: enemy, war: w.id, system: t.id, systemName: t.name, type,
-				text: M.text + ' ' + t.name, effort: M.effort * sign, reward: Math.round(M.pay * (800 + 400 * r())), currency: p.currency.code});
+				text: M.text + ' ' + t.name, effort: M.effort * (t.supplied || !atk ? 1 : 1.5), reward: Math.round(M.pay * (800 + 400 * r()) * (atk && !t.supplied ? 1.3 : 1)), currency: p.currency.code});
 		}
 	}
 	return out;
@@ -275,6 +340,6 @@ function whereIs(m, day) {
 	return {site: to, moving: false};
 }
 
-const EmberFactions = {border: (a, b) => border(byId(a), byId(b)), SEASON_DAYS, seasonOf, majors, minors, byId, relations, relation, strength, claimAt, wars, warState, warMissions, whereIs, MISSION};
+const EmberFactions = {WAR, BAND, supplied, depthMult, border: (a, b) => border(byId(a), byId(b)), SEASON_DAYS, seasonOf, majors, minors, byId, relations, relation, strength, claimAt, wars, warState, warMissions, whereIs, MISSION};
 if (typeof module != 'undefined') module.exports = EmberFactions; else root.EmberFactions = EmberFactions;
 })(typeof window != 'undefined' ? window : this);

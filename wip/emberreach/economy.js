@@ -41,7 +41,7 @@ function rate(code, day, ctx) {
 	/* wars: each war's score (from this side) moves the currency up to 10% */
 	for (const w of F.wars()) {
 		if (w.a != m.id && w.b != m.id) continue;
-		const st = F.warState(w, day, ctx && ctx.effort), sc = w.a == m.id ? st.score : -st.score;
+		const st = F.warState(w, day, ctx && ctx.events), sc = w.a == m.id ? st.score : -st.score;
 		L -= 0.1 * sc;
 	}
 	/* shocks fade by half every halfLife days */
@@ -68,7 +68,7 @@ function market(star, day, ctx) {
 	const sy = G.system(star), claim = F.claimAt([star.x, star.y, star.z]), r = rng(hashStr('market:' + star.id));
 	/* a contested system trades in the currency of whichever side holds it today; while it is fought over, nobody's */
 	let holder = claim.owner;
-	if (claim.contested) { const w = F.wars().find(w => w.systems.some(x => x.id == star.id)); const st = w && F.warState(w, day, ctx && ctx.effort).systems.find(x => x.id == star.id); holder = st ? st.holder : null }
+	if (claim.contested) { const w = F.wars().find(w => w.systems.some(x => x.id == star.id)); const st = w && F.warState(w, day, ctx && ctx.events).systems.find(x => x.id == star.id); holder = st ? st.holder : null }
 	const m = holder && F.byId(holder), code = m ? m.currency.code : null;
 	const have = {};
 	for (const p of sy.planets) { for (const res of p.res) have[res] = (have[res] || 0) + 1; if (p.alive) have.Food = (have.Food || 0) + 3; if (p.water) have.Water = (have.Water || 0) + 2; if (p.gas) have.Fuel = (have.Fuel || 0) + 2; if (p.ruins) have.Artefacts = (have.Artefacts || 0) + 1 }

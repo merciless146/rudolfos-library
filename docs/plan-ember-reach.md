@@ -6,9 +6,12 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
 
 - **Package:** `rudolf-emberreach` (a Library game). The work sits in `wip/emberreach/` until it can be played, so
   the publish workflow doesn't put it in the App Store early (`tools/publish.sh` builds everything in `apps/`).
-- **Status:** the galaxy model is done and checked (`wip/emberreach/galaxy.js`, `tests/emberreach_galaxy_t.js`, 22
-  checks). So are the factions, wars, money and reputation (`factions.js`, `economy.js`, `reputation.js`;
-  `tests/emberreach_factions_t.js`, 37 checks). `wip/emberreach/viewer.html` draws them. The game itself is the milestones below.
+- **Status:** the models are done and checked; the game itself is the milestones below.
+  - The galaxy: `wip/emberreach/galaxy.js` (`tests/emberreach_galaxy_t.js`, 22 checks).
+  - Factions, front-line wars, money and reputation: `factions.js`, `economy.js`, `reputation.js`
+    (`tests/emberreach_factions_t.js`, 45 checks).
+  - The 40 stock ships: `ships.js` (`tests/emberreach_ships_t.js`, 15 checks).
+  - `wip/emberreach/viewer.html` draws them, the north in 3D.
 
 ## Exceptions to the games plan's rules
 
@@ -228,8 +231,9 @@ like every Library game.
 
 ## Factions, wars and money
 
-The model is in `wip/emberreach/factions.js`, `economy.js` and `reputation.js` (37 checks in
-`tests/emberreach_factions_t.js`). The viewer's first panel is the political map of the north.
+The model is in `wip/emberreach/factions.js`, `economy.js`, `reputation.js` and `ships.js` (45 checks in
+`tests/emberreach_factions_t.js`, 15 in `tests/emberreach_ships_t.js`). The viewer's first panel is the north in
+3D.
 
 ### The great powers
 
@@ -248,8 +252,10 @@ The model is in `wip/emberreach/factions.js`, `economy.js` and `reputation.js` (
   - its sun sets senses (infrared under red and orange suns, ultraviolet under hot ones);
   - its age and a seeded military and economy set strength.
 - **Space:** each power claims space within 120–240 pc of home, strongest at home and fading to nothing at the
-  edge. A point belongs to the strongest claim. Allies' overlapping claims are shared space. Where two *enemies'*
-  claims are nearly equal, the space is **contested**. Borders are surfaces in three dimensions.
+  edge. Every point belongs to **one power at most**: the strongest claim there. Borders never overlap, allies'
+  included. Where two *enemies'* claims are within 0.2 of each other, the space between them is **contested**: a
+  zone about 40 pc deep, either side of the surface where their claims are equal. Borders are surfaces in three
+  dimensions.
 
 As the model makes them today (names and numbers come from the seed):
 
@@ -274,30 +280,59 @@ As the model makes them today (names and numbers come from the seed):
   the rules can be met. This keeps working if the galaxy changes.
 - **Today:** 9 wars between 7 powers; each power has 2–4 allies and 2–4 enemies.
 
-### Wars
+### Wars: front lines
 
-- **Fronts:** each pair of enemies is at war over its contested systems. The front is 10 star systems with planets,
-  along their shared border in 3D: the borders run in every direction, not along a plane.
-- **Control:** each contested system's control runs from −1 to +1 (one side to the other). Beyond ±⅓ it is held;
-  between, it is being fought over.
-- **The seasons:** a season is 30 game days. Each season brings one side's offensive on 1–4 systems, or a truce
-  (about one season in ten). Offensives favour the stronger military. Today's front is shaped by the last twelve
-  seasons, the recent ones most.
-- **Players move the front.** War effort is kept per system in the save, and 100 points swing a system about as
-  far as an offensive.
-  - **War missions** come from each power's stations, against its enemies, for the systems that matter most. There
-    are seven kinds: supply runs (+6 effort), recon scans (+5), escorts (+9), blockade runs (+10), holding the
-    line (+12), strikes (+14) and sabotage (+16). They pay in the issuer's currency.
-  - **Fighting directly:** destroying the enemy's ships in a contested system counts as effort too.
+- **The front:** each pair of enemies is at war over the contested zone between them. In it are **24 star systems**
+  with planets, in three dimensions. Each system is linked to its nearest neighbours in the zone. Each has a
+  **depth** across the zone, from 0 at one side's rear to 1 at the other's. The fifth of systems nearest each side
+  touch that side's own space: its **rear**.
+- **Control:** each system's control runs from −1 to +1 (one side to the other). Its sign says who holds it; under
+  0.3 either way, it's being fought over.
+- **Claims chain from the rear:** a side can take a system only from its rear, or from a system next to it that the
+  side holds and supplies. Effort against a system out of reach can wear it down but never take it.
+- **Supply and cut-off claims:** a held system is **supplied** while a chain of systems held by the same side runs
+  back to its rear. A **cut-off** system is logistically isolated: it defends at a third of its strength, and
+  attacks on it count three times. It wears away by 0.18 a season, while supplied systems dig in (up to 0.7).
+- **The depth multiplier:** pushing past the middle of the zone towards the enemy's rear gets harder and harder.
+  An attacker's push is multiplied by (1 − q)³, where q runs from 0 at the middle to 1 at the enemy's rear. That's
+  full strength to the middle, about 1/8 three quarters of the way across, and almost nothing at the far edge. **No
+  side loses all of its contested space.**
+  - In the checks, one player threw 500 points of effort at every enemy system, every season, for 100 seasons. The
+    losing side still kept its rearmost systems.
+- **The seasons (natural development):** a season is 30 game days. Each season:
+  - supplied systems dig in and cut-off ones wear away;
+  - then either a truce (about one season in ten), or one side's offensive (the stronger military more often) on
+    1–3 enemy systems it can reach, cut-off ones first.
+  - So the front moves for as long as the game runs, both ways. Over 30,000 game days no front collapsed: every
+    side kept at least two systems.
+- **Players move the front.** Every war mission and every kill in a contested system is kept in the save as dated
+  war effort. The front plays it through in the season it happened, under the same rules: chains, supply, depth.
+  - **War missions** come from each power's stations:
+    - attacks on enemy systems it can reach: recon (+5), blockade (+10), strike (+14), sabotage (+16). Attacks on
+      cut-off systems count half again and pay 30% more.
+    - defence of its own systems that are being fought over or cut off: supply runs (+6), escorts (+9), holding the
+      line (+12).
+    - Missions pay in the issuer's currency.
+  - **Fighting directly:** each enemy ship destroyed in a contested system adds +3 for the player's side.
   - **A commission** (Friendly or better, and not with that power's enemy) doubles the player's effort for that
     side. The other side then treats the player as a combatant.
-  - In the checks, sixteen missions for one side turned a system from the enemy's (−0.43) to theirs (+0.90). Effort
-    across a whole front swings a war's score by more than 0.3 either way.
 - **What a war changes:** who holds a contested system decides its currency, its laws and who docks there. A front
-  pays up to 60% more for munitions, medicine, fuel and food.
-- **Multiplayer (later, optional):** the galaxy and the wars are deterministic, so a shared front is only the
-  players' summed effort per system. An optional online service could add everyone's effort, for a shared war that
-  the community moves. Offline, each save's war is its own.
+  pays up to 60% more for munitions, medicine, fuel and food, and ships cost 40% more there.
+- **Speed:** the war without players is cached season by season. Players' effort replays from the season of their
+  first deed, in well under a millisecond per season.
+- **Multiplayer (later, optional):** the galaxy and the wars are deterministic, so a shared front is only everyone's
+  dated war effort played through the same rules. An optional online service could collect it, for a war the
+  community moves. Offline, each save's war is its own.
+
+### The map
+
+The star map is **three-dimensional**. You turn it, zoom it, and move from the whole galaxy down to one system.
+- Each great power's space is drawn in its colour. No two powers ever share a place.
+- **Peaceful borders** between neighbours are drawn as solid surfaces.
+- **Contested space** between enemies is drawn with **dashed lines**: the two edges of the zone, as dashed surfaces.
+- Inside contested space, the front's systems are drawn in the colour of today's holder, linked along their supply
+  chains: solid where supplied, dashed where cut off.
+- The viewer's first panel (`viewer.html`) is a working version: drag to turn, wheel to zoom.
 
 ### Smaller factions
 
@@ -320,6 +355,81 @@ As the model makes them today (names and numbers come from the seed):
 - **Privateers:** some syndicates are privately backed by a great power and hostile to its enemies.
 - **Money:** nomads deal in **fuel scrip**, backed by fuel. Syndicates take any currency, at a cut. Free ports
   change any currency, enemies' included.
+
+### Ships
+
+Forty stock designs that NPCs fly, and players can buy where a yard sells them (`wip/emberreach/ships.js`, 15
+checks in `tests/emberreach_ships_t.js`). They range from one-seat shuttles to fleet carriers and dreadnoughts.
+- **Who builds them:** each of the seven great powers' yards, and three independent yards (Brask & Orrel Free Yards,
+  the Tamsin Mining Cooperative, Greyhook Salvage Works).
+- **Species:** a great power's yards build to its species' bodies. Heavy-bodied builders add 15% armour and lose
+  10% agility; light ones lose 10% armour, gain 10% shields and turn 12% faster.
+- **Who flies what:** every design lists its pilots (navies, pirates, traders, miners, explorers, nomads, couriers,
+  passengers, prospectors, salvagers, bounty hunters, smugglers), so the game puts the right ships in the right
+  places. The small factions' fleet carriers and dreadnoughts are the Bastion, Tyrant and Monolith classes.
+
+**Price from the stats.** A ship's list value in SU is:
+
+  120 × toughness^0.95 × √(1 + firepower/20) × (1 + cargo/250)^0.45 × (1 + 0.12 × jump)
+  × (speed/200)^0.25 × (turn/40)^0.15 × 1.35^(tech − 1) × (1 + hangar/40)
+
+- **Toughness** is hull + 1.4 × shields. **Firepower** counts hardpoints by size: small 1, medium 3, large 9, huge
+  27.
+- So twice the armour and shields costs nearly twice as much, each tech level costs 35% more, and range, cargo,
+  speed and hangars all add.
+- **Yards:** great powers' yards charge 5–15% for their name; independents sell 10% under value. The range runs
+  from 90% to 115% of that.
+- **In the shops:** prices are in the station's currency at the day's rate. A ship costs list price in its maker's
+  own space, +10% at an ally's yard, +25% elsewhere and +40% near a front. Enemies' designs aren't sold.
+
+The catalogue, with prices in SU and in the Kaigemarrd Compact's bead at home on day 0 (2.86 beads per SU):
+
+| Ship | Size | Role | Yard | Hull / shields | Speed m/s, turn °/s | Cargo t | Jump pc | Guns S/M/L/H | Crew | Tech | Price, SU | In KAI at home |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Wren | XS | shuttle | Brask & Orrel Free Yards | 90 / 40 | 220, 70 | 4 | 2 | 0/0/0/0 | 1 | 1 | 15 k – 20 k | 44 k – 56 k |
+| Kestrel | XS | fighter | Kaigemarrd Compact yards | 161 / 90 | 320, 86 | 0 | – | 2/0/0/0 | 1 | 2 | 48 k – 61 k | 137 k – 175 k |
+| Dart | XS | interceptor | Faofaar Assembly yards | 99 / 88 | 380, 123 | 0 | – | 2/0/0/0 | 1 | 3 | 53 k – 68 k | 151 k – 193 k |
+| Hob | XS | mining pod | Tamsin Mining Cooperative | 160 / 30 | 150, 50 | 12 | 1.5 | 1/0/0/0 | 1 | 1 | 18 k – 23 k | 51 k – 65 k |
+| Gnat | XS | racer | Linaeulutis Theocracy yards | 72 / 66 | 420, 118 | 2 | 3 | 0/0/0/0 | 1 | 3 | 52 k – 67 k | 149 k – 191 k |
+| Spur | XS | bomber | Veora Throne yards | 230 / 100 | 240, 54 | 0 | – | 0/1/0/0 | 2 | 2 | 50 k – 63 k | 141 k – 181 k |
+| Mote | XS | scout | Greyhook Salvage Works | 70 / 50 | 300, 90 | 1 | 4 | 0/0/0/0 | 1 | 2 | 27 k – 34 k | 76 k – 97 k |
+| Tinker | XS | repair tender | Ulasenarvin Theocracy yards | 150 / 70 | 200, 60 | 6 | 2 | 0/0/0/0 | 2 | 2 | 41 k – 53 k | 119 k – 151 k |
+| Lark | S | courier | Faofaar Assembly yards | 270 / 242 | 330, 84 | 20 | 6 | 1/0/0/0 | 2 | 3 | 219 k – 279 k | 625 k – 798 k |
+| Packet | S | light hauler | Brask & Orrel Free Yards | 380 / 150 | 210, 45 | 120 | 4 | 2/0/0/0 | 2 | 1 | 80 k – 102 k | 227 k – 290 k |
+| Pike | S | gunship | Ixumth Collective yards | 598 / 300 | 260, 50 | 10 | 4 | 2/2/0/0 | 3 | 2 | 233 k – 298 k | 667 k – 852 k |
+| Finch | S | explorer | Linaeulutis Theocracy yards | 297 / 286 | 250, 62 | 30 | 9 | 1/0/0/0 | 2 | 3 | 271 k – 346 k | 773 k – 988 k |
+| Burrow | S | miner | Tamsin Mining Cooperative | 480 / 180 | 170, 40 | 160 | 4 | 1/1/0/0 | 3 | 1 | 100 k – 127 k | 284 k – 363 k |
+| Shrike | S | heavy fighter | Kaigemarrd Compact yards | 483 / 320 | 300, 63 | 5 | 5 | 3/1/0/0 | 2 | 3 | 326 k – 417 k | 931 k – 1.2 m |
+| Jackal | S | raider | Greyhook Salvage Works | 400 / 250 | 310, 68 | 40 | 5 | 2/1/0/0 | 3 | 2 | 163 k – 209 k | 466 k – 596 k |
+| Wisp | S | stealth scout | Ulasenarvin Theocracy yards | 280 / 300 | 290, 65 | 10 | 8 | 1/0/0/0 | 2 | 4 | 367 k – 469 k | 1.0 m – 1.3 m |
+| Tern | S | passenger shuttle | Kaitis Collective yards | 402 / 200 | 240, 41 | 30 | 5 | 0/0/0/0 | 2 | 2 | 134 k – 172 k | 383 k – 490 k |
+| Drover | M | hauler | Brask & Orrel Free Yards | 1,100 / 500 | 180, 30 | 600 | 5 | 2/1/0/0 | 5 | 1 | 348 k – 445 k | 994 k – 1.3 m |
+| Corsair | M | multirole | Veora Throne yards | 1,610 / 900 | 240, 38 | 150 | 6 | 2/2/1/0 | 6 | 3 | 1.2 m – 1.5 m | 3.4 m – 4.4 m |
+| Halberd | M | corvette | Ixumth Collective yards | 2,415 / 1,300 | 230, 34 | 60 | 6 | 3/3/1/0 | 18 | 3 | 1.7 m – 2.2 m | 4.9 m – 6.2 m |
+| Seeker | M | long-range explorer | Linaeulutis Theocracy yards | 900 / 1,210 | 220, 45 | 120 | 14 | 1/1/0/0 | 5 | 4 | 1.8 m – 2.3 m | 5.2 m – 6.7 m |
+| Delver | M | miner | Tamsin Mining Cooperative | 1,600 / 600 | 150, 28 | 700 | 5 | 2/1/0/0 | 8 | 2 | 624 k – 797 k | 1.8 m – 2.3 m |
+| Mule | M | armoured trader | Kaitis Collective yards | 2,070 / 800 | 170, 27 | 500 | 6 | 2/2/0/0 | 7 | 2 | 992 k – 1.3 m | 2.8 m – 3.6 m |
+| Lancet | M | strike craft | Faofaar Assembly yards | 1,080 / 1,210 | 290, 56 | 40 | 7 | 2/3/0/0 | 6 | 4 | 1.5 m – 1.9 m | 4.4 m – 5.6 m |
+| Ferry | M | liner | Ulasenarvin Theocracy yards | 1,300 / 1,000 | 200, 30 | 200 | 7 | 1/0/0/0 | 30 | 3 | 956 k – 1.2 m | 2.7 m – 3.5 m |
+| Scavenger | M | salvager | Greyhook Salvage Works | 1,500 / 500 | 170, 32 | 450 | 5 | 2/1/0/0 | 8 | 1 | 384 k – 491 k | 1.1 m – 1.4 m |
+| Bulwark | L | frigate | Kaigemarrd Compact yards | 5,980 / 3,200 | 190, 22 | 300 | 7 | 4/4/2/0 | 60 | 3 | 5.8 m – 7.4 m | 16.5 m – 21.1 m |
+| Caravel | L | freighter | Brask & Orrel Free Yards | 4,200 / 1,600 | 150, 18 | 3,000 | 6 | 2/2/0/0 | 20 | 1 | 2.2 m – 2.7 m | 6.1 m – 7.9 m |
+| Warden | L | patrol cruiser | Veora Throne yards | 8,970 / 4,200 | 180, 18 | 250 | 7 | 4/4/3/0 | 90 | 3 | 7.3 m – 9.4 m | 20.9 m – 26.7 m |
+| Atlas | L | mining refinery | Tamsin Mining Cooperative | 6,500 / 2,000 | 120, 14 | 4,000 | 5 | 2/2/1/0 | 40 | 2 | 4.5 m – 5.8 m | 12.9 m – 16.5 m |
+| Pilgrim | L | deep explorer | Linaeulutis Theocracy yards | 3,420 / 4,180 | 170, 22 | 600 | 20 | 2/2/0/0 | 30 | 5 | 13.9 m – 17.8 m | 39.8 m – 50.8 m |
+| Reaver | L | raider | Greyhook Salvage Works | 5,000 / 2,600 | 210, 24 | 800 | 7 | 4/3/2/0 | 45 | 2 | 3.8 m – 4.8 m | 10.8 m – 13.8 m |
+| Wellspring | L | fuel tanker | Ulasenarvin Theocracy yards | 4,500 / 1,800 | 140, 15 | 2,500 | 8 | 2/1/0/0 | 25 | 2 | 3.8 m – 4.9 m | 10.8 m – 13.9 m |
+| Citadel | XL | destroyer (4 in hangar) | Ixumth Collective yards | 20,700 / 11,000 | 160, 11 | 800 | 8 | 6/6/4/1 | 320 | 4 | 47.5 m – 60.7 m | 135.8 m – 173.5 m |
+| Leviathan | XL | bulk freighter | Brask & Orrel Free Yards | 15,000 / 5,000 | 110, 8 | 30,000 | 6 | 3/3/1/0 | 120 | 1 | 18.7 m – 23.9 m | 53.4 m – 68.2 m |
+| Sovereign | XL | battlecruiser (6 in hangar) | Kaitis Collective yards | 29,900 / 16,000 | 170, 10 | 1,000 | 8 | 6/8/5/2 | 600 | 4 | 84.5 m – 108.0 m | 241.4 m – 308.4 m |
+| Ark | XL | colony ship (2 in hangar) | Ulasenarvin Theocracy yards | 20,000 / 9,000 | 100, 7 | 12,000 | 10 | 2/2/1/0 | 3,000 | 3 | 50.8 m – 64.9 m | 145.0 m – 185.3 m |
+| Bastion | Capital | fleet carrier (36 in hangar) | Brask & Orrel Free Yards | 90,000 / 40,000 | 90, 4 | 60,000 | 12 | 8/8/4/2 | 8,000 | 4 | 1.63 bn – 2.08 bn | 4.65 bn – 5.94 bn |
+| Tyrant | Capital | dreadnought (24 in hangar) | Kaigemarrd Compact yards | 184,000 / 70,000 | 80, 3 | 8,000 | 10 | 12/12/8/4 | 12,000 | 4 | 1.48 bn – 1.89 bn | 4.23 bn – 5.40 bn |
+| Monolith | Capital | battleship (12 in hangar) | Veora Throne yards | 138,000 / 60,000 | 85, 3 | 5,000 | 9 | 10/10/8/4 | 9,000 | 5 | 912.6 m – 1.17 bn | 2.61 bn – 3.33 bn |
+
+**Starting out:** a new player gets the cheapest jump-capable design their home yards sell under 100,000 SU (the
+Linaeulutis Gnat, the Ulasenarvin Tinker), or the independent Wren. They also get money worth 20,000 SU in their
+home currency.
 
 ### Money
 
@@ -346,7 +456,8 @@ As the model makes them today (names and numbers come from the seed):
 ### Reputation and alignment
 
 - **Origin:** a new player chooses which great power to come from, and so which species to play. They start:
-  - at its home world, with 5,000 of its currency and a ship of its species' build and senses;
+  - at its home world, flying with its species' build and senses;
+  - with a starter ship (see "Ships") and money worth 20,000 SU in its currency;
   - with standing that follows their people's feuds: Friendly at home (+350), +150 with its allies, −150
     (Unfriendly) with its enemies, neutral elsewhere.
   - Its offshoot nomads like them (+100); syndicates don't (−200), unless their sponsor is the origin.
@@ -370,6 +481,8 @@ As the model makes them today (names and numbers come from the seed):
 - **Renderer:** WebGL 2 with lit, textured meshes, a skybox built from the actual stars around the player (brightness
   from luminosity and distance), and planets with procedural textures from type and colour. The Canvas 2D fallback
   draws flat-shaded polygons, sorted back to front, and a point starfield.
+- **The star map:** in 3D (see "The map"). With WebGL, drawn on the graphics card; on the Canvas fallback, as
+  lines and points sorted back to front, like the viewer.
 - **The sky:** the nearest few thousand stars as points from `starsNear`. Farther away, the galaxy's integrated light
   as a precomputed sky texture: in the Glow, the core fills half the sky.
 - **Performance:**
@@ -381,12 +494,12 @@ As the model makes them today (names and numbers come from the seed):
 
 ## Milestones
 
-1. **M0 (this plan):** the galaxy model; the great powers, alliances, wars, small factions, money and reputation
-   as models; their checks and the viewer. Done.
+1. **M0 (this plan):** the galaxy model; the great powers, alliances, front-line wars, small factions, money,
+   reputation and the 40 stock ships as models; their checks and the 3D viewer. Done.
 2. **M1:** fly a ship in one system, with WebGL and the Canvas fallback; planets, a star and a station to dock at.
    Gamekit controls.
-3. **M2:** the star map and jumping: the whole galaxy, zoom to a region, plot a route. The sky from real
-   neighbours.
+3. **M2:** the 3D star map and jumping: the whole galaxy, zoom to a region, plot a route; borders and contested
+   space; lanes. The sky from real neighbours.
 4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.
 5. **M4:** combat and war: weapons, shields, heat, pirates, patrols; war missions, commissions, moving fronts;
    carriers and dreadnoughts.
