@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Block Drop</title>
+<link rel="stylesheet" href="blockdrop.css">
+</head>
+<body>
+<header id="bar">
+  <div class="grp" role="group" aria-label="Game">
+    <button data-mode="classic" aria-pressed="false" title="Faster as you clear rows">Classic</button>
+    <button data-mode="relaxed" aria-pressed="false" title="One steady speed">Relaxed</button>
+    <button data-mode="daily" aria-pressed="false" title="Three minutes on today's blocks: the same for everyone">Daily</button>
+  </div>
+  <div class="stat" title="Score"><span class="ico" aria-hidden="true">★</span><b id="score">0</b></div>
+  <button id="menuBtn" aria-haspopup="true" aria-expanded="false" title="Menu">☰</button>
+</header>
+<div id="menu" role="menu" hidden>
+  <button role="menuitem" data-cmd="new">New game <kbd>N</kbd></button>
+  <button role="menuitem" data-cmd="pause">Pause <kbd>P</kbd></button>
+  <button role="menuitem" data-cmd="stats">Best scores</button>
+  <button role="menuitem" data-cmd="help">How to play</button>
+  <button role="menuitem" data-cmd="flash" aria-pressed="false">Reduce flashing</button>
+  <button role="menuitem" data-cmd="export">Export save…</button>
+  <button role="menuitem" data-cmd="import">Import save…</button>
+</div>
+<main id="stage"><canvas id="cv" aria-label="The well" tabindex="0"></canvas></main>
+<nav id="tbar" class="touchonly" aria-label="Touch controls">
+  <button data-t="left" aria-label="Move left">◀</button>
+  <button data-t="ccw" aria-label="Turn left">⟲</button>
+  <button data-t="soft" aria-label="Move down">▼</button>
+  <button data-t="drop" aria-label="Drop">⤓</button>
+  <button data-t="cw" aria-label="Turn right">⟳</button>
+  <button data-t="right" aria-label="Move right">▶</button>
+</nav>
+<div id="ov" hidden><div class="card" role="dialog" aria-modal="true"><div id="ovBody"></div><div class="btns" id="ovBtns"></div></div></div>
+<div id="sr" class="sr" aria-live="polite"></div>
+<script src="gamekit.js"></script>
+<script src="blockdrop.js"></script>
+</body>
+</html>
