@@ -8,7 +8,7 @@ const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; c
 const {add, sub, mul, len, dot} = Sc.v, DT = 1 / 60;
 try {
 	const home = F.majors()[0], wren = S.ships().find(s => s.id == 'wren');
-	const sc = Sc.build(home.star, {day: 200});
+	const sc = Sc.build(home.star, {day: 200, portWorld: home.home.name});
 	const pl = sc.bodies.filter(b => b.kind == 'planet');
 	ok('1. the real system: its star, every planet of the model on its orbit, sizes in metres', sc.bodies[0].kind == 'star' && pl.length == require(path.join(DIR, 'galaxy.js')).system(home.star).planets.length
 		&& pl.every(b => Math.abs(len(b.pos) / Sc.AU - require(path.join(DIR, 'galaxy.js')).system(home.star).planets.find(x => x.name == b.name).a) < 0.01 && b.radius > 1e6));
@@ -68,6 +68,13 @@ try {
 	ok('16b. a course into the star throws the ship out of cruise before it reaches the surface', (() => { const sun = sc.bodies[0], q = Fl.create(wren, {p: [0.5 * Sc.AU, 0, 0], q: Sc.lookRotation([-1, 0, 0], [0, 0, 1])}); const z = {v: 0}; for (let k = 0; k < 60 * 120; k++) if (Sc.cruiseStep(sc, q, z, {throttle: 1}, DT) == 'drop') return Sc.surfaceDist(sun, q.p) > sun.radius; return false })());
 	const drop = Sc.dropOut(c, {v: 4e5});
 	ok('17. dropping out keeps the heading at no more than top speed; above 300 km/s it\'s an emergency', drop.emergency && Math.abs(len(c.v) - c.spec.vmax) < 1e-6 && !Sc.dropOut(c, {v: 1000}).emergency);
+	const lockedP = pl.find(b => b.locked), freeP = pl.find(b => !b.locked);
+	ok('19. planets turn: locked worlds once per orbit, others in 0.3 to 3 days; tilts are kept, the orbits unchanged by them', (!lockedP || Math.abs(lockedP.period / 86400 - Math.sqrt(Math.pow(len(lockedP.pos) / Sc.AU, 3) / home.star.M) * 365.25) < 1e-6 * lockedP.period)
+		&& (!freeP || (freeP.period / 86400 >= 0.3 && freeP.period / 86400 <= 3)) && pl.every(b => Math.abs(len(b.axis) - 1) < 1e-9) && Math.abs(Sc.turnOf(pl[0], 200, pl[0].period) - Sc.turnOf(pl[0], 200, 0)) < 1e-9
+		&& Math.abs(dot(Sc.bodyFrame(pl[0], 1.2).x, pl[0].axis)) < 1e-9);
+	const ringed = F.majors().map(m => ({m, sc: Sc.build(m.star, {portWorld: m.home.name})})).find(x => x.sc.station.world.ring);
+	ok('20. every power\'s port orbits its own homeworld, and clears any rings', F.majors().slice(0, 12).every(m => Sc.build(m.star, {portWorld: m.home.name}).station.world.name == m.home.name)
+		&& (!ringed || len(sub(ringed.sc.station.c, ringed.sc.station.world.pos)) - ringed.sc.station.def.radius > 2.3 * ringed.sc.station.world.radius));
 	ok('18. the same system every time', JSON.stringify(Sc.build(home.star, {day: 200}).bodies) == JSON.stringify(sc.bodies));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

@@ -4,6 +4,8 @@
    loop. Controls: keyboard, mouse, gamepad and touch, all at once.
    URL options: ?power=N (whose home system), ?port=trefoil|bloom|lantern|halo, ?ship=wren|kestrel|…, ?day=N,
    ?canvas (force the Canvas 2D fallback), ?quality=low|high, ?debug (B breaks a module, G breaks the canopy, spawn=N starts N metres off the mouth).
+   Saves (gamekit): where you are, the ship and its damage, and the settings, every 15 s, on docking, launching
+   and pausing; a URL that names a power, port or ship starts fresh. Sound: sound.js.
    Level of detail, to keep the frame rate up: planets and stars are lit sprites until they're 48 pixels across;
    stations are a detailed mesh within 20 km, a simple one to 500 km, and a sprite beyond; ships are always drawn
    in full at the graphics setting.
@@ -11,7 +13,8 @@
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
-	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG;
+	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
+	Snd = window.EmberSound, Sv = window.EmberSave;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 const $ = id => document.getElementById(id);
@@ -39,9 +42,18 @@ const say = (text, col) => { game.msgs.push({text, col, t: game.t}); if (game.ms
 async function start() {
 	await RG.init('ember-reach');
 	RG.bind(KEYS);
-	const majors = F.majors(), home = majors[Math.max(0, Math.min(majors.length - 1, +(Q.get('power') || 0)))];
-	ship = S.ships().find(x => x.id == (Q.get('ship') || 'wren')) || S.ships()[0];
-	scene = Sc.build(home.star, {day: +(Q.get('day') || 200), port: Sc.STATION[Q.get('port')] ? Q.get('port') : 'halo'});
+	const majors = F.majors();
+	/* the save, unless the URL asks for a particular system, port or ship */
+	let sv = null;
+	try { sv = Sv.unpack(await RG.load(), {powers: majors.length, ports: Object.keys(Sc.STATION), ships: S.ships().map(x => x.id)}) } catch (e) { sv = null }
+	const fresh = ['power', 'port', 'ship', 'day'].some(k => Q.has(k));
+	if (sv) { quality = Q.get('quality') || sv.settings.quality; Snd.setOn(sv.settings.sound) }
+	if (fresh) sv = sv && {settings: sv.settings};
+	game.power = sv && sv.ship ? sv.power : Math.max(0, Math.min(majors.length - 1, +(Q.get('power') || 0)));
+	game.port = sv && sv.ship ? sv.port : Sc.STATION[Q.get('port')] ? Q.get('port') : 'halo';
+	const home = majors[game.power];
+	ship = S.ships().find(x => x.id == (sv && sv.ship ? sv.ship : Q.get('ship') || 'wren')) || S.ships()[0];
+	scene = Sc.build(home.star, {day: sv && sv.ship ? sv.day : +(Q.get('day') || 200), port: game.port, portWorld: home.home.name});
 	st = scene.station;
 	game.home = home;
 	/* renderer and meshes */
@@ -51,17 +63,22 @@ async function start() {
 	RG.on('resize', v => { W = v.w; Hh = v.h; const d = v.dpr; gl.width = Math.round(v.cw * d); gl.height = Math.round(v.ch * d) });
 	view.refit();
 	pointers();
-	launch(true);
+	if (sv && sv.ship) resume(sv); else launch(true);
 	$('load').remove();
+	/* sound starts on the first touch, click or key (browsers insist) */
+	const unlock = () => Snd.unlock();
+	addEventListener('keydown', unlock); addEventListener('pointerdown', unlock);
+	RG.on('pause', () => { Snd.hold(true); persist() }); RG.on('resume', () => Snd.hold(false));
 	say('Rendering with ' + (R.kind == 'webgl' ? 'WebGL 2' : 'Canvas 2D (fallback)'), '#9fb0cc');
 	say('Press H for the controls', '#9fb0cc');
 	RG.onPause(() => { if (!$('ov').hidden) return; overlay('pause') });
+	if (game.docked) overlay('docked');
 	RG.loop(update, draw);
 	hud.focus();
 }
 /* every mesh, at the graphics setting */
 function meshes() {
-	for (const b of scene.bodies) R.upload(b.name, b.kind == 'star' ? Me.star(b.T, quality) : Me.planet(b, quality));
+	for (const b of scene.bodies) { R.upload(b.name, b.kind == 'star' ? Me.star(b.T, quality) : Me.planet(b, quality)); if (b.ring) R.upload(b.name + ':rings', Me.rings(b.ring, b.seed, quality)) }
 	for (const det of ['hi', 'lo']) Me.station(st.def, st.parts, det).forEach(g => R.upload('station:' + det + ':' + g.spin, g.mesh));
 	R.upload('ship', Me.ship(ship.length, quality));
 	R.setSky(sky(game.home.star));
@@ -88,8 +105,24 @@ function launch(first) {
 	if (!first) s.q = Sc.lookRotation(st.axis, st.y);
 	fit = fit || M.fit(ship); pilot = Pi.create(); M.apply(fit, s);
 	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = first ? 0 : 0.2; game.docked = false; game.target = 0; game.clearance = null;
-	if (!first) say('Launched from ' + st.name + '. Fly safe.');
+	if (!first) { say('Launched from ' + st.name + '. Fly safe.'); Snd.cue('launch') }
 	else say('Holding 2.5 km off ' + st.name + '. Press N for docking clearance.');
+	persist();
+}
+/* back where the save left off */
+function resume(sv) {
+	s = Fl.create(ship, {p: sv.p, v: sv.v, q: sv.q, w: sv.w, fa: sv.fa}); s.radius = Math.max(2, ship.length / 2);
+	fit = Sv.restoreModules(M.fit(ship), sv.modules); pilot = Pi.create(); M.apply(fit, s);
+	game.t = sv.t; game.throttle = sv.throttle; game.docked = sv.docked; game.clearance = sv.docked && sv.pad ? {pad: sv.pad, until: Infinity} : null;
+	say(sv.docked ? 'Welcome back: docked at ' + st.name : 'Welcome back, ' + H.fmtDist(len(sub(s.p, st.c))) + ' from ' + st.name);
+}
+/* save now (gamekit keeps it); quietly, at most once a second */
+function persist() {
+	if (!s || !fit || game.saving) return;
+	game.saving = true; game.savedAt = game.t;
+	RG.save(Sv.pack({power: game.power, port: game.port, ship: ship.id, day: scene.day, t: game.t, docked: game.docked, pad: game.clearance && game.clearance.pad, s, throttle: game.throttle, fit, settings: {quality, sound: Snd.on}}))
+		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
+		.then(() => { setTimeout(() => { game.saving = false }, 1000) });
 }
 const targets = () => [st, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
 const posOf = x => x.pos || x.c;
@@ -132,36 +165,38 @@ function actions() {
 	if (RG.pressed('mouse')) { game.mouseFly = !game.mouseFly; say('Mouse flight ' + (game.mouseFly ? 'on: point away from the centre to pitch and roll' : 'off')) }
 	if (game.docked) return;
 	if (!pilot.conscious) return;
-	if (RG.pressed('fa')) { Fl.setAssist(s, !s.fa); game.throttle = s.fa ? Math.min(1, len(s.v) / s.spec.vmax) : 0; say('Flight assist ' + (s.fa ? 'on' : 'off'), s.fa ? '#6cc9e8' : '#f2a33a') }
-	if (RG.pressed('target')) { game.target = (game.target + 1) % T.length; say('Target: ' + T[game.target].name) }
+	if (RG.pressed('fa')) { Fl.setAssist(s, !s.fa); game.throttle = s.fa ? Math.min(1, len(s.v) / s.spec.vmax) : 0; say('Flight assist ' + (s.fa ? 'on' : 'off'), s.fa ? '#6cc9e8' : '#f2a33a'); Snd.cue(s.fa ? 'faOn' : 'faOff') }
+	if (RG.pressed('target')) { game.target = (game.target + 1) % T.length; say('Target: ' + T[game.target].name); Snd.cue('tick') }
 	if (RG.pressed('dock')) requestDock();
 	if (RG.pressed('cruise')) toggleCruise();
-	if (DEBUG && RG.pressed('dbgBreak')) { const h = M.hit(fit, 1e6, Math.random()); if (h.alert) say(h.alert.text, h.alert.color) }
-	if (DEBUG && RG.pressed('dbgCanopy')) { const a = M.damage(fit, 'canopy', 1e6); if (a) say(a.text, a.color) }
+	if (DEBUG && RG.pressed('dbgBreak')) { const h = M.hit(fit, 1e6, Math.random()); if (h.alert) moduleAlert(h.alert) }
+	if (DEBUG && RG.pressed('dbgCanopy')) { const a = M.damage(fit, 'canopy', 1e6); if (a) moduleAlert(a) }
 }
 function requestDock() {
 	const d = len(sub(s.p, st.c));
-	if (d > 10000) { say('Docking clearance is given within 10 km of the port (' + H.fmtDist(d) + ' now)', '#f2a33a'); return }
+	if (d > 10000) { say('Docking clearance is given within 10 km of the port (' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
 	if (game.clearance) { say('Clearance already granted: pad ' + game.clearance.pad); return }
 	game.clearance = {pad: 1 + Math.floor(Math.random() * 24), until: game.t + 600};
 	game.target = 0;
 	const D = st.def.dock;
-	say(st.name + ': clearance granted, pad ' + game.clearance.pad + '. Approach along the axis' + (D.spins ? ', and match our spin.' : '.'), '#7fd1a8');
+	say(st.name + ': clearance granted, pad ' + game.clearance.pad + '. Approach along the axis' + (D.spins ? ', and match our spin.' : '.'), '#7fd1a8'); Snd.cue('clearance');
 }
 function toggleCruise() {
 	const cz = game.cruise;
-	if (cz.on) { const r = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say(r.emergency ? 'Emergency drop out: the drive took a knock' : 'Dropped out of cruise', r.emergency ? '#f2a33a' : undefined); if (r.emergency) damage(25); return }
+	if (cz.on) { const r = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say(r.emergency ? 'Emergency drop out: the drive took a knock' : 'Dropped out of cruise', r.emergency ? '#f2a33a' : undefined); Snd.cue(r.emergency ? 'emergency' : 'drop'); if (r.emergency) damage(25); return }
 	if (cz.charge > 0) { cz.charge = 0; say('Cruise cancelled'); return }
-	if (Sc.massLocked(scene, s.p)) { say('Mass locked by ' + st.name + ': cruise needs 20 km clear', '#f2a33a'); return }
-	if (!M.status(fit).output.main) { say('Cruise needs working engines', '#e5484d'); return }
-	cz.charge = Sc.CRUISE.charge; say('Cruise charging…', '#6cc9e8');
+	if (Sc.massLocked(scene, s.p)) { say('Mass locked by ' + st.name + ': cruise needs 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
+	if (!M.status(fit).output.main) { say('Cruise needs working engines', '#e5484d'); Snd.cue('refused'); return }
+	cz.charge = Sc.CRUISE.charge; say('Cruise charging…', '#6cc9e8'); Snd.cue('charge');
 }
 
 /* ---------------- the step ---------------- */
 function damage(amount) {
 	let left = amount;
-	while (left > 0) { const h = M.hit(fit, Math.min(left, 12), Math.random()); left -= 12; if (h.alert) say(h.alert.text, h.alert.color) }
+	while (left > 0) { const h = M.hit(fit, Math.min(left, 12), Math.random()); left -= 12; if (h.alert) moduleAlert(h.alert) }
 }
+/* a module just broke: the console line and its alert tone */
+function moduleAlert(a) { say(a.text, a.color); Snd.cue(a.level == 'critical' ? 'critical' : 'warning') }
 function update(dt) {
 	if (!s) return;
 	actions();
@@ -174,12 +209,12 @@ function update(dt) {
 	if (cz.charge > 0) {
 		cz.charge -= dt;
 		if (Sc.massLocked(scene, s.p)) { cz.charge = 0; say('Cruise interrupted: mass locked', '#f2a33a') }
-		else if (cz.charge <= 0) { cz.on = true; cz.v = len(s.v); game.throttle = Math.max(game.throttle, 0.5); say('Cruise engaged') }
+		else if (cz.charge <= 0) { cz.on = true; cz.v = len(s.v); game.throttle = Math.max(game.throttle, 0.5); say('Cruise engaged'); Snd.cue('cruise') }
 	}
 	if (cz.on) {
 		const tgt = targets()[game.target];
 		const res = Sc.cruiseStep(scene, s, cz, input, dt, tgt);
-		if (res == 'drop') { const d = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say('Dropped out near ' + Sc.nearest(scene, s.p).what.name + (d.emergency ? ' (emergency)' : '')); if (d.emergency) damage(25) }
+		if (res == 'drop') { const d = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say('Dropped out near ' + Sc.nearest(scene, s.p).what.name + (d.emergency ? ' (emergency)' : '')); Snd.cue(d.emergency ? 'emergency' : 'drop'); if (d.emergency) damage(25) }
 		game.gFelt = null;
 	} else {
 		const frame = len(sub(s.p, st.c)) < 8000 ? Sc.frame(st) : null;
@@ -187,8 +222,8 @@ function update(dt) {
 		const g = M.gForce(fit, r);
 		game.gFelt = M.works(fit, 'canopy') ? null : g.felt;
 		game.vision = Pi.step(pilot, g.felt, dt);
-		if (!pilot.conscious && !game.wasOut) say('Pilot blacked out', '#e5484d');
-		if (pilot.conscious && game.wasOut) say('Pilot conscious again', '#7fd1a8');
+		if (!pilot.conscious && !game.wasOut) { say('Pilot blacked out', '#e5484d'); Snd.cue('blackout') }
+		if (pilot.conscious && game.wasOut) { say('Pilot conscious again', '#7fd1a8'); Snd.cue('wake') }
 		game.wasOut = !pilot.conscious;
 		/* docking */
 		const dk = Sc.dockCheck(st, s, game.t, !!game.clearance);
@@ -199,7 +234,7 @@ function update(dt) {
 			if (L[2] < st.def.dock.z + s.radius) {
 				const imp = Math.max(0, -dot(sub(s.v, Sc.frame(st).w.every(v => !v) ? [0, 0, 0] : cross(Sc.frame(st).w, sub(s.p, st.c))), st.axis));
 				s.p = add(s.p, mul(st.axis, st.def.dock.z + s.radius + 1 - L[2])); s.v = add(s.v, mul(st.axis, imp * 1.3));
-				if (!game.lastRefuse || game.t - game.lastRefuse > 2) say('Docking refused: ' + why, '#f2a33a'); game.lastRefuse = game.t;
+				if (!game.lastRefuse || game.t - game.lastRefuse > 2) { say('Docking refused: ' + why, '#f2a33a'); Snd.cue('refused') } game.lastRefuse = game.t;
 				if (imp > 5) damage((imp - 5) * 0.6);
 			}
 		}
@@ -207,14 +242,22 @@ function update(dt) {
 	/* collisions */
 	const hit = Sc.collide(scene, s, game.t);
 	if (hit) {
-		if (hit.kind == 'planet' || hit.kind == 'star') { say('Ship destroyed: ' + (hit.kind == 'star' ? 'flew into ' : 'hit ') + hit.what.name, '#e5484d'); fit = M.fit(ship); launch(true); return }
+		if (hit.kind == 'planet' || hit.kind == 'star') { say('Ship destroyed: ' + (hit.kind == 'star' ? 'flew into ' : 'hit ') + hit.what.name, '#e5484d'); Snd.cue('destroyed'); fit = M.fit(ship); launch(true); return }
 		const dmg = Sc.resolve(s, hit);
-		if (dmg > 0) { say('Collision with ' + st.name + ' at ' + Math.round(hit.impact) + ' m/s', '#f2a33a'); damage(dmg) }
+		if (dmg > 0) { say('Collision with ' + st.name + ' at ' + Math.round(hit.impact) + ' m/s', '#f2a33a'); Snd.cue('collide', hit.impact); damage(dmg) }
 	}
 	game.lastStep = r;
+	/* the sound follows the thrusters */
+	const Sp = s.spec, aB = r ? r.aBody : [0, 0, 0], al = r ? r.alpha : [0, 0, 0];
+	Snd.update({main: Math.max(0, aB[2]) / Sp.aMain, rcs: Math.min(1, (Math.abs(aB[0]) + Math.abs(aB[1])) / Sp.aRcs + Math.max(0, -aB[2]) / Sp.aRetro + al.reduce((t, a, i) => t + Math.abs(a) / Sp.alpha[i], 0) * 0.3),
+		speed: Math.min(1, len(s.v) / Sp.vmax), cruise: cz.on ? Math.max(0, Math.log10(Math.max(1, cz.v)) - 3) / (Math.log10(Sc.CRUISE.cap) - 3) : 0,
+		strain: pilot.strain, conscious: pilot.conscious, docked: false, engines: M.works(fit, 'engines') && M.works(fit, 'power')});
+	if (game.t - (game.savedAt || 0) > 15) persist();
 }
 function docked() {
-	game.docked = true; s.v = [0, 0, 0];
+	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0];
+	Snd.cue('docked'); Snd.update({main: 0, rcs: 0, speed: 0, cruise: 0, strain: 0, conscious: true, docked: true});
+	persist();
 	overlay('docked');
 }
 
@@ -234,15 +277,16 @@ function draw() {
 	const px = (p, r) => { const z = dot(sub(p, cam.p), CB.f); return z > 0 ? r / z * kpx : Infinity };
 	game.lod = {sprites: 0, meshes: 0, station: ''};
 	for (const b of scene.bodies) {
-		const lightDir = norm(sub(sun.pos, b.pos)), rot = mat3([b.radius, 0, 0], [0, b.radius, 0], [0, 0, b.radius]);
-		const far = px(b.pos, b.radius) < LOD.spritePx;
+		const lightDir = norm(sub(sun.pos, b.pos)), bf = Sc.bodyFrame(b, Sc.turnOf(b, scene.day, game.t)), rot = mat3(mul(bf.x, b.radius), mul(bf.y, b.radius), mul(bf.z, b.radius));
+		const far = px(b.pos, b.radius * (b.ring ? 2.3 : 1)) < LOD.spritePx, atmo = b.atmo ? Me.atmosphere(b.type) : null;
 		if (b.kind == 'star') {
 			const c = Me.starColour(b.T);
 			items.push({id: b.name, pos: b.pos, rot, light: lightDir, amb: 1, disc: {radius: b.radius, col: c, glow: true}, sprite: far ? {radius: b.radius, col: c, glow: true} : null});
 			glows.push({pos: b.pos, radius: b.radius, col: c, alpha: b.companion ? 0.5 : 0.9, scale: 7, min: b.companion ? 0.015 : 0.05});
 		} else {
 			const pal = b.pal || (b.pal = avgColour(b));
-			items.push({id: b.name, pos: b.pos, rot, light: lightDir, disc: {radius: b.radius, col: pal}, sprite: far ? {radius: b.radius, col: pal} : null});
+			items.push({id: b.name, pos: b.pos, rot, light: lightDir, atmo, disc: {radius: b.radius, col: pal}, sprite: far ? {radius: b.radius, col: pal} : null});
+			if (b.ring && !far) items.push({id: b.name + ':rings', pos: b.pos, rot, light: lightDir, amb: 0.45});   /* rings scatter light: lit even edge-on */
 		}
 		game.lod[far ? 'sprites' : 'meshes']++;
 	}
@@ -331,7 +375,11 @@ function overlay(kind) {
 		RG.pause();
 		body.innerHTML = '<h1 id="ovT">' + (kind == 'pause' ? 'Paused' : 'Controls') + '</h1><p>' + esc(ship.name) + ' · ' + esc(st.name) + ' · ' + esc(game.home.name.replace(/^The /, '')) + ' home system. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + HELP.map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table>';
 		button('Resume', close, true).focus();
-		button('Graphics: ' + (quality == 'high' ? 'High' : 'Low'), e => { quality = quality == 'high' ? 'low' : 'high'; meshes(); e.target.textContent = 'Graphics: ' + (quality == 'high' ? 'High' : 'Low') });
+		button('Graphics: ' + (quality == 'high' ? 'High' : 'Low'), e => { quality = quality == 'high' ? 'low' : 'high'; meshes(); e.target.textContent = 'Graphics: ' + (quality == 'high' ? 'High' : 'Low'); persist() });
+		button('Sound: ' + (Snd.on ? 'On' : 'Off'), e => { Snd.setOn(!Snd.on); e.target.textContent = 'Sound: ' + (Snd.on ? 'On' : 'Off'); persist() });
+		button('Save to a file', () => { persist(); setTimeout(() => RG.exportSave(), 300) });
+		button('Load from a file', () => RG.importSave().then(() => location.reload(), e => say(e.message, '#f2a33a')));
+		button('New game', e => { if (e.target.dataset.sure) { RG.save(null).then(() => { location.href = location.pathname }) } else { e.target.dataset.sure = 1; e.target.textContent = 'New game: sure? (the save is lost)' } });
 	} else if (kind == 'docked') {
 		body.innerHTML = '<h1 id="ovT">Docked</h1><p>' + esc(st.name) + ', pad ' + (game.clearance ? game.clearance.pad : '—') + '. Welcome to the ' + esc(game.home.name.replace(/^The /, '')) + '.</p><p>The starport menu (market, bulletin board, shipyard, outfitting, contacts) arrives with trade in M3; see the design canvas for how it will look.</p>';
 		button('Repair and launch', () => { M.repair(fit); ov.hidden = true; launch(false); hud.focus() }, true).focus();

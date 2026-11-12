@@ -34,10 +34,12 @@ function webgl(cv, gl) {
 vec4 project(vec3 c) { float w = dot(c, uF); return vec4(dot(c, uR) * uK.x, dot(c, uU) * uK.y, w - 2.0 * ${NEAR.toFixed(2)}, w); }`;
 	const P = {
 		mesh: prog(head + proj + `
-in vec3 aP, aN; in vec4 aC; uniform vec3 uOff; uniform mat3 uRot; out vec3 vN; out vec4 vC; out float vW;
-void main() { vec3 c = uOff + uRot * aP; gl_Position = project(c); vW = gl_Position.w; vN = normalize(uRot * aN); vC = aC; }`,
-		head + `in vec3 vN; in vec4 vC; in float vW; uniform vec3 uL; uniform float uAmb; out vec4 o;
-void main() { float d = max(dot(normalize(vN), uL), 0.0); vec3 lit = vC.rgb * (uAmb + (1.0 - uAmb) * d); o = vec4(mix(lit, vC.rgb * 1.15, vC.a), 1.0);
+in vec3 aP, aN; in vec4 aC; uniform vec3 uOff; uniform mat3 uRot; out vec3 vN; out vec4 vC; out float vW; out vec3 vPos;
+void main() { vec3 c = uOff + uRot * aP; gl_Position = project(c); vW = gl_Position.w; vN = normalize(uRot * aN); vC = aC; vPos = c; }`,
+		head + `in vec3 vN; in vec4 vC; in float vW; in vec3 vPos; uniform vec3 uL; uniform float uAmb; uniform vec4 uAtmo; out vec4 o;
+void main() { vec3 n = normalize(vN); float d = max(dot(n, uL), 0.0); vec3 lit = vC.rgb * (uAmb + (1.0 - uAmb) * d); o = vec4(mix(lit, vC.rgb * 1.15, vC.a), 1.0);
+ /* a world's air: a rim of haze on its lit side */
+ if (uAtmo.a > 0.0) { float rim = pow(1.0 - max(dot(n, -normalize(vPos)), 0.0), 3.0); o.rgb += uAtmo.rgb * uAtmo.a * rim * (0.15 + 0.85 * smoothstep(-0.2, 0.4, dot(n, uL))); }
  gl_FragDepth = log2(1.0 + max(vW, 0.0)) / log2(1.0 + ${FAR.toExponential()}); }`),
 		pts: prog(head + proj + `
 in vec3 aP; in vec4 aC; out vec4 vC; uniform float uPx;
@@ -47,9 +49,10 @@ void main() { vec4 p = project(aP * 1e9); p.z = p.w * 0.99999; gl_Position = p; 
 		sprite: prog(head + proj + `
 in vec2 aP; uniform vec3 uOff; uniform float uRad; out vec2 vQ; out float vW;
 void main() { vec3 c = uOff + (uR * aP.x + uU * aP.y) * uRad; gl_Position = project(c); vW = dot(uOff, uF); vQ = aP; }`,
-		head + `in vec2 vQ; in float vW; uniform vec3 uCol, uLv; uniform float uGlow, uMinA; out vec4 o;
+		head + `in vec2 vQ; in float vW; uniform vec3 uCol, uLv; uniform float uGlow, uMinA; uniform vec4 uAtmo; out vec4 o;
 void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ.y, -sqrt(max(0.0, 1.0 - r * r)));
  float d = max(dot(n, uLv), 0.0); vec3 c = mix(uCol * (0.05 + 0.95 * d), uCol * 1.1, uGlow);
+ c += uAtmo.rgb * uAtmo.a * pow(r, 6.0) * (0.15 + 0.85 * smoothstep(-0.2, 0.4, d));
  o = vec4(c, 1.0); gl_FragDepth = log2(1.0 + max(vW, 0.0)) / log2(1.0 + ${FAR.toExponential()}); }`),
 		glow: prog(head + `in vec2 aP; uniform vec3 uC; uniform vec2 uS; out vec2 vQ; void main() { vQ = aP; gl_Position = vec4(uC.xy + aP * uS, 0.0, 1.0); }`,
 		head + `in vec2 vQ; uniform vec3 uCol; uniform float uA; out vec4 o; void main() { float r = length(vQ); float a = uA * pow(max(0.0, 1.0 - r), 2.6); o = vec4(uCol * a, 1.0); }`)
@@ -106,6 +109,7 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 			const rad = Math.max(it.sprite.radius, 1.5 * z / (K[1] * h / 2)), L = it.light || [0, 0, 1];
 			gl.uniform3f(U.sprite.uOff, off[0], off[1], off[2]); gl.uniform1f(U.sprite.uRad, rad); gl.uniform3fv(U.sprite.uCol, it.sprite.col);
 			gl.uniform3f(U.sprite.uLv, dot(L, B.r), dot(L, B.u), dot(L, B.f)); gl.uniform1f(U.sprite.uGlow, it.sprite.glow ? 1 : 0);
+			gl.uniform4fv(U.sprite.uAtmo, it.atmo || [0, 0, 0, 0]);
 			gl.drawArrays(gl.TRIANGLES, 0, 6);
 		}
 		gl.useProgram(P.mesh); camUniforms('mesh', B, K);
@@ -114,6 +118,7 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 			const m = meshes[it.id]; if (!m) continue;
 			gl.uniform3f(U.mesh.uOff, it.pos[0] - F.cam.p[0], it.pos[1] - F.cam.p[1], it.pos[2] - F.cam.p[2]);
 			gl.uniformMatrix3fv(U.mesh.uRot, false, it.rot); gl.uniform3fv(U.mesh.uL, it.light || [0, 0, 1]); gl.uniform1f(U.mesh.uAmb, it.amb == null ? 0.07 : it.amb);
+			gl.uniform4fv(U.mesh.uAtmo, it.atmo || [0, 0, 0, 0]);
 			gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.n);
 		}
 		gl.bindVertexArray(null);
@@ -144,7 +149,7 @@ function canvas2d(cv) {
 			if (dsc) {
 				const c = pr(off); if (!c) continue;
 				const r = dsc.radius / c[2] * S;
-				draw.push({z: c[2], disc: true, x: c[0], y: c[1], r: Math.max(0.75, r), col: dsc.col, glow: dsc.glow, light: it.light, B});
+				draw.push({z: c[2], disc: true, x: c[0], y: c[1], r: Math.max(0.75, r), col: dsc.col, glow: dsc.glow, light: it.light, B, atmo: it.atmo});
 				continue;
 			}
 			const m = meshes[it.id]; if (!m) continue;
@@ -166,7 +171,9 @@ function canvas2d(cv) {
 				/* lit side towards the light, projected */
 				const lx = dot(d.light, d.B.r), ly = -dot(d.light, d.B.u), gr = ctx.createRadialGradient(d.x + lx * d.r * 0.6, d.y + ly * d.r * 0.6, d.r * 0.1, d.x, d.y, d.r * 1.05);
 				gr.addColorStop(0, rgb(d.col, 1.05)); gr.addColorStop(0.65, rgb(d.col, 0.45)); gr.addColorStop(1, rgb(d.col, 0.04));
-				ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7); ctx.fill(); continue;
+				ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7); ctx.fill();
+				if (d.atmo && d.r > 3) { ctx.strokeStyle = 'rgba(' + (d.atmo[0] * 255 | 0) + ',' + (d.atmo[1] * 255 | 0) + ',' + (d.atmo[2] * 255 | 0) + ',' + (0.5 * d.atmo[3]).toFixed(2) + ')'; ctx.lineWidth = Math.max(1, d.r * 0.04); ctx.stroke() }
+				continue;
 			}
 			ctx.fillStyle = d.fill; ctx.strokeStyle = d.fill; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(d.tri[0][0], d.tri[0][1]); ctx.lineTo(d.tri[1][0], d.tri[1][1]); ctx.lineTo(d.tri[2][0], d.tri[2][1]); ctx.closePath(); ctx.fill(); ctx.stroke();
 		}
