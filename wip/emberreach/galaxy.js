@@ -1,5 +1,5 @@
 /* ===== Ember Reach: the galaxy, as a scale model (docs/plan-ember-reach.md).
-   A compact elliptical galaxy (after M32): about 6 billion solar masses of mostly old stars, half of its light within
+   A compact elliptical galaxy (after M32): about 3 billion solar masses of mostly old stars, half of its light within
    300 pc, slightly flattened (axes 1 : 0.85 : 0.7), a black hole of 5 million suns at the centre. Every star exists:
    space is cut into 4-pc cells, a cell holding many stars is split into eight (and so on), and each cell's stars are
    made from a hash of where the cell is. Nothing is stored; the same place always gives the same stars.
@@ -27,13 +27,13 @@ const WOS = typeof module != 'undefined' ? require('./wos-stats.js') : root.WOS_
 
 /* ---------- the galaxy ---------- */
 const GAL = {
-	Mstar: 6e9,          /* solar masses in stars and remnants */
+	Mstar: 3e9,          /* solar masses in stars and remnants: about 8 billion stars */
 	Re: 300,             /* pc: half the light inside this (projected) */
 	axes: [1, 0.85, 0.7],/* triaxial: an E3 seen from the side */
 	rMax: 3000,          /* pc: where the model stops (10 Re) */
 	rCore: 0.5,          /* pc: inside this, the black hole and its own cluster (a game zone of its own) */
 	MBH: 5e6,
-	sigma: 76,           /* km/s: velocity dispersion */
+	sigma: 54,           /* km/s: velocity dispersion (sigma² ∝ M / R, so √2 below the 6e9-sun version of the same size) */
 	ageOld: 10e9, ageYoung: 3e9, youngCentre: 0.3,   /* share of young stars at the centre, falling outward */
 	FeHCentre: 0.15, FeHSlope: -0.35, FeHScatter: 0.15,
 	cell: 4, splitAt: 48, maxDepth: 10,
@@ -240,9 +240,9 @@ let ruinChance = null;
 const RUIN_CHANCE = () => ruinChance == null ? (ruinChance = drake(sampleGalaxy(3000, 99), true).past * DRAKE.footprint / STARS_TOTAL) : ruinChance;
 /* N = N* · fp · ne · fl · fi · fc · (L / T): ne is measured on the model itself (habitable, quiet worlds per star) */
 /* fl, fi, fc and L are the game's choices (nobody knows them): about forty civilisations alive now (six clusters
-   of six to eight great powers), each lasting 90,000 years; the millions before them left ruins, each civilisation
+   of six to eight great powers), each lasting 180,000 years; the millions before them left ruins, each civilisation
    in about ten systems (its home and colonies). The number of earlier ones does not depend on L. */
-const DRAKE = {fl: 0.5, fi: 0.01, fc: 0.2, L: 90000, T: 1e10, footprint: 10};
+const DRAKE = {fl: 0.5, fi: 0.01, fc: 0.2, L: 180000, T: 1e10, footprint: 10};
 function drake(sampleStars, noRuins) {
 	let withPl = 0, habit = 0, n = 0;
 	/* ne: worlds with liquid water and ESI 0.8 or more that stay undisturbed for 4 billion years, per star with planets */
@@ -265,7 +265,7 @@ function sampleGalaxy(n, seed) {
 }
 
 /* ---------- the great powers: six clusters ---------- */
-/* About forty civilisations are alive now (the Drake equation with L = 90,000 years), in six clusters of six to
+/* About forty civilisations are alive now (the Drake equation with L = 180,000 years), in six clusters of six to
    eight great powers, each cluster a shared cradle (see the plan). The clusters:
    - the North: around the North Point, straight up the pole 1,500 pc out (the northern Middle Reach);
    - the Hearth: just outside the Core, 45-90 pc from the centre, crowded and harsh;

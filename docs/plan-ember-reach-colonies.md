@@ -62,7 +62,7 @@ These are the public descriptions (Frontier's guide and update notes, and player
 | Strong and weak links set the economy | The same, from the model's own data. Each body's real character (type, resources, rings, life, ruins, the star's metals) boosts or cuts its links, through the existing market model |
 | Weekly architect payments | **A season's share** of the colony's trade, in the sponsor's currency (or the colony's own scrip, if independent) |
 | Sniping and lost status | **Offline, it can't happen:** colonies are kept in the player's save. For optional shared play later, a claim is the claimant's until it lapses, and the next claim from a new port is the architect's for a day |
-| Claim pause (too many colonies) | **A budget by standing:** one colony to start, more as a sponsor's reputation rises (up to about one per 100 reputation above Friendly), and unclaimed space stays vast. The galaxy has 15.9 billion systems; even a hundred colonies a player won't dent it |
+| Claim pause (too many colonies) | **A budget by standing:** one colony to start, more as a sponsor's reputation rises (up to about one per 100 reputation above Friendly), and unclaimed space stays vast. The galaxy has 7.9 billion systems; even a hundred colonies a player won't dent it |
 
 ## How it works in Ember Reach
 
