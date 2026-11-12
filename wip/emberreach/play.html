@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ember Reach — flight</title>
+<style>
+html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inter,system-ui,sans-serif;overflow:hidden}
+#gl,#hud{position:fixed;inset:0;width:100%;height:100%;display:block}
+#gl{transition:filter .15s linear}
+#hud{touch-action:none;outline:none}
+#ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(1,2,4,.72)}
+#ov[hidden]{display:none}
+.card{max-width:min(560px,92vw);max-height:88vh;overflow:auto;background:#0b1424;border:1px solid #2a3a5c;padding:22px 24px;box-sizing:border-box}
+.card h1{margin:0 0 6px;font-size:22px;font-weight:700;letter-spacing:.01em}
+.card p{margin:8px 0;color:#c3cde0;line-height:1.5;font-size:14px}
+.card table{border-collapse:collapse;width:100%;font-size:13px;margin:8px 0}
+.card td{padding:4px 6px;border-bottom:1px solid #172340;vertical-align:top}
+.card td:first-child{color:#9fb0cc;white-space:nowrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.btns button{min-height:44px;padding:0 18px;border:1px solid #f2a33a;background:transparent;color:#f6c27a;font:600 14px Inter,system-ui,sans-serif;cursor:pointer}
+.btns button.primary{background:#f2a33a;color:#1a1205;border-color:#f2a33a}
+.btns button:focus-visible{outline:2px solid #6cc9e8;outline-offset:2px}
+#load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:500 14px ui-monospace,Menlo,Consolas,monospace;color:#9fb0cc}
+</style>
+</head>
+<body>
+<canvas id="gl" aria-hidden="true"></canvas>
+<canvas id="hud" tabindex="0" aria-label="Ember Reach flight view"></canvas>
+<div id="load">&gt; plotting the galaxy…</div>
+<div id="ov" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="ovT"><div id="ovBody"></div><div class="btns" id="ovBtns"></div></div></div>
+<script src="../../lib/gamekit/gamekit.js"></script>
+<script src="wos-stats.js"></script>
+<script src="galaxy.js"></script>
+<script src="factions.js"></script>
+<script src="economy.js"></script>
+<script src="ships.js"></script>
+<script src="flight.js"></script>
+<script src="modules.js"></script>
+<script src="pilot.js"></script>
+<script src="scene.js"></script>
+<script src="meshes.js"></script>
+<script src="render.js"></script>
+<script src="hud.js"></script>
+<script src="play.js"></script>
+</body>
+</html>

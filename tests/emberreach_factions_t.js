@@ -58,7 +58,7 @@ try {
 			const V = (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]), r = G.rng(7), n = 60000;
 			for (let k = 0; k < n; k++) { const p = lo.map((v, i) => v + r() * (hi[i] - v)), q = F.claimAt(p); if (q.owner) held += G.numberDensity(...p) * V / n; else if (q.contested) cont += G.numberDensity(...p) * V / n }
 		}
-		ok('19b. the great powers hold and contest several hundred thousand systems in all (of ~16 billion)', held + cont > 2e5 && held + cont < 1.5e6 && cont > 0.05 * held, Math.round(held).toLocaleString() + ' held, ' + Math.round(cont).toLocaleString() + ' contested');
+		ok('19b. the great powers hold and contest several hundred thousand systems in all (of ~8 billion)', held + cont > 2e5 && held + cont < 1.5e6 && cont > 0.05 * held, Math.round(held).toLocaleString() + ' held, ' + Math.round(cont).toLocaleString() + ' contested');
 	}
 	/* a quarter of each power's systems contested, counted afresh (another sample than the calibration's) */
 	{
