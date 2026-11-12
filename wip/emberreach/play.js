@@ -6,8 +6,11 @@
      port's mass lock, with fuel for the leg), then the ship jumps and arrives near the new star, facing its port.
      Lane legs (a power's beacons, the long lanes between clusters) start from a beacon. Jumps take a day, lanes
      half a day. Where stars crowd, a jump can misjump onto a neighbour; the route is then plotted again.
-   - Ports: capitals have a Halo; most claimed systems a Lantern or Trefoil; unclaimed space has none. Docking
-     refuels and repairs. A ship lost is replaced at the last port you docked at.
+   - Ports: capitals have a Halo; most claimed systems a Lantern or Trefoil; unclaimed space has none. Docked, the
+     starport (port.js): market, exchange, shipyard, paid refuelling and repairs (M3). A lost ship is replaced at
+     the last port you docked at, for 5% of its value.
+   - A new game starts by choosing your origin among the great powers (M3); you start in its capital with 20,000 SU
+     in its currency and a ship from its yards.
    URL options: ?power=N (whose home system), ?port=trefoil|bloom|lantern|halo (the home port's class), ?ship=…,
    ?day=N, ?canvas (the Canvas 2D fallback), ?quality=low|high, ?debug (9 breaks a module, 0 breaks the canopy,
    7 picks a star in range, 8 routes to an ally's capital, spawn=N starts N metres off the mouth).
@@ -20,7 +23,7 @@
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
-	Snd = window.EmberSound, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap;
+	Snd = window.EmberSound, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 const $ = id => document.getElementById(id);
@@ -63,10 +66,15 @@ async function start() {
 	if (sv) { quality = Q.get('quality') || sv.settings.quality; Snd.setOn(sv.settings.sound) }
 	if (fresh) sv = sv && {settings: sv.settings};
 	const ok = sv && sv.ship;
-	game.power = ok ? sv.power : Math.max(0, Math.min(majors.length - 1, +(Q.get('power') || 0)));
+	/* the player: from the save; or, for a new game, the origin from the URL or chosen here */
+	let originIdx = ok ? sv.power : Q.has('power') ? Math.max(0, Math.min(majors.length - 1, +Q.get('power'))) : null;
+	if (originIdx == null) { $('load').style.display = 'none'; originIdx = await chooseOrigin(); $('load').style.display = '' }
+	game.power = originIdx;
 	game.home = majors[game.power];
+	game.P = ok && sv.player ? sv.player : Tr.newPlayer(game.home.id);
+	if (Q.has('ship') && !ok) game.P.ship.model = Q.get('ship');
 	game.homePort = !ok && Sc.STATION[Q.get('port')] ? Q.get('port') : ok && sv.version == 1 ? sv.port : 'halo';
-	ship = S.ships().find(x => x.id == (ok ? sv.ship : Q.get('ship') || 'wren')) || S.ships()[0];
+	ship = S.ships().find(x => x.id == game.P.ship.model) || S.ships().find(x => x.id == 'wren');
 	game.day = ok ? sv.day : +(Q.get('day') || 200);
 	game.fuel = ok ? sv.fuel : 1;
 	const here = ok && sv.star ? T.starAt(sv.star.id, sv.star.p) : null;
@@ -79,7 +87,12 @@ async function start() {
 	view.refit();
 	map = Map.create();
 	pointers();
-	if (ok) resume(sv); else { launch(true); game.lastPort = game.star }
+	if (ok) resume(sv);
+	else {
+		/* a new game starts docked at the capital, in the starport */
+		launch(true); game.lastPort = game.star;
+		if (st && !Q.has('spawn')) { game.docked = true; game.clearance = {pad: 1 + Math.floor(Math.random() * 24), until: Infinity}; say('Welcome to ' + st.name + '. Your ' + ship.name + ' is ready.') }
+	}
 	if (ok && sv.routeTo) game.pendingRoute = sv.routeTo;
 	$('load').remove();
 	/* sound starts on the first touch, click or key (browsers insist) */
@@ -90,7 +103,7 @@ async function start() {
 	say('Rendering with ' + (R.kind == 'webgl' ? 'WebGL 2' : 'Canvas 2D (fallback)'), '#9fb0cc');
 	say('Press H for the controls, G for the star map', '#9fb0cc');
 	RG.onPause(() => { if (!$('ov').hidden) return; overlay('pause') });
-	if (game.docked) overlay('docked');
+	if (game.docked) openPort();
 	RG.loop(update, draw);
 	hud.focus();
 }
@@ -154,7 +167,8 @@ function persist() {
 	if (!s || !fit || game.saving) return;
 	game.saving = true; game.savedAt = game.t;
 	const routeTo = game.route && game.route.toStar ? game.route.toStar : null;
-	RG.save(Sv.pack({power: game.power, port: st ? st.cls : null, ship: ship.id, day: game.day, t: game.t, docked: game.docked, pad: game.clearance && game.clearance.pad, s, throttle: game.throttle, fit,
+	game.P.day = game.day;
+	RG.save(Sv.pack({player: game.P, power: game.power, port: st ? st.cls : null, ship: ship.id, day: game.day, t: game.t, docked: game.docked, pad: game.clearance && game.clearance.pad, s, throttle: game.throttle, fit,
 		star: game.star, fuel: game.fuel, lastPort: game.lastPort, routeTo, settings: {quality, sound: Snd.on}}))
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
 		.then(() => { setTimeout(() => { game.saving = false }, 1000) });
@@ -194,6 +208,7 @@ function controls(dt) {
 	return {pitch: c(pitch), roll: c(roll), yaw: c(yaw), strafe: [c(sx), c(sy)], throttle: game.throttle, thrust: s.fa ? 0 : game.throttle};
 }
 function actions(dt) {
+	if (Port.isOpen()) return;   /* the starport takes the keys while docked */
 	if (RG.pressed('help')) overlay('help');
 	if (game.mapOpen) { mapKeys(dt); return }
 	if (RG.pressed('pause')) { RG.pause(); return }
@@ -389,6 +404,10 @@ function update(dt) {
 /* the ship is lost: a new one at the last port docked at */
 function lost(how) {
 	say('Ship destroyed: ' + how, '#e5484d'); Snd.cue('destroyed');
+	/* the cargo goes down with her; the insurance pays for a new hull, less 5% of its value */
+	const rb = Tr.rebuyCost(game.P, ship, game.day), paid = Tr.pay(game.P, rb.amount, rb.code, game.day);
+	say(paid.ok ? 'Insurance: a new ' + ship.name + ' for ' + Math.round(rb.amount).toLocaleString('en-US') + ' ' + rb.code : 'Insurance: the replacement is on credit this time', '#f2a33a');
+	game.P.cargo = {}; game.P.cost = {};
 	fit = M.fit(ship); game.fuel = 1; game.route = null;
 	enterSystem(game.lastPort || game.home.star);
 	launch(true);
@@ -398,7 +417,31 @@ function docked() {
 	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.lastPort = game.star;
 	Snd.cue('docked'); Snd.update({main: 0, rcs: 0, speed: 0, cruise: 0, strain: 0, conscious: true, docked: true});
 	persist();
-	overlay('docked');
+	openPort();
+}
+/* the starport, while docked */
+function openPort() {
+	Port.open({P: game.P, ship, fit, fuel: () => game.fuel, setFuel: f => { game.fuel = f; persist() }, star: game.star, port: game.port, stationName: st.name, day: game.day,
+		onLaunch: () => { persist(); launch(false); hud.focus() },
+		onShip: id => { ship = S.ships().find(x => x.id == id); fit = M.fit(ship); game.fuel = 1; R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist() },
+		say: t => say(t), cue: k => Snd.cue(k)});
+}
+/* after buying a ship, reopen with the new one (same screen) */
+function openPortAgain() { const scr = document.querySelector('#port [aria-current="page"]'), k = scr && scr.dataset.screen; openPort(); if (k) { const b = document.querySelector('#port [data-screen="' + k + '"]'); if (b) b.click() } }
+/* a new game: choose your origin among the great powers */
+function chooseOrigin() {
+	return new Promise(res => {
+		const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns'), majors = F.majors();
+		btns.textContent = '';
+		const K = G.clusters();
+		body.innerHTML = '<h1 id="ovT">Choose your origin</h1><p>You start at your power\'s capital, with 20,000 SU in its currency and a ship from its yards. Its allies welcome you; its enemies won\'t let you dock.</p>'
+			+ K.map(cl => '<h2 class="org-h">' + esc(cl.name) + '</h2><div class="org">' + majors.map((m, i) => [m, i]).filter(([m]) => m.cluster == cl.id).map(([m, i]) => {
+				const al = majors.filter(x => x.id != m.id && F.relation(m.id, x.id) > 0).length, en = majors.filter(x => F.relation(m.id, x.id) < 0).length, sh = S.ships().find(x => x.id == Tr.newPlayer(m.id).ship.model);
+				return '<button data-i="' + i + '"><b>' + esc(m.name.replace(/^The /, '')) + '</b><span>' + esc(m.species.name) + ' · ' + esc(m.species.build) + ' build, ' + esc(m.species.sight) + ' sight</span><span>' + esc(m.currency.name) + ' (' + m.currency.code + ') · ' + esc(m.home.name) + '</span><span>' + al + ' allies, ' + en + ' enemies · starts in a ' + esc(sh.name) + '</span></button>' }).join('') + '</div>').join('');
+		ov.hidden = false;
+		body.onclick = e => { const b = e.target.closest('button[data-i]'); if (!b) return; ov.hidden = true; body.onclick = null; res(+b.dataset.i) };
+		const first = body.querySelector('button[data-i]'); if (first) first.focus();
+	});
 }
 
 /* ---------------- drawing ---------------- */
@@ -529,10 +572,6 @@ function overlay(kind) {
 		button('Save to a file', () => { persist(); setTimeout(() => RG.exportSave(), 300) });
 		button('Load from a file', () => RG.importSave().then(() => location.reload(), e => say(e.message, '#f2a33a')));
 		button('New game', e => { if (e.target.dataset.sure) { RG.save(null).then(() => { location.href = location.pathname }) } else { e.target.dataset.sure = 1; e.target.textContent = 'New game: sure? (the save is lost)' } });
-	} else if (kind == 'docked') {
-		body.innerHTML = '<h1 id="ovT">Docked</h1><p>' + esc(st.name) + ', pad ' + (game.clearance ? game.clearance.pad : '—') + '. ' + (o ? 'Welcome to the ' + esc(o.name.replace(/^The /, '')) + '.' : '') + ' Fuel ' + Math.round(game.fuel * 100) + '%.</p><p>The starport menu (market, bulletin board, shipyard, outfitting, contacts) arrives with trade in M3; see the design canvas for how it will look.</p>';
-		button('Refuel, repair and launch', () => { M.repair(fit); game.fuel = 1; ov.hidden = true; launch(false); hud.focus() }, true).focus();
-		button('Launch', () => { ov.hidden = true; launch(false); hud.focus() });
 	}
 	ov.hidden = false;
 }

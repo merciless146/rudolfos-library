@@ -2,7 +2,7 @@
      node tests/emberreach_save_t.js */
 const path = require('path');
 const DIR = path.join(__dirname, '..', 'wip/emberreach');
-const Sv = require(path.join(DIR, 'save.js')), Fl = require(path.join(DIR, 'flight.js')), M = require(path.join(DIR, 'modules.js')), S = require(path.join(DIR, 'ships.js')), Sc = require(path.join(DIR, 'scene.js'));
+const Tr = require(path.join(DIR, 'trade.js')), E = require(path.join(DIR, 'economy.js')), F = require(path.join(DIR, 'factions.js')), Sv = require(path.join(DIR, 'save.js')), Fl = require(path.join(DIR, 'flight.js')), M = require(path.join(DIR, 'modules.js')), S = require(path.join(DIR, 'ships.js')), Sc = require(path.join(DIR, 'scene.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };
 try {
@@ -17,7 +17,7 @@ try {
 	ok('2. module damage comes back: the broken canopy, the dented engines', M.get(fit2, 'canopy').hp == 0 && Math.abs(M.get(fit2, 'engines').hp - (M.get(fit2, 'engines').max - 4.5)) < 1e-9 && M.alerts(fit2).length == 1);
 	ok('3. it stays small (well under gamekit\'s limit)', json.length < 1500, json.length + ' bytes');
 	ok('4. a docked save keeps its pad', Sv.unpack(JSON.parse(JSON.stringify(Sv.pack(Object.assign({}, g, {docked: true, pad: 7})))), known).pad == 7);
-	const bad = [null, 7, {}, Object.assign(JSON.parse(json), {v: 3}), Object.assign(JSON.parse(json), {ship: 'nosuch'}), Object.assign(JSON.parse(json), {port: 'castle'}),
+	const bad = [null, 7, {}, Object.assign(JSON.parse(json), {v: 4}), Object.assign(JSON.parse(json), {ship: 'nosuch'}), Object.assign(JSON.parse(json), {port: 'castle'}),
 		Object.assign(JSON.parse(json), {power: 99}), Object.assign(JSON.parse(json), {p: [1, 2]}), Object.assign(JSON.parse(json), {q: [0, 0, 0, 0]}), Object.assign(JSON.parse(json), {modules: {canopy: -3}}),
 		Object.assign(JSON.parse(json), {vel: [1, 'x', 3]}), Object.assign(JSON.parse(json), {t: -5})];
 	ok('5. anything damaged or from another version gives null (a new game, not a broken one)', bad.every(b => Sv.unpack(b, known) === null));
@@ -26,6 +26,14 @@ try {
 	const v1 = Object.assign(JSON.parse(json), {v: 1}); delete v1.star; delete v1.fuel;
 	ok('8. an M1 save (version 1, always the home system) still loads, with a full tank', (() => { const b = Sv.unpack(v1, known); return b && b.star === null && b.fuel == 1 && b.version == 1 })());
 	ok('9. a version 2 save without its star is refused', Sv.unpack(Object.assign(JSON.parse(json), {star: null}), known) === null);
+	/* version 3: the player */
+	const pl = Tr.newPlayer(F.majors()[0].id), mk = E.market(F.majors()[0].star, 200), w = ships.find(x => x.id == pl.ship.model);
+	Tr.buy(pl, w, mk, Object.keys(mk.prices)[0], 2, 200); pl.bounties = {ROA: 500};
+	const g3 = Object.assign({}, g, {player: pl}), b3 = Sv.unpack(JSON.parse(JSON.stringify(Sv.pack(g3))), known);
+	ok('10. version 3 keeps the player: wallet, cargo and its cost, reputation, bounties, ship', b3 && b3.player.origin == pl.origin && Math.abs(Tr.walletSU(b3.player, 200) - Tr.walletSU(pl, 200)) < 1
+		&& JSON.stringify(b3.player.cargo) == JSON.stringify(pl.cargo) && Math.abs(b3.player.rep[pl.origin] - pl.rep[pl.origin]) < 0.01 && b3.player.bounties.ROA == 500 && b3.player.ship.model == pl.ship.model);
+	ok('11. ...and refuses a player with negative money or fractional cargo', [{wallet: {ROA: -5}}, {cargo: {Iron: 1.5}}, {origin: 7}].every(bad => Sv.unpack(Object.assign(JSON.parse(JSON.stringify(Sv.pack(g3))), {player: Object.assign(JSON.parse(JSON.stringify(Sv.packPlayer(pl))), bad)}), known) === null));
+	ok('12. a version 2 save loads without a player (one is made from its origin)', (() => { const v2 = JSON.parse(JSON.stringify(Sv.pack(g))); v2.v = 2; delete v2.player; const b = Sv.unpack(v2, known); return b && b.player === null && b.star })());
 	ok('6. module health never comes back above its pool', M.get(Sv.restoreModules(M.fit(wren), {engines: 1e9}), 'engines').hp == M.get(M.fit(wren), 'engines').max);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
