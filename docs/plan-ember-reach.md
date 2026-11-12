@@ -11,6 +11,7 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
   - Factions, front-line wars, money and reputation: `factions.js`, `economy.js`, `reputation.js`
     (`tests/emberreach_factions_t.js`, 51 checks).
   - The 40 stock ships: `ships.js` (`tests/emberreach_ships_t.js`, 15 checks).
+  - Flight, with flight assist: `flight.js` (`tests/emberreach_flight_t.js`, 19 checks).
   - `wip/emberreach/viewer.html` draws them, the north in 3D.
 
 ## Exceptions to the games plan's rules
@@ -170,7 +171,8 @@ WOS's flat mix stays available as a "rich galaxy" setting if playtests find the 
 
 ### Three scales of travel
 
-1. **Flight:** Newtonian with flight assist, for combat, docking and landing approaches. Speeds in m/s to km/s.
+1. **Flight:** Newtonian under the hood, flown like Oolite with flight assist; for combat, docking and landing
+   approaches. Speeds in m/s to km/s. See "Flight" below.
 2. **Cruise:** within a system, up to a sizeable fraction of light speed, so crossing a few AU takes a minute or
    two. Gravity wells slow it, and it drops out near planets and stations.
 3. **Jump:** star to star. Range 1–10 pc, depending on the drive and its fuel.
@@ -184,6 +186,63 @@ WOS's flat mix stays available as a "rich galaxy" setting if playtests find the 
    - **The long lanes:** between clusters (677–1,714 pc apart), old relay chains make jumps of about 100 pc, so
      a crossing takes 7–17 jumps. Free ports, nomads and syndicates live along them; whoever keeps a long lane
      open is worth knowing.
+
+### Flight
+
+Ships fly like Oolite: pitch and roll on the stick, a little yaw, and a throttle that sets a speed. Underneath,
+the physics is Newtonian. Every ship, the player's and every NPC's, has **flight assist (FA)** as standard. FA
+drives the ship's RCS (linear thrusters) and ACS (attitude thrusters) so that it handles as if it were swimming in
+a fluid, not floating in empty space. Pilots who want raw Newtonian flight can switch it off.
+(`wip/emberreach/flight.js`, 19 checks in `tests/emberreach_flight_t.js`.)
+
+**FA on: swimming.**
+- **Stick:** sets a turn rate, reached in a fraction of a second. Let go and the turn stops.
+- **Throttle:** sets a speed, from 30% in reverse to 100% ahead. Throttle to zero and the ship comes to rest.
+- **The path follows the nose:** FA kills side-slip as it happens, like a keel or a fish's body. In a hard turn the
+  slip stays under 2°.
+- **Turns widen with speed:** FA can't use more thrust than the thrusters have. Above the best turning speed it
+  holds pitch and yaw to what the side thrusters can bend the path through (radius = speed² / side thrust), so
+  the ship carves wider arcs rather than sliding. Roll isn't held back, because it doesn't bend the path.
+- **Strafing:** up to 30% of top speed sideways or vertically, for docking and dodging.
+- **Spinning frames:** near a station, FA flies relative to it, matching its drift and its spin (with
+  feed-forward for the centripetal and Coriolis terms). So at a spinning port, "hold still" means "turn with the
+  port". The thrusters still set the limits, which is what makes a fast-spinning Trefoil harder to dock at than a
+  Halo with its still dock (see the station classes on the design canvas).
+
+**FA off: Newton.**
+- The stick fires the ACS directly: a turn keeps spinning until you counter it.
+- The throttle fires the main drive (or the retros); the strafe controls fire the RCS. With no thrust the ship
+  coasts, and turning the nose doesn't change where it's going.
+- **The trade:** the full turn rate is there at any speed, so you can point the guns anywhere while sliding past.
+  Coasting costs nothing, where FA keeps working the thrusters (FA reports its `effort`, which feeds heat and fuel
+  in M4).
+- Switching FA back on catches a drifting, tumbling ship and brings it to the commanded state.
+
+**The thrusters, from the ship's stats.** The stock ships' speed, agility and length set everything, so all 40
+fly correctly without hand tuning:
+- **Main drive:** reaches top speed in 4 s × (length / 10 m)^0.3. **Retros:** half the main drive, so braking
+  takes about twice as long as speeding up.
+- **Turn rates:** pitch = agility, roll = 2 × agility, yaw = ½ × agility (Oolite's balance: roll and pitch to
+  manoeuvre, yaw to fine-tune). The ACS reaches full rate in 0.3 s × (length / 10 m)^0.3.
+- **Side thrust:** sized so that every ship turns best at **40% of its top speed** (its "blue zone"): full pitch
+  rate up to there, wider turns above. The turning thrusters are strong; the main drive (speeding up) and the
+  retros (braking) are what's short.
+- The physics steps at a fixed 60 Hz and is deterministic, so NPCs, replays and any later multiplayer agree.
+
+How some stock ships handle:
+
+| Ship | Length | Top speed | Main drive | Side thrust | 0 → 95% | Stop | Best turn | 180° there | Turn radius at top | 180° at top |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Wren (shuttle) | 9 m | 220 m/s | 5.8 g | 12.9 g | 4.5 s | 10.3 s | 88 m/s | 2.6 s | 450 m | 6.4 s |
+| Kestrel (fighter) | 12 m | 320 m/s | 7.7 g | 25.5 g | 4.9 s | 11.6 s | 128 m/s | 1.9 s | 482 m | 4.7 s |
+| Dart (interceptor) | 10 m | 380 m/s | 9.7 g | 35.0 g | 4.6 s | 11.1 s | 152 m/s | 1.6 s | 495 m | 4.1 s |
+| Packet (light hauler) | 28 m | 210 m/s | 3.9 g | 7.9 g | 6.3 s | 14.4 s | 84 m/s | 4.0 s | 668 m | 10 s |
+| Sovereign (battlecruiser) | 520 m | 170 m/s | 1.3 g | 1.4 g | 15 s | 34 s | 68 m/s | 18 s | 2.4 km | 45 s |
+| Monolith (battleship) | 1.9 km | 85 m/s | 0.4 g | 0.2 g | 22 s | 47 s | 34 m/s | 60 s | 4.1 km | 2.5 min |
+
+**Controls.** On keyboard and mouse, controller and touch alike: pitch and roll on the stick (or mouse), yaw on
+a pair of keys or a second axis, the throttle on an axis or keys, strafe on a hat or keys, and one button to switch
+FA, shown on the HUD. NPCs fly with FA on, through the same model and the same controls.
 
 ### Regions
 
@@ -220,8 +279,8 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
 - **Weapons:** lasers (heat), mass drivers (ammo, travel time) and missiles (lock-on, counter-measures). Shields and
   hull, with heat management.
 - **Enemies:** pirates in the Glow, faction patrols to anyone wanted, and old defences around ruins.
-- **Controls:** the same on keyboard and mouse, controller, and touch (a virtual stick, plus throttle and fire
-  buttons).
+- **Controls:** the same on keyboard and mouse, controller, and touch (a virtual stick, plus throttle, fire and FA
+  buttons). See "Flight".
 
 ### Factions
 
@@ -548,7 +607,7 @@ home currency.
 1. **M0 (this plan):** the galaxy model; the great powers, alliances, front-line wars, small factions, money,
    reputation and the 40 stock ships as models; their checks and the 3D viewer. Done.
 2. **M1:** fly a ship in one system, with WebGL and the Canvas fallback; planets, a star and a station to dock at.
-   Gamekit controls.
+   Gamekit controls. The flight model and its checks are done (`flight.js`).
 3. **M2:** the 3D star map and jumping: the whole galaxy, zoom to a region, plot a route; borders and contested
    space; lanes. The sky from real neighbours.
 4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.
@@ -569,6 +628,9 @@ home currency.
   possible because the galaxy and the wars are deterministic; not before M5.
 - The great powers' names: generated today; hand-written names and cultures may suit them better.
 - Game time: how long a season feels in play (30 game days; jumps and lanes take days).
+- Flight: whether FA-off should have a speed cap (today it has none: the main drive is the only limit), and
+  whether pilots feel g-forces (fighters turn at up to 35 g). The 40% blue zone and the time constants are
+  starting values for playtests.
 
 ## Sources
 
@@ -581,3 +643,4 @@ home currency.
 - Drake equation: [Wikipedia](https://www.wikipedia.org/wiki/Drake_equation); [Kepler-era fp and ne](https://fermi-sim.pages.dev/research-drake.html)
 - Ellipticals and life: [Dayal et al. 2015](https://astrobiology.com/?p=12744); [Whitmire 2020](https://www.arxiv.org/pdf/2003.13643)
 - WOS data: the WOS Galaxy Map in RudolfOS (`desktop/base_v24.html`), statistics only.
+- Oolite's flight: [a Newtonian ship under computer-controlled thrusters, built to fly like Elite](https://bb.oolite.space/viewtopic.php?p=4701); [roll, pitch and yaw controls](https://oolite.readthedocs.io/en/latest/index.pdf); [roll versus yaw](https://wiki.alioth.net/index.php/Roll_vs_Yaw_crusades)
