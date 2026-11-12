@@ -337,10 +337,22 @@ function civilizations() {
 			}
 		}
 		cand.sort((a, b) => b.score - a.score);
-		const mine = [];
-		for (const c of cand) {
+		/* homes at least 0.85 claims apart; and each with two or more others within 1.35 claims (neighbours to share
+		   borders with), an outlier being swapped for the next candidate */
+		const mine = [], out = new Set(), P = c => [c.s.x, c.s.y, c.s.z];
+		const fill = () => { for (const c of cand) {
 			if (mine.length >= want) break;
-			if (mine.some(o => d3([o.star.x, o.star.y, o.star.z], [c.s.x, c.s.y, c.s.z]) < 0.85 * R0)) continue;
+			if (out.has(c) || mine.includes(c) || mine.some(o => d3(P(o), P(c)) < 0.85 * R0)) continue;
+			mine.push(c);
+		} };
+		fill();
+		for (let round = 0; round < 30; round++) {
+			const lone = mine.find(c => mine.filter(o => o != c && d3(P(o), P(c)) < 1.35 * R0).length < 2);
+			if (!lone) break;
+			out.add(lone); mine.splice(mine.indexOf(lone), 1); fill();
+		}
+		const chosen = mine.splice(0);
+		for (const c of chosen) {
 			const q = rng(hashStr('civ:' + c.s.id)), age = Math.round(30000 + q() * 60000), held = Math.round(C.heldMin + (C.heldMax - C.heldMin) * (age - 30000) / 60000);
 			mine.push({id: 'major' + (CIVS.length + mine.length), cluster: cl.id, star: c.s, home: c.home, homeTier: c.tier, age, held, claim: claimFor(held, numberDensity(c.s.x, c.s.y, c.s.z)), radius: Math.round(10 + q() * 20)});
 		}

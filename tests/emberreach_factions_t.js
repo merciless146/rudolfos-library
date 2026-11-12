@@ -60,6 +60,25 @@ try {
 		}
 		ok('19b. the great powers hold and contest several hundred thousand systems in all (of ~16 billion)', held + cont > 2e5 && held + cont < 1.5e6 && cont > 0.05 * held, Math.round(held).toLocaleString() + ' held, ' + Math.round(cont).toLocaleString() + ' contested');
 	}
+	/* a quarter of each power's systems contested, counted afresh (another sample than the calibration's) */
+	{
+		const held = {}, cont = {}, zone = {};
+		for (const cl of K) {
+			const C = M.filter(m => m.cluster == cl.id), lo = [0, 1, 2].map(i => Math.min(...C.map(m => m.at[i] - m.claim))), hi = [0, 1, 2].map(i => Math.max(...C.map(m => m.at[i] + m.claim)));
+			const V = (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]), r = G.rng(4242), n = 120000;
+			for (let k = 0; k < n; k++) {
+				const p = lo.map((v, i) => v + r() * (hi[i] - v)), q = F.claimAt(p), w = G.numberDensity(...p) * V / n;
+				if (q.owner) held[q.owner] = (held[q.owner] || 0) + w;
+				else if (q.contested) { cont[q.side] = (cont[q.side] || 0) + w; const k2 = q.contested.join(':'); zone[k2] = (zone[k2] || 0) + w }
+			}
+		}
+		const share = M.map(m => (cont[m.id] || 0) / ((held[m.id] || 0) + (cont[m.id] || 0)));
+		ok('19c. a quarter of every great power\'s systems are contested (each within 21-29%)', share.every(f => f > 0.21 && f < 0.29), share.map(f => (f * 100).toFixed(0)).join(' '));
+		ok('19d. no contested zone holds more systems than either power fighting over it holds outright', Object.entries(zone).every(([k, z]) => { const [a, b] = k.split(':'); return z <= 1.08 * Math.min(held[a], held[b]) }));
+		ok('19e. contested space lies only between enemies, along their shared border (the point is in one power\'s space and its strongest rival is the enemy)', (() => { const r = G.rng(9); for (let k = 0; k < 4000; k++) { const cl = K[k % 6], C = M.filter(m => m.cluster == cl.id), m0 = C[k % C.length], p = m0.at.map(v => v + (r() - .5) * m0.claim * 2), q = F.claimAt(p); if (!q.contested) continue; const [x, y] = q.contested, other = q.side == x ? y : x; if (F.relation(x, y) >= 0 || F.strength(F.byId(q.side), p) <= 0) return false; const riv = C.filter(c => c.id != q.side).sort((u, v) => F.pull(v, p) - F.pull(u, p))[0]; if (riv.id != other) return false } return true })());
+		const w0 = W[0], st = F.warState(w0, 300), key = w0.systems[5], ch = F.contestedHolder(key.at, 300);
+		ok('19f. every contested system has a holder: the side holding its nearest key system on the front', ch.contested && ch.key == key.id && ch.holder == st.systems[5].holder);
+	}
 	/* ---------- small factions ---------- */
 	const S = F.minors(), kinds = new Set(S.map(m => m.type));
 	ok('20. small factions: nomads, criminals, prospectors and free ports', ['nomad', 'criminal', 'prospector', 'freeport'].every(k => kinds.has(k)));
@@ -79,7 +98,7 @@ try {
 	ok('28. every currency has a rate, coins per Standard Unit', codes.every(c => E.rate(c, day) > 0.1 && E.rate(c, day) < 50));
 	const loop = E.crossRate(codes[0], codes[1], day) * E.crossRate(codes[1], codes[2], day) * E.crossRate(codes[2], codes[0], day);
 	ok('29. cross rates come from the basket: round the houses gives back what you started with', Math.abs(loop - 1) < 1e-9);
-	ok('30. rates move over time (trade cycles)', codes.every(c => Math.abs(E.rate(c, 0) / E.rate(c, 400) - 1) > 0.001));
+	ok('30. rates move over time (trade cycles): every currency swings by 2% or more over two years', codes.every(c => { const v = [...Array(25)].map((_, k) => E.rate(c, k * 30)); return Math.max(...v) / Math.min(...v) > 1.02 }));
 	const c0 = M[0].currency.code, war = W.find(x => x.a == M[0].id || x.b == M[0].id), side = war.a == M[0].id ? 1 : -1;
 	const me = M[0].id, them = war.a == me ? war.b : war.a, all = (who, k) => war.systems.map(s => ({war: war.id, system: s.id, side: who, effort: 400, day: k}));
 	const win = [0, 30, 60, 90, 120, 150, 180, 210, 240].flatMap(k => all(me, k)), lose = [0, 30, 60, 90, 120, 150, 180, 210, 240].flatMap(k => all(them, k));

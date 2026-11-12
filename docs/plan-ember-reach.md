@@ -9,7 +9,7 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
 - **Status:** the models are done and checked; the game itself is the milestones below.
   - The galaxy: `wip/emberreach/galaxy.js` (`tests/emberreach_galaxy_t.js`, 25 checks).
   - Factions, front-line wars, money and reputation: `factions.js`, `economy.js`, `reputation.js`
-    (`tests/emberreach_factions_t.js`, 47 checks).
+    (`tests/emberreach_factions_t.js`, 51 checks).
   - The 40 stock ships: `ships.js` (`tests/emberreach_ships_t.js`, 15 checks).
   - `wip/emberreach/viewer.html` draws them, the north in 3D.
 
@@ -235,7 +235,7 @@ like every Library game.
 
 ## Factions, wars and money
 
-The model is in `wip/emberreach/factions.js`, `economy.js`, `reputation.js` and `ships.js` (47 checks in
+The model is in `wip/emberreach/factions.js`, `economy.js`, `reputation.js` and `ships.js` (51 checks in
 `tests/emberreach_factions_t.js`, 15 in `tests/emberreach_ships_t.js`). The viewer's first panel shows each
 cluster in 3D.
 
@@ -256,11 +256,14 @@ cluster in 3D.
   - **three Reaches:** 812, 1,556 and 1,645 pc out.
   - A seeded search placed them so the distances between clusters are as even as the Hearth and the Rim allow:
     677–1,714 pc, varying by about 22%.
-- **How much they hold:** each power's claim is sized by the **systems it holds**, 8,000–14,000 by its age, not by
-  a distance. So territories are a couple of parsecs across in the Hearth, and tens of parsecs at the Rim. Counted by
-  sampling, the 46 powers hold about **563,000 systems** and contest another **105,000**. That's **668,000 in
-  all**, 0.004% of the galaxy's 15.9 billion. A power on the outside of its cluster, with no neighbour to share
-  with on one side, can hold up to about 40,000.
+- **How much they hold:** each power's space is sized by its **systems**: 8,000–14,000 by its age, not a
+  distance. So territories are a couple of parsecs across in the Hearth, and tens of parsecs at the Rim.
+  - A power on the outside of its cluster would otherwise sprawl into the empty side, so claims are re-sized until
+    each power's space comes to its count.
+  - A power with fewer than two neighbours to fight aims for a fifth more each round until it has them (today one
+    power, at 17,900).
+  - Counted by sampling, the 46 powers hold about **375,000 systems** and contest **125,000** more: **500,000 in
+    all**, 0.003% of the galaxy's 15.9 billion. Each power has 8,000–17,900.
 - **Homes:** each power is a **species** of its own. Its home is a real star, one a player can fly to, on a living
   world with ESI ≥ 0.75. There's a fallback where life is too hard: a water world that held on, or a rocky world
   with air (a people who built their own shelter). Today every home found a living world, even in the Hearth.
@@ -272,30 +275,40 @@ cluster in 3D.
   - its sun sets senses (infrared under red and orange suns, ultraviolet under hot ones);
   - a seeded military and economy set strength.
 - **Space:** each power's claim is strongest at home and fades to nothing at the edge. Every point belongs to **one
-  power at most**: the strongest claim there. Borders never overlap, allies' included. Where two *enemies'* claims
-  are within 0.2 of each other, the space between them is **contested**, either side of the surface where their
-  claims are equal. Borders are surfaces in three dimensions.
+  power at most**: the strongest claim there. Borders never overlap, allies' included. Borders are surfaces in three
+  dimensions.
+- **Contested space: a quarter of each power, along its enemy borders.** Exactly 25% of each power's systems are
+  contested: the systems on its side of its borders with its enemies, from the border inward.
+  - **Measuring depth from the border:** for each point in a power's space, the model takes its strongest rival in
+    the cluster, counting that rival's pull even beyond its reach. If the rival is an enemy, the point's depth is
+    how far it lies from the surface where the two would be equal.
+  - **Each side has its own depth,** solved by bisection (on a fixed, star-weighted sample of the cluster) so that
+    side's power comes to 25%.
+  - **The contested systems are the contested region:** a war's zone is its two sides' contested systems together.
+  - **No zone outgrows its fighters:** no zone holds more systems than either power fighting over it holds outright.
+    A zone that would is trimmed on its larger side, and that power's depth is solved again with its other borders.
+  - The result: all 46 powers at 25% (21–29% in an independent recount), and no zone over its cap.
 
-| Cluster | Where | Stars per pc³ | Powers | Homes span | A claim reaches | Wars (contested systems on the fronts) | Systems held | Contested |
+| Cluster | Where | Stars per pc³ | Powers | Homes span | Wars | Systems held | Contested | Contested share |
 |---|---|---|---|---|---|---|---|---|
-| **North** | 1500 pc out, 90° N | 0.11 | 8 | 84 pc | 32.6–40.1 pc | 13 (312) | 93,037 | 19,370 |
-| **Hearth** | 60 pc out, 9° N | 1.1e+3 | 8 | 4.3 pc | 1.5–1.7 pc | 14 (336) | 92,801 | 19,377 |
-| **Rim** | 2157 pc out, 42° N | 0.029 | 8 | 134 pc | 49.1–58.0 pc | 14 (336) | 95,794 | 16,656 |
-| **Ulensenilon Reach** | 812 pc out, 33° S | 1.0 | 8 | 38 pc | 15.6–17.8 pc | 13 (312) | 90,130 | 15,628 |
-| **Gemenveo Reach** | 1645 pc out, 18° N | 0.080 | 8 | 106 pc | 36.8–51.2 pc | 13 (312) | 112,618 | 18,905 |
-| **Draulon Reach** | 1556 pc out, 17° N | 0.099 | 6 | 84 pc | 36.9–39.4 pc | 7 (168) | 78,841 | 14,786 |
-| **All six** | | | 46 | | | 74 (1776) | **563,221** | **104,722** |
+| **North** | 1500 pc out, 90° N | 0.11 | 8 | 84 pc | 12 | 69,432 | 23,161 | 25% |
+| **Hearth** | 60 pc out, 9° N | 1.1e+3 | 8 | 4.3 pc | 11 | 66,446 | 22,157 | 25% |
+| **Rim** | 2157 pc out, 42° N | 0.029 | 8 | 134 pc | 11 | 59,642 | 19,897 | 25% |
+| **Ulensenilon Reach** | 812 pc out, 33° S | 1.0 | 8 | 38 pc | 11 | 68,510 | 22,848 | 25% |
+| **Gemenveo Reach** | 1645 pc out, 18° N | 0.080 | 8 | 89 pc | 11 | 60,212 | 20,082 | 25% |
+| **Draulon Reach** | 1556 pc out, 17° N | 0.099 | 6 | 84 pc | 8 | 50,752 | 16,928 | 25% |
+| **All six** | | | 46 | | 64 | **374,994** | **125,073** | **25%** |
 
 The North's powers, as the model makes them today (names and numbers come from the seed):
 
 | Power | Species | Home | Currency, coins per SU (day 0) | Allies | Enemies |
 |---|---|---|---|---|---|
-| Gemitorimos Dominion | Gemitorimosians (balanced, infrared) | EarthLike, 0.94 g, 5 °C | gemitorimos crown (GEM), 1.66 | Torumk Dominion, Breeth Collective | Zeaerd Compact, Linuquaes Throne, Roorhalul Compact, Ixira Directorate |
+| Gemitorimos Dominion | Gemitorimosians (balanced, infrared) | EarthLike, 0.94 g, 5 °C | gemitorimos crown (GEM), 1.66 | Torumk Dominion, Roorhalul Compact, Breeth Collective | Zeaerd Compact, Linuquaes Throne, Ixira Directorate |
 | Zeaerd Compact | Zeaerdi (balanced, infrared) | EarthLike, 0.99 g, 33 °C | zeaerd mark (ZEA), 5.65 | Linuquaes Throne, Torumk Dominion | Gemitorimos Dominion, Ishitorarrd Compact, Roorhalul Compact, Breeth Collective |
 | Linuquaes Throne | Linuquaesi (heavy, infrared) | Terra, 1.24 g, 7 °C | linuquaes shard (LIN), 10.77 | Zeaerd Compact, Roorhalul Compact, Breeth Collective | Gemitorimos Dominion, Torumk Dominion, Ishitorarrd Compact, Ixira Directorate |
 | Torumk Dominion | Torumkari (balanced, infrared) | EarthLike, 1.05 g, 2 °C | torumk sol (TOR), 5.98 | Gemitorimos Dominion, Zeaerd Compact, Ishitorarrd Compact, Ixira Directorate, Breeth Collective | Linuquaes Throne, Roorhalul Compact |
 | Ishitorarrd Compact | Ishitorarrdi (light, visible) | Terra, 0.53 g, 40 °C | ishitorarrd tithe (ISH), 0.82 | Torumk Dominion, Roorhalul Compact | Zeaerd Compact, Linuquaes Throne, Ixira Directorate, Breeth Collective |
-| Roorhalul Compact | Roorhaluli (balanced, infrared) | EarthLike, 0.95 g, 34 °C | roorhalul ingot (ROO), 0.80 | Linuquaes Throne, Ishitorarrd Compact, Ixira Directorate, Breeth Collective | Gemitorimos Dominion, Zeaerd Compact, Torumk Dominion |
+| Roorhalul Compact | Roorhaluli (balanced, infrared) | EarthLike, 0.95 g, 34 °C | roorhalul ingot (ROO), 0.80 | Gemitorimos Dominion, Linuquaes Throne, Ishitorarrd Compact, Ixira Directorate, Breeth Collective | Zeaerd Compact, Torumk Dominion |
 | Ixira Directorate | Ixirans (light, visible) | Terra, 0.52 g, 4 °C | ixira mark (IXI), 2.58 | Torumk Dominion, Roorhalul Compact, Breeth Collective | Gemitorimos Dominion, Linuquaes Throne, Ishitorarrd Compact |
 | Breeth Collective | Breethese (balanced, visible) | EarthLike, 1.05 g, 3 °C | breeth dram (BRE), 0.81 | Gemitorimos Dominion, Linuquaes Throne, Torumk Dominion, Roorhalul Compact, Ixira Directorate | Zeaerd Compact, Ishitorarrd Compact |
 
@@ -310,13 +323,15 @@ The North's powers, as the model makes them today (names and numbers come from t
   the rules can be met. This keeps working if the galaxy changes.
 - **Within each cluster:** alliances and wars are among a cluster's own powers. Powers in different clusters are
   too far apart to be allies or enemies; they are neutral.
-- **Today:** 74 wars among 46 powers (7 to 14 per cluster); each power has two or more allies and two or more
+- **Today:** 64 wars among 46 powers (8 to 12 per cluster); each power has two or more allies and two or more
   enemies.
 
 ### Wars: front lines
 
-- **The front:** each pair of enemies is at war over the contested zone between them. In it are **24 star systems**
-  with planets, in three dimensions. Each system is linked to its nearest neighbours in the zone. Each has a
+- **The front:** each pair of enemies is at war over the contested zone between them: hundreds to thousands of
+  systems. **24 key systems** with planets, drawn from across the zone in three dimensions, carry the war.
+  **Every other contested system goes with its nearest key system:** it's held by whoever holds that key system,
+  and fought over while that is. So the map and the markets agree across the whole zone. Each system is linked to its nearest neighbours in the zone. Each has a
   **depth** across the zone, from 0 at one side's rear to 1 at the other's. The fifth of systems nearest each side
   touch that side's own space: its **rear**.
 - **Control:** each system's control runs from −1 to +1 (one side to the other). Its sign says who holds it; under
@@ -349,7 +364,8 @@ The North's powers, as the model makes them today (names and numbers come from t
   - **Fighting directly:** each enemy ship destroyed in a contested system adds +3 for the player's side.
   - **A commission** (Friendly or better, and not with that power's enemy) doubles the player's effort for that
     side. The other side then treats the player as a combatant.
-- **What a war changes:** who holds a contested system decides its currency, its laws and who docks there. A front
+- **What a war changes:** who holds a contested system (through its nearest key system) decides its currency, its
+  laws and who docks there. A front
   pays up to 60% more for munitions, medicine, fuel and food, and ships cost 40% more there.
 - **Speed:** the war without players is cached season by season. Players' effort replays from the season of their
   first deed, in well under a millisecond per season.

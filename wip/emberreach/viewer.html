@@ -55,12 +55,12 @@ function tColor(T) {
 	/* a grid on the surface where strength(a) - strength(b) = level, inside both claims and not inside a third power */
 	function surface(a, b, level, keep) {
 		const ax = a.at.map((v, k) => b.at[k] - v), d = Math.hypot(...ax), u = ax.map(v => v / d), t = Math.abs(u[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], e1 = nrm(cross(u, t)), e2 = cross(u, e1);
-		const R = Math.min(a.claim, b.claim), rings = 6, spokes = 20, pts = [];
+		const R = Math.max(a.claim, b.claim), rings = 6, spokes = 20, pts = [];
 		for (let ri = 0; ri <= rings; ri++) { const row = []; for (let si = 0; si < spokes; si++) {
 			const rad = R * ri / rings, ang = si / spokes * 2 * Math.PI, off = e1.map((v, k) => v * Math.cos(ang) * rad + e2[k] * Math.sin(ang) * rad);
-			let lo = 0, hi = d, p; for (let q = 0; q < 26; q++) { const mid = (lo + hi) / 2; p = a.at.map((v, k) => v + u[k] * mid + off[k]); if (F.strength(a, p) - F.strength(b, p) > level) lo = mid; else hi = mid }
-			const sa = F.strength(a, p), sb = F.strength(b, p);
-			row.push(sa > 0 && sb > 0 && Math.abs(sa - sb - level) < 0.01 && keep(p) ? p : null);
+			let lo = -R, hi = d + R, p; for (let q = 0; q < 30; q++) { const mid = (lo + hi) / 2; p = a.at.map((v, k) => v + u[k] * mid + off[k]); if (F.pull(a, p) - F.pull(b, p) > level) lo = mid; else hi = mid }
+			const sa = F.pull(a, p), sb = F.pull(b, p);
+			row.push((sa > 0 || sb > 0) && Math.abs(sa - sb - level) < 0.01 && keep(p) ? p : null);
 		} pts.push(row) }
 		return pts;
 	}
@@ -72,7 +72,7 @@ function tColor(T) {
 			const g = surface(a, b, 0, p => { const c = F.claimAt(p); return c.owner == a.id || c.owner == b.id });
 			layers.push({g, dash: [], col: 'rgba(210,220,235,.4)', w: 0.9});
 		} else {
-			for (const lv of [F.BAND * 0.999, -F.BAND * 0.999]) layers.push({g: surface(a, b, lv, p => { const c = F.claimAt(p); return (c.contested && c.contested.includes(a.id) && c.contested.includes(b.id)) || c.owner == a.id || c.owner == b.id }), dash: [4, 4], col: 'rgba(255,95,80,.6)', w: 1});
+			for (const lv of [F.depthOf(a.id, b.id) * 0.999, -F.depthOf(b.id, a.id) * 0.999]) layers.push({g: surface(a, b, lv, p => { const c = F.claimAt(p); return (c.contested && c.contested.includes(a.id) && c.contested.includes(b.id)) || c.owner == a.id || c.owner == b.id }), dash: [4, 4], col: 'rgba(255,95,80,.6)', w: 1});
 		}
 	}
 	fronts = F.wars().filter(w => M.some(m => m.id == w.a)).map(w => ({w, st: F.warState(w, day)}));
