@@ -1,0 +1,10 @@
+name = rudolf-logicpack
+version = 1.0.0
+kind = webapp
+title = Logic Pack
+summary = Sudoku, Picture Grid and Cages puzzles without end, with hints
+icon = 🧩
+license = GPL-2.0-or-later
+homepage = https://github.com/merciless146/rudolfos-library
+category = Games
+description = Three kinds of logic puzzle, made fresh every time, each with exactly one answer: Sudoku; Picture Grid (nonograms: fill the cells the numbers describe to find a picture); and Cages (each number once per row and column, with cages that add, take away, multiply or divide to their targets). Easy, Medium and Hard, and a Daily puzzle of each kind that is the same for everyone. Notes, undo, and hints that explain the next step or point out a wrong entry. Your puzzle in progress and best times are kept with your account. Plays with a mouse, the keyboard, a controller or touch. Made for Rudolf OS.

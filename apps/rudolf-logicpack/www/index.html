@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Logic Pack</title>
+<link rel="stylesheet" href="logicpack.css">
+</head>
+<body>
+<header id="bar">
+  <div class="grp" role="group" aria-label="Puzzle">
+    <button data-kind="sudoku" aria-pressed="false">Sudoku</button>
+    <button data-kind="nonogram" aria-pressed="false" title="Nonograms: fill the cells the numbers describe">Picture Grid</button>
+    <button data-kind="cages" aria-pressed="false" title="Each number once per row and column; each cage makes its target">Cages</button>
+  </div>
+  <div class="grp" role="group" aria-label="Level">
+    <button data-diff="easy" aria-pressed="false">Easy</button>
+    <button data-diff="medium" aria-pressed="false">Medium</button>
+    <button data-diff="hard" aria-pressed="false">Hard</button>
+    <button data-diff="daily" aria-pressed="false" title="Today's puzzle: the same for everyone">Daily</button>
+  </div>
+  <div class="stat" title="Time"><span class="ico" aria-hidden="true">⏱</span><b id="time">0:00</b></div>
+  <button id="menuBtn" aria-haspopup="true" aria-expanded="false" title="Menu">☰</button>
+</header>
+<div id="menu" role="menu" hidden>
+  <button role="menuitem" data-cmd="new">New puzzle</button>
+  <button role="menuitem" data-cmd="pause">Pause <kbd>P</kbd></button>
+  <button role="menuitem" data-cmd="restart">Start this one again</button>
+  <button role="menuitem" data-cmd="stats">Best times</button>
+  <button role="menuitem" data-cmd="help">How to play</button>
+  <button role="menuitem" data-cmd="flash" aria-pressed="false">Reduce flashing</button>
+  <button role="menuitem" data-cmd="export">Export save…</button>
+  <button role="menuitem" data-cmd="import">Import save…</button>
+</div>
+<main id="main">
+  <div id="stage"><canvas id="cv" aria-label="The puzzle" tabindex="0"></canvas><div id="toast" hidden></div></div>
+  <div id="pad" aria-label="Controls"></div>
+</main>
+<div id="ov" hidden><div class="card" role="dialog" aria-modal="true"><div id="ovBody"></div><div class="btns" id="ovBtns"></div></div></div>
+<div id="sr" class="sr" aria-live="polite"></div>
+<script src="gamekit.js"></script>
+<script src="logic.js"></script>
+<script src="logicpack.js"></script>
+</body>
+</html>
