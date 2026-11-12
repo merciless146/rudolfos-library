@@ -9,11 +9,13 @@
    onShip(id), say(text), cue(name)}. M4: restocking munitions, repairs that mend the hull too, war contracts taken at
    the bulletin board, and the missions in hand on the Status screen. M5: Universal Cartographics buys your survey
    data and lets you name your first discoveries; the bulletin board carries the cartographers' contracts.
+   M5b: the colonial office (from Contacts): your colonies and their builds, haulage contracts, and the planner for
+   claims within one jump.
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -30,7 +32,7 @@ const svg = k => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" st
 let env = null, root = null, screen = 'station', sel = {good: null, ship: null}, ex = {from: null, to: null, amount: ''}, mkt = null, naming = {};
 function open(e) {
 	env = e; root = document.getElementById('port'); root.hidden = false;
-	mkt = E.market(env.star, env.day);
+	mkt = E.market(env.star, env.day, env.port && env.port.colony ? {holder: env.port.owner} : undefined);
 	screen = 'station'; sel = {good: Object.keys(mkt.prices)[0], ship: null};
 	const codes = Object.keys(env.P.wallet).filter(c => env.P.wallet[c] > 0);
 	ex = {from: mkt.currency != 'SU' && env.P.wallet[mkt.currency] > 0 ? mkt.currency : codes[0], to: mkt.currency != 'SU' ? mkt.currency : codes[0], amount: ''};
@@ -78,6 +80,7 @@ function body() {
 	case 'contacts': return contacts();
 	case 'carto': return carto();
 	case 'status': return status();
+	case 'colonies': return colonies();
 	}
 	return '';
 }
@@ -132,6 +135,33 @@ function carto() {
 		+ '<h2>Name your discoveries</h2>' + (names || '<p class="muted small">Living worlds and ruins you are first to survey can be named here.</p>')
 		+ '<h2>Lounges</h2><p class="muted small">Passengers and crew arrive with the larger ships\' needs.</p></aside></div>';
 }
+/* the colonial office: your colonies, haulage, and the planner */
+const STAGE = {claimed: 'Claimed: drop the beacon', building: 'Building', done: 'Built', lapsed: 'Lapsed (salvage)'};
+let colSel = null;
+function colonies() {
+	const me = P(), o = holder(), d = env.day, office = {star: env.star, owner: o}, mine = (me.colonies || []), jump = env.ship.jump || 0;
+	const goodsRow = c => Object.entries(c.need).map(([g, t]) => { const got = Math.min(t, c.got[g] || 0), coming = (c.coming || {})[g] || 0; return '<div class="pt-rep"><span>' + g + '</span><span class="num">' + fmt(got) + ' / ' + fmt(t) + ' t</span><span class="muted">' + (coming ? fmt(coming) + ' t coming' : got >= t ? 'done' : (me.cargo[g] ? fmt(me.cargo[g]) + ' t aboard' : '')) + '</span></div>' }).join('');
+	const haulBtns = c => Object.entries(Co.left(c)).filter(([g, t]) => t - ((c.coming || {})[g] || 0) > 0).slice(0, 8).map(([g, t]) => { const n = t - ((c.coming || {})[g] || 0), q = Co.haulQuote(office, mkt, c, g, n, d); return q ? '<button class="pt-ghost" data-act="haul" data-c="' + esc(c.id) + '" data-g="' + g + '" data-n="' + n + '">' + fmt(n) + ' t ' + g + ' · ' + money(q.cost, q.currency) + ' · ' + q.days + ' d</button>' : '' }).join('');
+	const card = c => '<section class="pt-card"><h2>' + esc(c.star.name) + ' · ' + esc(Co.PORTS[c.port].name) + '</h2><dl><dt>Sponsor</dt><dd>' + esc(nm(c.sponsor)) + '</dd><dt>Stage</dt><dd>' + STAGE[c.stage] + '</dd><dt>World</dt><dd>' + esc(c.world) + '</dd>'
+		+ (c.stage == 'claimed' ? '<dt>Beacon by</dt><dd>day ' + c.beaconBy + '</dd>' : c.stage == 'building' ? '<dt>Due</dt><dd>day ' + c.due + ' · ' + Math.round(Co.progress(c) * 100) + '% built</dd>' : c.stage == 'done' ? '<dt>Opens</dt><dd>day ' + c.opens + '</dd>' : '') + '</dl>'
+		+ (c.stage == 'building' || c.stage == 'claimed' ? '<div class="pt-table">' + goodsRow(c) + '</div>' : '')
+		+ (c.stage == 'building' ? '<h3>Haulage from here</h3>' + (mkt.currency == 'SU' ? '<p class="muted small">Haulers here want a power\'s coin.</p>' : '<div class="pt-btns pt-wrap">' + (haulBtns(c) || '<span class="muted small">Everything is delivered or on its way.</span>') + '</div><p class="muted small">10–25% over this market, more the farther they go; paid now, delivered after the days shown.</p>') : '')
+		+ (c.stage == 'claimed' ? '<p class="small">Fly to ' + esc(c.star.name) + ' and press N near ' + esc(c.world) + ' to drop the beacon.</p>' : '') + '</section>';
+	/* the planner */
+	const cands = o ? Co.candidates(me, office, d, jump, 10) : [];
+	if (!colSel || !cands.some(s => s.id == colSel)) colSel = cands[0] && cands[0].id;
+	const s = cands.find(x => x.id == colSel), sys = s && G.system(s);
+	const rows = cands.map(x => { const pl = G.system(x).planets, best = pl.slice().sort((a, b) => b.esi - a.esi)[0]; return '<button class="pt-row pt-row4' + (x.id == colSel ? ' on' : '') + '" data-col="' + esc(x.id) + '"><b>' + esc(x.name) + '</b><span>' + x.d.toFixed(1) + ' pc</span><span class="muted">' + pl.length + ' planets</span><span class="num">' + esc(best.type) + ' · ESI ' + best.esi.toFixed(2) + (pl.some(p => p.alive) ? ' · life' : '') + (pl.some(p => p.ruins) ? ' · ruins' : '') + '</span></button>' }).join('');
+	let side = '<p class="muted">' + (!o ? 'No sponsor here.' : !jump ? 'Your ship has no jump drive: no systems within a jump.' : 'No claimable systems within ' + jump + ' pc.') + '</p>';
+	if (s) {
+		const world = Co.portWorld(s);
+		side = '<span class="pt-label">' + (F.claimAt([s.x, s.y, s.z]).owner ? 'In the ' + esc(nm(o)) + '\'s space: by charter' : 'Unclaimed space') + '</span><div class="pt-big">' + esc(s.name) + '</div><dl><dt>Star</dt><dd>' + esc(s.cls || s.kind) + ' · ' + s.d.toFixed(1) + ' pc</dd><dt>Port world</dt><dd>' + esc(world) + '</dd></dl><div class="pt-chips">' + sys.planets.map(p => '<span' + (p.name == world ? ' class="on"' : '') + '>' + esc(p.type) + ' ' + p.g.toFixed(1) + ' g' + (p.alive ? ' · life' : '') + (p.ruins ? ' · ruins' : '') + (p.ring ? ' · rings' : '') + '</span>').join('') + '</div>'
+			+ Object.entries(Co.PORTS).map(([k, K]) => { const ck = Co.canClaim(me, office, s, k, d, jump); const fee = ck.fee || Math.round(K.fee * E.rate(F.byId(o).currency.code, d)); return '<div class="pt-claim"><div><b>' + K.name + '</b><span class="muted small">' + fmt(Object.values(K.goods).reduce((t, v) => t + v, 0)) + ' t of goods in a season</span></div><button class="pt-primary" data-act="claim" data-k="' + k + '"' + (ck.ok && (me.wallet[ck.currency] || 0) >= ck.fee ? '' : ' disabled') + '>Claim · ' + money(fee, F.byId(o).currency.code) + '</button>' + (ck.ok ? '' : '<span class="bad small">' + esc(ck.why) + '</span>') + '</div>' }).join('');
+	}
+	return h1('Colonial office', o ? 'Sponsored by the ' + nm(o) + ' · budget ' + Co.budget(me, o) + (Co.budget(me, o) == 1 ? ' colony' : ' colonies') : '')
+		+ (mine.length ? '<div class="pt-cols">' + mine.map(card).join('') + '</div>' : '')
+		+ '<div class="pt-split"><section class="pt-card pt-table" role="list"><h2>Planner · within one jump (' + jump + ' pc)</h2>' + (rows || '') + '</section><aside class="pt-card pt-side">' + side + '</aside></div>';
+}
 function outfitting() {
 	const L = C.loadout(env.ship), k = P().combat, guns = {};
 	L.guns.forEach((g, i) => { const W = C.WEAPONS[g.kind]; guns[g.kind] = guns[g.kind] || {W, n: 0, ammo: 0}; guns[g.kind].n++; if (W.ammo != null) guns[g.kind].ammo += k && k.ammo && typeof k.ammo[i] == 'number' ? k.ammo[i] : W.ammo });
@@ -167,7 +197,8 @@ function contacts() {
 	return h1('Contacts', o ? 'The ' + nm(o) + '\'s authority, war office and exchange' : 'Free traders only')
 		+ '<div class="pt-grid3"><div class="pt-col"><section class="pt-card"><h2>Authority</h2><dl><dt>Legal status</dt><dd>' + (bounty ? 'Wanted' : 'Clean') + '</dd><dt>Standing</dt><dd>' + (o ? R.tier(me.rep[o] || 0) + ' (' + Math.round(me.rep[o] || 0) + ')' : '—') + '</dd><dt>Bounty here</dt><dd>' + (bounty ? money(bounty, F.byId(o).currency.code) : 'none') + '</dd></dl><button class="pt-ghost" data-act="paybounty"' + (!bounty || (me.wallet[F.byId(o).currency.code] || 0) < bounty ? ' disabled' : '') + '>Pay the bounty</button></section>'
 		+ '<section class="pt-card"><h2>War office</h2>' + (o ? fronts.map(w => { const en = w.a == o ? w.b : w.a; return '<div class="pt-front"><span>Front vs ' + esc(nm(en)) + '</span><span class="gold">' + w.systems.length + ' systems</span></div>' }).join('') || '<p class="muted">At peace.</p>' : '<p class="muted">None here.</p>')
-		+ (o ? '<p class="small">' + (me.commission ? 'Commissioned with the ' + esc(nm(me.commission)) + '.' : 'A commission makes your kills on contested ground count double for this power, and its enemies\' ships fight you on sight.') + '</p><button class="pt-ghost" data-act="enlist"' + (me.commission == o || rel(o) < 0 ? ' disabled' : '') + '>' + (me.commission == o ? 'Commissioned here' : 'Enlist with the ' + esc(nm(o))) + '</button>' : '') + '</section></div>'
+		+ (o ? '<p class="small">' + (me.commission ? 'Commissioned with the ' + esc(nm(me.commission)) + '.' : 'A commission makes your kills on contested ground count double for this power, and its enemies\' ships fight you on sight.') + '</p><button class="pt-ghost" data-act="enlist"' + (me.commission == o || rel(o) < 0 ? ' disabled' : '') + '>' + (me.commission == o ? 'Commissioned here' : 'Enlist with the ' + esc(nm(o))) + '</button>' : '') + '</section>'
+		+ '<section class="pt-card"><h2>Colonial office</h2><p class="small">' + (o ? 'Claim a system within one jump and build a port there, sponsored by the ' + esc(nm(o)) + '. ' + ((me.colonies || []).length ? 'You hold ' + me.colonies.filter(c => c.stage != 'lapsed').length + '.' : '') : 'No sponsor while the system is fought over.') + '</p><button class="pt-ghost" data-screen="colonies"' + (o ? '' : ' disabled') + '>Open the colonial office</button></section></div>'
 		+ '<section class="pt-card pt-span2"><h2>Exchange</h2>' + (o ? '<p class="muted small">Spread: 1.5% for the ' + esc(nm(o)) + '\'s own coin, 3% for an ally\'s, 5% for a neutral\'s; an enemy\'s coin is refused.</p>'
 		+ '<div class="pt-form"><label>From<select data-ex="from">' + heldCodes.map(c => opt(c, ex.from)).join('') + '</select></label><label>To<select data-ex="to">' + codes.map(c => opt(c, ex.to)).join('') + '</select></label><label>Amount<input data-ex="amount" inputmode="decimal" value="' + esc(ex.amount) + '" placeholder="0"></label></div>'
 		+ '<div class="pt-btns"><button class="pt-ghost" data-act="expct" data-n="0.25">25%</button><button class="pt-ghost" data-act="expct" data-n="0.5">50%</button><button class="pt-ghost" data-act="expct" data-n="1">All</button>'
@@ -191,6 +222,7 @@ function click(e) {
 	const t = e.target.closest('button'); if (!t || t.disabled) return;
 	if (t.dataset.screen) { screen = t.dataset.screen; env.cue('tick'); if (screen == 'launch') {} render(); focusScreen(); return }
 	if (t.dataset.good) { sel.good = t.dataset.good; render(); const b = root.querySelector('[data-good="' + sel.good + '"]'); if (b) b.focus(); return }
+	if (t.dataset.col) { colSel = t.dataset.col; render(); const b = root.querySelector('[data-col="' + colSel + '"]'); if (b) b.focus(); return }
 	if (t.dataset.ship) { sel.ship = t.dataset.ship; render(); const b = root.querySelector('[data-ship="' + sel.ship + '"]'); if (b) b.focus(); return }
 	const me = P(), act = t.dataset.act, d = env.day;
 	if (act == 'launch') { const l = env.onLaunch; close(); l(); return }
@@ -204,6 +236,8 @@ function click(e) {
 	if (act == 'acceptx') { const m = X.offers(me, env.star, env.port, d).find(x => x.id == t.dataset.m), r = m ? X.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Contract accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'selldata') { const o = holder(), r = X.sell(me, o, o ? here() : 'SU', d); env.say(r.ok ? 'Sold ' + r.items + ' charts and surveys for ' + money(r.amount, r.code) : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	if (act == 'rename') { const k = t.dataset.k, r = X.rename(me, k, naming[k] || ''); env.say(r.ok ? 'Named: ' + r.name + '. The name goes in the charts.' : r.why); env.cue(r.ok ? 'clearance' : 'refused'); if (r.ok) delete naming[k] }
+	if (act == 'claim') { const st = Co.candidates(me, {star: env.star, owner: holder()}, d, env.ship.jump || 0, 10).find(x => x.id == colSel), r = st ? Co.claim(me, {star: env.star, owner: holder()}, st, t.dataset.k, d, env.ship.jump || 0) : {ok: false, why: 'Pick a system.'}; env.say(r.ok ? 'Claim filed on ' + st.name + ': fly there by day ' + r.colony.beaconBy + ' and press N near ' + r.colony.world + ' to drop the beacon.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
+	if (act == 'haul') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = c ? Co.postHaul(me, {star: env.star, owner: holder()}, mkt, c, t.dataset.g, +t.dataset.n, d) : {ok: false, why: 'No such colony.'}; env.say(r.ok ? 'Haulage contracted: ' + r.quote.tons + ' t ' + r.quote.good + ' by ' + r.quote.ship + ', ' + r.quote.days + ' days' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'expct') { ex.amount = String(Math.floor((me.wallet[ex.from] || 0) * +t.dataset.n * 100) / 100) }
 	if (act == 'exchange') { const r = Tr.exchange(me, +ex.amount, ex.from, ex.to, d, holder()); if (r.ok) { env.say('Changed ' + money(+ex.amount, ex.from) + ' into ' + money(r.got, ex.to)); ex.amount = ''; env.cue('tick') } else env.say(r.why || 'The exchange refused') }
 	if (act == 'paybounty') { const c = F.byId(holder()).currency.code, b = me.bounties[c]; if (Tr.pay(me, b, c, d).ok) { delete me.bounties[c]; env.say('Bounty paid') } }

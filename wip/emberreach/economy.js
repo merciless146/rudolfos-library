@@ -70,6 +70,8 @@ function market(star, day, ctx) {
 	   system); while that is being fought over, nobody's */
 	let holder = claim.owner;
 	if (claim.contested) { const h = F.contestedHolder([star.x, star.y, star.z], day, ctx && ctx.events); holder = h.fighting ? null : h.holder }
+	/* a colony's port trades in its sponsor's coin, wherever it stands */
+	if (ctx && ctx.holder) holder = ctx.holder;
 	const m = holder && F.byId(holder), code = m ? m.currency.code : null;
 	const have = {};
 	for (const p of sy.planets) { for (const res of p.res) have[res] = (have[res] || 0) + 1; if (p.alive) have.Food = (have.Food || 0) + 3; if (p.water) have.Water = (have.Water || 0) + 2; if (p.gas) have.Fuel = (have.Fuel || 0) + 2; if (p.ruins) have.Artefacts = (have.Artefacts || 0) + 1 }

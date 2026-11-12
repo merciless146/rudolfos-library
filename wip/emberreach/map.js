@@ -219,12 +219,13 @@ function create() {
 	}
 	function scaleText() { const D = M.D; return 'View ' + (D < 10 ? D.toFixed(1) : Math.round(D).toLocaleString('en-US')) + ' pc out' + (D > 700 ? ' · the galaxy' : D > 25 ? ' · a region' : ' · nearby stars') }
 	function describe(s) {
+		const Co = window.EmberColonies, col = M.player && Co ? Co.colonyAt(M.player, s.id) : null;
 		const o = T.ownerOf(s, M.day), port = T.portFor(s, M.day), sys = G.system(s), live = sys.planets.filter(p => p.life || p.alive).length;
 		const m = o.owner ? F.byId(o.owner) : null, rel = m && M.origin && m.id != M.origin ? F.relation(M.origin, m.id) : 0;
 		const d = M.here ? dist(at(M.here), at(s)) : 0, mj = T.misjumpChance(s);
 		return {kind: (s.cls || s.kind || 'star') + ' class · ' + (s.M || 0).toFixed(2) + ' suns',
 			owner: o.owner ? (o.contested ? 'Contested, held by ' : '') + m.name.replace(/^The /, '') + (rel < 0 ? ' (at war with you)' : rel > 0 ? ' (allied)' : '') : 'Unclaimed space', ownerCol: rel < 0 ? C.red : rel > 0 ? C.green : C.text,
-			port: port ? 'Port: ' + {halo: 'Halo (capital)', lantern: 'Lantern', trefoil: 'Trefoil outpost', bloom: 'Bloom'}[port.cls] + ' at ' + port.world : 'No port',
+			port: col ? 'Your colony: ' + {claimed: 'claimed, beacon by day ' + col.beaconBy, building: 'building, ' + Math.round(100 * Co.progress(col)) + '%', done: col.port + ' built'}[col.stage] : port ? 'Port: ' + {halo: 'Halo (capital)', lantern: 'Lantern', trefoil: 'Trefoil outpost', bloom: 'Bloom'}[port.cls] + ' at ' + port.world : 'No port',
 			planets: sys.planets.length + (sys.planets.length == 1 ? ' planet' : ' planets') + (live ? ' · ' + live + ' living' : '') + (M.explore && M.explore.sys[s.id] != null ? ' · charted by you' : !o.owner ? ' · uncharted' : ''),
 			dist: d < 1000 ? d.toFixed(d < 10 ? 2 : 1) + ' pc' : Math.round(d).toLocaleString('en-US') + ' pc', misjump: mj > 0.005 ? Math.round(mj * 100) + '%' : null};
 	}
