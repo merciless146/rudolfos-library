@@ -13,6 +13,7 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
   - The 40 stock ships: `ships.js` (`tests/emberreach_ships_t.js`, 15 checks).
   - Flight, with flight assist: `flight.js` (`tests/emberreach_flight_t.js`, 19 checks).
   - Modules, damage and HUD alerts: `modules.js` (`tests/emberreach_modules_t.js`, 15 checks).
+  - The pilot under g, with the canopy broken: `pilot.js` (`tests/emberreach_pilot_t.js`, 10 checks).
   - `wip/emberreach/viewer.html` draws them, the north in 3D.
 
 ## Exceptions to the games plan's rules
@@ -308,8 +309,22 @@ So a Wren's canopy has 10 points and its engines 13; a Kestrel's 10 and 20; a Mo
 
 **G-forces.** The canopy is more than glass: while it holds, its field takes the g-forces and the pilot feels
 none, which is why fighters can turn at 35 g (see "Flight"). Once the canopy breaks, the pilot feels everything
-the thrusters do (`gForce`: the step's acceleration in g, felt only with the canopy down). Repair the canopy and
-the protection comes back.
+the thrusters do (`gForce`), and above 4 g strain builds (`wip/emberreach/pilot.js`, 10 checks in
+`tests/emberreach_pilot_t.js`):
+1. **The view blurs.**
+2. **It goes dark from the edges inward.**
+3. **The pilot blacks out.** The steering, throttle and every other control stop answering: the stick goes
+   neutral and the throttle stays where it was. With flight assist on, the ship stops turning and flies straight
+   on at that speed; with it off, it keeps tumbling and thrusting.
+4. **The pilot comes round** once the g has eased off and they've been out at least 4 s, waking groggy: blurred,
+   dark at the edges, clearing over a couple of seconds.
+
+How fast strain builds depends on how hard the pull is: (felt g − 4) / 16 per second, so 8 g blacks a pilot out
+in 4 s, 12 g in 2 s and 20 g in 1 s. Below 4 g the strain falls by 0.15 a second. For example, a Kestrel with a
+broken canopy pulling full pitch at 128 m/s (22 g) blurs at 0.3 s, darkens at 0.5 s and blacks out at 1.1 s;
+the pilot wakes at 5.1 s and sees clearly again at 7 s. At 48 m/s (8 g) a pilot who lets go after 2.5 s gets
+the blur and dark edges but stays awake. Repair the canopy and the protection comes back. These are starting
+values for playtests.
 
 **The alert.** When a module breaks, the HUD shows it at once:
 - **Top left:** a screen with the ship's 2D side profile, the broken module flashing on it.
@@ -666,7 +681,6 @@ home currency.
 - Game time: how long a season feels in play (30 game days; jumps and lanes take days).
 - Flight: whether FA-off should have a speed cap (today it has none: the main drive is the only limit). The 40%
   blue zone and the time constants are starting values for playtests.
-- G-forces with the canopy broken: what the pilot feels (greyout, blackout, a shaking view) and from how many g.
 
 ## Sources
 
