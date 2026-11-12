@@ -6,8 +6,14 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
 
 - **Package:** `rudolf-emberreach` (a Library game). The work sits in `wip/emberreach/` until it can be played, so
   the publish workflow doesn't put it in the App Store early (`tools/publish.sh` builds everything in `apps/`).
-- **Status:** the galaxy model is done and checked (`wip/emberreach/galaxy.js`, `tests/emberreach_galaxy_t.js`, 22
-  checks). `wip/emberreach/viewer.html` draws it. The game itself is the milestones below.
+- **Status:** the models are done and checked; the game itself is the milestones below.
+  - The galaxy: `wip/emberreach/galaxy.js` (`tests/emberreach_galaxy_t.js`, 25 checks).
+  - Factions, front-line wars, money and reputation: `factions.js`, `economy.js`, `reputation.js`
+    (`tests/emberreach_factions_t.js`, 51 checks).
+  - The 40 stock ships: `ships.js` (`tests/emberreach_ships_t.js`, 15 checks).
+  - Flight, with flight assist: `flight.js` (`tests/emberreach_flight_t.js`, 19 checks).
+  - Modules, damage and HUD alerts: `modules.js` (`tests/emberreach_modules_t.js`, 15 checks).
+  - `wip/emberreach/viewer.html` draws them, the north in 3D.
 
 ## Exceptions to the games plan's rules
 
@@ -130,15 +136,13 @@ stars.
 | fp | 0.76 | the model (stars with planets) |
 | ne | 0.38 | the model: liquid-water worlds with ESI ≥ 0.8 that stay undisturbed for 4 Gyr, per star with planets |
 | fl, fi, fc | 0.5, 0.01, 0.2 | chosen (nobody knows them) |
-| L / T | 15,000 years / 10 Gyr | chosen |
-| **N, alive now** | **≈ 7** | |
+| L / T | 90,000 years / 10 Gyr | chosen |
+| **N, alive now** | **≈ 42** | |
 | Earlier civilisations | ≈ 4.6 million | N × T / L |
 
-- **Factions:** the 7 civilisations alive now are the game's major factions. Each is at home on a living world with
-  ESI ≥ 0.75, in quiet space, at least 400 pc from the others. Each has spread about 45 pc, colony to colony at a
-  hundredth of light speed over its 15,000 years. That's 10,000 to 800,000 stars per faction, depending on how
-  crowded its region is. All seven came out between 660 and 2,230 pc from the centre, in the quiet zone, without
-  being told to.
+- **Factions:** the civilisations alive now are the game's great powers: 46 of them, in six clusters of six to
+  eight (see "The great powers"). L, the lifetime, was set at 90,000 years to give about that many. The number of
+  earlier civilisations (N × T / L) doesn't depend on L, so the ruins are unchanged.
 - **Ruins:** the earlier civilisations left ruins. Each one is counted in about ten systems, giving a ruin in about
   1 star system in 400.
 
@@ -168,7 +172,8 @@ WOS's flat mix stays available as a "rich galaxy" setting if playtests find the 
 
 ### Three scales of travel
 
-1. **Flight:** Newtonian with flight assist, for combat, docking and landing approaches. Speeds in m/s to km/s.
+1. **Flight:** Newtonian under the hood, flown like Oolite with flight assist; for combat, docking and landing
+   approaches. Speeds in m/s to km/s. See "Flight" below.
 2. **Cruise:** within a system, up to a sizeable fraction of light speed, so crossing a few AU takes a minute or
    two. Gravity wells slow it, and it drops out near planets and stations.
 3. **Jump:** star to star. Range 1–10 pc, depending on the drive and its fuel.
@@ -176,14 +181,84 @@ WOS's flat mix stays available as a "rich galaxy" setting if playtests find the 
      there are thousands.
    - Jump accuracy suffers where stars crowd: the core is hard to navigate.
 
+   - **Lanes:** the great powers keep relay beacons that allow long jumps (up to about 50 pc) between their own
+     systems and their allies'. Within a cluster, capitals are from 4 pc (the Hearth) to 134 pc (the Rim) apart,
+     so lane travel is quick. Enemies' lanes are closed to you, and fronts cut lanes.
+   - **The long lanes:** between clusters (677–1,714 pc apart), old relay chains make jumps of about 100 pc, so
+     a crossing takes 7–17 jumps. Free ports, nomads and syndicates live along them; whoever keeps a long lane
+     open is worth knowing.
+
+### Flight
+
+Ships fly like Oolite: pitch and roll on the stick, a little yaw, and a throttle that sets a speed. Underneath,
+the physics is Newtonian. Every ship, the player's and every NPC's, has **flight assist (FA)** as standard. FA
+drives the ship's RCS (linear thrusters) and ACS (attitude thrusters) so that it handles as if it were swimming in
+a fluid, not floating in empty space. Pilots who want raw Newtonian flight can switch it off.
+(`wip/emberreach/flight.js`, 19 checks in `tests/emberreach_flight_t.js`.)
+
+**FA on: swimming.**
+- **Stick:** sets a turn rate, reached in a fraction of a second. Let go and the turn stops.
+- **Throttle:** sets a speed, from 30% in reverse to 100% ahead. Throttle to zero and the ship comes to rest.
+- **The path follows the nose:** FA kills side-slip as it happens, like a keel or a fish's body. In a hard turn the
+  slip stays under 2°.
+- **Turns widen with speed:** FA can't use more thrust than the thrusters have. Above the best turning speed it
+  holds pitch and yaw to what the side thrusters can bend the path through (radius = speed² / side thrust), so
+  the ship carves wider arcs rather than sliding. Roll isn't held back, because it doesn't bend the path.
+- **Strafing:** up to 30% of top speed sideways or vertically, for docking and dodging.
+- **Spinning frames:** near a station, FA flies relative to it, matching its drift and its spin (with
+  feed-forward for the centripetal and Coriolis terms). So at a spinning port, "hold still" means "turn with the
+  port". The thrusters still set the limits, which is what makes a fast-spinning Trefoil harder to dock at than a
+  Halo with its still dock (see the station classes on the design canvas).
+
+**FA off: Newton.**
+- The stick fires the ACS directly: a turn keeps spinning until you counter it.
+- The throttle fires the main drive (or the retros); the strafe controls fire the RCS. With no thrust the ship
+  coasts, and turning the nose doesn't change where it's going.
+- **The trade:** the full turn rate is there at any speed, so you can point the guns anywhere while sliding past.
+  Coasting costs nothing, where FA keeps working the thrusters (FA reports its `effort`, which feeds heat and fuel
+  in M4).
+- Switching FA back on catches a drifting, tumbling ship and brings it to the commanded state.
+
+**The thrusters, from the ship's stats.** The stock ships' speed, agility and length set everything, so all 40
+fly correctly without hand tuning:
+- **Main drive:** reaches top speed in 4 s × (length / 10 m)^0.3. **Retros:** half the main drive, so braking
+  takes about twice as long as speeding up.
+- **Turn rates:** pitch = agility, roll = 2 × agility, yaw = ½ × agility (Oolite's balance: roll and pitch to
+  manoeuvre, yaw to fine-tune). The ACS reaches full rate in 0.3 s × (length / 10 m)^0.3.
+- **Side thrust:** sized so that every ship turns best at **40% of its top speed** (its "blue zone"): full pitch
+  rate up to there, wider turns above. The turning thrusters are strong; the main drive (speeding up) and the
+  retros (braking) are what's short.
+- The physics steps at a fixed 60 Hz and is deterministic, so NPCs, replays and any later multiplayer agree.
+
+How some stock ships handle:
+
+| Ship | Length | Top speed | Main drive | Side thrust | 0 → 95% | Stop | Best turn | 180° there | Turn radius at top | 180° at top |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Wren (shuttle) | 9 m | 220 m/s | 5.8 g | 12.9 g | 4.5 s | 10.3 s | 88 m/s | 2.6 s | 450 m | 6.4 s |
+| Kestrel (fighter) | 12 m | 320 m/s | 7.7 g | 25.5 g | 4.9 s | 11.6 s | 128 m/s | 1.9 s | 482 m | 4.7 s |
+| Dart (interceptor) | 10 m | 380 m/s | 9.7 g | 35.0 g | 4.6 s | 11.1 s | 152 m/s | 1.6 s | 495 m | 4.1 s |
+| Packet (light hauler) | 28 m | 210 m/s | 3.9 g | 7.9 g | 6.3 s | 14.4 s | 84 m/s | 4.0 s | 668 m | 10 s |
+| Sovereign (battlecruiser) | 520 m | 170 m/s | 1.3 g | 1.4 g | 15 s | 34 s | 68 m/s | 18 s | 2.4 km | 45 s |
+| Monolith (battleship) | 1.9 km | 85 m/s | 0.4 g | 0.2 g | 22 s | 47 s | 34 m/s | 60 s | 4.1 km | 2.5 min |
+
+**Controls.** On keyboard and mouse, controller and touch alike: pitch and roll on the stick (or mouse), yaw on
+a pair of keys or a second axis, the throttle on an axis or keys, strafe on a hat or keys, and one button to switch
+FA, shown on the HUD. NPCs fly with FA on, through the same model and the same controls.
+
 ### Regions
 
-- **The Outskirts** (beyond ~450 pc): quiet, living worlds, the seven factions, safe-ish trade lanes.
-- **The Glow** (~30–450 pc): dense, metal-rich and mostly sterile. Many white dwarfs and old giants, rich mining,
-  little law. Pirates and prospectors.
-- **The Core** (inside ~30 pc): stars a few thousand AU apart, constant close passes, the black hole. The endgame:
+Distances are ellipsoidal radius from the centre. **Galactic north** is the short axis, the pole.
+- **The Core** (inside 30 pc): stars a few thousand AU apart, constant close passes, the black hole. The endgame:
   the richest resources and the most ruins, from an earlier era when the centre may have been calmer. The most
   dangerous flying.
+- **The Glow** (30–450 pc): dense, metal-rich and mostly sterile. Many white dwarfs and old giants, rich mining,
+  little law. Criminal syndicates and prospectors, and one cluster against the odds: the Hearth, at 60 pc.
+- **The Inner Reach** (450–1,000 pc): quiet enough for life, still busy. Prospectors' claims, frontier, and one
+  cluster (a Reach, at 812 pc).
+- **The Middle Reach** (1,000–2,000 pc): quiet, living worlds. Three clusters (the North and two Reaches).
+  Elsewhere, wide open: nomads, ruins, unclaimed living worlds.
+- **The Outer Clouds** (beyond 2,000 pc): a thin halo of old stars, a parsec or more apart. Nomad fleets, deep
+  ruins, the loneliest flying, and the Rim cluster at 2,157 pc.
 
 ### Exploration
 
@@ -198,31 +273,352 @@ WOS's flat mix stays available as a "rich galaxy" setting if playtests find the 
 - **Goods:** the WOS resource set (iron, copper, coal, lead, titanium, uranium, jade, gold, diamond, beryllium,
   aluminium), plus refined and manufactured goods, food from living worlds, and artefacts from ruins.
 - **Prices:** set by supply and demand per faction and station. Metals are cheap in the Glow and dear in the
-  Outskirts; food is the reverse. Distance and danger make the margins.
+  Middle Reach; food is the reverse. Each great power prices in its own currency (see "Money"). Distance and danger make the margins.
 
 ### Combat
 
 - **Weapons:** lasers (heat), mass drivers (ammo, travel time) and missiles (lock-on, counter-measures). Shields and
   hull, with heat management.
 - **Enemies:** pirates in the Glow, faction patrols to anyone wanted, and old defences around ruins.
-- **Controls:** the same on keyboard and mouse, controller, and touch (a virtual stick, plus throttle and fire
-  buttons).
+- **Controls:** the same on keyboard and mouse, controller, and touch (a virtual stick, plus throttle, fire and FA
+  buttons). See "Flight".
+
+### Modules and damage
+
+Every ship carries the same core modules, each with its own health pool, shown on the **internal-systems HUD**
+(`wip/emberreach/modules.js`, 15 checks in `tests/emberreach_modules_t.js`). A pool is a share of the hull's
+points (at least 10), and a hit lands on a module in proportion to its size. A module at zero health is
+**inoperable** until it's repaired at a station (or by a repair tender).
+
+| Module | Share of hull | When it's inoperable |
+|---|---|---|
+| **Power plant** (critical) | 16% | Everything powered goes dark: no thrust, no turning, no jump, no shields. The ship drifts. |
+| **Engines** (critical) | 14% | No main drive. The RCS can still push, at strafe speed. |
+| **Hyperspace drive** (critical) | 12% | No jumps. |
+| Canopy | 6% | The pilot feels g-forces (below). |
+| RCS thrusters | 8% | No strafing or braking, and flight assist can't hold the path: turns at speed slide. |
+| ACS thrusters | 8% | No turning; a spin already going can't be stopped, even with flight assist. |
+| Shield generator | 10% | No shields (M4). |
+| Life support | 8% | (M4.) |
+| Sensors | 6% | (M4.) |
+| Weapons (armed ships) | 6% | (M4.) |
+| Cargo hold (ships with cargo) | 6% | (M4.) |
+
+So a Wren's canopy has 10 points and its engines 13; a Kestrel's 10 and 20; a Monolith's 6,480 and 15,120.
+
+**G-forces.** The canopy is more than glass: while it holds, its field takes the g-forces and the pilot feels
+none, which is why fighters can turn at 35 g (see "Flight"). Once the canopy breaks, the pilot feels everything
+the thrusters do (`gForce`: the step's acceleration in g, felt only with the canopy down). Repair the canopy and
+the protection comes back.
+
+**The alert.** When a module breaks, the HUD shows it at once:
+- **Top left:** a screen with the ship's 2D side profile, the broken module flashing on it.
+- **Below it:** a textbox in the style of a command console: `> CANOPY INOPERABLE`.
+- **The icon:** an `!` in a triangle. **Orange** for most modules; **red** for the critical ones (power plant,
+  engines, hyperspace drive).
+- With several modules down, critical alerts come first. The mockup is on the design canvas ("Ship HUD").
 
 ### Factions
 
-The seven civilisations from the Drake step, each shaped by its home:
-- **Home gravity** sets ship build (heavy, armoured ships from high-g worlds; light, agile ones from low-g).
-- **Home star** sets senses: red-dwarf civilisations see better in infrared, and their sensors favour heat
-  signatures.
-- **Age** sets technology.
-
-Reputation is kept per faction, and borders are the 45-pc spheres. Independent stations sit in between.
+See "Factions, wars and money" below.
 
 ### Saves
 
 Only the player's own changes are saved: ship, cargo, credits, reputation, discoveries and names, visited systems,
 and market drift. The galaxy is rebuilt from the model every time. Saves go through rudolfd with export and import,
 like every Library game.
+
+## Factions, wars and money
+
+The model is in `wip/emberreach/factions.js`, `economy.js`, `reputation.js` and `ships.js` (51 checks in
+`tests/emberreach_factions_t.js`, 15 in `tests/emberreach_ships_t.js`). The viewer's first panel shows each
+cluster in 3D.
+
+### The great powers: six clusters
+
+- **How many:** 46 great powers in **six clusters** of six to eight (at least six per cluster, `MIN_CIVS`). That
+  agrees with the Drake equation's ≈ 42. All are interstellar.
+- **Why clusters:** in the lore, each cluster is a shared cradle. Its peoples arose within a few dozen parsecs of
+  each other, which is why they met, traded and went to war. Between the clusters lie hundreds of parsecs of space
+  where nobody lives: nomads, ruins, prospectors, criminals and the unexplored.
+- **Where the clusters are:**
+  - **the North:** around the North Point, straight up the pole, 1,500 pc out. This is the northern Middle Reach,
+    midway between the Core and the Outer Clouds.
+  - **the Hearth:** 60 pc from the centre, just outside the Core (which ends at 30 pc). It sits in the crowded,
+    harsh Glow, where stars are about 11,000 AU apart.
+  - **the Rim:** 2,157 pc out in the Outer Clouds. Stars there are about 1.8 pc apart, still well inside a jump
+    drive's 1–10 pc.
+  - **three Reaches:** 812, 1,556 and 1,645 pc out.
+  - A seeded search placed them so the distances between clusters are as even as the Hearth and the Rim allow:
+    677–1,714 pc, varying by about 22%.
+- **How much they hold:** each power's space is sized by its **systems**: 8,000–14,000 by its age, not a
+  distance. So territories are a couple of parsecs across in the Hearth, and tens of parsecs at the Rim.
+  - A power on the outside of its cluster would otherwise sprawl into the empty side, so claims are re-sized until
+    each power's space comes to its count.
+  - A power with fewer than two neighbours to fight aims for a fifth more each round until it has them (today one
+    power, at 17,900).
+  - Counted by sampling, the 46 powers hold about **375,000 systems** and contest **125,000** more: **500,000 in
+    all**, 0.003% of the galaxy's 15.9 billion. Each power has 8,000–17,900.
+- **Homes:** each power is a **species** of its own. Its home is a real star, one a player can fly to, on a living
+  world with ESI ≥ 0.75. There's a fallback where life is too hard: a water world that held on, or a rocky world
+  with air (a people who built their own shelter). Today every home found a living world, even in the Hearth.
+  - Homes sit at least 0.85 claims apart, within about 1.6 claims of their cluster's centre, so neighbours' claims
+    meet.
+  - Some chance in the pick makes the homes differ: 0.5 g to 1.3 g, 2 °C to 40 °C in the North alone.
+- **What a home shapes:**
+  - its world's gravity sets ship build (heavy, balanced or light);
+  - its sun sets senses (infrared under red and orange suns, ultraviolet under hot ones);
+  - a seeded military and economy set strength.
+- **Space:** each power's claim is strongest at home and fades to nothing at the edge. Every point belongs to **one
+  power at most**: the strongest claim there. Borders never overlap, allies' included. Borders are surfaces in three
+  dimensions.
+- **Contested space: a quarter of each power, along its enemy borders.** Exactly 25% of each power's systems are
+  contested: the systems on its side of its borders with its enemies, from the border inward.
+  - **Measuring depth from the border:** for each point in a power's space, the model takes its strongest rival in
+    the cluster, counting that rival's pull even beyond its reach. If the rival is an enemy, the point's depth is
+    how far it lies from the surface where the two would be equal.
+  - **Each side has its own depth,** solved by bisection (on a fixed, star-weighted sample of the cluster) so that
+    side's power comes to 25%.
+  - **The contested systems are the contested region:** a war's zone is its two sides' contested systems together.
+  - **No zone outgrows its fighters:** no zone holds more systems than either power fighting over it holds outright.
+    A zone that would is trimmed on its larger side, and that power's depth is solved again with its other borders.
+  - The result: all 46 powers at 25% (21–29% in an independent recount), and no zone over its cap.
+
+| Cluster | Where | Stars per pc³ | Powers | Homes span | Wars | Systems held | Contested | Contested share |
+|---|---|---|---|---|---|---|---|---|
+| **North** | 1500 pc out, 90° N | 0.11 | 8 | 84 pc | 12 | 69,432 | 23,161 | 25% |
+| **Hearth** | 60 pc out, 9° N | 1.1e+3 | 8 | 4.3 pc | 11 | 66,446 | 22,157 | 25% |
+| **Rim** | 2157 pc out, 42° N | 0.029 | 8 | 134 pc | 11 | 59,642 | 19,897 | 25% |
+| **Ulensenilon Reach** | 812 pc out, 33° S | 1.0 | 8 | 38 pc | 11 | 68,510 | 22,848 | 25% |
+| **Gemenveo Reach** | 1645 pc out, 18° N | 0.080 | 8 | 89 pc | 11 | 60,212 | 20,082 | 25% |
+| **Draulon Reach** | 1556 pc out, 17° N | 0.099 | 6 | 84 pc | 8 | 50,752 | 16,928 | 25% |
+| **All six** | | | 46 | | 64 | **374,994** | **125,073** | **25%** |
+
+The North's powers, as the model makes them today (names and numbers come from the seed):
+
+| Power | Species | Home | Currency, coins per SU (day 0) | Allies | Enemies |
+|---|---|---|---|---|---|
+| Gemitorimos Dominion | Gemitorimosians (balanced, infrared) | EarthLike, 0.94 g, 5 °C | gemitorimos crown (GEM), 1.66 | Torumk Dominion, Roorhalul Compact, Breeth Collective | Zeaerd Compact, Linuquaes Throne, Ixira Directorate |
+| Zeaerd Compact | Zeaerdi (balanced, infrared) | EarthLike, 0.99 g, 33 °C | zeaerd mark (ZEA), 5.65 | Linuquaes Throne, Torumk Dominion | Gemitorimos Dominion, Ishitorarrd Compact, Roorhalul Compact, Breeth Collective |
+| Linuquaes Throne | Linuquaesi (heavy, infrared) | Terra, 1.24 g, 7 °C | linuquaes shard (LIN), 10.77 | Zeaerd Compact, Roorhalul Compact, Breeth Collective | Gemitorimos Dominion, Torumk Dominion, Ishitorarrd Compact, Ixira Directorate |
+| Torumk Dominion | Torumkari (balanced, infrared) | EarthLike, 1.05 g, 2 °C | torumk sol (TOR), 5.98 | Gemitorimos Dominion, Zeaerd Compact, Ishitorarrd Compact, Ixira Directorate, Breeth Collective | Linuquaes Throne, Roorhalul Compact |
+| Ishitorarrd Compact | Ishitorarrdi (light, visible) | Terra, 0.53 g, 40 °C | ishitorarrd tithe (ISH), 0.82 | Torumk Dominion, Roorhalul Compact | Zeaerd Compact, Linuquaes Throne, Ixira Directorate, Breeth Collective |
+| Roorhalul Compact | Roorhaluli (balanced, infrared) | EarthLike, 0.95 g, 34 °C | roorhalul ingot (ROO), 0.80 | Gemitorimos Dominion, Linuquaes Throne, Ishitorarrd Compact, Ixira Directorate, Breeth Collective | Zeaerd Compact, Torumk Dominion |
+| Ixira Directorate | Ixirans (light, visible) | Terra, 0.52 g, 4 °C | ixira mark (IXI), 2.58 | Torumk Dominion, Roorhalul Compact, Breeth Collective | Gemitorimos Dominion, Linuquaes Throne, Ishitorarrd Compact |
+| Breeth Collective | Breethese (balanced, visible) | EarthLike, 1.05 g, 3 °C | breeth dram (BRE), 0.81 | Gemitorimos Dominion, Linuquaes Throne, Torumk Dominion, Roorhalul Compact, Ixira Directorate | Zeaerd Compact, Ishitorarrd Compact |
+
+### Alliances and enmities
+
+- **The rule:** every great power has **at least two allies and at least two enemies** among the others.
+- **Enemies must share a border:** at least 15% of the surface where their claims are equal must be theirs alone,
+  not buried inside a third power's space.
+- **How the arrangement is chosen:** the model searches the possible arrangements in seeded order. It keeps the one
+  that meets the rules with the longest borders between enemies and the widest spread between allies.
+- **When geography won't fit:** a power with too few neighbours to fight reaches further (its claim grows) until
+  the rules can be met. This keeps working if the galaxy changes.
+- **Within each cluster:** alliances and wars are among a cluster's own powers. Powers in different clusters are
+  too far apart to be allies or enemies; they are neutral.
+- **Today:** 64 wars among 46 powers (8 to 12 per cluster); each power has two or more allies and two or more
+  enemies.
+
+### Wars: front lines
+
+- **The front:** each pair of enemies is at war over the contested zone between them: hundreds to thousands of
+  systems. **24 key systems** with planets, drawn from across the zone in three dimensions, carry the war.
+  **Every other contested system goes with its nearest key system:** it's held by whoever holds that key system,
+  and fought over while that is. So the map and the markets agree across the whole zone. Each system is linked to its nearest neighbours in the zone. Each has a
+  **depth** across the zone, from 0 at one side's rear to 1 at the other's. The fifth of systems nearest each side
+  touch that side's own space: its **rear**.
+- **Control:** each system's control runs from −1 to +1 (one side to the other). Its sign says who holds it; under
+  0.3 either way, it's being fought over.
+- **Claims chain from the rear:** a side can take a system only from its rear, or from a system next to it that the
+  side holds and supplies. Effort against a system out of reach can wear it down but never take it.
+- **Supply and cut-off claims:** a held system is **supplied** while a chain of systems held by the same side runs
+  back to its rear. A **cut-off** system is logistically isolated: it defends at a third of its strength, and
+  attacks on it count three times. It wears away by 0.18 a season, while supplied systems dig in (up to 0.7).
+- **The depth multiplier:** pushing past the middle of the zone towards the enemy's rear gets harder and harder.
+  An attacker's push is multiplied by (1 − q)³, where q runs from 0 at the middle to 1 at the enemy's rear. That's
+  full strength to the middle, about 1/8 three quarters of the way across, and almost nothing at the far edge. **No
+  side loses all of its contested space.**
+  - In the checks, one player threw 500 points of effort at every enemy system, every season, for 100 seasons. The
+    losing side still kept its rearmost systems.
+- **The seasons (natural development):** a season is 30 game days. Each season:
+  - supplied systems dig in and cut-off ones wear away;
+  - then either a truce (about one season in ten), or one side's offensive (the stronger military more often) on
+    1–3 enemy systems it can reach, cut-off ones first.
+  - So the front moves for as long as the game runs, both ways. Over 30,000 game days no front collapsed: every
+    side kept at least two systems.
+- **Players move the front.** Every war mission and every kill in a contested system is kept in the save as dated
+  war effort. The front plays it through in the season it happened, under the same rules: chains, supply, depth.
+  - **War missions** come from each power's stations:
+    - attacks on enemy systems it can reach: recon (+5), blockade (+10), strike (+14), sabotage (+16). Attacks on
+      cut-off systems count half again and pay 30% more.
+    - defence of its own systems that are being fought over or cut off: supply runs (+6), escorts (+9), holding the
+      line (+12).
+    - Missions pay in the issuer's currency.
+  - **Fighting directly:** each enemy ship destroyed in a contested system adds +3 for the player's side.
+  - **A commission** (Friendly or better, and not with that power's enemy) doubles the player's effort for that
+    side. The other side then treats the player as a combatant.
+- **What a war changes:** who holds a contested system (through its nearest key system) decides its currency, its
+  laws and who docks there. A front
+  pays up to 60% more for munitions, medicine, fuel and food, and ships cost 40% more there.
+- **Speed:** the war without players is cached season by season. Players' effort replays from the season of their
+  first deed, in well under a millisecond per season.
+- **Multiplayer (later, optional):** the galaxy and the wars are deterministic, so a shared front is only everyone's
+  dated war effort played through the same rules. An optional online service could collect it, for a war the
+  community moves. Offline, each save's war is its own.
+
+### The map
+
+The star map is **three-dimensional**. You turn it, zoom it, and move from the whole galaxy down to one system.
+- Each great power's space is drawn in its colour. No two powers ever share a place.
+- **Peaceful borders** between neighbours are drawn as solid surfaces.
+- **Contested space** between enemies is drawn with **dashed lines**: the two edges of the zone, as dashed surfaces.
+- Inside contested space, the front's systems are drawn in the colour of today's holder, linked along their supply
+  chains: solid where supplied, dashed where cut off.
+- The viewer's first panel (`viewer.html`) is a working version, one cluster at a time: drag to turn, wheel to
+  zoom.
+
+### Smaller factions
+
+44 of them, made from the seed. Most belong to one of the great powers' species; some are mixed.
+
+| Kind | How many | Where | How they move | Flagship |
+|---|---|---|---|---|
+| **Nomads** | 8 | anywhere in the Middle Reach and Outer Clouds | **nomadic:** 5–8 stops, travelling for 6 days each season, then staying | a fleet carrier (most) |
+| **Criminal syndicates** | 16 | on the war fronts (60%) and in the Glow | **rotating:** a new hideout each season, from 2–5 | a dreadnought |
+| **Prospector guilds** | 8 | the Glow and the Inner Reach (metal-rich) | **semi-permanent:** a claim held 3–6 seasons, then the next | a fleet carrier |
+| **Free ports** | 12 | two in each cluster, between its powers | **fixed** | a station |
+
+- **Flagships** keep their factions self-sustaining:
+  - **fleet carriers** (about 1.1–2.1 km long, 12–48 ships in the hangar) carry a market, refinery, repairs, fuel
+    and a shipyard;
+  - **dreadnoughts** (about 1.5–2.9 km) carry repairs, fuel, a hangar, a black market and an armoury.
+  - A nomad fleet's carrier *is* its home, and a syndicate's dreadnought is its moving fortress.
+- **Stances:** syndicates are hostile to the great powers; nomads are friendly to their parent species; prospectors
+  are sometimes friendly with a power; free ports are neutral.
+- **Privateers:** some syndicates are privately backed by a great power and hostile to its enemies.
+- **Money:** nomads deal in **fuel scrip**, backed by fuel. Syndicates take any currency, at a cut. Free ports
+  change any currency, enemies' included.
+
+### Ships
+
+Forty stock designs that NPCs fly, and players can buy where a yard sells them (`wip/emberreach/ships.js`, 15
+checks in `tests/emberreach_ships_t.js`). They range from one-seat shuttles to fleet carriers and dreadnoughts.
+- **Who builds them:** a great power's yards in each of the six clusters (two in the North), and three independent
+  yards (Brask & Orrel Free Yards,
+  the Tamsin Mining Cooperative, Greyhook Salvage Works).
+- **Species:** a great power's yards build to its species' bodies. Heavy-bodied builders add 15% armour and lose
+  10% agility; light ones lose 10% armour, gain 10% shields and turn 12% faster.
+- **Who flies what:** every design lists its pilots (navies, pirates, traders, miners, explorers, nomads, couriers,
+  passengers, prospectors, salvagers, bounty hunters, smugglers), so the game puts the right ships in the right
+  places. The small factions' fleet carriers and dreadnoughts are the Bastion, Tyrant and Monolith classes.
+
+**Price from the stats.** A ship's list value in SU is:
+
+  120 × toughness^0.95 × √(1 + firepower/20) × (1 + cargo/250)^0.45 × (1 + 0.12 × jump)
+  × (speed/200)^0.25 × (turn/40)^0.15 × 1.35^(tech − 1) × (1 + hangar/40)
+
+- **Toughness** is hull + 1.4 × shields. **Firepower** counts hardpoints by size: small 1, medium 3, large 9, huge
+  27.
+- So twice the armour and shields costs nearly twice as much, each tech level costs 35% more, and range, cargo,
+  speed and hangars all add.
+- **Yards:** great powers' yards charge 5–15% for their name; independents sell 10% under value. The range runs
+  from 90% to 115% of that.
+- **In the shops:** prices are in the station's currency at the day's rate. A ship costs list price in its maker's
+  own space, +10% at an ally's yard, +25% elsewhere and +40% near a front. Enemies' designs aren't sold.
+
+The catalogue, with prices in SU and in the Gemitorimos Dominion's crown at home on day 0 (1.66 crowns per SU):
+
+| Ship | Size | Role | Yard | Hull / shields | Speed m/s, turn °/s | Cargo t | Jump pc | Guns S/M/L/H | Crew | Tech | Price, SU | In GEM at home |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Wren | XS | shuttle | Brask & Orrel Free Yards | 90 / 40 | 220, 70 | 4 | 2 | 0/0/0/0 | 1 | 1 | 15 k – 20 k | 26 k – 33 k |
+| Kestrel | XS | fighter | Gemitorimos Dominion yards | 140 / 90 | 320, 95 | 0 | – | 2/0/0/0 | 1 | 2 | 42 k – 54 k | 70 k – 90 k |
+| Dart | XS | interceptor | Kaenkauth Hegemony yards | 110 / 80 | 380, 110 | 0 | – | 2/0/0/0 | 1 | 3 | 51 k – 65 k | 85 k – 109 k |
+| Hob | XS | mining pod | Tamsin Mining Cooperative | 160 / 30 | 150, 50 | 12 | 1.5 | 1/0/0/0 | 1 | 1 | 18 k – 23 k | 30 k – 38 k |
+| Gnat | XS | racer | Gemebreamos Theocracy yards | 92 / 60 | 420, 95 | 2 | 3 | 0/0/0/0 | 1 | 3 | 55 k – 70 k | 91 k – 116 k |
+| Spur | XS | bomber | Roarmaren Republic yards | 180 / 110 | 240, 67 | 0 | – | 0/1/0/0 | 2 | 2 | 51 k – 65 k | 84 k – 107 k |
+| Mote | XS | scout | Greyhook Salvage Works | 70 / 50 | 300, 90 | 1 | 4 | 0/0/0/0 | 1 | 2 | 27 k – 34 k | 44 k – 56 k |
+| Tinker | XS | repair tender | Ixis Compact yards | 135 / 77 | 200, 67 | 6 | 2 | 0/0/0/0 | 2 | 2 | 41 k – 53 k | 69 k – 88 k |
+| Lark | S | courier | Kaenkauth Hegemony yards | 300 / 220 | 330, 75 | 20 | 6 | 1/0/0/0 | 2 | 3 | 211 k – 270 k | 351 k – 448 k |
+| Packet | S | light hauler | Brask & Orrel Free Yards | 380 / 150 | 210, 45 | 120 | 4 | 2/0/0/0 | 2 | 1 | 80 k – 102 k | 132 k – 169 k |
+| Pike | S | gunship | Zeaerd Compact yards | 520 / 300 | 260, 55 | 10 | 4 | 2/2/0/0 | 3 | 2 | 222 k – 284 k | 369 k – 471 k |
+| Finch | S | explorer | Gemebreamos Theocracy yards | 379 / 260 | 250, 50 | 30 | 9 | 1/0/0/0 | 2 | 3 | 281 k – 359 k | 467 k – 596 k |
+| Burrow | S | miner | Tamsin Mining Cooperative | 480 / 180 | 170, 40 | 160 | 4 | 1/1/0/0 | 3 | 1 | 100 k – 127 k | 165 k – 211 k |
+| Shrike | S | heavy fighter | Gemitorimos Dominion yards | 420 / 320 | 300, 70 | 5 | 5 | 3/1/0/0 | 2 | 3 | 290 k – 370 k | 482 k – 616 k |
+| Jackal | S | raider | Greyhook Salvage Works | 400 / 250 | 310, 68 | 40 | 5 | 2/1/0/0 | 3 | 2 | 163 k – 209 k | 271 k – 347 k |
+| Wisp | S | stealth scout | Ixis Compact yards | 252 / 330 | 290, 73 | 10 | 8 | 1/0/0/0 | 2 | 4 | 381 k – 487 k | 633 k – 809 k |
+| Tern | S | passenger shuttle | Fainyivin Hegemony yards | 402 / 200 | 240, 41 | 30 | 5 | 0/0/0/0 | 2 | 2 | 138 k – 177 k | 230 k – 294 k |
+| Drover | M | hauler | Brask & Orrel Free Yards | 1,100 / 500 | 180, 30 | 600 | 5 | 2/1/0/0 | 5 | 1 | 348 k – 445 k | 578 k – 739 k |
+| Corsair | M | multirole | Roarmaren Republic yards | 1,260 / 990 | 240, 47 | 150 | 6 | 2/2/1/0 | 6 | 3 | 1.2 m – 1.6 m | 2.1 m – 2.6 m |
+| Halberd | M | corvette | Zeaerd Compact yards | 2,100 / 1,300 | 230, 38 | 60 | 6 | 3/3/1/0 | 18 | 3 | 1.6 m – 2.1 m | 2.7 m – 3.4 m |
+| Seeker | M | long-range explorer | Gemebreamos Theocracy yards | 1,150 / 1,100 | 220, 36 | 120 | 14 | 1/1/0/0 | 5 | 4 | 1.9 m – 2.4 m | 3.1 m – 3.9 m |
+| Delver | M | miner | Tamsin Mining Cooperative | 1,600 / 600 | 150, 28 | 700 | 5 | 2/1/0/0 | 8 | 2 | 624 k – 797 k | 1.0 m – 1.3 m |
+| Mule | M | armoured trader | Fainyivin Hegemony yards | 2,070 / 800 | 170, 27 | 500 | 6 | 2/2/0/0 | 7 | 2 | 1.0 m – 1.3 m | 1.7 m – 2.2 m |
+| Lancet | M | strike craft | Kaenkauth Hegemony yards | 1,200 / 1,100 | 290, 50 | 40 | 7 | 2/3/0/0 | 6 | 4 | 1.5 m – 1.9 m | 2.4 m – 3.1 m |
+| Ferry | M | liner | Ixis Compact yards | 1,170 / 1,100 | 200, 34 | 200 | 7 | 1/0/0/0 | 30 | 3 | 979 k – 1.3 m | 1.6 m – 2.1 m |
+| Scavenger | M | salvager | Greyhook Salvage Works | 1,500 / 500 | 170, 32 | 450 | 5 | 2/1/0/0 | 8 | 1 | 384 k – 491 k | 638 k – 816 k |
+| Bulwark | L | frigate | Gemitorimos Dominion yards | 5,200 / 3,200 | 190, 24 | 300 | 7 | 4/4/2/0 | 60 | 3 | 5.1 m – 6.5 m | 8.5 m – 10.8 m |
+| Caravel | L | freighter | Brask & Orrel Free Yards | 4,200 / 1,600 | 150, 18 | 3,000 | 6 | 2/2/0/0 | 20 | 1 | 2.2 m – 2.7 m | 3.6 m – 4.6 m |
+| Warden | L | patrol cruiser | Roarmaren Republic yards | 7,020 / 4,620 | 180, 22 | 250 | 7 | 4/4/3/0 | 90 | 3 | 7.5 m – 9.6 m | 12.5 m – 16.0 m |
+| Atlas | L | mining refinery | Tamsin Mining Cooperative | 6,500 / 2,000 | 120, 14 | 4,000 | 5 | 2/2/1/0 | 40 | 2 | 4.5 m – 5.8 m | 7.5 m – 9.6 m |
+| Pilgrim | L | deep explorer | Gemebreamos Theocracy yards | 4,370 / 3,800 | 170, 18 | 600 | 20 | 2/2/0/0 | 30 | 5 | 14.2 m – 18.2 m | 23.6 m – 30.2 m |
+| Reaver | L | raider | Greyhook Salvage Works | 5,000 / 2,600 | 210, 24 | 800 | 7 | 4/3/2/0 | 45 | 2 | 3.8 m – 4.8 m | 6.3 m – 8.0 m |
+| Wellspring | L | fuel tanker | Ixis Compact yards | 4,050 / 1,980 | 140, 17 | 2,500 | 8 | 2/1/0/0 | 25 | 2 | 3.8 m – 4.8 m | 6.3 m – 8.0 m |
+| Citadel | XL | destroyer (4 in hangar) | Zeaerd Compact yards | 18,000 / 11,000 | 160, 12 | 800 | 8 | 6/6/4/1 | 320 | 4 | 45.2 m – 57.8 m | 75.1 m – 96.0 m |
+| Leviathan | XL | bulk freighter | Brask & Orrel Free Yards | 15,000 / 5,000 | 110, 8 | 30,000 | 6 | 3/3/1/0 | 120 | 1 | 18.7 m – 23.9 m | 31.1 m – 39.7 m |
+| Sovereign | XL | battlecruiser (6 in hangar) | Fainyivin Hegemony yards | 29,900 / 16,000 | 170, 10 | 1,000 | 8 | 6/8/5/2 | 600 | 4 | 87.1 m – 111.3 m | 144.7 m – 184.9 m |
+| Ark | XL | colony ship (2 in hangar) | Ixis Compact yards | 18,000 / 9,900 | 100, 8 | 12,000 | 10 | 2/2/1/0 | 3,000 | 3 | 50.8 m – 64.9 m | 84.4 m – 107.8 m |
+| Bastion | Capital | fleet carrier (36 in hangar) | Brask & Orrel Free Yards | 90,000 / 40,000 | 90, 4 | 60,000 | 12 | 8/8/4/2 | 8,000 | 4 | 1.63 bn – 2.08 bn | 2.71 bn – 3.46 bn |
+| Tyrant | Capital | dreadnought (24 in hangar) | Gemitorimos Dominion yards | 160,000 / 70,000 | 80, 3 | 8,000 | 10 | 12/12/8/4 | 12,000 | 4 | 1.27 bn – 1.63 bn | 2.12 bn – 2.70 bn |
+| Monolith | Capital | battleship (12 in hangar) | Roarmaren Republic yards | 108,000 / 66,000 | 85, 3 | 5,000 | 9 | 10/10/8/4 | 9,000 | 5 | 903.3 m – 1.15 bn | 1.50 bn – 1.92 bn |
+
+**Starting out:** a new player gets the cheapest jump-capable design their home yards sell under 100,000 SU (the
+Gemebreamos Gnat, the Ixis Tinker), or the independent Wren (44 of the 46 powers). They also get money worth 20,000 SU in their
+home currency.
+
+### Money
+
+- **The Standard Unit (SU)** is the game's measure of value: the cost of a fixed basket of goods (iron, copper,
+  food, water, fuel, machinery, electronics) at base values. Nobody carries SU.
+- **Each great power has its own currency.** Its rate is **coins per SU**, so every currency is tied to what goods
+  cost. Today's rates run from 0.9 to 12 coins per SU. A rate moves with:
+  - its economy: a base level and a slow drift of up to 2% a year;
+  - **trade cycles:** two waves of 180–700 days, each up to ±7%;
+  - **its wars:** winning contested systems strengthens it, losing them weakens it, up to 10% per war;
+  - **shocks** that fade with a half-life: events, and what players do, such as raiding a power's convoys, flooding
+    its markets or completing big contracts.
+- **Cross rates** come from the rates (coins of B per coin of A = rate B / rate A). Going round three currencies
+  returns exactly what you started with, so there's no arbitrage. The only cost is the exchange's spread:
+  - 1.5% for a station's own coin; 3% for an ally's; 5% for a neutral's;
+  - an enemy's coin is refused. Free ports and black markets take anything, at a cut of about 8–15%.
+- **Prices:** a good's price at a station is its base value in SU × the system's supply and demand × the holder's
+  rate.
+  - **Supply and demand:** what the planets mine and grow, cheaper ore around metal-rich stars, a seasonal swing,
+    and what a front needs.
+  - **Contested systems** trade in the currency of whoever holds them that day; while they're fought over, only in
+    SU, through free traders.
+
+### Reputation and alignment
+
+- **Origin:** a new player chooses which great power to come from, and so which species to play. They start:
+  - at its home world, flying with its species' build and senses;
+  - with a starter ship (see "Ships") and money worth 20,000 SU in its currency;
+  - with standing that follows their people's feuds: Friendly at home (+350), +150 with its allies, −150
+    (Unfriendly) with its enemies, neutral elsewhere.
+  - Its offshoot nomads like them (+100); syndicates don't (−200), unless their sponsor is the origin.
+- **Reputation:** one number per faction, from −1000 to +1000, in five steps: Hostile, Unfriendly, Neutral, Friendly
+  and Allied. Actions change it (trade, missions, war missions, kills, smuggling, raids, rescues, surveys). The news
+  spreads:
+  - the target's allies feel it the same way (40%), and its enemies the other way (40%);
+  - small factions feel it by their own stance (25%);
+  - syndicates warm to crimes.
+- **Alignment:** which great power a player leans to and how far (their share of positive standing), and a second
+  axis from **lawful** through **grey** to **outlaw** (bounties earned against crimes committed). Commissions are
+  part of alignment too.
+- **Bounties:** crimes in a power's space earn a bounty, in its currency.
+- **Hostility:** Hostile factions shoot on sight, and so do enemies of the player's commission.
+- **Fading:** standing drifts back towards the start, 5% of the gap a season, so old deeds fade.
 
 ## Technical
 
@@ -231,6 +627,8 @@ like every Library game.
 - **Renderer:** WebGL 2 with lit, textured meshes, a skybox built from the actual stars around the player (brightness
   from luminosity and distance), and planets with procedural textures from type and colour. The Canvas 2D fallback
   draws flat-shaded polygons, sorted back to front, and a point starfield.
+- **The star map:** in 3D (see "The map"). With WebGL, drawn on the graphics card; on the Canvas fallback, as
+  lines and points sorted back to front, like the viewer.
 - **The sky:** the nearest few thousand stars as points from `starsNear`. Farther away, the galaxy's integrated light
   as a precomputed sky texture: in the Glow, the core fills half the sky.
 - **Performance:**
@@ -242,23 +640,33 @@ like every Library game.
 
 ## Milestones
 
-1. **M0 (this plan):** the galaxy model, its checks and the viewer. Done.
+1. **M0 (this plan):** the galaxy model; the great powers, alliances, front-line wars, small factions, money,
+   reputation and the 40 stock ships as models; their checks and the 3D viewer. Done.
 2. **M1:** fly a ship in one system, with WebGL and the Canvas fallback; planets, a star and a station to dock at.
-   Gamekit controls.
-3. **M2:** the star map and jumping: the whole galaxy, zoom to a region, plot a route. The sky from real
-   neighbours.
-4. **M3:** trade: markets, cargo, prices, the factions' stations.
-5. **M4:** combat: weapons, shields, heat, pirates, patrols.
+   Gamekit controls. The flight model and its checks are done (`flight.js`).
+3. **M2:** the 3D star map and jumping: the whole galaxy, zoom to a region, plot a route; borders and contested
+   space; lanes. The sky from real neighbours.
+4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.
+5. **M4:** combat and war: weapons, shields, heat, pirates, patrols; war missions, commissions, moving fronts;
+   carriers and dreadnoughts.
 6. **M5:** exploration in full: scanning, surveys, ruins, naming, missions. The package moves to `apps/` and
    reaches the App Store.
-7. **M6:** the Core, the black hole, polish; phones (1.6.0).
+7. **M5b:** colonies: claiming systems and building ports and facilities, after Elite Dangerous's Trailblazers
+   (see [plan-ember-reach-colonies.md](plan-ember-reach-colonies.md)).
+8. **M6:** the Core, the black hole, polish; phones (1.6.0).
 
 ## Open questions
 
 - The name.
 - Whether the WOS "rich galaxy" mix should be an option at all.
 - How long jumps take in game time, and whether time matters (factions moving, markets drifting).
-- Multiplayer: not planned; the deterministic galaxy would make shared discoveries possible later.
+- Multiplayer: shared fronts (everyone's war effort added up online, optional) and shared discoveries are
+  possible because the galaxy and the wars are deterministic; not before M5.
+- The great powers' names: generated today; hand-written names and cultures may suit them better.
+- Game time: how long a season feels in play (30 game days; jumps and lanes take days).
+- Flight: whether FA-off should have a speed cap (today it has none: the main drive is the only limit). The 40%
+  blue zone and the time constants are starting values for playtests.
+- G-forces with the canopy broken: what the pilot feels (greyout, blackout, a shaking view) and from how many g.
 
 ## Sources
 
@@ -271,3 +679,4 @@ like every Library game.
 - Drake equation: [Wikipedia](https://www.wikipedia.org/wiki/Drake_equation); [Kepler-era fp and ne](https://fermi-sim.pages.dev/research-drake.html)
 - Ellipticals and life: [Dayal et al. 2015](https://astrobiology.com/?p=12744); [Whitmire 2020](https://www.arxiv.org/pdf/2003.13643)
 - WOS data: the WOS Galaxy Map in RudolfOS (`desktop/base_v24.html`), statistics only.
+- Oolite's flight: [a Newtonian ship under computer-controlled thrusters, built to fly like Elite](https://bb.oolite.space/viewtopic.php?p=4701); [roll, pitch and yaw controls](https://oolite.readthedocs.io/en/latest/index.pdf); [roll versus yaw](https://wiki.alioth.net/index.php/Roll_vs_Yaw_crusades)

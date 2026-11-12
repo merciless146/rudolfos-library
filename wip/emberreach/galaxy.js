@@ -36,7 +36,16 @@ const GAL = {
 	sigma: 76,           /* km/s: velocity dispersion */
 	ageOld: 10e9, ageYoung: 3e9, youngCentre: 0.3,   /* share of young stars at the centre, falling outward */
 	FeHCentre: 0.15, FeHSlope: -0.35, FeHScatter: 0.15,
-	cell: 4, splitAt: 48, maxDepth: 10};
+	cell: 4, splitAt: 48, maxDepth: 10,
+	/* galactic north is +z, the short axis; the great powers live in the northern Middle Reach */
+	north: {mLo: 1000, mHi: 2000, latMin: 30},
+	/* six clusters of great powers, each 6-8 powers; each power holds about 8,000-14,000 systems */
+	clusters: {count: 6, perMin: 6, perMax: 8, heldMin: 8000, heldMax: 14000, nearCore: [45, 90], nearRim: [2150, 2350], others: [500, 2000]}};
+/* the regions, by ellipsoidal radius (pc) */
+const REGIONS = [['Core', 0, 30], ['Glow', 30, 450], ['Inner Reach', 450, 1000], ['Middle Reach', 1000, 2000], ['Outer Clouds', 2000, 3000]];
+/* galactic latitude, degrees: +90 at the north pole */
+function latitude(x, y, z) { const d = Math.hypot(x, y, z); return d ? Math.asin(z / d) * 180 / Math.PI : 0 }
+function regionAt(x, y, z) { const m = mRad(x, y, z), r = REGIONS.find(([, lo, hi]) => m >= lo && m < hi) || REGIONS[4]; return {name: r[0], m, lat: latitude(x, y, z)} }
 const A = GAL.Re / 1.8153, Q = GAL.axes[0] * GAL.axes[1] * GAL.axes[2];
 const PC_PER_KMS_YR = 1.0227e-6;
 
@@ -230,9 +239,10 @@ function classify(p, r) {
 let ruinChance = null;
 const RUIN_CHANCE = () => ruinChance == null ? (ruinChance = drake(sampleGalaxy(3000, 99), true).past * DRAKE.footprint / STARS_TOTAL) : ruinChance;
 /* N = N* · fp · ne · fl · fi · fc · (L / T): ne is measured on the model itself (habitable, quiet worlds per star) */
-/* fl, fi, fc and L are the game's choices (nobody knows them): about six civilisations alive now, each lasting
-   15,000 years; the millions before them left ruins, each civilisation in about ten systems (its home and colonies) */
-const DRAKE = {fl: 0.5, fi: 0.01, fc: 0.2, L: 15000, T: 1e10, footprint: 10};
+/* fl, fi, fc and L are the game's choices (nobody knows them): about forty civilisations alive now (six clusters
+   of six to eight great powers), each lasting 90,000 years; the millions before them left ruins, each civilisation
+   in about ten systems (its home and colonies). The number of earlier ones does not depend on L. */
+const DRAKE = {fl: 0.5, fi: 0.01, fc: 0.2, L: 90000, T: 1e10, footprint: 10};
 function drake(sampleStars, noRuins) {
 	let withPl = 0, habit = 0, n = 0;
 	/* ne: worlds with liquid water and ESI 0.8 or more that stay undisturbed for 4 billion years, per star with planets */
@@ -254,28 +264,103 @@ function sampleGalaxy(n, seed) {
 	return out;
 }
 
-/* ---------- the civilisations alive now ---------- */
-/* as many as the Drake equation gives, each at home on a living world in quiet space, at least 400 pc apart;
-   each has spread about 45 pc in its 15,000 years (a hundredth of light speed, colony to colony) */
+/* ---------- the great powers: six clusters ---------- */
+/* About forty civilisations are alive now (the Drake equation with L = 90,000 years), in six clusters of six to
+   eight great powers, each cluster a shared cradle (see the plan). The clusters:
+   - the North: around the North Point, straight up the pole 1,500 pc out (the northern Middle Reach);
+   - the Hearth: just outside the Core, 45-90 pc from the centre, crowded and harsh;
+   - the Rim: out in the Outer Clouds, 2,150-2,350 pc, where stars are still only about two parsecs apart;
+   - three more, 500-2,000 pc out;
+   placed (from a seeded search) so the distances between clusters are as even as they can be.
+   Each power's claim is sized by the systems it holds (8,000-14,000), so territories are small in the crowded
+   middle (a few parsecs) and wide in thin space (tens of parsecs); a cluster's homes sit about a claim apart, so
+   neighbours' claims meet. Homes are real stars (from the cells), on living worlds where there are any. */
+function northPoint() { const N = GAL.north; return [0, 0, (N.mLo + N.mHi) / 2 * GAL.axes[2]] }
+/* stars drawn from one region only (for maps): Hernquist inverted between two radii, directions in a polar cap */
+function sampleRegion(n, seed, mLo, mHi, latMin) {
+	const r = rng(seed), out = [], f = m => (m / (m + A)) ** 2, uLo = f(mLo), uHi = f(mHi), cMin = Math.sin(latMin * Math.PI / 180);
+	for (let i = 0; i < n; i++) {
+		const u = uLo + r() * (uHi - uLo), m = A * Math.sqrt(u) / (1 - Math.sqrt(u));
+		let x, y, z, k = 0;
+		do { const ct = cMin + r() * (1 - cMin), st = Math.sqrt(1 - ct * ct), ph = 2 * Math.PI * r(); x = m * st * Math.cos(ph) * GAL.axes[0]; y = m * st * Math.sin(ph) * GAL.axes[1]; z = m * ct * GAL.axes[2] } while (latitude(x, y, z) < latMin && ++k < 20);
+		out.push(star('region:' + seed + ':' + i, x, y, z));
+	}
+	return out;
+}
+const CLUSTER_NAMES = ['North', 'Hearth', 'Rim'];
+/* a point at ellipsoidal radius m in a random direction */
+function pointAt(m, r) { const ct = 2 * r() - 1, st = Math.sqrt(1 - ct * ct), ph = 2 * Math.PI * r(); return [m * st * Math.cos(ph) * GAL.axes[0], m * st * Math.sin(ph) * GAL.axes[1], m * ct * GAL.axes[2]] }
+const d3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+let CLUSTERS = null;
+function clusters() {
+	if (CLUSTERS) return CLUSTERS;
+	const C = GAL.clusters, r = rng(hashStr('clusters')), np = northPoint();
+	let best = null, bestCV = 1e9;
+	for (let t = 0; t < 20000; t++) {
+		const m = (lo, hi) => lo + r() * (hi - lo);
+		const pts = [np, pointAt(m(...C.nearCore), r), pointAt(m(...C.nearRim), r)];
+		while (pts.length < C.count) pts.push(pointAt(m(...C.others), r));
+		const ds = []; for (let i = 0; i < pts.length; i++) for (let k = i + 1; k < pts.length; k++) ds.push(d3(pts[i], pts[k]));
+		const mean = ds.reduce((a, b) => a + b) / ds.length, cv = Math.sqrt(ds.reduce((a, b) => a + (b - mean) ** 2, 0) / ds.length) / mean;
+		if (cv < bestCV) { bestCV = cv; best = pts }
+	}
+	CLUSTERS = best.map((at, k) => ({id: 'cluster' + k, name: CLUSTER_NAMES[k] || (starName(hashStr('cluster:' + k)) + ' Reach'), at, m: mRad(...at), lat: latitude(...at)}));
+	CLUSTERS.cv = bestCV;
+	return CLUSTERS;
+}
+/* claim radius (pc) for a power holding `held` systems where the density is n: a sphere a quarter larger than
+   the systems need, as neighbours take a share of it */
+const claimFor = (held, n) => 1.25 * Math.cbrt(3 * held / (4 * Math.PI * n));
+/* the stars nearest a point, from the real cells */
+function nearestStars(p, want) { let R = Math.max(0.02, 1.2 * Math.cbrt(want / (numberDensity(...p) + 1e-9))); for (let k = 0; k < 6; k++) { const s = starsNear(p[0], p[1], p[2], R); if (s.length >= want) return s; R *= 1.6 } return starsNear(p[0], p[1], p[2], R) }
 let CIVS = null;
+const MIN_CIVS = 6;   /* per cluster */
 function civilizations() {
 	if (CIVS) return CIVS;
-	const want = Math.max(3, Math.round(drake(sampleGalaxy(3000, 99), true).N)), cand = [];
-	for (const s of sampleGalaxy(40000, 4242)) {
-		if (s.kind != 'star' || s.M < 0.5) continue;
-		const sy = system(s), home = sy.planets.filter(p => p.alive && p.esi >= 0.75 && /EarthLike|Terra|Forest/.test(p.type)).sort((a, b) => b.esi - a.esi)[0];
-		if (home) cand.push({s, home, score: home.esi * quietChance(s, 20, 4e9)});
-	}
-	cand.sort((a, b) => b.score - a.score);
+	const C = GAL.clusters;
 	CIVS = [];
-	for (const c of cand) {
-		if (CIVS.length >= want) break;
-		if (CIVS.some(o => Math.hypot(o.star.x - c.s.x, o.star.y - c.s.y, o.star.z - c.s.z) < 400)) continue;
-		CIVS.push({name: starName(hashStr('civ:' + c.s.id)) + ' ' + ['Compact', 'Concord', 'Assembly', 'Reach', 'Union', 'Hegemony', 'Commonwealth', 'Choir'][CIVS.length % 8], star: c.s, home: c.home, radius: 45});
+	for (const cl of clusters()) {
+		const r = rng(hashStr('pick:' + cl.id)), want = C.perMin + Math.floor(r() * (C.perMax - C.perMin + 1));
+		const n0 = numberDensity(...cl.at), R0 = claimFor((C.heldMin + C.heldMax) / 2, n0);
+		/* candidates: real stars around the cluster's centre, within about 1.6 claims (so neighbours' claims meet) */
+		const cand = [], seen = new Set();
+		for (let k = 0; k < 700 && cand.filter(c => c.tier == 0).length < 60; k++) {
+			const dir = pointAt(1, r), rad = 1.6 * R0 * Math.cbrt(r()), p = cl.at.map((v, i) => v + dir[i] / [GAL.axes[0], GAL.axes[1], GAL.axes[2]][i] * rad);
+			for (const s of nearestStars(p, 3)) {
+				if (seen.has(s.id) || s.kind != 'star' || s.M < 0.45) continue;
+				seen.add(s.id);
+				const pl = system(s).planets;
+				/* a living world if there is one; where the sky is too crowded for life to last (the Hearth), a
+				   water world that held on; failing that, any rocky world with air (a people who built their own shelter) */
+				const tiers = [p => p.alive && p.esi >= 0.75 && /EarthLike|Terra|Forest/.test(p.type), p => p.water && p.esi >= 0.7, p => !p.gas && p.atmo && p.esi >= 0.6];
+				for (let t = 0; t < tiers.length; t++) { const h = pl.filter(tiers[t]).sort((a, b) => b.esi - a.esi)[0]; if (h) { cand.push({s, home: h, tier: t, score: -t + h.esi + 0.6 * rng(hashStr('pick:' + s.id))() - d3([s.x, s.y, s.z], cl.at) / R0}); break } }
+			}
+		}
+		cand.sort((a, b) => b.score - a.score);
+		/* homes at least 0.85 claims apart; and each with two or more others within 1.35 claims (neighbours to share
+		   borders with), an outlier being swapped for the next candidate */
+		const mine = [], out = new Set(), P = c => [c.s.x, c.s.y, c.s.z];
+		const fill = () => { for (const c of cand) {
+			if (mine.length >= want) break;
+			if (out.has(c) || mine.includes(c) || mine.some(o => d3(P(o), P(c)) < 0.85 * R0)) continue;
+			mine.push(c);
+		} };
+		fill();
+		for (let round = 0; round < 30; round++) {
+			const lone = mine.find(c => mine.filter(o => o != c && d3(P(o), P(c)) < 1.35 * R0).length < 2);
+			if (!lone) break;
+			out.add(lone); mine.splice(mine.indexOf(lone), 1); fill();
+		}
+		const chosen = mine.splice(0);
+		for (const c of chosen) {
+			const q = rng(hashStr('civ:' + c.s.id)), age = Math.round(30000 + q() * 60000), held = Math.round(C.heldMin + (C.heldMax - C.heldMin) * (age - 30000) / 60000);
+			mine.push({id: 'major' + (CIVS.length + mine.length), cluster: cl.id, star: c.s, home: c.home, homeTier: c.tier, age, held, claim: claimFor(held, numberDensity(c.s.x, c.s.y, c.s.z)), radius: Math.round(10 + q() * 20)});
+		}
+		CIVS.push(...mine);
 	}
 	return CIVS;
 }
 
-const EmberGalaxy = {civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
+const EmberGalaxy = {MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
 if (typeof module != 'undefined') module.exports = EmberGalaxy; else root.EmberGalaxy = EmberGalaxy;
 })(typeof window != 'undefined' ? window : this);
