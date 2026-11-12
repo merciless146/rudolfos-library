@@ -90,6 +90,36 @@ try {
 	ok('32. haulers can bring a facility\'s goods too', !b2.ok || (hb.ok && pl.hauls.some(h => h.job == b2.build.id)), b2.why || (hb && hb.why));
 	const t1 = Date.now(); for (let i = 0; i < 100; i++) Co.grow(pl, c, c.opens + 40 + i);
 	ok('33. a colony\'s daily step is quick', (Date.now() - t1) / 100 < 1, ((Date.now() - t1) / 100).toFixed(2) + ' ms');
+	/* ---- part 3: forward bases, raids, independent colonies, carriers ---- */
+	let war = null, side = null, front = null;
+	for (const w of F.wars()) { for (const sd of [w.a, w.b]) { const f = w.systems.map(x => ({x, h: F.contestedHolder(x.at, day, [])})).find(o => o.h.holder == sd && o.h.supplied && o.h.war == w.id && !T.portFor(o.x.star, day)); if (f) { war = w; side = sd; front = f; break } } if (front) break }
+	const pw = Tr.newPlayer(side), fo = {star: front.x.star, owner: side}; pw.wallet[F.byId(side).currency.code] = 1e9; pw.rep[side] = 400;
+	ok('34. a forward base needs a commission, on a front its side holds and supplies', !Co.canClaim(pw, fo, front.x.star, 'base', day, JUMP).ok && (pw.commission = side, Co.canClaim(pw, fo, front.x.star, 'base', day, JUMP).ok) && !Co.canClaim(pw, fo, front.x.star, 'outpost', day, JUMP).ok,
+		Co.canClaim(pw, fo, front.x.star, 'base', day, JUMP).why);
+	const enemySys = war.systems.map(x => ({x, h: F.contestedHolder(x.at, day, [])})).find(o => o.h.holder && o.h.holder != side && o.h.war == war.id);
+	ok('35. ...and not where the enemy holds', !enemySys || !Co.canClaim(pw, {star: enemySys.x.star, owner: side}, enemySys.x.star, 'base', day, JUMP).ok);
+	const fb = Co.claim(pw, fo, front.x.star, 'base', day, JUMP).colony; Co.beacon(pw, fb, day); for (const [gd, t] of Object.entries(Co.left(fb))) pw.cargo[gd] = t; Co.deliver(pw, fb, day);
+	const ev0 = pw.warEvents.length, newsB = Co.turn(pw, fb.opens + 30);
+	ok('36. a built base puts war effort into its front each season while held (or is lost if taken)', fb.stage == 'lost' ? newsB.some(n => /lost/.test(n.text)) : pw.warEvents.length > ev0 && pw.warEvents.slice(-1)[0].side == side && pw.warEvents.slice(-1)[0].war == war.id);
+	/* raids */
+	let r1 = 0, r2 = 0; const cu = {id: 'u', star: {at: [3000, 0, 0]}, port: 'outpost', builds: []}, cmil = {id: 'm', star: {at: [3000, 0, 0]}, port: 'outpost', builds: [{fac: 'military', done: true}]};
+	for (let i = 0; i < 2000; i++) { if (Co.raided(cu, {good: 'Iron', eta: i, tons: 10})) r1++; if (Co.raided(cmil, {good: 'Iron', eta: i, tons: 10})) r2++ }
+	ok('37. haulers are raided about 10% of runs in unclaimed space, never past a military outpost', Math.abs(r1 / 2000 - 0.10) < 0.025 && r2 == 0, r1 + '/2000');
+	/* independent */
+	const pi = Tr.newPlayer(home.id); pi.wallet[cur] = 1e9;
+	const wild = G.starsNear(3000 * 0 + home.star.x, home.star.y, home.star.z, 40).find(x => x.kind == 'star' && G.system(x).planets.length && !F.claimAt([x.x, x.y, x.z]).owner && !F.claimAt([x.x, x.y, x.z]).contested && !T.portFor(x, day) && G.mRad(x.x, x.y, x.z) > 30);
+	const io = {star: wild, owner: home.id};
+	const ic = wild && Co.claim(pi, io, wild, 'outpost', day, 50, true).colony;
+	ok('38. an independent claim: unclaimed space only, no sponsor, its own scrip pegged near 1 SU', ic && ic.independent && !ic.sponsor && /^X[A-Z]{2}$/.test(ic.scrip) && Math.abs(E.rate(ic.scrip, day) - 1) < 0.2 && !Co.canClaim(pi, office, s1, 'outpost', day, JUMP, true, true).ok);
+	Co.beacon(pi, ic, day); for (const [gd, t] of Object.entries(Co.left(ic))) pi.cargo[gd] = t; Co.deliver(pi, ic, day);
+	const nI = Co.turn(pi, ic.opens + 30);
+	ok('39. it pays in its scrip, warns of low security, and a second low season loses it to a syndicate', (pi.wallet[ic.scrip] || 0) > 0 && nI.some(n => /security is low/.test(n.text)) && (Co.turn(pi, ic.opens + 60), ic.stage == 'lost') && !Co.colonyAt(pi, wild.id));
+	/* carriers */
+	const pc2 = Tr.newPlayer(home.id); pc2.wallet[cur] = 1e9; const cc = Co.claim(pc2, office, cands[2] || cands[1], 'outpost', day, JUMP).colony; Co.beacon(pc2, cc, day);
+	const q0 = Co.haulQuote(office, mkt, cc, 'Iron', 400, day), cars = Co.carriers(pc2, day), rr = cars.length && Co.rent(pc2, cc, cars[0].id, day, cur), q1 = Co.haulQuote(office, mkt, cc, 'Iron', 400, day);
+	ok('40. a rented carrier makes haulage 30% cheaper and twice as fast for a season', rr && rr.ok && Math.abs(q1.cost - q0.cost * 0.7) <= 1 && q1.days == Math.max(1, Math.ceil(q0.days / 2)) && !Co.rented(cc, day + 31), rr && rr.why);
+	const back3 = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(pi))));
+	ok('41. independent and lost colonies come back from the save', back3.colonies.length == pi.colonies.length && back3.colonies[0].scrip == ic.scrip);
 	const t0 = Date.now(); Co.candidates(pl, office, day, JUMP, 12);
 	ok('19. the planner\'s listing is quick', Date.now() - t0 < 500, (Date.now() - t0) + ' ms');
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }

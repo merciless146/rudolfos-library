@@ -28,6 +28,18 @@
      tech come from the facilities.
    - Each season (30 days from opening) the colony pays its architect a share of its trade (5-10% by wealth), in
      the sponsor's coin.
+   Part 3 (M5b-3): the edges.
+   - Forward bases: in contested space, for the side you're commissioned with, at its own office, where that side
+     holds the system and its supply chain reaches. 2,500 t of military goods. A built base puts war effort into
+     its front each season while its side holds the system; if the enemy takes it, the base is lost.
+   - Raids: construction draws pirates (the flight screen adds them on arrival), and haulers can be raided on the
+     way (10% of runs in unclaimed space, 5% in claimed, none past a military outpost at the colony).
+   - Independent colonies: claimed with no sponsor (unclaimed space only), the fee paid through free traders. They
+     mint their own scrip, pegged to the SU at first and floating with the colony's wealth; they pay their
+     architect more (10-15%, no taxes) but have no protection: low security for two seasons running and a syndicate
+     takes the colony over.
+   - Rented carriers: a prospector guild's or nomads' fleet carrier, parked at your build for a season (if they're
+     not against you), serves as a depot: haulage to that colony costs 30% less and arrives in half the days.
    The record (P.colonies, P.hauls) is plain data, kept in the save. GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -39,8 +51,10 @@ const G = req('galaxy.js', 'EmberGalaxy'), F = req('factions.js', 'EmberFactions
 const PORTS = {
 	outpost: {name: 'Outpost', cls: 'trefoil', fee: 120000, goods: {Iron: 400, Aluminum: 300, Titanium: 150, Machinery: 200, Electronics: 100, Food: 150, Water: 150, Fuel: 50}},
 	station: {name: 'Station', cls: 'lantern', fee: 300000, goods: {Iron: 2000, Aluminum: 1600, Titanium: 900, Machinery: 1200, Electronics: 700, Food: 700, Water: 600, Fuel: 300}},
-	great: {name: 'Great port', cls: 'halo', fee: 750000, goods: {Iron: 6000, Aluminum: 5000, Titanium: 3000, Machinery: 4000, Electronics: 2500, Food: 2000, Water: 1800, Fuel: 700}}};
+	great: {name: 'Great port', cls: 'halo', fee: 750000, goods: {Iron: 6000, Aluminum: 5000, Titanium: 3000, Machinery: 4000, Electronics: 2500, Food: 2000, Water: 1800, Fuel: 700}},
+	base: {name: 'Forward base', cls: 'trefoil', fee: 200000, goods: {Iron: 625, Titanium: 500, Machinery: 375, Electronics: 375, Munitions: 625}, base: true}};
 const COL = {claimDays: 2, seasonDays: 30, salvage: 1 / 3, core: 30, beaconRadii: 30, deliverRange: 3000, charter: 100, neutral: -100, perRep: 100, finishRep: 150,
+	raid: {unclaimed: 0.10, claimed: 0.05}, baseEffort: 5, rent: {fee: 40000, cut: 0.3}, scrip: {drift: 0.15}, takeover: 2, indep: {share: [0.10, 0.15], security: -0.15},
 	haul: {over: [0.10, 0.25], perPc: 0.004, fleet: [{ship: 'Drover', t: 600, jump: 5}, {ship: 'Caravel', t: 3000, jump: 6}, {ship: 'Leviathan', t: 30000, jump: 6}]}};
 const at = s => s.at || [s.x, s.y, s.z];
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -52,14 +66,17 @@ const short = id => F.byId(id).name.replace(/^The /, '');
 function portWorld(star) { const pl = G.system(star).planets.slice().sort((a, b) => b.esi - a.esi || b.R - a.R); return pl[0] ? pl[0].name : null }
 const open = P => list(P).find(c => c.stage == 'claimed' || c.stage == 'building');
 const budget = (P, sponsor) => 1 + Math.floor(Math.max(0, (P.rep[sponsor] || 0) - COL.charter) / COL.perRep);
-const held = P => list(P).filter(c => c.stage != 'lapsed').length;
-const colonyAt = (P, starId) => list(P).find(c => c.star.id == starId && c.stage != 'lapsed') || null;
+const gone = c => c.stage == 'lapsed' || c.stage == 'lost';
+const held = P => list(P).filter(c => !gone(c)).length;
+const colonyAt = (P, starId) => list(P).find(c => c.star.id == starId && !gone(c)) || null;
 
 /* can this office's sponsor claim this system for you? {ok, why, fee (sponsor's coin), salvage} */
-function canClaim(P, office, star, kind, day, jumpRange, plan) {
+function canClaim(P, office, star, kind, day, jumpRange, plan, independent) {
 	const sp = F.byId(office.owner), K = PORTS[kind];
-	if (!sp || sp.kind != 'major') return {ok: false, why: 'Only a great power\'s colonial office sponsors claims (free ports come later).'};
+	if (!sp || sp.kind != 'major') return {ok: false, why: 'Claims are filed at a great power\'s colonial office.'};
 	if (!K) return {ok: false, why: 'No such port.'};
+	if (independent) return indepClaim(P, office, star, kind, day, jumpRange, plan);
+	if (K.base) return baseClaim(P, office, star, day, jumpRange, plan);
 	const p = at(star);
 	if (dist(p, at(office.star)) > jumpRange) return {ok: false, why: star.name + ' is more than one jump (' + jumpRange + ' pc) from here.'};
 	if (G.mRad(p[0], p[1], p[2]) < COL.core) return {ok: false, why: 'Nothing can be built in the Core.'};
@@ -67,7 +84,7 @@ function canClaim(P, office, star, kind, day, jumpRange, plan) {
 	if (colonyAt(P, star.id)) return {ok: false, why: 'You already hold a claim there.'};
 	if (F.majors().some(m => m.star.id == star.id) || T.portFor(star, day)) return {ok: false, why: star.name + ' already has a port.'};
 	const c = F.claimAt(p);
-	if (c.contested) return {ok: false, why: star.name + ' is contested: no civilian colonies on a front.'};
+	if (c.contested) return {ok: false, why: star.name + ' is contested: no civilian colonies on a front (a forward base, with a commission).'};
 	if (c.owner && c.owner != sp.id) return {ok: false, why: star.name + ' is the ' + short(c.owner) + '\'s: claim it through their office.'};
 	if (c.owner && (P.rep[sp.id] || 0) < COL.charter) return {ok: false, why: 'A charter in ' + short(sp.id) + ' space needs Friendly standing.'};
 	if ((P.rep[sp.id] || 0) < COL.neutral) return {ok: false, why: 'The ' + short(sp.id) + ' won\'t sponsor an Unfriendly pilot.'};
@@ -76,26 +93,62 @@ function canClaim(P, office, star, kind, day, jumpRange, plan) {
 	const old = list(P).find(x => x.star.id == star.id && x.stage == 'lapsed'), salvage = !!old;
 	return {ok: true, fee: Math.round(K.fee * (salvage ? 1 - COL.salvage : 1) * E.rate(sp.currency.code, day)), currency: sp.currency.code, salvage, inside: !!c.owner};
 }
+/* the checks every claim shares: one jump, not the Core, planets, no port, not yours already */
+function common(P, office, star, day, jumpRange) {
+	const p = at(star);
+	if (dist(p, at(office.star)) > jumpRange) return star.name + ' is more than one jump (' + jumpRange + ' pc) from here.';
+	if (G.mRad(p[0], p[1], p[2]) < COL.core) return 'Nothing can be built in the Core.';
+	if (!G.system(star).planets.length) return star.name + ' has no planets: nowhere to put a port.';
+	if (colonyAt(P, star.id)) return 'You already hold a claim there.';
+	if (F.majors().some(m => m.star.id == star.id) || T.portFor(star, day)) return star.name + ' already has a port.';
+	return null;
+}
+const limits = (P, plan, b) => !plan && open(P) ? 'You already have a claim in progress at ' + open(P).star.name + '.' : !plan && held(P) >= b ? 'Your standing allows ' + b + (b == 1 ? ' colony' : ' colonies') + '.' : null;
+const salvageFee = (P, star, fee) => { const old = list(P).find(x => x.star.id == star.id && x.stage == 'lapsed'); return {salvage: !!old, fee: fee * (old ? 1 - COL.salvage : 1)} };
+/* a forward base: contested space your commissioned side holds, with its supply chain reaching it */
+function baseClaim(P, office, star, day, jumpRange, plan) {
+	const why = common(P, office, star, day, jumpRange); if (why) return {ok: false, why};
+	const sp = F.byId(office.owner), c = F.claimAt(at(star));
+	if (!c.contested) return {ok: false, why: 'Forward bases go only on a front, in contested space.'};
+	if (P.commission != sp.id) return {ok: false, why: 'A forward base needs a commission with the ' + short(sp.id) + '.'};
+	const h = F.contestedHolder(at(star), day, P.warEvents);
+	if (h.holder != sp.id) return {ok: false, why: 'The ' + short(sp.id) + ' doesn\'t hold ' + star.name + ' now.'};
+	if (!h.supplied) return {ok: false, why: 'The ' + short(sp.id) + '\'s supply chain doesn\'t reach ' + star.name + '.'};
+	const lim = limits(P, plan, budget(P, sp.id)); if (lim) return {ok: false, why: lim};
+	const f = salvageFee(P, star, PORTS.base.fee);
+	return {ok: true, fee: Math.round(f.fee * E.rate(sp.currency.code, day)), currency: sp.currency.code, salvage: f.salvage, war: h.war, key: h.key};
+}
+/* an independent colony: unclaimed space only; the fee in SU, through free traders */
+function indepClaim(P, office, star, kind, day, jumpRange, plan) {
+	if (PORTS[kind].base) return {ok: false, why: 'Forward bases are a power\'s.'};
+	const why = common(P, office, star, day, jumpRange); if (why) return {ok: false, why};
+	const c = F.claimAt(at(star));
+	if (c.owner || c.contested) return {ok: false, why: 'Independent colonies go only in unclaimed space.'};
+	const best = Math.max(...F.majors().map(m => P.rep[m.id] || 0)), lim = limits(P, plan, 1 + Math.floor(Math.max(0, best - COL.charter) / COL.perRep)); if (lim) return {ok: false, why: lim};
+	const f = salvageFee(P, star, PORTS[kind].fee);
+	return {ok: true, fee: Math.round(f.fee), currency: 'SU', salvage: f.salvage, independent: true};
+}
 /* candidate systems within one jump of an office: the nearest few that could be claimed (leaving out the limits of
    one open claim and the budget, which the planner reports separately) */
 function candidates(P, office, day, jumpRange, n) {
 	const p = at(office.star), out = [];
 	for (const s of G.starsNear(p[0], p[1], p[2], jumpRange)) {
 		if (s.kind != 'star' || s.id == office.star.id) continue;
-		if (canClaim(P, office, s, 'outpost', day, jumpRange, true).ok) out.push(s);
+		if (canClaim(P, office, s, 'outpost', day, jumpRange, true).ok || (P.commission == office.owner && canClaim(P, office, s, 'base', day, jumpRange, true).ok)) out.push(s);
 		if (out.length >= (n || 12)) break;
 	}
 	return out.sort((a, b) => a.d - b.d);
 }
 /* claim: pay the fee; 2 days to drop the beacon */
-function claim(P, office, star, kind, day, jumpRange) {
-	const ck = canClaim(P, office, star, kind, day, jumpRange); if (!ck.ok) return ck;
-	if ((P.wallet[ck.currency] || 0) < ck.fee) return {ok: false, why: 'The fee is ' + ck.fee.toLocaleString('en') + ' ' + ck.currency + '.'};
-	P.wallet[ck.currency] -= ck.fee;
+function claim(P, office, star, kind, day, jumpRange, independent) {
+	const ck = canClaim(P, office, star, kind, day, jumpRange, false, independent); if (!ck.ok) return ck;
+	if (ck.currency == 'SU') { const Tr = req('trade.js', 'EmberTrade'), r = Tr.pay(P, ck.fee, 'SU', day); if (!r.ok) return {ok: false, why: 'The fee is ' + ck.fee.toLocaleString('en') + ' SU, through free traders.'} }
+	else { if ((P.wallet[ck.currency] || 0) < ck.fee) return {ok: false, why: 'The fee is ' + ck.fee.toLocaleString('en') + ' ' + ck.currency + '.'}; P.wallet[ck.currency] -= ck.fee }
 	const old = list(P).find(x => x.star.id == star.id && x.stage == 'lapsed');
 	if (old) list(P).splice(list(P).indexOf(old), 1);
-	const c = {id: star.id, star: {id: star.id, name: star.name, at: at(star)}, sponsor: office.owner, port: kind, world: portWorld(star), stage: 'claimed', claimed: Math.floor(day), beaconBy: Math.floor(day) + COL.claimDays, due: null,
+	const c = {id: star.id, star: {id: star.id, name: star.name, at: at(star)}, sponsor: ck.independent ? null : office.owner, independent: !!ck.independent, war: ck.war || null, key: ck.key || null, port: kind, world: portWorld(star), stage: 'claimed', claimed: Math.floor(day), beaconBy: Math.floor(day) + COL.claimDays, due: null,
 		need: Object.assign({}, PORTS[kind].goods), got: old ? Object.assign({}, old.got) : {}, fee: ck.fee, currency: ck.currency};
+	if (c.independent) { c.scrip = scripCode(star); registerScrips(P) }
 	list(P).push(c);
 	return {ok: true, colony: c};
 }
@@ -125,7 +178,7 @@ function finish(P, c, day) {
 	if (c.stage == 'building' && !Object.keys(left(c)).length) {
 		c.stage = 'done'; c.opens = Math.floor(day) + 1; c.paid = c.opens; c.last = c.opens; c.pop = 0; c.builds = c.builds || [];
 		c.points = {t2: PORT_TIER[c.port] == 1 ? 1 : 0, t3: PORT_TIER[c.port] == 2 ? 1 : 0};
-		R.act(P, 'mission', c.sponsor, {amount: COL.finishRep / R.ACTIONS.mission.rep}); return true;
+		if (c.sponsor) R.act(P, 'mission', c.sponsor, {amount: COL.finishRep / R.ACTIONS.mission.rep}); return true;
 	}
 	return false;
 }
@@ -135,8 +188,10 @@ function haulQuote(office, mkt, c, good, tons, day) {
 	const d = dist(at(office.star), c.star.at), r = G.rng(G.hashStr('haul:' + office.star.id + ':' + good + ':' + Math.floor(day)))();
 	const over = COL.haul.over[0] + (COL.haul.over[1] - COL.haul.over[0]) * r + COL.haul.perPc * d;
 	const ship = COL.haul.fleet.find(f => f.t >= tons) || COL.haul.fleet[COL.haul.fleet.length - 1];
-	const trips = Math.ceil(tons / ship.t), days = Math.max(1, Math.ceil(d / ship.jump)) + (trips - 1) * 2;
-	return {good, tons, cost: Math.round(q.price * tons * (1 + over)), currency: mkt.currency, days, ship: ship.ship, trips, over};
+	const trips = Math.ceil(tons / ship.t), carrier = rented(c, day);
+	let days = Math.max(1, Math.ceil(d / ship.jump)) + (trips - 1) * 2, cost = q.price * tons * (1 + over);
+	if (carrier) { days = Math.max(1, Math.ceil(days / 2)); cost *= 1 - COL.rent.cut }
+	return {good, tons, cost: Math.round(cost), currency: mkt.currency, days, ship: ship.ship, trips, over, carrier: !!carrier};
 }
 function postHaul(P, office, mkt, c, good, tons, day, jobId) {
 	const job = jobId && jobId != 'port' ? (c.builds || []).find(b => b.id == jobId && !b.done) : c.stage == 'building' ? c : null;
@@ -157,6 +212,8 @@ function turn(P, day) {
 		if (day < h.eta) continue;
 		P.hauls.splice(P.hauls.indexOf(h), 1);
 		const c = colonyAt(P, h.colony); if (!c) continue;
+		if (raided(c, h)) { if (h.job && c.builds) { const j = c.builds.find(b => b.id == h.job) || c; if (j.coming) j.coming[h.good] = Math.max(0, (j.coming[h.good] || 0) - h.tons) } else if (c.coming) c.coming[h.good] = Math.max(0, (c.coming[h.good] || 0) - h.tons);
+			out.push({text: 'Pirates raided the haulers bound for ' + c.star.name + ': ' + h.tons.toLocaleString('en') + ' t of ' + h.good + ' lost', ok: false}); continue }
 		const job = h.job && h.job != 'port' ? (c.builds || []).find(b => b.id == h.job && !b.done) : c.stage == 'building' ? c : null; if (!job) continue;
 		job.got[h.good] = (job.got[h.good] || 0) + h.tons; if (job.coming) job.coming[h.good] = Math.max(0, (job.coming[h.good] || 0) - h.tons);
 		out.push({text: 'Haulers delivered ' + h.tons.toLocaleString('en') + ' t of ' + h.good + ' to ' + c.star.name, ok: true});
@@ -175,7 +232,7 @@ function turn(P, day) {
 function portOf(P, star, day) {
 	const c = colonyAt(P, star.id);
 	if (!c || c.stage != 'done' || day < c.opens) return null;
-	return {cls: PORTS[c.port].cls, world: c.world, owner: c.sponsor, capital: false, contested: false, colony: true};
+	return {cls: PORTS[c.port].cls, world: c.world, owner: c.sponsor, capital: false, contested: false, colony: true, independent: !!c.independent, base: !!PORTS[c.port].base};
 }
 
 /* ---------------- part 2: building out ---------------- */
@@ -285,24 +342,67 @@ function economy(c, star) {
 function popCap(c, star) {
 	const best = G.system(star).planets.reduce((m, p) => Math.max(m, p.alive ? 5e6 : p.atmo && p.esi >= 0.8 ? 1e6 : p.atmo ? 2e5 : 2e4), 0);
 	const extra = (c.builds || []).filter(b => b.done).reduce((t, b) => t + (FAC[b.fac].pop || 0), 0);
-	return best + extra + {outpost: 0, station: 100000, great: 500000}[c.port];
+	return best + extra + ({outpost: 0, station: 100000, great: 500000, base: 5000}[c.port] || 0);
+}
+/* ---- part 3 helpers ---- */
+/* haulers raided on the way: by the space the colony is in; none past a military outpost there */
+function raided(c, h) {
+	if ((c.builds || []).some(b => b.done && b.fac == 'military') || PORTS[c.port].base) return false;
+	const cl = F.claimAt(c.star.at), p = cl.owner ? COL.raid.claimed : COL.raid.unclaimed;
+	return G.rng(G.hashStr('raid:' + c.id + ':' + h.good + ':' + h.eta + ':' + h.tons))() < p;
+}
+/* a colony's scrip: a code from its star, and a rate pegged to the SU at first, floating with its wealth */
+function scripCode(star) { const h = G.hashStr('scrip:' + star.id), A = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; return 'X' + A[h % 24] + A[Math.floor(h / 24) % 24] }
+function scripRate(c, star) {
+	return day => { const st = stats(c, star), r = G.rng(G.hashStr('scripfx:' + c.id)); let L = (0.5 - st.wealth) * COL.scrip.drift;
+		for (let k = 0; k < 2; k++) { const Pd = 120 + r() * 240, A = 0.02 + r() * 0.04, ph = r() * 6.283; L += A * Math.sin(6.283 * (day - (c.opens || 0)) / Pd + ph) }
+		return Math.exp(L) };
+}
+/* tell the economy about the player's colonies' scrips (on load, and when one is claimed) */
+function registerScrips(P) { for (const c of list(P)) if (c.independent && c.scrip) { const s = starOf(c); if (s) E.registerScrip(c.scrip, scripRate(c, s)) } }
+/* carriers: the small factions' fleet carriers that will rent to you (not against you, not on the move) */
+function carriers(P, day) {
+	return F.minors().filter(m => m.carrier && m.carrier.class == 'fleet carrier' && (P.rep[m.id] || 0) >= 0 && !F.whereIs(m, day).moving).map(m => ({id: m.id, name: m.carrier.name, faction: m.name, hold: m.carrier.hangar}));
+}
+const rented = (c, day) => c.carrier && day <= c.carrier.until ? c.carrier : null;
+function rent(P, c, minorId, day, currency) {
+	if (c.stage != 'building' && !(c.builds || []).some(b => !b.done)) return {ok: false, why: 'Rent a carrier while something is being built.'};
+	if (rented(c, day)) return {ok: false, why: 'A carrier is already there until day ' + c.carrier.until + '.'};
+	const m = carriers(P, day).find(x => x.id == minorId); if (!m) return {ok: false, why: 'That carrier isn\'t for hire.'};
+	const code = currency || 'SU', fee = Math.round(COL.rent.fee * (code == 'SU' ? 1 : E.rate(code, day)));
+	const Tr = req('trade.js', 'EmberTrade'), r = Tr.pay(P, fee, code, day); if (!r.ok) return {ok: false, why: 'The season\'s rent is ' + fee.toLocaleString('en') + ' ' + code + '.'};
+	c.carrier = {id: m.id, name: m.name, until: Math.floor(day) + COL.seasonDays};
+	return {ok: true, carrier: c.carrier, fee, code};
 }
 function stats(c, star) {
 	const done = (c.builds || []).filter(b => b.done).map(b => FAC[b.fac]), add = k => done.reduce((t, f) => t + (f[k] || 0), 0), cl = v => Math.max(0, Math.min(1, v));
-	return {security: cl(0.35 + add('security') + 0.1 * (PORT_TIER[c.port] - 1)), wealth: cl(0.3 + add('wealth') + 0.02 * done.length), tech: cl(0.3 + add('tech') + 0.1 * (PORT_TIER[c.port] - 1)),
+	return {security: cl(0.35 + add('security') + 0.1 * ((PORT_TIER[c.port] || 1) - 1) + (c.independent ? COL.indep.security : 0) + (PORTS[c.port].base ? 0.25 : 0)), wealth: cl(0.3 + add('wealth') + 0.02 * done.length), tech: cl(0.3 + add('tech') + 0.1 * (PORT_TIER[c.port] - 1)),
 		cap: popCap(c, star), econ: economy(c, star), facilities: done.length};
 }
 /* a season's trade, in SU, and the architect's share (5-10% by wealth) */
-function payment(c, star) { const st = stats(c, star), trade = (c.pop || 0) * 2 + 5000 * (1 + st.facilities); return Math.round(trade * (0.05 + 0.05 * st.wealth)) }
+function payment(c, star) { const st = stats(c, star), trade = (c.pop || 0) * 2 + 5000 * (1 + st.facilities), sh = c.independent ? COL.indep.share : [0.05, 0.10]; return Math.round(trade * (sh[0] + (sh[1] - sh[0]) * st.wealth)) }
 /* the days since the last turn: population grows towards its cap (about 30% of the gap a season); each full season
    since opening pays the architect */
 function grow(P, c, day) {
 	const out = [], star = starOf(c); if (!star) return out;
 	const days = Math.max(0, Math.floor(day) - (c.last == null ? c.opens : c.last)); c.last = Math.floor(day);
 	if (days) { const cap = popCap(c, star); c.pop = Math.round(cap - (cap - (c.pop || 0)) * Math.pow(0.7, days / COL.seasonDays)) }
-	while (day - c.paid >= COL.seasonDays) {
+	while (day - c.paid >= COL.seasonDays && c.stage == 'done') {
 		c.paid += COL.seasonDays;
-		const su = payment(c, star), sp = F.byId(c.sponsor), code = sp.currency.code, amount = su * E.rate(code, c.paid);
+		const st = stats(c, star);
+		/* a forward base: its side's war effort while it holds; lost if the enemy takes the system */
+		if (PORTS[c.port].base) {
+			const h = F.contestedHolder(c.star.at, c.paid, P.warEvents);
+			if (h.holder && h.holder != c.sponsor) { c.stage = 'lost'; out.push({text: 'The ' + short(h.holder) + ' has taken ' + c.star.name + ': your forward base is lost', ok: false}); break }
+			if (h.holder == c.sponsor && c.war) { P.warEvents.push({war: c.war, system: c.key || h.key, side: c.sponsor, effort: COL.baseEffort * (h.supplied ? 1.1 : 1), day: c.paid}); out.push({text: 'Your forward base at ' + c.star.name + ' holds the line', ok: true}) }
+		}
+		/* an independent colony: no protection; low security two seasons running and a syndicate takes over */
+		if (c.independent) {
+			c.low = st.security < 0.3 ? (c.low || 0) + 1 : 0;
+			if (c.low >= COL.takeover) { c.stage = 'lost'; out.push({text: 'A syndicate has taken over ' + c.star.name + '. The colony is lost.', ok: false}); break }
+			if (c.low) out.push({text: c.star.name + '\'s security is low: build a military outpost or a bigger port, or a syndicate will move in', ok: false});
+		}
+		const su = payment(c, star), code = c.independent ? c.scrip : F.byId(c.sponsor).currency.code, amount = su * E.rate(code, c.paid);
 		P.wallet[code] = (P.wallet[code] || 0) + amount;
 		out.push({text: c.star.name + ' pays its architect: ' + Math.round(amount).toLocaleString('en') + ' ' + code + ' for the season', ok: true});
 	}
@@ -315,6 +415,6 @@ function starOf(c) {
 	STARS.set(c.id, s); return s;
 }
 
-const EmberColonies = {FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
+const EmberColonies = {raided, scripCode, registerScrips, carriers, rent, rented, FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
 if (isNode) module.exports = EmberColonies; else root.EmberColonies = EmberColonies;
 })(typeof window != 'undefined' ? window : this);

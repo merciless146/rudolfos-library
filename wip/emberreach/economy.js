@@ -28,7 +28,11 @@ const basketCost = price => Object.entries(BASKET).reduce((t, [g, q]) => t + q *
 
 /* ---------- exchange rates ---------- */
 /* shocks: [{currency, day, size, halfLife}] (size: + makes the currency weaker, - stronger) */
+/* colonies' scrips (colonies.js registers each player's) */
+const SCRIP = new Map();
+function registerScrip(code, fn) { SCRIP.set(code, fn) }
 function rate(code, day, ctx) {
+	if (SCRIP.has(code)) return SCRIP.get(code)(day);
 	const m = F.majors().find(x => x.currency.code == code);
 	if (!m) return 1;
 	const r = rng(hashStr('fx:' + code));
@@ -101,6 +105,6 @@ function market(star, day, ctx) {
 	return {star: star.id, holder, contested: claim.contested, currency: code || 'SU', prices};
 }
 
-const EmberEconomy = {ECON, GOODS, BASKET, basketCost, rate, crossRate, exchange, exchangeAnywhere, market};
+const EmberEconomy = {ECON, registerScrip, GOODS, BASKET, basketCost, rate, crossRate, exchange, exchangeAnywhere, market};
 if (isNode) module.exports = EmberEconomy; else root.EmberEconomy = EmberEconomy;
 })(typeof window != 'undefined' ? window : this);
