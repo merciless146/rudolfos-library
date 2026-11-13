@@ -17,12 +17,13 @@ try {
 	const rank = a => { const o = a.map((v, i) => [v, i]).sort((x, y) => x[0] - y[0]), r = []; o.forEach(([, i], k) => r[i] = k); return r };
 	const ra = rank(L.map(s => s.priceSU[0])), rb = rank(L.map(merit)), n = L.length, rho = 1 - 6 * ra.reduce((t, v, i) => t + (v - rb[i]) ** 2, 0) / (n * (n * n - 1));
 	ok('5. prices follow the stats (rank correlation above 0.95)', rho > 0.95, rho.toFixed(3));
-	const base = L.find(s => s.name == 'Corsair'), at = t => S.value(Object.assign({}, base, {tech: t}));
+	ok('1b. names are one word or two joined by a hyphen (cryptids, hybrid beasts, extinct animals), ids stay the old working names', L.every(s => /^[A-Z][a-z]+(-[A-Z][a-z]+)?$/.test(s.name) && s.id != s.name.toLowerCase()) && L.find(s => s.id == 'wren').name == 'Dodo' && L.find(s => s.id == 'reaver').name == 'Megalodon');
+	const base = L.find(s => s.id == 'corsair'), at = t => S.value(Object.assign({}, base, {tech: t}));
 	ok('6. advanced ships cost more: the same ship a tech level higher costs about 35% more', [2, 3, 4, 5].every(t => Math.abs(at(t) / at(t - 1) - 1.35) < 1e-9));
 	const bigger = S.value(Object.assign({}, base, {hull: base.hull * 2, shield: base.shield * 2}));
 	ok('6b. twice the armour and shields costs nearly twice as much', bigger / base.value > 1.85 && bigger / base.value < 2);
 	ok('7. a price range for every ship (low below high)', L.every(s => s.priceSU[0] > 0 && s.priceSU[1] > s.priceSU[0]));
-	const hs = L.find(s => s.maker.startsWith('major') && F.byId(s.maker).species.build == 'heavy'), stock = hs && S.STOCK.find(r => r[0] == hs.name);
+	const hs = L.find(s => s.maker.startsWith('major') && F.byId(s.maker).species.build == 'heavy'), stock = hs && S.STOCK.find(r => r[0].toLowerCase() == hs.id);
 	ok('8. a heavy-bodied species builds tougher, slower-turning ships', hs && hs.hull > stock[4] && hs.agility < stock[7]);
 	const who = new Set(L.flatMap(s => s.who));
 	ok('9. ships for every kind of NPC: navies, pirates, traders, miners, explorers, nomads, couriers, passengers, prospectors, salvagers, bounty hunters, smugglers', ['navy', 'pirate', 'trader', 'miner', 'explorer', 'nomad', 'courier', 'passenger', 'prospector', 'salvager', 'bounty', 'smuggler'].every(w => who.has(w)));

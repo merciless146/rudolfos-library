@@ -22,7 +22,7 @@ const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 
 /* the weapons, by hardpoint size. dmg per hit; rate per second; speed m/s; range m; heat per shot (of the ship's
    capacity); vs shields and hull multipliers; ammo (null: lasers need none) */
-/* tuned so a fighter duel lasts about a minute: a Kestrel's two lasers strip a Kestrel's shields in ~6 s of hits and
+/* tuned so a fighter duel lasts about a minute: a Thylacine's two lasers strip a Thylacine's shields in ~6 s of hits and
    its hull in ~12 s more; a missile takes a third of a fighter's hull */
 const WEAPONS = {
 	pulse: {name: 'Pulse laser', size: 0, dmg: 1.2, rate: 6, speed: 4000, range: 2500, heat: 0.022, vsShield: 1.2, vsHull: 0.7, ammo: null, col: [1, 0.45, 0.25]},
