@@ -28,20 +28,29 @@ Barren and icy moons are where most of the galaxy's ground is.
 
 ### Which ship can land where
 
-A ship lands with its **vertical thrusters** (`aRcs` in `flight.js`). They must hold it up with half again to
-spare: `aRcs ≥ 1.5 × g × 9.81`. That falls naturally out of the ships as they are:
+**Every ship a pilot can fly can land**, from a Dodo to a Kraken. A ship's **lift** is the stronger of two things:
 
-| Ship | Size | Vertical thrust | Heaviest world it can land on |
-|---|---|---|---|
-| Dodo | XS | 12.9 g | 2.5 g (the cap) |
-| Griffin | M | 9.4 g | 2.5 g |
-| Mammoth | M | 3.5 g | 2.3 g |
-| Woolly-Rhino | L | 2.3 g | 1.5 g |
-| Deinotherium | L | 1.4 g | 0.94 g |
-| XL and capital ships | | | none: no pad takes them |
+- its vertical thrusters (`aRcs` in `flight.js`);
+- its landing jets, which every hull has. They hold it up at 1.5 g.
 
-XL and capital ships stay in orbit. Later they could send shuttles down, or an XL ship could land on a heavy
-pad on a very light moon. That is an open question below.
+The lift must hold the ship up with half again to spare: `lift ≥ 1.5 × g × 9.81`. So every ship can land on
+any landable world up to 1 g, and nimbler ships, whose thrusters are stronger, can land on heavier worlds up
+to the 2.5 g cap. Most landable worlds are moons well under 1 g, so the big ships aren't shut out of much.
+
+| Ship | Size | Lift | Heaviest world it can land on | Where it sets down at a port |
+|---|---|---|---|---|
+| Dodo | XS | 12.9 g | 2.5 g (the cap) | an S pad |
+| Griffin | M | 9.4 g | 2.5 g | an M pad |
+| Mammoth | M | 3.5 g | 2.3 g | an M pad |
+| Woolly-Rhino | L | 2.3 g | 1.5 g | an L pad |
+| Deinotherium | L | 1.5 g (jets) | 1.0 g | an L pad |
+| Arthropleura | XL | 2.3 g | 1.5 g | an XL pad |
+| Brontosaur | XL | 1.5 g (jets) | 1.0 g | an XL pad |
+| Kraken, Hydra, Leviathan | Capital | 1.5 g (jets) | 1.0 g | a capital berth, at a heavy landing field |
+
+**XL pads** (1.2 km across) are at surface starports. **Capital berths** (3.4 km across) are at **heavy
+landing fields**: a levelled field 8 km from every surface starport, with two XL pads, cranes, a tower and
+crawlers to the port. Anywhere flat enough, any ship can set down on open ground.
 
 The HUD shows the margin when a world is targeted: "**Landable: 0.3 g, thrusters 9.4 g**", or "**Too heavy for
 this world**" before the pilot commits to a descent.
@@ -57,9 +66,16 @@ this world**" before the pilot commits to a descent.
      horizon line with pitch ladder.
    - **FA holds altitude:** releasing the stick hovers, and the vertical thrusters cancel gravity first.
    - Under 2 km, the pad's **approach corridor** shows as a lit cone.
-3. **Clearance.** N within 10 km of a port asks for clearance, as at stations. The port gives a pad number
-   sized to the ship and lights the pad's ring. Landing without clearance is allowed, but the port's
-   reputation drops, and a power's patrols treat it like docking without clearance at a station.
+3. **Clearance.** Permission to land, like permission to dock in space, is asked by the pilot and given by
+   the port's **traffic controller**:
+   - **Asking.** N within 10 km of a port, surface or space. This is how docking at space ports already
+     works in 0.1.0, and surface ports work the same way.
+   - **Refused.** The controller may refuse when the pilot is wanted there, their side is at war with the
+     port's holder, or no free pad fits the ship.
+   - **Accepted.** The controller gives a pad number sized to the ship (S to XL, or a capital berth at a
+     heavy field) and lights its ring. The clearance lapses after ten minutes, as in space.
+   - **Without clearance, no landing on a pad:** its clamps stay locked and its ring shows red, and setting
+     down on it is refused like docking without clearance. Open ground needs no one's permission.
 4. **Gear.** The landing gear goes down by itself under 300 m, or with a key (L). With the gear down, top
    speed is capped at 100 m/s.
 5. **Touchdown** (in `surface.js`). Every limit is checked together:
@@ -69,10 +85,13 @@ this world**" before the pilot commits to a descent.
    | S (and XS ships) | 4 m/s | 2.5 m/s | 12° |
    | M | 3 m/s | 2 m/s | 9° |
    | L | 2 m/s | 1.5 m/s | 6° |
+   | XL | 1.5 m/s | 1 m/s | 5° |
+   | Capital berth | 1 m/s | 0.8 m/s | 4° |
 
    Up to the limits, it is a clean landing. Up to three times past them, it is a **hard landing**: hull damage
    is 15% × (excess)². Three times past them or more is a **crash**: the ship is lost, as when destroyed in
-   combat. Touching the ground anywhere but the gear (belly, nose) counts as three times past.
+   combat, and **insurance** decides what happens next (`insurance.js`, already in the game: see "Ship
+   insurance" in `plan-ember-reach.md`). Touching the ground anywhere but the gear (belly, nose) counts as three times past.
 6. **Landed on a pad:** the port's screens open, as when docked. **Landed on open ground:** the ship sits
    there with these options:
    - lift off (the reverse of the descent);
@@ -115,7 +134,8 @@ take over.
 | **Mining camp** | Trefoil | 0.5 km | 2 S | prefab habs, an open pit, ore silos, a refinery shed, a mast, tanks |
 | **Outpost** | Trefoil | 0.6 km | 3 S | a hab cluster, a comms mast, fuel tanks, solar fields, sometimes a hangar |
 | **Settlement** | Bloom | 1.0 km | 4 S, 1 M | pressurised domes, greenhouse domes, habs, a pad tower, tanks and panels, hangars |
-| **Surface starport** | Lantern | 2.2 km | 6 S (in hangars), 4 M, 1 L | a dome city, greenhouses, towers, hangars, tanks, solar, plants, masts |
+| **Surface starport** | Lantern | 3.8 km | 6 S (in hangars), 4 M, 1 L, 1 XL | a dome city, greenhouses, towers, hangars, tanks, solar, plants, masts |
+| **Heavy landing field** (beside each starport) | Halo | 9.2 km | 1 capital berth, 2 XL | cranes, a tower, tanks, masts, hangars |
 | **Forward base** | Trefoil | 0.8 km | 2 S, 2 M | bunkers, turrets, a tower, tanks, hangars |
 
 **What they trade**
@@ -265,18 +285,14 @@ beacons, windows) use the emissive channel the stations already use.
 6. **Later:**
    - Worlds with atmospheres (entry heat, drag, lift, weather).
    - Surface vehicles.
-   - Shuttles from XL and capital ships.
    - Night lights on dark sides.
 
 ## Open questions
 
-1. **XL ships.** Should an XL ship be able to land on a heavy pad at a surface starport, on worlds light
-   enough for it (an Arthropleura's thrusters could manage 1.5 g, a Brontosaur's 0.5 g)? Or should only shuttles go down?
-2. **Landing without clearance.** As drafted, it is allowed with a reputation cost and patrols treat it as
-   trespass. Should ports instead lock their pads (shields over the pads)?
-3. **Crashes.** Should a crash on the ground lose the ship as a combat loss does? Or should it leave a wreck
-   to salvage, and the insurance pay out less?
-4. **Rotation.** Should worlds turn (day and night passing while landed), or stay fixed to the world as
+Settled: every flyable ship lands; pads need the traffic controller's clearance; a crash is a loss like any
+other, under the ship's insurance.
+
+1. **Rotation.** Should worlds turn (day and night passing while landed), or stay fixed to the world as
    drafted for L1?
-5. **Surface ports in wild systems.** Should independent outposts sometimes exist where there is no port in
+2. **Surface ports in wild systems.** Should independent outposts sometimes exist where there is no port in
    space, as places to find?

@@ -937,6 +937,34 @@ home currency.
   - **Contested systems** trade in the currency of whoever holds them that day; while they're fought over, only in
     SU, through free traders.
 
+### Ship insurance
+
+In the game since this change (`insurance.js`; tested in `tests/emberreach_insurance_t.js`, 15 checks).
+
+- **The policy.** A ship is insured with a great power, at one of its ports (the Contacts screen's Insurance
+  desk), and paid for in its currency.
+  - The premium is **10% of the ship's whole value a week**, a week in advance. The value counts the hull and
+    every module fitted beyond the stock ones.
+  - Every pilot starts with **the starter's cover**: their home power's policy, the first week paid.
+  - A policy can be switched to another power at its ports, or cancelled.
+- **Premiums fall due weekly.** One that can't be paid is **owed**, and it is taken as soon as there's money in
+  that currency.
+- **Losing the ship.** The pilot wakes at the first of these, searched by priority:
+  1. the nearest port within **1,000 ly** that trades in the policy's currency;
+  2. else, the nearest port within 1,000 ly whose exchange takes that currency (any great power's port that
+     isn't at war with the currency's issuer);
+  3. else, the station they started the game at.
+
+  (This rule may change.) Lost in the Rift, the search starts from the Maw on this side. The search looks at
+  every power's capitals and lane hubs, your colonies, your last port, your start, and every port within 6 pc.
+- **Settling up.** Anything owed on the policy is settled at that port: first from the policy's currency, then
+  the port's exchange changes the pilot's other money into it, largest holdings first.
+  - **Paid up:** the insurer replaces the ship as it was, the same hull with the same fit. The cargo is lost.
+  - **Short of money in every currency, or not insured:** the pilot starts again at their starting station in a
+    basic starter ship, with the starter's cover.
+- Crashing on the ground (see `plan-ember-reach-landing.md`) is a loss like any other.
+- Saves keep the policy. A cancelled policy stays cancelled. Saves from before this get the starter's cover.
+
 ### Reputation and alignment
 
 - **Origin:** a new player chooses which great power to come from, and so which species to play. They start:
@@ -1020,7 +1048,7 @@ home currency.
      arrive near the new star, facing its port. A jump takes a day, a lane leg half a day. A misjump re-plots the
      route.
    - **Systems everywhere:** every star you reach is built from the model, with its port (or none) and its own sky
-     of real neighbours. Docking refuels and repairs. A lost ship is replaced at the last port you docked at.
+     of real neighbours. Docking refuels and repairs. A lost ship is replaced under its insurance (see "Ship insurance").
    - **Saves** keep the system you're in, your fuel, your last port and your route's destination (save version 2;
      M1 saves still load).
 4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.
@@ -1041,7 +1069,7 @@ home currency.
      - **Station**, **Outfitting** and **Carto & lounges** screens, the last two pointing to M4 and M5.
    - **Trade** (`trade.js`, 18 checks): wallets in many currencies; free traders at contested systems taking SU
      at an 8% cut; trade reputation; fuel tanks of a few tonnes; repairs at 8% of a ship's value from wrecked;
-     ships lost replaced for 5% of their value, the cargo lost with them.
+     ships lost replaced under their insurance (see "Ship insurance"), the cargo lost with them.
    - **Saves** (version 3) carry the player: money, cargo, reputation, bounties, commission.
 5. **M4:** combat and war: weapons, shields, heat, pirates, patrols; war missions, commissions, moving fronts;
    carriers and dreadnoughts. **Playable** in `index.html` (see "Combat"):

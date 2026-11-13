@@ -39,7 +39,7 @@ try {
 	ok('12. fuel: a tank of a few tonnes, at the market\'s fuel price; nothing to pay when full', Tr.tank(wren) > 2 && Tr.tank(wren) < 5 && Tr.refuelCost(wren, 1, mkt) == 0 && Math.abs(Tr.refuelCost(wren, 0.5, mkt) - 0.5 * Tr.tank(wren) * mkt.prices.Fuel.price) < 1e-9);
 	const fit = M.fit(wren);
 	ok('13. repairs: nothing when whole; 8% of the ship\'s value for a wreck', Tr.repairCost(wren, fit, mkt, day) == 0 && (fit.modules.forEach(m => m.hp = 0), Math.abs(Tr.repairCost(wren, fit, mkt, day) - 0.08 * S.value(wren) * E.rate(code, day)) < 1e-6));
-	ok('14. a lost ship costs 5% of its value to replace', Math.abs(Tr.rebuyCost(p, wren, day).amount - 0.05 * S.value(wren) * E.rate(code, day)) < 1e-6);
+	ok('14. a lost ship is the insurer\'s business now (insurance.js), not a 5% rebuy', Tr.rebuyCost === undefined && !('rebuy' in Tr.TRADE));
 
 	/* shipyards */
 	const big = Tr.yard('halo', home.star, day), small = Tr.yard('trefoil', home.star, day);

@@ -1,6 +1,6 @@
 /* Ember Reach (the Single-Player Alpha Build) in Chromium (Playwright), as the Rudolf OS desktop opens it: a sandboxed
    frame, saves kept by the desktop. A new game (choosing an origin), the starport, launching and flying, the star
-   map, a jump, pausing, the save and resuming from it, the Rift's Maw, and no errors on the way.
+   map, a jump, pausing, the save and resuming from it, the Rift's Maw, losing the ship (insurance), and no errors on the way.
      node tests/emberreach_t.js [PORT] */
 const {chromium} = require('playwright');
 const {spawn} = require('child_process');
@@ -75,7 +75,10 @@ async function frame(pg, test) {
 		await pg.goto(`http://127.0.0.1:${PORT}/desk.html#debug`); await pg.reload(); f = await frame(pg, () => window.EmberDebug && EmberDebug.game.star && EmberDebug.scene);
 		const back = await f.evaluate(() => ({id: EmberDebug.game.star.id, realm: EmberGalaxy.realm(), chooser: !!document.querySelector('#ovBody button[data-i]')}));
 		ok('10. reopened, it resumes from the save (in the Rift), without asking for an origin', back.id == 'R:heart' && back.realm == 'rift' && !back.chooser, back);
-		ok('11. no errors on the way', errs.length == 0, errs);
+		/* losing the ship: the insurer (insurance.js) brings it back, this side of the Maw */
+		const lostAt = await f.evaluate(() => { EmberDebug.lose('a test'); const g = EmberDebug.game; return {star: g.star.id, realm: EmberGalaxy.realm(), ship: EmberDebug.ship.name, hull: g.pcs.hull > 0, port: !!g.port, msg: g.msgs.slice(-3).map(m => m.text).join(' | ')} });
+		ok('11. lost in the Rift, the ship comes back under its insurance, at a port this side', lostAt.realm == 'normal' && !lostAt.star.startsWith('R:') && lostAt.ship == 'Griffin' && lostAt.hull && lostAt.port && /Insurance|waits at/.test(lostAt.msg), lostAt);
+		ok('12. no errors on the way', errs.length == 0, errs);
 		console.log('screenshots: ' + W);
 	} catch (e) { F++; console.log('FAIL (error) ' + (e.stack || e)) }
 	await br.close(); srv.kill();

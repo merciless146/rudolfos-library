@@ -27,8 +27,8 @@ button{background:#141a28;color:#d8dde8;border:1px solid #2c3550;border-radius:6
 <script src="surface.js"></script>
 <script>
 'use strict';
-const S = EmberSurface, COLS = {hab: '#bdbdb5', silo: '#8f97a3', plant: '#7b828c', mast: '#5a5f68', tank: '#9aa1ab', pit: '#3a3632', solar: '#3d4350', hangar: '#757b85', dome: '#f2dca0', greenhouse: '#6fc76f', tower: '#a9b0ba', bunker: '#6d737c', turret: '#4b5058'};
-const PADC = {S: '#73ccff', M: '#ffbf4d', L: '#ff734d'};
+const S = EmberSurface, COLS = {crane: '#6a707a', hab: '#bdbdb5', silo: '#8f97a3', plant: '#7b828c', mast: '#5a5f68', tank: '#9aa1ab', pit: '#3a3632', solar: '#3d4350', hangar: '#757b85', dome: '#f2dca0', greenhouse: '#6fc76f', tower: '#a9b0ba', bunker: '#6d737c', turret: '#4b5058'};
+const PADC = {S: '#73ccff', M: '#ffbf4d', L: '#ff734d', XL: '#d980ff', C: '#ff4d8c'};
 document.getElementById('legend').innerHTML = Object.entries(COLS).map(([k, c]) => '<span><i style="background:' + c + '"></i>' + k + '</span>').join('') + Object.entries(PADC).map(([k, c]) => '<span><i style="background:' + c + '"></i>pad ' + k + '</span>').join('');
 function plan(cv, L) {
 	const x = cv.getContext('2d'), W = cv.width, k = (W / 2 - 14) / L.radius, P = c => [W / 2 + c[0] * k, W / 2 - c[1] * k];
