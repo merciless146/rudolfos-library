@@ -50,12 +50,18 @@ function hatchAt(s, down, back) { return add(add(s.p, mul(down, s.radius * 0.35)
 /* the scoop: with the hatch open and working, canisters near the hatch and slow enough relative to the ship come
    aboard while there's room. Returns {got: [goods], full: bool, fast: bool}. The hold: P.cargo, P.cost (SU paid per
    tonne, averaged: scooped goods cost nothing). down/back: the ship's belly and tail directions in the world */
-function scoop(list, s, down, back, P, capacity) {
-	const out = {got: [], full: false, fast: false}, at = hatchAt(s, down, back);
+function scoop(list, s, down, back, P, capacity, opts) {
+	const out = {got: [], full: false, fast: false, ore: [], noRefinery: false, binsFull: false}, at = hatchAt(s, down, back);
 	for (let i = list.length - 1; i >= 0; i--) {
 		const c = list[i];
 		if (len(sub(c.p, at)) > CAN.reach + s.radius * 0.3) continue;
 		if (len(sub(c.v, s.v)) > CAN.speed) { out.fast = true; continue }
+		/* ore goes to the refinery (mining.js), not straight to the hold */
+		if (c.ore) {
+			const r = opts && opts.refine ? opts.refine(c.good, c.ore) : {ok: false, why: 'no refinery'};
+			if (!r.ok) { if (r.why == 'no refinery') out.noRefinery = true; else out.binsFull = true; continue }
+			out.ore.push({good: c.good, t: c.ore, made: r.made}); list.splice(i, 1); continue;
+		}
 		/* a module (an alien relay from a ruin) goes to storage, not the hold */
 		if (c.module) { (P.stored = P.stored || []).push(c.module); out.got.push(c.good); list.splice(i, 1); continue }
 		const held = Object.values(P.cargo).reduce((t, q) => t + q, 0);

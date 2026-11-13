@@ -10,7 +10,7 @@ const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; c
 try {
 	const L = S.ships(), by = id => L.find(s => s.id == id), pike = by('pike'), caravel = by('caravel'), kestrel = by('kestrel');
 	ok('1. four categories in the catalogue', ['core', 'internal', 'external', 'utility'].every(c => Object.values(O.CAT).some(m => m.cat == c)));
-	const bad = L.filter(s => { const f = O.stock(s), d = O.derive(s, f), r = d.cargo / Math.max(1, s.cargo); return !O.valid(s, f) || !O.power(s, f).ok || Math.abs(d.shield - s.shield) > 1 || (s.cargo >= 10 && (r < 0.75 || r > 1.4)) || d.guns.length != s.hard.reduce((a, b) => a + b, 0) });
+	const bad = L.filter(s => { const f = O.stock(s), d = O.derive(s, f), r = d.cargo / Math.max(1, s.cargo); return !O.valid(s, f) || !O.power(s, f).ok || Math.abs(d.shield - s.shield) > 1 || (s.cargo >= 10 && (r < 0.75 || r > 1.4)) || f.external.filter(Boolean).length != s.hard.reduce((a, b) => a + b, 0) });
 	ok('2. every hull\'s stock loadout is valid, powered, and matches its shields, hold (roughly) and guns', !bad.length, bad.map(s => s.id).join(', '));
 	const lay = O.layout(pike);
 	ok('3. a hull\'s slots: seven core (six without a hyperdrive), internal slots by size, its hardpoints, its utility mounts', lay.core.length == 7 && O.layout(kestrel).core.length == 6 && lay.internal.length == 4 && lay.external.length == 4 && lay.utility == 3);

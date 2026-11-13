@@ -73,6 +73,19 @@ function sphere(sub, colour, scale) {
 	return m;
 }
 
+/* ---- an asteroid: a lumpy, flat-shaded rock of radius r (mining.js), coloured by its field ---- */
+function rock(r, seed, kind) {
+	const t = (1 + Math.sqrt(5)) / 2, nrm = v => { const l = Math.hypot(...v); return v.map(x => x / l) };
+	let V = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]].map(nrm);
+	let F = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
+	const mid = {}, M = (a, b) => { const k = a < b ? a + ':' + b : b + ':' + a; if (mid[k] == null) { mid[k] = V.length; V.push(nrm(V[a].map((x, i) => (x + V[b][i]) / 2))) } return mid[k] };
+	F = F.flatMap(([a, b, c]) => { const ab = M(a, b), bc = M(b, c), ca = M(c, a); return [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]] });
+	const sc = [1, 0.78 + 0.1 * (seed % 3), 0.9], P = V.map(v => { const k = 1 + 0.55 * (noise(v, 1.7, seed) - 0.5) + 0.2 * (noise(v, 4.1, seed + 7) - 0.5); return v.map((x, i) => x * k * sc[i] * r) });
+	const base = kind == 'Ice' ? [0.72, 0.8, 0.86] : kind == 'metallic' ? [0.46, 0.45, 0.47] : [0.42, 0.37, 0.32], m = new Mesh();
+	for (const [a, b, c] of F) { const sh = 0.85 + 0.3 * noise(V[a], 3, seed + 3); m.tri(P[a], P[b], P[c], base.map(x => Math.min(1, x * sh)).concat(0)) }
+	return m;
+}
+
 /* ---- planets: colour by type, with seeded value noise for continents, bands and craters ---- */
 function hash3(x, y, z, s) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(z | 0, 2147483647) + Math.imul(s | 0, 1274126177)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296 }
 function noise(v, f, s) {
@@ -189,6 +202,6 @@ function ship(length, quality) {
 	return m;
 }
 
-const EmberMeshes = {Mesh, COL, cylinder, torus, box, sphere, planet, planetColour, rings, atmosphere, star, starColour, station, ship, noise};
+const EmberMeshes = {rock, Mesh, COL, cylinder, torus, box, sphere, planet, planetColour, rings, atmosphere, star, starColour, station, ship, noise};
 if (typeof module != 'undefined') module.exports = EmberMeshes; else root.EmberMeshes = EmberMeshes;
 })(typeof window != 'undefined' ? window : this);

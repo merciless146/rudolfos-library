@@ -450,6 +450,30 @@ four categories; its hold, shields, hull, jump range, fuel, speed and guns come 
   fuel is still sold.
 - Saves keep the fit (checked against the hull; a bad one falls back to stock) and the storage.
 
+### Mining
+
+`wip/emberreach/mining.js` (16 checks in `tests/emberreach_mining_t.js`).
+
+- **Fields:** every ringed planet's rings (stone or ice), and asteroid belts: none in about a third of systems, one
+  or two in the rest, in the gaps between the planets' orbits (rocky, or metallic around metal-rich stars). Each
+  field has a **mining site**, a target to cruise to and drop out at.
+- **Asteroids:** at a site, 64 asteroids (30 to 240 m across) in a flattened swarm 15 km wide, the same every visit.
+  Each holds two or three goods by its field (stone rings: iron, copper, coal, lead, aluminium, a little titanium,
+  jade and diamond; ice rings: water, beryllium, some coal and uranium; rocky belts: base metals and some uranium
+  and jade; metallic belts: iron, titanium, aluminium, copper, with gold, uranium and diamond) and a yield of 5 to
+  80 t. What's mined is kept in the save. Asteroids are solid: hitting one at speed hurts.
+- **Mining lasers** (small external modules, fired with the guns, 600 m): every sixth hit breaks off a chunk of ore
+  (0.25–0.6 t of one of its goods), drifting back towards the miner. Other weapons just stop at the rock.
+- **The resource scanner** (utility) reads a targeted asteroid within 3 km in 3 s: its goods in proportion and the
+  tonnes left. Without one, it's "composition unknown".
+- **The refinery** (internal; 2 bins plus 1 a size): ore scooped through the hatch goes into a bin per good; each
+  full tonne goes to the hold. No refinery, no ore aboard. When every bin is in use a new good is refused; bins can
+  be emptied on the starport's Status screen.
+- **Tractor beams** (small external modules) pull canisters and ore within 600 m to an open hatch, fast far out and
+  slowing to scooping speed at the hatch.
+- **Stock miners** (the Hob, Burrow, Delver and Atlas) come with a mining laser, a tractor beam where there's a
+  second small hardpoint, a refinery, and a resource scanner where there's a mount for it.
+
 ### Modules and damage
 
 Every ship carries the same core modules, each with its own health pool, shown on the **internal-systems HUD**
