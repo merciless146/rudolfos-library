@@ -211,8 +211,11 @@ async function open(pg) {
 			const mk = (k, x, lane) => { __fb.spawn(k); const e = N.elves.at(-1); e.x = x; e.lane = e.tl = lane; e.sp = 0; e.changer = false; return e };
 			const a = mk('shielder', 500, 7), base = {eye: FBART.ELF.shielder.eye, hp: a.hp0, sham: (() => { const s = mk('shambler', 800, 2); const h = s.hp0; s.dead = true; return h })()};
 			const shoot = (x, y, k) => { __fb.pick(k || 'icicle'); const st = G.wp[k || 'icicle']; st.have = true; st.mag = 99; __fb.cross.x = x; __fb.cross.y = y; N.cd = 0; N.reload = 0; __fb.fire(); __fb.run(1) };
+			/* (aimed shots fly true here: the spread is random, and the lower legs are a narrow mark, so a test that
+			   asks whether they *can* be hit mustn't hang on the draw) */
+			const rng0 = N.rng; N.rng = () => .5;
 			const hp0 = a.hp; const b = __fb.bodyOf(a), h = __fb.headOf(a); shoot(b.x, b.y); shoot(h.x, h.y); const blocked = a.hp == hp0;
-			const lg = __fb.legsOf(a); shoot((lg.x0 + lg.x1) / 2, lg.y1 - 3); const legs = a.hp < hp0;
+			const lg = __fb.legsOf(a); shoot((lg.x0 + lg.x1) / 2, lg.y1 - 3); const legs = a.hp < hp0; N.rng = rng0;
 			/* the shield covers waist to head */
 			const box = __fb.shieldBox(a); const covers = box.y1 >= b.y + 4 && box.y0 <= h.y - h.r && lg.y0 >= box.y1 - .5;
 			/* a piercing shot stops at the shield */
