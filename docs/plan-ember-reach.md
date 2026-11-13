@@ -420,8 +420,9 @@ four categories; its hold, shields, hull, jump range, fuel, speed and guns come 
   A 90%) and canopy (reinforced canopies take more punishment).
 - **Internal modules** in the hull's internal slots (three on an XS to seven on a capital ship, sizes 1–8; hulls
   built for holds get every bay a size bigger): cargo racks (2.5 t at size 1, four times more each size up),
-  shield generators, armour plating, refineries (for mining), relay boosters (+0.35 pc a size, more by grade) and
-  alien relay boosters (+1.5 pc a size), which no outfitter sells: about one ruin cache in three holds one.
+  shield generators, armour plating, refineries (for mining), relay boosters (+0.35 pc a size, more by grade), and
+  two alien modules no outfitter sells: alien relay boosters (+1.5 pc a size) and the alien dimensional phaser
+  (size 3, for wormholes). They're built from blueprints (see "Alien blueprints").
 - **External modules** on the hardpoints (small, medium, large, huge; a module fits its size or bigger): pulse
   lasers, mass drivers, missile racks (four missiles each), heavy lasers, torpedo racks, mining lasers and tractor
   beams.
@@ -449,6 +450,36 @@ four categories; its hold, shields, hull, jump range, fuel, speed and guns come 
   ports' market, contracts, yards, outfitting, cartographics, colonial office, repairs and restocking are closed;
   fuel is still sold.
 - Saves keep the fit (checked against the hull; a bad one falls back to stock) and the storage.
+
+### Black holes are wormholes
+
+Tested in `tests/emberreach_wormholes_t.js` (16 checks, with the safety and blueprints).
+
+- A black hole (about 0.1% of stars) is a body with its horizon (2.95 km a
+  sun), drawn as a dark disc in a ring of glowing accretion.
+- It's a **wormhole**: a ship with an **alien dimensional phaser** fitted (and powered) can target it and press J
+  within 2,500 km; after an 8 s charge it phases through to a random star anywhere the galaxy has stars, drawn by
+  the galaxy's own density, so most often towards the centre, sometimes far out. You come out near that star
+  (wormholes have no nav beacons), a day later, with no route. Without a phaser the wormhole is closed.
+- The galaxy's central black hole comes with the Core.
+
+### Proximity safety
+
+The ship won't go dangerously close: it holds 2,000 km off a black hole, 1.6 radii off a star, and at the top of a
+world's atmosphere (1.12 radii); at an airless world it stops 300 m above the surface. No landing yet: surface
+ports and outposts come later. (Before this, flying into a planet or star lost the ship.)
+
+### Alien blueprints, the artifact broker and recycling
+
+- Surveying a ruin sometimes turns up a **blueprint**: an alien relay booster (30%, size 2 to 4) or an alien
+  dimensional phaser (15%). Blueprints are materials, kept with the ship's records.
+- An **artifact broker** (a station contact, on Contacts, at lanterns, blooms and halos) builds the module from a
+  blueprint plus goods from the hold and a fee: a relay booster takes 3 t of Artefacts, 2 t of Beryllium and 1 t of
+  Electronics a size, and 60,000 SU a size; a phaser 12 t of Artefacts, 6 t of Uranium, 2 t of Diamond, 4 t of
+  Electronics and 250,000 SU. The **blueprint is used up** in the build; the module goes to storage.
+- **Recycling** (at the outfitter, from storage) breaks any module into materials for the hold: an alien module
+  gives its blueprint back with half its recipe's goods; others give metals and electronics by category, size and
+  grade. Each station recycles **3 modules in any 7 days**.
 
 ### Mining
 
