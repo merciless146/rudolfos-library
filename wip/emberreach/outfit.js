@@ -41,7 +41,8 @@ const CAT = {
 	armour: {cat: 'internal', name: 'Armour plating', grades: 'CBA', sizes: [1, 7], price: 1500, draw: 0, text: 'More hull'},
 	refinery: {cat: 'internal', name: 'Refinery', grades: 'C', sizes: [1, 6], price: 6000, draw: 0.4, text: 'Refines mined ore into tonnes of cargo'},
 	relay: {cat: 'internal', name: 'Relay booster', grades: 'CBA', sizes: [1, 5], price: 9000, draw: 0.6, text: 'More hyperdrive range'},
-	alien: {cat: 'internal', name: 'Alien relay booster', grades: 'A', sizes: [2, 4], price: 0, value: 400000, draw: 0.3, ruins: true, text: 'Far more range: found only in ruins'},
+	alien: {cat: 'internal', name: 'Alien relay booster', grades: 'A', sizes: [2, 4], price: 0, value: 400000, draw: 0.3, ruins: true, text: 'Far more range: built from a ruin\'s blueprint'},
+	phaser: {cat: 'internal', name: 'Alien dimensional phaser', grades: 'A', sizes: [3, 3], price: 0, value: 300000, draw: 1.5, ruins: true, text: 'Lets the ship pass through a black hole\'s wormhole: built from a ruin\'s blueprint'},
 	/* external: size is the smallest hardpoint it fits (1 small ... 4 huge) */
 	pulse: {cat: 'external', name: 'Pulse laser', grades: 'C', sizes: [1, 1], price: 4000, draw: 0.3, weapon: true, text: '1.2 dmg × 6/s, heats'},
 	driver: {cat: 'external', name: 'Mass driver', grades: 'C', sizes: [2, 2], price: 9000, draw: 0.4, weapon: true, text: '4.5 dmg × 2/s, 150 rounds'},
@@ -147,6 +148,7 @@ function derive(ship, fit) {
 	out.guns = fit.external.filter(m => m && CAT[m.id].weapon).map(m => m.id);
 	out.mining = fit.external.filter(m => m && m.id == 'mining').length; out.tractor = fit.external.filter(m => m && m.id == 'tractor').length;
 	out.refinery = ints.filter(m => m.id == 'refinery').reduce((t, m) => t + m.size + 1, 0);
+	out.phaser = ints.some(m => m.id == 'phaser');
 	out.utility = Object.fromEntries(ut.map(m => [m.id, true]));
 	out.langs = [...new Set(ut.filter(m => m.id == 'decoder').flatMap(m => m.langs || []))];
 	out.power = power(ship, fit);
@@ -195,6 +197,61 @@ const holdOf = (ship, fit) => fit.internal.filter(m => m && m.id == 'cargo').red
 /* worth of a fit beyond stock (added to a ship's trade-in) */
 const extra = (ship, fit) => Math.max(0, modules(fit).reduce((t, m) => t + price(m), 0) - modules(stock(ship)).reduce((t, m) => t + price(m), 0));
 
+/* ---- alien blueprints (found in ruins) and the artifact broker's recipes ---- */
+/* what building one takes: goods from the hold, and the broker's fee in SU */
+const RECIPES = {
+	alien: size => ({goods: {Artefacts: 3 * size, Beryllium: 2 * size, Electronics: size}, fee: 60000 * size}),
+	phaser: () => ({goods: {Artefacts: 12, Uranium: 6, Diamond: 2, Electronics: 4}, fee: 250000})};
+const BLUEPRINT = {alien: 'Alien relay booster', phaser: 'Alien dimensional phaser'};
+/* a ruin's survey turns up a blueprint now and then: a relay booster (30%) or a phaser (15%) */
+function blueprintFrom(rnd) { const r = rnd(); return r < 0.15 ? {id: 'phaser', size: 3} : r < 0.45 ? {id: 'alien', size: 2 + Math.floor(rnd() * 3)} : null }
+/* a blueprint found: it's a material, used up when the module is built (recycling the module gives it back) */
+function learn(P, bp) { (P.blueprints = P.blueprints || []).push({id: bp.id, size: bp.size}); return true }
+/* the artifact broker builds one: the blueprint and the goods come from the hold, the fee in the local coin; the
+   module goes to storage. pay(feeSU) pays it (trade.js), and returns {ok, code, amount} */
+function build(P, bp, pay) {
+	const rc = RECIPES[bp.id](bp.size), short = Object.entries(rc.goods).filter(([g, t]) => (P.cargo[g] || 0) < t);
+	if (short.length) return {ok: false, why: 'Needs ' + short.map(([g, t]) => t + ' t ' + g).join(', ') + ' in the hold.'};
+	const p = pay(rc.fee); if (!p.ok) return {ok: false, why: 'The broker\'s fee is ' + rc.fee.toLocaleString('en') + ' SU in ' + p.code + '.'};
+	for (const [g, t] of Object.entries(rc.goods)) { P.cargo[g] -= t; if (!P.cargo[g]) { delete P.cargo[g]; delete P.cost[g] } }
+	const i = (P.blueprints || []).indexOf(bp); if (i >= 0) P.blueprints.splice(i, 1);
+	const m = {id: bp.id, size: bp.size, grade: 'A'};
+	(P.stored = P.stored || []).push(m);
+	return {ok: true, module: m, paid: p};
+}
+/* ---- recycling: any module, for materials; an alien one gives its blueprint back. Each station takes only so
+   many in a while ---- */
+const RECYCLE = {perStation: 3, days: 7, share: 0.5};
+/* what a module breaks down into: half an alien recipe's goods and its blueprint; otherwise metals and electronics
+   by category, size and grade */
+function materials(m) {
+	const c = CAT[m.id]; if (!c) return {goods: {}};
+	if (c.ruins) { const rc = RECIPES[m.id](m.size), goods = {}; for (const [g, t] of Object.entries(rc.goods)) goods[g] = Math.floor(t * RECYCLE.share); return {goods, blueprint: {id: m.id, size: m.size}} }
+	const z = m.size || 1, k = {C: 1, B: 1.5, A: 2}[m.grade] || 1, goods = {};
+	const add = (g, t) => { t = Math.floor(t); if (t > 0) goods[g] = (goods[g] || 0) + t };
+	if (c.cat == 'utility') { add('Electronics', 1 * k); add('Aluminum', 1) }
+	else if (c.cat == 'external') { add('Iron', z); add('Titanium', z * 0.5 * k); add('Electronics', z * 0.5 * k) }
+	else { add('Iron', z * 1.5); add('Aluminum', z); add('Titanium', z * 0.3 * k); if (c.draw) add('Electronics', z * 0.5 * k) }
+	return {goods};
+}
+/* how many more this station will take now: P.recycled[stationId] holds the days of the last ones */
+function recycleRoom(P, stationId, day) { const L = ((P.recycled || {})[stationId] || []).filter(d => day - d < RECYCLE.days); return {left: RECYCLE.perStation - L.length, next: L.length ? Math.min(...L) + RECYCLE.days : null} }
+/* recycle a stored module (index j in P.stored) at a station: materials to the hold (if they fit), a blueprint back */
+function recycle(P, j, stationId, day, capacity) {
+	const m = (P.stored || [])[j]; if (!m) return {ok: false, why: 'No such module.'};
+	const room = recycleRoom(P, stationId, day);
+	if (room.left <= 0) return {ok: false, why: 'This station\'s recyclers are busy: ' + RECYCLE.perStation + ' modules a ' + RECYCLE.days + '-day spell. Again from day ' + room.next + '.'};
+	const mat = materials(m), t = Object.values(mat.goods).reduce((a, b) => a + b, 0), held = Object.values(P.cargo).reduce((a, b) => a + b, 0);
+	if (held + t > capacity) return {ok: false, why: 'The materials (' + t + ' t) won\'t fit in the hold.'};
+	P.stored.splice(j, 1);
+	for (const [g, n] of Object.entries(mat.goods)) { const have = P.cargo[g] || 0; P.cost[g] = have ? (P.cost[g] || 0) * have / (have + n) : 0; P.cargo[g] = have + n }
+	if (mat.blueprint) learn(P, mat.blueprint);
+	P.recycled = P.recycled || {}; P.recycled[stationId] = [...((P.recycled[stationId] || []).filter(d => day - d < RECYCLE.days)), Math.floor(day)];
+	return {ok: true, module: m, goods: mat.goods, blueprint: mat.blueprint || null};
+}
+/* brokers keep shop at the bigger ports */
+const broker = port => !!port && ['lantern', 'halo', 'bloom'].includes(port.cls);
+
 /* ---- languages ---- */
 /* each great power's species has its own language; small factions speak their species' (the mixed speak trade
    pidgin, which everyone knows) */
@@ -231,6 +288,6 @@ function valid(ship, fit) {
 	} catch (e) { return false }
 }
 
-const EmberOutfit = {SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
+const EmberOutfit = {RECYCLE, materials, recycleRoom, recycle, RECIPES, BLUEPRINT, blueprintFrom, learn, build, broker, SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
 if (isNode) module.exports = EmberOutfit; else root.EmberOutfit = EmberOutfit;
 })(typeof window != 'undefined' ? window : this);
