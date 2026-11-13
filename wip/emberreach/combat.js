@@ -35,6 +35,11 @@ const COMBAT = {gimbal: 5, lockCone: 15, lockTime: 2, flares: 6, flareChance: 0.
 
 /* a ship's guns from its hardpoints [S, M, L, H]; each medium mount also carries a missile pylon */
 function loadout(ship) {
+	/* a fitted ship (outfit.js) carries what its external modules are; missile racks hold four missiles each */
+	if (ship.guns) {
+		const guns = ship.guns.filter(k => k != 'missile').map(k => ({kind: k, cool: 0, ammo: WEAPONS[k].ammo}));
+		return {guns, missiles: ship.guns.filter(k => k == 'missile').length * WEAPONS.missile.ammo, flares: COMBAT.flares, turrets: ship.size == 'Capital'};
+	}
 	const guns = [], h = ship.hard || [0, 0, 0, 0];
 	h.forEach((n, size) => { for (let k = 0; k < n; k++) guns.push({kind: BY_SIZE[size], cool: 0, ammo: WEAPONS[BY_SIZE[size]].ammo}) });
 	return {guns, missiles: h[1] * WEAPONS.missile.ammo, flares: COMBAT.flares, turrets: ship.size == 'Capital'};

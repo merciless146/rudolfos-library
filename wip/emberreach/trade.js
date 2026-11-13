@@ -99,7 +99,7 @@ function exchange(P, amount, from, to, day, holder) {
 }
 
 /* ---- services ---- */
-const tank = ship => Math.max(1, Math.round(ship.length * TRADE.tankPerMetre * 10) / 10);
+const tank = ship => Math.max(1, Math.round(ship.length * TRADE.tankPerMetre * (ship.tank || 1) * 10) / 10);   /* a better fuel tank (outfit.js) holds more */
 /* filling the tank from `fuel` (0..1), at this market's fuel price (in its currency) */
 function refuelCost(ship, fuel, mkt) { return (1 - fuel) * tank(ship) * mkt.prices.Fuel.price }
 /* repairs: the share of the modules' health that's missing, of 8% of the ship's value, in the market's currency */
