@@ -238,7 +238,7 @@ function frontSystems(a, b, want) {
 	for (let k = 0; k < want * 600 && out.length < want; k++) {
 		const p = lo.map((v, i) => v + r() * (hi[i] - v)), c0 = claimAt(p);
 		if (!c0.contested || !c0.contested.includes(a.id) || !c0.contested.includes(b.id)) continue;
-		const s = G.starsNear(p[0], p[1], p[2], nearR(p)).find(s => s.kind == 'star' && s.M > 0.25 && !seen.has(s.id) && G.system(s).planets.length);
+		const s = G.normal(() => G.starsNear(p[0], p[1], p[2], nearR(p))).find(s => s.kind == 'star' && s.M > 0.25 && !seen.has(s.id) && G.system(s).planets.length);
 		if (!s) continue;
 		const cl = claimAt(pos(s));
 		if (!cl.contested || !cl.contested.includes(a.id) || !cl.contested.includes(b.id)) continue;
@@ -400,7 +400,7 @@ function minors() {
 			return jitter(a.at.map((v, k) => (v + b.at[k]) / 2), Math.min(a.claim, b.claim) * 0.3, r);
 		};
 		const nSites = K.pattern == 'fixed' ? 1 : K.pattern == 'nomadic' ? 5 + Math.floor(r() * 4) : 2 + Math.floor(r() * 4);
-		const sites = [...Array(nSites)].map(() => { const p = site(); const s = G.starsNear(p[0], p[1], p[2], nearR(p))[0]; return s ? {id: s.id, name: s.name, at: pos(s)} : {id: 'deep:' + p.join(), name: 'deep space', at: p} });
+		const sites = [...Array(nSites)].map(() => { const p = site(); const s = G.normal(() => G.starsNear(p[0], p[1], p[2], nearR(p)))[0]; return s ? {id: s.id, name: s.name, at: pos(s)} : {id: 'deep:' + p.join(), name: 'deep space', at: p} });
 		/* species: most small factions are offshoots of a great power's species; some mixed */
 		const parent = r() < 0.75 ? M[Math.floor(r() * M.length)] : null;
 		const stance = {};

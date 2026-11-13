@@ -48,6 +48,9 @@
    - Black holes are wormholes: with an alien dimensional phaser fitted, J within 2,000 km of one phases through to
      a random star anywhere in the galaxy. Phasers and alien relay boosters are built from blueprints found in
      ruins, by an artifact broker (a station contact).
+   - The Maw, the black hole at the centre, leads into the Rift (galaxy.js): the galaxy upside down, lifeless, with
+     no powers, only Precursor anchorages and the Riftborn (encounters.js), its own ores and the Precursors' ruins,
+     whose blueprints a broker builds into Precursor modules and hulls (outfit.js, ships.js). The Maw there leads home.
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
@@ -96,7 +99,7 @@ async function start() {
 	const majors = F.majors();
 	/* the save, unless the URL asks for a particular system, port or ship */
 	let sv = null;
-	try { sv = Sv.unpack(await RG.load(), {powers: majors.length, ports: Object.keys(Sc.STATION), ships: S.ships().map(x => x.id)}) } catch (e) { sv = null }
+	try { sv = Sv.unpack(await RG.load(), {powers: majors.length, ports: Object.keys(Sc.STATION), ships: [...S.ships(), ...S.precursors()].map(x => x.id)}) } catch (e) { sv = null }
 	const fresh = ['power', 'port', 'ship', 'day'].some(k => Q.has(k));
 	if (sv) { quality = Q.get('quality') || sv.settings.quality; Snd.setOn(sv.settings.sound) }
 	if (fresh) sv = sv && {settings: sv.settings};
@@ -110,7 +113,7 @@ async function start() {
 	if (Q.has('ship') && !ok) game.P.ship.model = Q.get('ship');
 	Co.registerScrips(game.P);
 	game.homePort = !ok && Sc.STATION[Q.get('port')] ? Q.get('port') : ok && sv.version == 1 ? sv.port : 'halo';
-	baseShip = S.ships().find(x => x.id == game.P.ship.model) || S.ships().find(x => x.id == 'wren');
+	baseShip = S.hull(game.P.ship.model) || S.hull('wren');
 	if (!O.valid(baseShip, game.P.ship.fit)) game.P.ship.fit = O.stock(baseShip);
 	ship = O.derive(baseShip, game.P.ship.fit);
 	game.day = ok ? sv.day : +(Q.get('day') || 200);
@@ -148,6 +151,7 @@ async function start() {
 /* a star system: its bodies, its port (if any), meshes and sky */
 function enterSystem(star) {
 	game.star = star;
+	G.realm(star.rift ? 'rift' : 'normal');   /* the map, routes and everything near you: in the Rift, or this side */
 	const capHome = star.id == game.home.star.id;
 	game.port = capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day) || T.portFor(star, game.day);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
@@ -498,7 +502,7 @@ function update(dt) {
 /* ---------------- combat ---------------- */
 /* the player's guns, shields and hull: a fresh fighting state on the fit, with the hull and magazines carried over */
 function arm() { game.pcs = C.restore(C.state(ship, fit), game.P.combat); game.pcs.id = 'me' }
-const shortName = id => { const f = F.byId(id); return f ? f.name.replace(/^The /, '') : 'Independent' };
+const shortName = id => { if (id == 'riftborn') return 'Riftborn'; const f = F.byId(id); return f ? f.name.replace(/^The /, '') : 'Independent' };
 function npcMesh(n) { const k = 'npc:' + n.ship.length; if (!game.npcMeshes.has(k)) { game.npcMeshes.add(k); R.upload(k, Me.ship(n.ship.length, quality)) } }
 /* the system's cast, placed: around the port, or ahead of where you are */
 function populate() {
@@ -533,7 +537,7 @@ function place(list) {
 		n.cargo = n.cargo || Ca.wreck(n.role, n.ship);
 		if (n.wanted == null) n.wanted = n.role == 'pirate' ? wantedFor(n, 1) : ['trader', 'navy'].includes(n.role) && Math.random() < 0.08 ? wantedFor(n, 0.3) : null;
 		n.scanned = null; n.scanT = 0;
-		n.ai = {mode: n.ai, base: n.ai, fleeAt: n.role == 'pirate' ? 0.3 : n.role == 'trader' ? 2 : n.role == 'flagship' ? 0 : 0.15};
+		n.ai = {mode: n.ai, base: n.ai, fleeAt: n.role == 'pirate' ? 0.3 : n.role == 'trader' ? 2 : n.role == 'flagship' || n.role == 'riftborn' || n.role == 'sentinel' ? 0 : 0.15};
 		n.home = n.where == 'port' && st ? st.c : p;
 		n.pos = n.s.p; n.radius = n.s.radius; n.kind = 'ship'; n.next = 0; n.foe = null;
 		n.name = (n.role == 'flagship' || n.role == 'sentinel') && n.name ? n.name : n.role == 'depot' ? shortName(n.faction) + ' supply depot' : shortName(n.faction) + ' ' + n.ship.name;
@@ -585,7 +589,7 @@ function combat(dt) {
 	const can = pilot.conscious && !game.jump;
 	if (can && (RG.down('fire') || game.mouseFire || game.touch.fire != null)) {
 		if (!pc.load.guns.length) { if (!game.saidUnarmed) { game.saidUnarmed = true; say('The ' + ship.name + ' carries no weapons', '#f2a33a') } }
-		else { const k = C.fire(pc, s, game.t, foe, game.shots); if (k) Snd.cue(pc.load.guns.some(g => g.kind == 'heavy') ? 'heavy' : pc.load.guns.some(g => g.kind == 'pulse') ? 'pulse' : 'driver') }
+		else { const k = C.fire(pc, s, game.t, foe, game.shots); if (k) Snd.cue(pc.load.guns.some(g => g.kind == 'heavy' || g.kind == 'lance') ? 'heavy' : pc.load.guns.some(g => g.kind == 'pulse' || g.kind == 'needle') ? 'pulse' : 'driver') }
 	} else game.saidUnarmed = false;
 	if (can && (RG.pressed('missile') || game.touch.msl)) {
 		game.touch.msl = false;
@@ -762,27 +766,38 @@ function safety() {
 	}
 }
 const PHASE = {range: 2.5e6, charge: 8};
+/* within reach of a black hole's throat: 2,500 km, or (the Maw) a little past the safety's hold */
+const phaseRange = b => Math.max(PHASE.range, Sc.bhSafe(b) * 1.25);
 /* J near a black hole: phase through its wormhole, if the ship carries a dimensional phaser */
 function requestPhase(b) {
 	if (!ship.phaser) { say('A black hole\'s wormhole needs an alien dimensional phaser. Their blueprints lie in ruins.', '#f2a33a'); Snd.cue('refused'); return true }
 	if (!M.works(fit, 'power')) { say('The phaser needs power', '#e5484d'); Snd.cue('refused'); return true }
-	const d = len(sub(s.p, b.pos)); if (d > PHASE.range) { say('Phase within ' + H.fmtDist(PHASE.range) + ' of ' + b.name + ' (' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return true }
+	const d = len(sub(s.p, b.pos)); if (d > phaseRange(b)) { say('Phase within ' + H.fmtDist(phaseRange(b)) + ' of ' + b.name + ' (' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return true }
 	shutHatch('the phase');
 	game.jump = {phase: true, leg: {star: {name: 'somewhere'}, kind: 'phase', d: 0}, charge: PHASE.charge, tunnel: null, cost: 0};
-	say('Dimensional phaser: charging. Where the wormhole leads, nobody can say.', '#c9a0ff'); Snd.cue('charge');
+	say(game.star.heart ? (game.star.rift ? 'Dimensional phaser: charging. The Maw leads home.' : 'Dimensional phaser: charging. The Maw leads one way only: into the Rift.') : 'Dimensional phaser: charging. Where the wormhole leads, nobody can say.', '#c9a0ff'); Snd.cue('charge');
 	return true;
 }
 /* out of the wormhole: a random star, anywhere the galaxy has stars (by its own density) */
 function phaseOut() {
-	const r = Math.random, sample = G.sampleGalaxy(1, Math.floor(r() * 1e9))[0];
-	let to = null; for (let R0 = 1; !to && R0 < 200; R0 *= 2) to = G.starsNear(sample.x, sample.y, sample.z, R0).find(x => x.kind == 'star' && x.id != game.star.id);
+	const r = Math.random, cross = !!game.star.heart, sample = G.sampleGalaxy(1, Math.floor(r() * 1e9))[0];
+	/* the Maw: through to its other side (the Rift, or home); any other black hole: a random star, in whichever
+	   galaxy you're in */
+	let to = null;
+	if (cross) to = G.lookup(game.star.rift ? 'heart' : 'R:heart', [0, 0, 0]);
+	else for (let R0 = 1; !to && R0 < 200; R0 *= 2) to = G.starsNear(sample.x, sample.y, sample.z, R0).find(x => x.kind == 'star' && x.id != game.star.id);
 	game.jump = null; game.day += 1;
 	enterSystem(to);
 	const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0];
 	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = 0; game.route = null;
 	settle(); colonyTurn(); populate();
 	const home = Math.hypot(to.x - game.home.star.x, to.y - game.home.star.y, to.z - game.home.star.z);
-	say('Through the wormhole: ' + to.name + ', ' + Math.round(Math.hypot(to.x, to.y, to.z)) + ' pc from the galaxy\'s centre, ' + Math.round(home) + ' pc from home', '#c9a0ff'); Snd.cue('arrive');
+	if (cross && to.rift) {
+		const R0 = game.P.rift = game.P.rift || {first: null, crossings: 0}; R0.crossings++;
+		if (R0.first == null) { R0.first = Math.floor(game.day); say('The Rift. The galaxy, turned over: every star you know, upside down, and nothing alive on any world. What crews the ships here attacks everything.', '#c9a0ff') }
+		say('Through the Maw, into the Rift. Precursor anchorages (one system in twenty-five) give fuel and repairs. The Maw this side leads home.', '#c9a0ff'); Snd.cue('arrive');
+	} else if (cross) { say('Through the Maw: home, at the heart of the galaxy', '#c9a0ff'); Snd.cue('arrive') }
+	else say('Through the wormhole: ' + to.name + (to.rift ? ' (the Rift)' : '') + ', ' + Math.round(Math.hypot(to.x, to.y, to.z)) + ' pc from the galaxy\'s centre' + (to.rift ? '' : ', ' + Math.round(home) + ' pc from home'), '#c9a0ff'); if (!cross) Snd.cue('arrive');
 	persist();
 }
 /* ---------------- mining ---------------- */
@@ -854,20 +869,22 @@ function surveyed(b) {
 	X.surveyDone(P, game.star.id, p.name); settle();
 	/* a ruin's cache: artefacts drift up as canisters */
 	if (p.ruins) {
-		const k = 2 + Math.floor(Math.random() * 3), up = norm(sub(s.p, b.pos)), f = Fl.forward(s);
-		for (let i = 0; i < k; i++) game.cans.push(Ca.make('Artefacts', add(add(s.p, mul(f, 400 + i * 40)), mul(up, -60)), add(s.v, mul(up, 3)), game.t));
-		const bp = O.blueprintFrom(Math.random);
-		if (bp && O.learn(P, bp)) say('In the ruin\'s records: a blueprint for ' + (bp.id == 'alien' ? 'an alien relay booster (size ' + bp.size + ')' : 'an alien dimensional phaser') + '. An artifact broker can build it.', '#c9a0ff');
-		say('The survey marks a cache: ' + k + ' canisters of Artefacts drift up ahead. Open the hatch (I) to scoop them.', '#f2d36a');
+		/* a Precursor ruin (in the Rift): their relics, and more often than not one of their blueprints */
+		const pre = !!p.precursor, good = pre ? 'Precursor Relics' : 'Artefacts', k = pre ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3), up = norm(sub(s.p, b.pos)), f = Fl.forward(s);
+		for (let i = 0; i < k; i++) game.cans.push(Ca.make(good, add(add(s.p, mul(f, 400 + i * 40)), mul(up, -60)), add(s.v, mul(up, 3)), game.t));
+		const bp = pre ? O.precursorFrom(Math.random) : O.blueprintFrom(Math.random);
+		if (bp && O.learn(P, bp)) say('In the ruin\'s records: a blueprint for ' + (pre ? O.bpName(bp) : bp.id == 'alien' ? 'an alien relay booster (size ' + bp.size + ')' : 'an alien dimensional phaser') + '. An artifact broker can build it' + (pre ? ', with goods from both sides of the Maw.' : '.'), '#c9a0ff');
+		say('The survey marks a cache: ' + k + ' canisters of ' + good + ' drift up ahead. Open the hatch (I) to scoop them.', '#f2d36a');
 	}
 	persist();
 }
 /* the old defences: two to four sentinels between you and the ruin */
 function sentinels(b) {
-	const k = 2 + Math.floor(Math.random() * 3), hull = S.ships().find(x => x.id == 'wisp'), toward = norm(sub(b.pos, s.p));
-	place([...Array(k)].map((_, i) => ({role: 'sentinel', faction: 'ancients', ship: hull, name: 'Sentinel ' + 'αβγδ'[i], where: 'arrival', range: 3000 + i * 400, ai: 'attack'})));
+	/* (a Precursor ruin's guardians: Riftborn-strong, and a heavier hull) */
+	const pre = !!b.src.precursor, k = 2 + Math.floor(Math.random() * 3), hull0 = S.hull(pre ? 'shrike' : 'wisp'), hull = pre ? En.riftborn(hull0) : hull0, toward = norm(sub(b.pos, s.p));
+	place([...Array(k)].map((_, i) => ({role: 'sentinel', faction: 'ancients', ship: hull, rift: pre, name: (pre ? 'Guardian ' : 'Sentinel ') + 'αβγδ'[i], where: 'arrival', range: 3000 + i * 400, ai: 'attack'})));
 	for (const n of game.npcs.filter(n => n.role == 'sentinel')) n.home = add(s.p, mul(toward, 3000));
-	say('Old defences wake around ' + pname(b) + ': ' + k + ' sentinels', '#e5484d'); Snd.cue('incoming');
+	say((pre ? 'Precursor guardians wake around ' : 'Old defences wake around ') + pname(b) + ': ' + k + (pre ? ' guardians' : ' sentinels'), '#e5484d'); Snd.cue('incoming');
 }
 /* war missions: pay what's done, fail what's late */
 function settle() {
@@ -899,7 +916,7 @@ function openPort() {
 	const env = {P: game.P, ship, hullShip: baseShip, fit, fuel: () => game.fuel, setFuel: f => { game.fuel = f; persist() }, star: game.star, port: game.port, stationName: st.name, day: game.day,
 		onLaunch: () => { persist(); launch(false); hud.focus() },
 		onRefit: () => { const old = fit; ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); for (const m of fit.modules) { const o = old.modules.find(x => x.id == m.id); if (o) m.hp = Math.min(m.max, o.hp / o.max * m.max) } env.ship = ship; arm(); persist() },
-		onShip: id => { baseShip = S.ships().find(x => x.id == id); game.P.ship.fit = O.stock(baseShip); ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); env.ship = ship; env.hullShip = baseShip; game.fuel = 1; game.P.combat = C.refill(ship, {hull: 1}); arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist() },
+		onShip: id => { baseShip = S.hull(id); game.P.ship.fit = O.stock(baseShip); ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); env.ship = ship; env.hullShip = baseShip; game.fuel = 1; game.P.combat = C.refill(ship, {hull: 1}); arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist() },
 		say: t => say(t), cue: k => Snd.cue(k)};
 	Port.open(env);
 }
@@ -941,9 +958,11 @@ function draw() {
 		const far = px(b.pos, b.radius * (b.ring ? 2.3 : 1)) < LOD.spritePx, atmo = b.atmo ? Me.atmosphere(b.type) : null;
 		if (b.bh) {
 			/* a black hole: a dark disc in a ring of glowing accretion, far bigger than its horizon */
-			items.push({id: b.name, pos: b.pos, rot, light: lightDir, amb: 0, disc: {radius: b.radius * 3, col: [0, 0, 0]}, sprite: {radius: b.radius * 3, col: [0, 0, 0]}});
-			glows.push({pos: b.pos, radius: b.radius * 60, col: [1, 0.55, 0.25], alpha: 0.85, scale: 4, min: 0.03});
-			glows.push({pos: b.pos, radius: b.radius * 20, col: [0.75, 0.6, 1], alpha: 0.5 + 0.15 * Math.sin(game.t * 0.7), scale: 3, min: 0.012});
+			/* (the Maw is a hundred thousand times as wide: its glow stays close in, and up close it's drawn as a disc only) */
+			const huge = b.radius > 1e8, sh = huge ? 1.5 : 3;
+			items.push({id: b.name, pos: b.pos, rot, light: lightDir, amb: 0, disc: {radius: b.radius * sh, col: [0, 0, 0]}, sprite: {radius: b.radius * sh, col: [0, 0, 0]}});
+			glows.push({pos: b.pos, radius: b.radius * (huge ? 4 : 60), col: [1, 0.55, 0.25], alpha: 0.85, scale: 4, min: 0.03});
+			glows.push({pos: b.pos, radius: b.radius * (huge ? 2.5 : 20), col: [0.75, 0.6, 1], alpha: 0.5 + 0.15 * Math.sin(game.t * 0.7), scale: 3, min: 0.012});
 		} else if (b.kind == 'star') {
 			const c = Me.starColour(b.T);
 			items.push({id: b.name, pos: b.pos, rot, light: lightDir, amb: 1, disc: {radius: b.radius, col: c, glow: true}, sprite: far ? {radius: b.radius, col: c, glow: true} : null});
@@ -1005,7 +1024,7 @@ function hudDraw(cam) {
 	if (Tg == st) target.dock = dockCues(rel);
 	if (Tg.kind == 'asteroid') { const d = len(sub(s.p, Tg.pos)); target.kind = 'asteroid · ' + Tg.radius * 2 + ' m'; target.dock = Tg.prospected ? {line1: comp(Tg), line2: Tg.left > 0 ? Tg.left + ' t left · fire a mining laser within 600 m' : 'Spent', col: '#c9a46a'} : !ship.utility.prospector ? {line1: 'Composition unknown', line2: 'A resource scanner reads it', col: '#9fb0cc'} : {line1: d < Mi.MINE.scanRange ? 'Prospecting… ' + Math.round((Tg.scanT || 0) / Mi.MINE.scanTime * 100) + '%' : 'Prospect within 3 km', col: '#c9a46a'} }
 	if (Tg.kind == 'field') { target.kind = 'mining site · ' + Mi.KINDS[Tg.fieldKind].name; target.dock = {line1: 'Cruise here and drop out to mine', line2: (ship.mining ? ship.mining + ' mining laser' + (ship.mining > 1 ? 's' : '') : 'No mining laser') + ' · ' + (ship.refinery ? ship.refinery + ' refinery bins' : 'no refinery'), col: '#c9a46a'} }
-	if (Tg.bh) { const d = len(sub(s.p, Tg.pos)); target.kind = 'black hole · ' + (game.star.M || 0).toFixed(1) + ' suns · a wormhole'; target.dock = !ship.phaser ? {line1: 'No dimensional phaser: the wormhole is closed to you', line2: 'Blueprints lie in ruins; an artifact broker builds them', col: '#9fb0cc'} : {line1: d < PHASE.range ? 'Press J to phase through' : 'Phase within ' + H.fmtDist(PHASE.range), line2: 'To a random star, anywhere', col: d < PHASE.range ? '#c9a0ff' : '#9fb0cc'} }
+	if (Tg.bh) { const d = len(sub(s.p, Tg.pos)), pr = phaseRange(Tg), maw = game.star.heart; target.kind = maw ? 'the Maw · ' + (game.star.M / 1e6).toFixed(0) + ' million suns · ' + (game.star.rift ? 'the way home' : 'the way into the Rift') : 'black hole · ' + (game.star.M || 0).toFixed(1) + ' suns · a wormhole'; target.dock = !ship.phaser ? {line1: 'No dimensional phaser: the wormhole is closed to you', line2: 'Blueprints lie in ruins; an artifact broker builds them', col: '#9fb0cc'} : {line1: d < pr ? 'Press J to phase through' : 'Phase within ' + H.fmtDist(pr), line2: maw ? (game.star.rift ? 'Home: the heart of the galaxy' : 'The Rift: the galaxy upside down') : game.star.rift ? 'To a random star in the Rift' : 'To a random star, anywhere', col: d < pr ? '#c9a0ff' : '#9fb0cc'} }
 	if (Tg.kind == 'beacon') { target.kind = 'navigation beacon'; target.dock = {line1: 'Hyperspace arrivals come out here', line2: navWorks() ? 'Receiver working' : ship.utility.nav ? 'Receiver offline' : 'No nav beacon receiver fitted', col: '#6cc9e8'} }
 	if (Tg.kind == 'site') {
 		const c = Tg.colony, d = len(sub(s.p, Tg.pos)) - (c.stage == 'building' ? Tg.radius : 0);

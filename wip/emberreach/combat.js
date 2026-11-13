@@ -30,6 +30,9 @@ const WEAPONS = {
 	heavy: {name: 'Heavy laser', size: 2, dmg: 9, rate: 1.5, speed: 3500, range: 4000, heat: 0.08, vsShield: 1.2, vsHull: 0.8, ammo: null, col: [0.5, 0.8, 1]},
 	torpedo: {name: 'Torpedo rack', size: 3, dmg: 150, rate: 0.2, speed: 400, range: 9000, heat: 0, vsShield: 0.8, vsHull: 1.6, ammo: 8, homing: 1.2, col: [1, 1, 0.9]},
 	mining: {name: 'Mining laser', size: 0, dmg: 0.4, rate: 4, speed: 3000, range: 600, heat: 0.008, vsShield: 0.5, vsHull: 0.5, ammo: null, col: [0.45, 1, 0.55]},
+	/* Precursor work (outfit.js): hits like the next size up, and runs cool */
+	needle: {name: 'Precursor needle', size: 0, dmg: 3, rate: 6, speed: 5000, range: 3000, heat: 0.012, vsShield: 1.2, vsHull: 1.1, ammo: null, col: [0.75, 0.55, 1]},
+	lance: {name: 'Precursor lance', size: 2, dmg: 26, rate: 1.5, speed: 6000, range: 5000, heat: 0.05, vsShield: 1.2, vsHull: 1.2, ammo: null, col: [0.85, 0.6, 1]},
 	missile: {name: 'Missile', size: -1, dmg: 30, rate: 1, speed: 600, range: 7000, heat: 0, vsShield: 1, vsHull: 1.5, ammo: 4, homing: 2.2, col: [1, 1, 1]}};
 const BY_SIZE = ['pulse', 'driver', 'heavy', 'torpedo'];
 const COMBAT = {gimbal: 5, lockCone: 15, lockTime: 2, flares: 6, flareChance: 0.7, regenDelay: 2.5, regenTime: 15, coolRate: 0.12, overheat: 1, cooled: 0.6, cookRate: 4, moduleShare: 0.6};
@@ -47,7 +50,7 @@ function loadout(ship) {
 }
 /* a ship's fighting state: shields, hull, heat, guns, modules */
 function state(ship, fit) {
-	return {hullMax: ship.hull, hull: ship.hull, shieldMax: ship.shield, shield: ship.shield, heat: 0, hot: false, lastHit: -1e9, fit: fit || M.fit(ship), load: loadout(ship), lock: {id: null, t: 0}, dead: false};
+	return {dmgK: ship.dmgK || 1, hullMax: ship.hull, hull: ship.hull, shieldMax: ship.shield, shield: ship.shield, heat: 0, hot: false, lastHit: -1e9, fit: fit || M.fit(ship), load: loadout(ship), lock: {id: null, t: 0}, dead: false};
 }
 /* a hit: shields first, then the hull and its modules. Returns what it did */
 function damage(cs, dmg, kind, t, rnd) {
@@ -100,7 +103,7 @@ function fire(cs, s, t, target, out) {
 			else if (cs.load.turrets === false && !target.forceAhead) {}
 		}
 		const origin = add(s.p, mul(dir, s.radius * 1.2));
-		out.push({kind: g.kind, p: origin, v: add(s.v, mul(dir, W.speed)), ttl: W.range / W.speed, dmg: W.dmg, owner: cs.id, target: null});
+		out.push({kind: g.kind, p: origin, v: add(s.v, mul(dir, W.speed)), ttl: W.range / W.speed, dmg: W.dmg * (cs.dmgK || 1), owner: cs.id, target: null});
 		g.cool = 1 / W.rate; if (g.ammo != null) g.ammo--; cs.heat += W.heat; n++;
 	}
 	return n;
@@ -119,7 +122,7 @@ function launch(cs, s, target, out) {
 	const kinds = []; if (cs.load.missiles > 0) kinds.push('missile'); if (torp) kinds.push('torpedo');
 	for (const k of kinds) {
 		const W = WEAPONS[k], dir = Fl.forward(s);
-		out.push({kind: k, p: add(s.p, mul(dir, s.radius * 1.3)), v: add(s.v, mul(dir, W.speed * 0.5)), ttl: W.range / W.speed * 1.5, dmg: W.dmg, owner: cs.id, target: target.id});
+		out.push({kind: k, p: add(s.p, mul(dir, s.radius * 1.3)), v: add(s.v, mul(dir, W.speed * 0.5)), ttl: W.range / W.speed * 1.5, dmg: W.dmg * (cs.dmgK || 1), owner: cs.id, target: target.id});
 		if (k == 'missile') cs.load.missiles--; else { torp.ammo--; torp.cool = 1 / W.rate }
 		n++;
 	}

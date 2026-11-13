@@ -72,6 +72,7 @@ const colonyAt = (P, starId) => list(P).find(c => c.star.id == starId && !gone(c
 
 /* can this office's sponsor claim this system for you? {ok, why, fee (sponsor's coin), salvage} */
 function canClaim(P, office, star, kind, day, jumpRange, plan, independent) {
+	if (star.rift || star.heart) return {ok: false, why: 'No power files claims in the Rift, or at the Maw.'};
 	const sp = F.byId(office.owner), K = PORTS[kind];
 	if (!sp || sp.kind != 'major') return {ok: false, why: 'Claims are filed at a great power\'s colonial office.'};
 	if (!K) return {ok: false, why: 'No such port.'};

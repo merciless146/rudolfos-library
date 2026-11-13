@@ -28,12 +28,14 @@ function make(good, p, v, t, rnd) {
 /* what a wreck leaves: traders their cargo, pirates some loot, navy ships munitions, depots a lot of munitions */
 function wreck(role, ship, rnd) {
 	rnd = rnd || Math.random;
-	const goods = Object.keys(E.GOODS).filter(g => g != 'Artefacts'), pick = () => goods[Math.floor(rnd() * goods.length)];
+	const goods = Object.keys(E.GOODS).filter(g => g != 'Artefacts' && !(E.RIFT_GOODS || []).includes(g)), pick = () => goods[Math.floor(rnd() * goods.length)];
 	const room = Math.max(0, ship.cargo || 0), cap = n => Math.min(n, Math.max(0, Math.round(room / 2)) || n);
 	let out = [];
 	if (role == 'trader') { const g = pick(), k = cap(3 + Math.floor(rnd() * 6)); for (let i = 0; i < k; i++) out.push(rnd() < 0.7 ? g : pick()) }
 	else if (role == 'pirate') { const k = Math.floor(rnd() * 4); for (let i = 0; i < k; i++) out.push(pick()) }
 	else if (role == 'navy' || role == 'patrol') { if (rnd() < 0.4) out.push('Munitions') }
+	/* the Riftborn: what they carry is the Rift's own */
+	else if (role == 'riftborn') { const rg = ['Nullite', 'Nullite', 'Voidglass', 'Aetherium'], k = 1 + Math.floor(rnd() * 3); for (let i = 0; i < k; i++) out.push(rnd() < 0.08 ? 'Precursor Relics' : rg[Math.floor(rnd() * rg.length)]) }
 	else if (role == 'depot') { const k = 4 + Math.floor(rnd() * 5); for (let i = 0; i < k; i++) out.push('Munitions') }
 	return out;
 }

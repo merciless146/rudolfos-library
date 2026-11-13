@@ -31,7 +31,7 @@ function webgl(cv, gl) {
 	const head = '#version 300 es\nprecision highp float;\n';
 	/* camera space: x right, y up, w = distance along the view; clip z puts the near plane at w = NEAR */
 	const proj = `uniform vec3 uR, uU, uF; uniform vec2 uK;
-vec4 project(vec3 c) { float w = dot(c, uF); return vec4(dot(c, uR) * uK.x, dot(c, uU) * uK.y, w - 2.0 * ${NEAR.toFixed(2)}, w); }`;
+vec4 project(vec3 c) { float w = dot(c, uF); return vec4(dot(c, uR) * uK.x, dot(c, uU) * uK.y, min(w - 2.0 * ${NEAR.toFixed(2)}, w * 0.999), w); }`;   /* (far off, w - 1 rounds to w in floats: keep z inside, the depth is written apart) */
 	const P = {
 		mesh: prog(head + proj + `
 in vec3 aP, aN; in vec4 aC; uniform vec3 uOff; uniform mat3 uRot; out vec3 vN; out vec4 vC; out float vW; out vec3 vPos;
@@ -48,7 +48,7 @@ void main() { vec4 p = project(aP * 1e9); p.z = p.w * 0.99999; gl_Position = p; 
 		/* a body from afar: one quad, shaded as a lit sphere (or flat bright for a star) */
 		sprite: prog(head + proj + `
 in vec2 aP; uniform vec3 uOff; uniform float uRad; out vec2 vQ; out float vW;
-void main() { vec3 c = uOff + (uR * aP.x + uU * aP.y) * uRad; gl_Position = project(c); vW = dot(uOff, uF); vQ = aP; }`,
+void main() { vec3 c = uOff + (uR * aP.x + uU * aP.y) * uRad; vec4 p = project(c); gl_Position = p / p.w; vW = dot(uOff, uF); vQ = aP; }`,   /* (the quad faces the camera, all at one distance: divided through here, so huge far-off ones clip cleanly) */
 		head + `in vec2 vQ; in float vW; uniform vec3 uCol, uLv; uniform float uGlow, uMinA; uniform vec4 uAtmo; out vec4 o;
 void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ.y, -sqrt(max(0.0, 1.0 - r * r)));
  float d = max(dot(n, uLv), 0.0); vec3 c = mix(uCol * (0.05 + 0.95 * d), uCol * 1.1, uGlow);
