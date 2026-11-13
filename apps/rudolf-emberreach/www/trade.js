@@ -10,14 +10,14 @@
      ship's value for a ship wrecked from full.
    - Shipyards: Trefoil outposts sell the smallest hulls (XS, S), Lanterns up to M, Halos everything; never an
      enemy's designs. Your ship is taken in part-exchange at 80% of its price there, and your cargo must fit.
-   - Losing a ship: the replacement costs 5% of its value (insurance), from your home currency if you have it.
+   - Losing a ship: see insurance.js (a weekly policy with a great power, and where you wake up).
    GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
 const isNode = typeof module != 'undefined';
 const E = isNode ? require('./economy.js') : root.EmberEconomy, F = isNode ? require('./factions.js') : root.EmberFactions,
 	S = isNode ? require('./ships.js') : root.EmberShips, R = isNode ? require('./reputation.js') : root.EmberReputation;
-const TRADE = {freeCut: 0.08, repairShare: 0.08, rebuy: 0.05, tradeIn: 0.8, tankPerMetre: 0.35};
+const TRADE = {freeCut: 0.08, repairShare: 0.08, tradeIn: 0.8, tankPerMetre: 0.35};
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'Capital'];
 const YARD = {trefoil: 'S', bloom: 'S', lantern: 'M', halo: 'Capital'};
 
@@ -111,7 +111,6 @@ function repairCost(ship, fit, mkt, day, hull) {
 	return k * TRADE.repairShare * S.value(ship) * rate(mkt.currency, day);
 }
 /* a replacement ship: 5% of its value, in the home currency */
-function rebuyCost(P, ship, day) { const c = origin(P).currency.code; return {code: c, amount: TRADE.rebuy * S.value(ship) * rate(c, day)} }
 
 /* ---- shipyards ---- */
 /* what a yard of this port class sells here today: never an enemy's designs */
@@ -138,6 +137,6 @@ function buyShip(P, currentId, newId, star, day) {
 	return {ok: true, cost, currency: p.currency, tradeIn: ti.amount};
 }
 
-const EmberTrade = {TRADE, YARD, newPlayer, held, free, walletSU, worth, pay, receive, canBuy, buy, sell, exchange, tank, refuelCost, repairCost, rebuyCost, yard, tradeIn, buyShip, rate};
+const EmberTrade = {TRADE, YARD, newPlayer, held, free, walletSU, worth, pay, receive, canBuy, buy, sell, exchange, tank, refuelCost, repairCost, yard, tradeIn, buyShip, rate};
 if (isNode) module.exports = EmberTrade; else root.EmberTrade = EmberTrade;
 })(typeof window != 'undefined' ? window : this);

@@ -80,7 +80,7 @@ function packPlayer(P) {
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
 		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
 		mined: P.mined || {}, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
-		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null};
+		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance};
 }
 const numMap = o => o && typeof o == 'object' && !Array.isArray(o) && Object.values(o).every(num);
 function unpackPlayer(x) {
@@ -106,6 +106,9 @@ function unpackPlayer(x) {
 		explore: exploreOk(x.explore) ? x.explore : null,
 		/* M5b: colonies and haulage contracts */
 		colonies: Array.isArray(x.colonies) ? x.colonies.filter(c => obj(c) && typeof c.id == 'string' && obj(c.star) && Array.isArray(c.star.at) && obj(c.need) && obj(c.got) && typeof c.stage == 'string') : [],
+		/* the ship's insurance (insurance.js): a policy, or none (null: cancelled); absent in older saves, which get
+		   the starter's cover when the game next looks */
+		insurance: x.insurance === null ? null : obj(x.insurance) && typeof x.insurance.provider == 'string' && typeof x.insurance.code == 'string' && num(x.insurance.paidTo) && num(x.insurance.owed) && x.insurance.owed >= 0 ? {provider: x.insurance.provider, code: x.insurance.code, since: num(x.insurance.since) ? x.insurance.since : 0, paidTo: x.insurance.paidTo, owed: x.insurance.owed} : undefined,
 		hauls: Array.isArray(x.hauls) ? x.hauls.filter(h => obj(h) && typeof h.colony == 'string' && num(h.tons) && num(h.eta)) : [],
 		missions: Array.isArray(x.missions) ? x.missions.filter(m => m && typeof m.id == 'string' && m.star && typeof m.star.id == 'string' && Array.isArray(m.star.at) && num(m.due)) : []};
 }

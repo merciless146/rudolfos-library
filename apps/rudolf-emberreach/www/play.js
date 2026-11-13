@@ -57,7 +57,7 @@
 const E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
-	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining;
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
@@ -635,7 +635,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -893,19 +893,30 @@ function sentinels(b) {
 /* war missions: pay what's done, fail what's late */
 function settle() {
 	game.settledAt = game.t;
+	for (const r of Ins.tick(game.P, baseShip, game.P.ship.fit, game.day)) { say(r.text, r.ok ? '#9fb0cc' : '#f2a33a'); if (!r.ok) Snd.cue('warning') }
 	for (const r of En.settle(game.P, game.day)) { say(r.text, r.ok ? '#7fd1a8' : '#e5484d'); Snd.cue(r.ok ? 'clearance' : 'warning') }
 }
 /* the ship is lost: a new one at the last port docked at */
 function lost(how) {
 	say('Ship destroyed: ' + how, '#e5484d'); Snd.cue('destroyed');
-	/* the cargo goes down with her; the insurance pays for a new hull, less 5% of its value */
-	const rb = Tr.rebuyCost(game.P, ship, game.day), paid = Tr.pay(game.P, rb.amount, rb.code, game.day);
-	say(paid.ok ? 'Insurance: a new ' + ship.name + ' for ' + Math.round(rb.amount).toLocaleString('en-US') + ' ' + rb.code : 'Insurance: the replacement is on credit this time', '#f2a33a');
+	/* the cargo goes down with her. The insurer (insurance.js) says where you wake up, and in what: the ship as it
+	   was if the policy's paid up, or a starter at home if not */
+	const S0 = game.star, at = S0.rift ? [0, 0, 0] : [S0.x, S0.y, S0.z];
+	const c = Ins.claim(game.P, baseShip, game.P.ship.fit, at, {start: game.home.star, startHolder: game.home.id, stars: [game.lastPort, ...(game.P.colonies || []).map(k => k.star && T.starAt(k.star.id, k.star.at))].filter(Boolean)}, game.day);
+	G.realm('normal');
+	if (c.starter) {
+		say(c.why == 'uninsured' ? 'Not insured: you start again at ' + game.home.star.name + ' in a starter ship' : 'Insurance: ' + Math.round(c.short).toLocaleString('en-US') + ' ' + c.code + ' short of what the policy is owed. You start again at ' + game.home.star.name + ' in a starter ship, with the starter\'s cover.', '#e5484d');
+		baseShip = S.hull(c.model); game.P.ship.fit = O.stock(baseShip); ship = O.derive(baseShip, game.P.ship.fit); R.upload('ship', Me.ship(ship.length, quality));
+	} else {
+		for (const x of c.changed) say('The exchange changed ' + Math.round(x.amount).toLocaleString('en-US') + ' ' + x.from + ' into ' + Math.round(x.got).toLocaleString('en-US') + ' ' + c.code + ' for your policy', '#9fb0cc');
+		say('Insurance: a new ' + ship.name + ', fitted as before' + (c.paid > 0 ? ', once ' + Math.round(c.paid).toLocaleString('en-US') + ' ' + c.code + ' owed was settled' : '') + '.', '#f2a33a');
+	}
 	game.P.cargo = {}; game.P.cost = {}; game.P.combat = C.refill(ship, {hull: 1}); game.cans = [];
-	fit = M.fit(ship); game.fuel = 1; game.route = null;
-	enterSystem(game.lastPort || game.home.star);
+	fit = M.fit(ship); arm(); game.fuel = 1; game.route = null;
+	enterSystem(c.star);
 	launch(true);
-	say('A new ' + ship.name + ' waits at ' + (st ? st.name : game.star.name));
+	say((c.starter ? 'A starter ' : 'A new ') + ship.name + ' waits at ' + (st ? st.name : game.star.name) + (c.why == 'exchange' ? ' (the nearest port whose exchange takes ' + c.code + ')' : c.why == 'currency' ? ' (the nearest port trading in ' + c.code + ')' : ''));
+	persist();
 }
 function docked() {
 	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.lastPort = game.star;

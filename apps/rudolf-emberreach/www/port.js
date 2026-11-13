@@ -17,7 +17,7 @@
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -306,6 +306,7 @@ function contacts() {
 		+ '<div class="pt-grid3"><div class="pt-col"><section class="pt-card"><h2>Authority</h2><dl><dt>Legal status</dt><dd>' + (bounty ? 'Wanted' : 'Clean') + '</dd><dt>Standing</dt><dd>' + (o ? R.tier(me.rep[o] || 0) + ' (' + Math.round(me.rep[o] || 0) + ')' : '—') + '</dd><dt>Bounty here</dt><dd>' + (bounty ? money(bounty, F.byId(o).currency.code) : 'none') + '</dd></dl><button class="pt-ghost" data-act="paybounty"' + (!bounty || (me.wallet[F.byId(o).currency.code] || 0) < bounty ? ' disabled' : '') + '>Pay the bounty</button></section>'
 		+ '<section class="pt-card"><h2>War office</h2>' + (o ? fronts.map(w => { const en = w.a == o ? w.b : w.a; return '<div class="pt-front"><span>Front vs ' + esc(nm(en)) + '</span><span class="gold">' + w.systems.length + ' systems</span></div>' }).join('') || '<p class="muted">At peace.</p>' : '<p class="muted">None here.</p>')
 		+ (o ? '<p class="small">' + (me.commission ? 'Commissioned with the ' + esc(nm(me.commission)) + '.' : 'A commission makes your kills on contested ground count double for this power, and its enemies\' ships fight you on sight.') + '</p><button class="pt-ghost" data-act="enlist"' + (me.commission == o || rel(o) < 0 ? ' disabled' : '') + '>' + (me.commission == o ? 'Commissioned here' : 'Enlist with the ' + esc(nm(o))) + '</button>' : '') + '</section>'
+		+ insurance()
 		+ broker()
 		+ '<section class="pt-card"><h2>Colonial office</h2><p class="small">' + (o ? 'Claim a system within one jump and build a port there, sponsored by the ' + esc(nm(o)) + '. ' + ((me.colonies || []).length ? 'You hold ' + me.colonies.filter(c => c.stage != 'lapsed').length + '.' : '') : 'No sponsor while the system is fought over.') + '</p><button class="pt-ghost" data-screen="colonies"' + (o ? '' : ' disabled') + '>Open the colonial office</button></section></div>'
 		+ '<section class="pt-card pt-span2"><h2>Exchange</h2>' + (o ? '<p class="muted small">Spread: 1.5% for the ' + esc(nm(o)) + '\'s own coin, 3% for an ally\'s, 5% for a neutral\'s; an enemy\'s coin is refused.</p>'
@@ -314,6 +315,17 @@ function contacts() {
 		+ '<button class="pt-primary" data-act="exchange"' + (!q || !q.ok || !amt || amt > (me.wallet[ex.from] || 0) ? ' disabled' : '') + '>Change</button></div>'
 		+ '<p class="small">' + (!q ? 'Pick two different currencies.' : !q.ok ? esc(q.why) : 'You receive ' + fmt(amt ? q.amount : 0, 2) + ' ' + ex.to + ' · rate ' + E.crossRate(ex.from, ex.to, d).toFixed(4) + ' · spread ' + (q.spread * 100).toFixed(1) + '%') + '</p>'
 		+ '<div class="pt-wallet">' + Object.entries(me.wallet).filter(([, a]) => a > 0.005).map(([c, a]) => '<span><b>' + money(a, c) + '</b> ≈ ' + fmt(a / E.rate(c, d)) + ' SU</span>').join('') + '</div>' : '<p>Free traders change money at an 8% cut when you buy or sell.</p>') + '</section></div>';
+}
+/* the insurer's desk (insurance.js): your policy, and one from this port's power */
+function insurance() {
+	const me = P(), d = env.day, o = holder(), I = Ins.ensure(me, d), here = o && F.byId(o), wk = Ins.premium(me, env.hullShip, me.ship.fit, d);
+	const quote = here ? Ins.INSURE.weekly * Ins.shipValue(env.hullShip, me.ship.fit) * E.rate(here.currency.code, d) : 0;
+	const mine = I && here && I.provider == o;
+	return '<section class="pt-card"><h2>Insurance</h2>' + (I ? '<dl><dt>Insurer</dt><dd>' + esc(nm(I.provider)) + '</dd><dt>Premium</dt><dd>' + money(wk.amount, wk.code) + ' a week</dd><dt>Paid to</dt><dd>day ' + Math.floor(I.paidTo) + '</dd>' + (I.owed > 0 ? '<dt>Owed</dt><dd class="bad">' + money(I.owed, I.code) + '</dd>' : '') + '</dl>' : '<p class="bad small">Not insured: lose the ship and you start again at home in a starter ship.</p>')
+		+ '<p class="muted small">10% of your ship\'s whole value a week. Lose it and you wake at the nearest port within 1,000 ly trading in the policy\'s currency (or whose exchange takes it), with the ship as it was, once anything owed is settled; if it can\'t be, at home in a starter ship.</p>'
+		+ (here && !mine ? '<button class="pt-primary" data-act="insure"' + ((me.wallet[here.currency.code] || 0) < quote || (I && I.owed > 0) ? ' disabled' : '') + '>' + (I ? 'Switch to' : 'Insure with') + ' the ' + esc(nm(o)) + ': ' + money(quote, here.currency.code) + ' a week</button>' : '')
+		+ (I && I.owed > 0 ? ' <button class="pt-ghost" data-act="inspay"' + ((me.wallet[I.code] || 0) <= 0 ? ' disabled' : '') + '>Pay what\'s owed</button>' : '')
+		+ (I ? ' <button class="pt-ghost" data-act="inscancel">Cancel the policy</button>' : '') + '</section>';
 }
 function status() {
 	const me = P(), d = env.day;
@@ -368,6 +380,9 @@ function click(e) {
 	if (act == 'startbuild') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), pk = pick[c.id], [body, where] = pk.at.split('|'), r = Co.startBuild(c, Co.starOf(c), pk.fac, body, where, d); env.say(r.ok ? 'Building ' + Co.FAC[pk.fac].name + ' at ' + body + ': bring ' + fmt(Object.values(r.build.need).reduce((a, b) => a + b, 0)) + ' t of goods' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'givebuild') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = Co.deliverBuilds(me, c, d), g = Object.entries(r.gave); env.say(g.length ? 'Handed over ' + g.map(([k, v]) => v + ' t ' + k).join(', ') + (r.done.length ? '. Built: ' + r.done.map(b => Co.FAC[b.fac].name).join(', ') : '') : 'Nothing in your hold the builds need'); env.cue(g.length ? 'docked' : 'refused') }
 	if (act == 'expct') { ex.amount = String(Math.floor((me.wallet[ex.from] || 0) * +t.dataset.n * 100) / 100) }
+	if (act == 'insure') { const r = Ins.insure(me, holder(), env.hullShip, me.ship.fit, d); env.say(r.ok ? 'Insured with the ' + nm(holder()) + ': ' + money(r.amount, r.code) + ' paid for the first week.' : r.why); env.cue(r.ok ? 'tick' : 'refused') }
+	if (act == 'inspay') { const I = me.insurance, take = Math.min(I.owed, me.wallet[I.code] || 0); me.wallet[I.code] -= take; I.owed -= take; if (I.owed < 1e-6) I.owed = 0; env.say('Paid ' + money(take, I.code) + ' on your policy' + (I.owed ? '; ' + money(I.owed, I.code) + ' still owed.' : '.')); env.cue('tick') }
+	if (act == 'inscancel') { Ins.cancel(me); env.say('Policy cancelled. Lose the ship now and you start again at home in a starter ship.'); env.cue('refused') }
 	if (act == 'exchange') { const r = Tr.exchange(me, +ex.amount, ex.from, ex.to, d, holder()); if (r.ok) { env.say('Changed ' + money(+ex.amount, ex.from) + ' into ' + money(r.got, ex.to)); ex.amount = ''; env.cue('tick') } else env.say(r.why || 'The exchange refused') }
 	if (act == 'paybounty') { const c = F.byId(holder()).currency.code, b = me.bounties[c]; if (Tr.pay(me, b, c, d).ok) { delete me.bounties[c]; env.say('Bounty paid') } }
 	if (act == 'enlist') { R.enlist(me, holder()); env.say('Commissioned with the ' + nm(holder())) }

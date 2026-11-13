@@ -19,7 +19,7 @@ const G0 = 9.81;
    Airless (no atmosphere at all: the ship has no heat shield and nothing to glide on), solid (no gas giants),
    neither molten nor so cold the gear won't work, and not a world whose surface gravity would crush a hull's
    frame on the pad. Moons count: they're most of the landable ground there is. */
-const LAND = {gMax: 2.5, tsMax: 700, tsMin: 30, twr: 1.5, gear: 2.5};
+const LAND = {gMax: 2.5, tsMax: 700, tsMin: 30, twr: 1.5, gear: 2.5, lift: 1.5};
 function landable(p) {
 	if (!p || p.gas || p.atmo || p.bars > 0) return {ok: false, why: p && p.gas ? 'A gas giant: no surface' : 'An atmosphere: no heat shield, no landing (yet)'};
 	if (p.Ts > LAND.tsMax) return {ok: false, why: 'Molten: the surface is ' + Math.round(p.Ts) + ' K'};
@@ -27,24 +27,26 @@ function landable(p) {
 	if (p.g > LAND.gMax) return {ok: false, why: 'Gravity ' + p.g.toFixed(1) + ' g: no hull lands there'};
 	return {ok: true};
 }
-/* whether a ship can land there: its vertical thrusters must hold it up with half again to spare, and only hulls
-   that fit a pad (up to L) land at all; XL and capital ships stay in orbit (their shuttles come later) */
+/* every ship a pilot can fly can land. Its lift is its vertical thrusters, and every hull has landing jets that
+   hold it up at 1.5 g at least (so with half again to spare, on any world up to 1 g); a nimbler ship's thrusters
+   take it onto heavier worlds, up to the 2.5 g cap. XL ships use XL pads, capital ships the heavy fields */
+const lift = ship => Math.max(Fl.spec(ship).aRcs, LAND.lift * G0);
 function canLand(ship, p) {
 	const l = landable(p); if (!l.ok) return l;
-	if (ship.size == 'XL' || ship.size == 'Capital') return {ok: false, why: 'Too big for any pad'};
-	const sp = Fl.spec(ship), need = LAND.twr * p.g * G0;
-	if (sp.aRcs < need) return {ok: false, why: 'Too heavy for this world: thrusters ' + (sp.aRcs / G0).toFixed(1) + ' g against ' + (need / G0).toFixed(1) + ' g needed'};
-	return {ok: true, margin: sp.aRcs / (p.g * G0)};
+	const a = lift(ship), need = LAND.twr * p.g * G0;
+	if (a < need) return {ok: false, why: 'Too heavy for this world: lift ' + (a / G0).toFixed(1) + ' g against ' + (need / G0).toFixed(1) + ' g needed'};
+	return {ok: true, margin: a / (p.g * G0), pad: padFor(ship.size)};
 }
 /* the heaviest world a ship can land on (surface gravity in g) */
-const maxG = ship => ship.size == 'XL' || ship.size == 'Capital' ? 0 : Math.min(LAND.gMax, Fl.spec(ship).aRcs / G0 / LAND.twr);
+const maxG = ship => Math.min(LAND.gMax, lift(ship) / G0 / LAND.twr);
+const padFor = size => size == 'XS' ? 'S' : size == 'Capital' ? 'C' : size;
 
 /* ---------- touchdown ----------
    On the pad (or the ground) the gear takes it if it comes down slowly enough, upright enough. A little past the
    limits is a hard landing (hull damage growing with the excess); three times past them is a crash. */
-const TOUCH = {S: {vz: 4, vh: 2.5, tilt: 12}, M: {vz: 3, vh: 2, tilt: 9}, L: {vz: 2, vh: 1.5, tilt: 6}};
+const TOUCH = {S: {vz: 4, vh: 2.5, tilt: 12}, M: {vz: 3, vh: 2, tilt: 9}, L: {vz: 2, vh: 1.5, tilt: 6}, XL: {vz: 1.5, vh: 1, tilt: 5}, C: {vz: 1, vh: 0.8, tilt: 4}};
 function touchdown(size, vz, vh, tilt) {
-	const T = TOUCH[size == 'XS' ? 'S' : size] || TOUCH.L, x = Math.max(Math.abs(vz) / T.vz, vh / T.vh, tilt / T.tilt);
+	const T = TOUCH[padFor(size)] || TOUCH.L, x = Math.max(Math.abs(vz) / T.vz, vh / T.vh, tilt / T.tilt);
 	if (x <= 1) return {ok: true, damage: 0, x};
 	if (x >= 3) return {ok: false, crash: true, x};
 	return {ok: true, hard: true, damage: (x - 1) * (x - 1) * 0.15, x};   /* a share of the hull */
@@ -53,7 +55,7 @@ function touchdown(size, vz, vh, tilt) {
 /* ---------- pads ----------
    A pad is a disc wide enough for the longest ship of its size with room around it; its approach corridor is a
    cone above it (35° from the vertical) that nothing may stand in. XS ships use S pads. */
-const PAD = {S: {r: 30, light: [0.45, 0.8, 1]}, M: {r: 66, light: [1, 0.75, 0.3]}, L: {r: 150, light: [1, 0.45, 0.3]}};
+const PAD = {S: {r: 30, light: [0.45, 0.8, 1]}, M: {r: 66, light: [1, 0.75, 0.3]}, L: {r: 150, light: [1, 0.45, 0.3]}, XL: {r: 620, light: [0.85, 0.5, 1]}, C: {r: 1700, light: [1, 0.3, 0.55]}};
 const CONE = Math.tan(35 * Math.PI / 180);
 
 /* ---------- the kinds of surface port ----------
@@ -66,8 +68,12 @@ const KIND = {
 		build: {hab: [3, 5], mast: [1, 1], tank: [2, 3], solar: [2, 4], hangar: [0, 1]}},
 	settlement: {name: 'Settlement', tier: 'bloom', radius: 520, pads: {S: 4, M: 1}, sells: 'colony', text: 'Pressurised domes over farms and streets, a tower for the pads, and a ring of tanks and panels.',
 		build: {dome: [3, 5], greenhouse: [2, 4], hab: [4, 7], tower: [1, 1], tank: [3, 5], solar: [4, 7], hangar: [1, 2]}},
-	starport: {name: 'Surface starport', tier: 'lantern', radius: 1100, pads: {S: 6, M: 4, L: 1}, sells: 'port', text: 'A port city in a crater: hangars cut into its wall for the small ships, open pads for the large, a dome city on the rim.',
-		build: {dome: [6, 9], greenhouse: [4, 6], hab: [8, 12], tower: [2, 2], hangar: [4, 6], tank: [5, 8], solar: [6, 10], plant: [1, 2], mast: [2, 3]}},
+	starport: {name: 'Surface starport', tier: 'lantern', radius: 1900, pads: {S: 6, M: 4, L: 1, XL: 1}, sells: 'port', text: 'A port city in a crater: hangars cut into its wall for the small ships, open pads for the large, a dome city on the rim.',
+		build: {dome: [6, 9], greenhouse: [4, 6], hab: [8, 12], tower: [2, 2], hangar: [6, 8], tank: [5, 8], solar: [6, 10], plant: [1, 2], mast: [2, 3]}},
+	/* where the capital ships come down: a levelled field beside a surface starport, two XL pads and a capital
+	   berth, with cargo cranes and a tower; and the heaviest goods move to the port by crawler */
+	field: {name: 'Heavy landing field', tier: 'halo', radius: 4600, pads: {C: 1, XL: 2}, sells: 'none', text: 'A levelled field beside a starport where capital and XL ships set down, with cranes, a tower and crawlers to the port.',
+		build: {tower: [1, 1], crane: [4, 6], tank: [3, 5], mast: [2, 2], hangar: [1, 2]}},
 	base: {name: 'Forward base', tier: 'trefoil', radius: 420, pads: {S: 2, M: 2}, sells: 'military', text: 'Revetted pads, bunkers and turrets: a power\'s military foothold, or yours.',
 		build: {bunker: [3, 5], turret: [3, 4], tower: [1, 1], tank: [2, 3], hangar: [1, 2], mast: [1, 1]}}};
 /* what each building is: footprint radius (m), height (m), and how it's drawn */
@@ -75,7 +81,7 @@ const BLD = {
 	hab: {r: 14, h: 9, col: 'hab'}, silo: {r: 8, h: 26, col: 'hull'}, plant: {r: 26, h: 18, col: 'hull'}, mast: {r: 4, h: 60, col: 'truss'},
 	tank: {r: 10, h: 12, col: 'hull'}, pit: {r: 70, h: 0, col: 'pit'}, solar: {r: 22, h: 3, col: 'radiator'}, hangar: {r: 40, h: 22, col: 'dock'},
 	dome: {r: 55, h: 38, col: 'window'}, greenhouse: {r: 34, h: 20, col: 'green'}, tower: {r: 9, h: 70, col: 'hull'},
-	bunker: {r: 16, h: 6, col: 'hull'}, turret: {r: 6, h: 10, col: 'truss'}};
+	bunker: {r: 16, h: 6, col: 'hull'}, turret: {r: 6, h: 10, col: 'truss'}, crane: {r: 12, h: 55, col: 'truss'}};
 
 /* ---------- which worlds get which ----------
    In a system with a port in space, the landable worlds get surface ports too: the port world's moons and the
@@ -101,6 +107,8 @@ function ports(star, cls) {
 		   between 60° north and south */
 		const lat = (r() * 2 - 1) * (p.locked ? 25 : 60), lon = p.locked ? 90 + (r() * 2 - 1) * 15 : r() * 360 - 180;
 		out.push({id: 'surface:' + p.name + ':' + kind, kind, world: p.name, moon: !!p.moon, lat, lon, g: p.g, Ts: p.Ts, seed: G.hashStr(star.id + ':' + p.name + ':' + kind)});
+		/* a starport's heavy landing field, 8 km off (about 0.3° of a 1,500 km world) */
+		if (kind == 'starport') out.push({id: 'surface:' + p.name + ':field', kind: 'field', world: p.name, moon: !!p.moon, lat: lat + 8e3 / (p.R * 6.371e6) * 180 / Math.PI, lon, g: p.g, Ts: p.Ts, seed: G.hashStr(star.id + ':' + p.name + ':field'), of: 'surface:' + p.name + ':starport'});
 	}
 	return out;
 }
@@ -117,7 +125,7 @@ function layout(kind, seed) {
 	for (const z of sizes) {
 		const pr = PAD[z].r;
 		for (let tries = 0; tries < 200; tries++) {
-			const R = ring == 0 && !pads.length ? 0 : 80 + ring * 120 + r() * 60, a = r() * 2 * Math.PI, c = [R * Math.cos(a), R * Math.sin(a)];
+			const step = Math.max(120, pr * 1.2), R = ring == 0 && !pads.length ? 0 : pr + 40 + ring * step + r() * 60, a = r() * 2 * Math.PI, c = [R * Math.cos(a), R * Math.sin(a)];
 			if (Math.hypot(c[0], c[1]) + pr > K.radius) { ring = 0; continue }
 			if (pads.some(q => Math.hypot(q.c[0] - c[0], q.c[1] - c[1]) < q.r + pr + 20)) { if (tries % 12 == 11) ring++; continue }
 			pads.push({n: ++placed, size: z, c, r: pr}); break;
@@ -165,6 +173,7 @@ const SHAPES = {
 	greenhouse: b => [{shape: 'dome', c: [0, 0, 0], r: [b.r, b.r * 0.55, b.h], col: 'green'}],
 	tower: b => [{shape: 'cyl', r: b.r * 0.5, z0: 0, z1: b.h, col: 'hull'}, {shape: 'cyl', r: b.r, z0: b.h - 8, z1: b.h, col: 'window'}, {shape: 'box', c: [0, 0, b.h + 3], h: [0.5, 0.5, 3], col: 'light'}],
 	bunker: b => [{shape: 'dome', c: [0, 0, 0], r: [b.r, b.r * 0.7, b.h], col: 'hull'}],
+	crane: b => [{shape: 'box', c: [0, 0, b.h / 2], h: [2, 2, b.h / 2], col: 'truss'}, {shape: 'box', c: [b.r, 0, b.h], h: [b.r * 1.6, 1.2, 1.2], col: 'truss'}, {shape: 'box', c: [0, 0, 1.5], h: [b.r * 0.6, b.r * 0.6, 1.5], col: 'hull'}],
 	turret: b => [{shape: 'cyl', r: b.r, z0: 0, z1: b.h * 0.6, col: 'hull'}, {shape: 'box', c: [b.r, 0, b.h * 0.75], h: [b.r * 1.4, 1, 1], col: 'truss'}]};
 const XCOL = {pit: [0.16, 0.15, 0.14, 0], green: [0.42, 0.78, 0.42, 0.6], pad: [0.3, 0.32, 0.36, 0]};
 function parts(L) {
@@ -209,6 +218,6 @@ function meshes(L, detail) {
 	return m;
 }
 
-const EmberSurface = {LAND, TOUCH, PAD, CONE, KIND, BLD, PLACE, landable, canLand, maxG, touchdown, ports, layout, check, parts, meshes, dome};
+const EmberSurface = {lift, padFor, LAND, TOUCH, PAD, CONE, KIND, BLD, PLACE, landable, canLand, maxG, touchdown, ports, layout, check, parts, meshes, dome};
 if (typeof module != 'undefined') module.exports = EmberSurface; else root.EmberSurface = EmberSurface;
 })(typeof window != 'undefined' ? window : globalThis);
