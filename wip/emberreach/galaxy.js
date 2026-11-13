@@ -34,7 +34,7 @@ const GAL = {
 	rCore: 0.5,          /* pc: inside this, the black hole and its own cluster (a game zone of its own) */
 	MBH: 5e6,
 	sigma: 54,           /* km/s: velocity dispersion (sigma² ∝ M / R, so √2 below the 6e9-sun version of the same size) */
-	ageOld: 10e9, ageYoung: 3e9, youngCentre: 0.3, nursery: 0.004,   /* share of young stars at the centre, falling outward */
+	ageOld: 10e9, ageYoung: 3e9, youngCentre: 0.3, nursery: 0.004, reclass: 0.27,   /* share of young stars at the centre, falling outward */
 	FeHCentre: 0.15, FeHSlope: -0.35, FeHScatter: 0.15,
 	cell: 4, splitAt: 48, maxDepth: 10,
 	/* galactic north is +z, the short axis; the great powers live in the northern Middle Reach */
@@ -144,6 +144,12 @@ function cellStars(leaf) {
 	for (let q = 0; q < n; q++) out.push(star(leaf.id + '#' + q, leaf.x + r() * leaf.s, leaf.y + r() * leaf.s, leaf.z + r() * leaf.s));
 	return out;
 }
+/* LEGACY: the galaxy as it was before the class mix and the habitability rules (the great powers, the Drake
+   equation and the ruins are measured on it, so they stay where they were) */
+let LEGACY = false;
+function legacy(fn) { const was = LEGACY; LEGACY = true; try { return fn() } finally { LEGACY = was } }
+let CAPS = null;
+const capitalIds = () => CAPS || (CAPS = new Set(legacy(() => civilizations()).map(c => c.star.id)));
 /* one star, from its id and place */
 function star(id, x, y, z) {
 	const r = rng(hashStr('star:' + id)), m = mRad(x, y, z), pop = popAt(m);
@@ -152,6 +158,16 @@ function star(id, x, y, z) {
 	/* nurseries: a sliver of stars (more towards the centre) formed in the last few million years, from their own
 	   draw so the rest of the galaxy is untouched: the only hot O and B stars, and the Wolf-Rayets */
 	{ const q = rng(hashStr('nursery:' + id)); if (q() < GAL.nursery * pop.youngShare / GAL.youngCentre) { M0 = 8 * Math.pow(1 - q() * (1 - Math.pow(8 / 120, 1.3)), -1 / 1.3); born = 5e5 + q() * 4.5e6; s = evolve(M0, born, q) } }
+	/* the class mix: about half the stars red dwarfs. A share of the M dwarfs the mass function makes are instead
+	   K, G, F (and a few A) stars of a later generation, young enough to still burn (their own draw; the great
+	   powers' home stars are kept as they are) */
+	if (!LEGACY && s.kind == 'star' && s.cls == 'M') {
+		const q = rng(hashStr('reclass:' + id));
+		if (q() < GAL.reclass && !(s.M >= 0.45 && capitalIds().has(id))) {
+			const u = q(), c = u < 0.5 ? [0.6, 0.85] : u < 0.82 ? [0.85, 1.05] : u < 0.97 ? [1.05, 1.4] : [1.4, 2];
+			M0 = c[0] + (c[1] - c[0]) * q(); born = Math.min(born, (0.15 + 0.65 * q()) * msLife(M0)); s = evolve(M0, born, q);
+		}
+	}
 	const FeH = pop.FeH + GAL.FeHScatter * gauss(r) - (young ? 0 : 0.05);
 	/* companions: commoner for heavier stars (about 44% of Sun-like stars, a quarter of red dwarfs) */
 	const pBin = s.kind == 'star' ? Math.min(0.6, 0.2 + 0.25 * s.M) : 0.15;
@@ -208,42 +224,98 @@ function system(s) {
 	const quiet4 = quietChance(s, 20 * Math.sqrt(Math.max(s.L, 0.01)), 4e9);
 	for (let i = 0; i < k; i++) {
 		if (i) a *= 1.4 + r() * 0.9;
-		const beyond = a > snow;
-		/* giant planets: about 10% of Sun-like stars, rising with metals (Fischer & Valenti: ~10^(2[Fe/H])) and star mass */
-		const giant = beyond && r() < Math.min(0.9, 0.35 * Z * Z * Math.min(2, s.M));
-		const M = giant ? logU(r, 15, 2000) : beyond ? logU(r, 0.3, 20) : logU(r, 0.05, 6) * (r() < 0.6 ? 1 : 0.4);
-		const R = radiusOf(M), rhoE = M / (R * R * R), ve = Math.sqrt(M / R), g = M / (R * R);
-		const Teq = s.L ? 278.6 * Math.pow(s.L, .25) / Math.sqrt(a) * Math.pow(0.7, .25) : 30 + r() * 20;
-		const gas = M > 10 && R > 2.5;
-		/* keeps an atmosphere where its escape velocity is well above what its heat would boil off (Earth 11.2 km/s, Mars 5) */
-		const vKm = ve * 11.19, need = 6 * Math.sqrt(Teq / 255);
-		let atmo = gas || r() < 1 / (1 + Math.exp(-(vKm - need) / 1.2));
-		/* stripped: an L dwarf's flares strip its close worlds; a Wolf-Rayet's or a pulsar's wind and radiation strip
-		   them all (a draw of its own, so other stars' worlds are as they were) */
-		if (atmo && !gas) { const strip = s.cls == 'L' && a < 0.05 ? 0.6 : s.kind == 'wolf-rayet' || s.kind == 'neutron star' ? 1 : 0; if (strip && rng(hashStr('strip:' + s.id + ':' + i))() < strip) atmo = false }
-		const thick = atmo ? (gas ? 3 : logU(r, 0.05, 90)) : 0;   /* surface pressure, bars */
-		const Ts = gas ? Teq : Teq * Math.pow(1 + 0.75 * Math.min(60, 0.84 * Math.pow(thick, 0.7)), .25);
-		const inHZ = out.hz && a >= out.hz.inner && a <= out.hz.outer;
-		/* tidal locking: the despinning time goes as a^6 / M*^2, so a world locks inside about 0.45 AU x M*^(1/3) x
-		   (age / 4.5 Gyr)^(1/6): Mercury's distance for the Sun, every habitable-zone world of a red or L dwarf */
-		if (!(a < 0.4 * Math.cbrt(Math.max(s.M, .1)))) r();   /* (keeps the random stream as it was) */
-		const locked = a < 0.45 * Math.cbrt(Math.max(s.M, 0.01)) * Math.pow(Math.max(s.age, 1e6) / 4.5e9, 1 / 6);
-		const p = {i, a, M, R, rho: rhoE, ve, g, Teq, Ts, atmo, bars: thick, gas, inHZ, locked};
-		p.esi = gas ? 0 : esi(p);
-		p.water = !gas && atmo && Ts > 273 && Ts < 373 && thick > 0.1;
-		/* life: needs liquid water for long and quiet enough; its chance grows with the star's age and the quiet */
-		p.life = p.water ? Math.min(1, s.age / 3e9) * quiet4 * DRAKE.fl : 0;
-		p.alive = p.water && r() < p.life;
-		p.type = classify(p, r);
-		const W = WOS.types[p.type] || WOS.types.Barren;
-		p.ring = r() < W.ring ? (r() < W.iceRing ? 'Ice' : 'Stone') : null;
-		p.res = Object.entries(W.res).filter(([n, f]) => r() < Math.min(1, f * (n == 'Iron' || n == 'Copper' ? 1 : Math.sqrt(Z)))).map(([n]) => n);
+		const p = planet(s, r, i, a, out.hz, quiet4, Z, snow);
 		p.name = s.name + ' ' + 'bcdefghijklmn'[i];
 		out.planets.push(p);
 	}
 	/* ruins: the civilisations that came and went (the Drake equation's past), each in about ten systems */
 	const rocky = out.planets.filter(p => !p.gas);
 	if (!skipRuins && rocky.length && r() < RUIN_CHANCE()) rocky[Math.floor(r() * rocky.length)].ruins = true;
+	if (LEGACY) return out;
+	finish(s, out.planets);
+	/* a companion star's own worlds (S-type orbits, well inside the pair's separation) */
+	const c = s.companion;
+	if (c && c.kind == 'star') {
+		const B = Object.assign({}, c, {id: s.id + ':B', name: s.name + ' B', x: s.x, y: s.y, z: s.z, m: s.m, age: s.age, FeH: s.FeH}), rB = rng(hashStr('sys:' + s.id + ':B'));
+		out.hzB = hz(B);
+		if (rB() < 0.5 * chanceOfPlanets(B)) {
+			const kB = 1 + Math.floor(rB() * 3), snowB = 2.7 * Math.sqrt(Math.max(B.L, 1e-4)), quietB = quietChance(B, 20 * Math.sqrt(Math.max(B.L, 0.01)), 4e9), list = [];
+			let aB = (0.025 + rB() * 0.05) * Math.cbrt(Math.max(B.M, 0.1));
+			for (let i = 0; i < kB && aB < 2; i++) { if (i) aB *= 1.4 + rB() * 0.9; const p = planet(B, rB, i, aB, out.hzB, quietB, Z, snowB); p.name = B.name + ' ' + 'bcd'[i]; p.host = 'B'; list.push(p) }
+			finish(B, list);
+			out.planets.push(...list);
+		}
+	}
+	return out;
+}
+/* one planet at distance a from its star s (draws from r in a fixed order) */
+function planet(s, r, i, a, hzS, quiet4, Z, snow) {
+	const beyond = a > snow;
+	/* giant planets: about 10% of Sun-like stars, rising with metals (Fischer & Valenti: ~10^(2[Fe/H])) and star mass */
+	const giant = beyond && r() < Math.min(0.9, 0.35 * Z * Z * Math.min(2, s.M));
+	const M = giant ? logU(r, 15, 2000) : beyond ? logU(r, 0.3, 20) : logU(r, 0.05, 6) * (r() < 0.6 ? 1 : 0.4);
+	const R = radiusOf(M), rhoE = M / (R * R * R), ve = Math.sqrt(M / R), g = M / (R * R);
+	const Teq = s.L ? 278.6 * Math.pow(s.L, .25) / Math.sqrt(a) * Math.pow(0.7, .25) : 30 + r() * 20;
+	const gas = M > 10 && R > 2.5;
+	/* keeps an atmosphere where its escape velocity is well above what its heat would boil off (Earth 11.2 km/s, Mars 5) */
+	const vKm = ve * 11.19, need = 6 * Math.sqrt(Teq / 255);
+	let atmo = gas || r() < 1 / (1 + Math.exp(-(vKm - need) / 1.2));
+	/* stripped: an L dwarf's flares strip its close worlds; a Wolf-Rayet's or a pulsar's wind and radiation strip
+	   them all (a draw of its own, so other stars' worlds are as they were) */
+	if (atmo && !gas) { const strip = s.cls == 'L' && a < 0.05 ? 0.6 : s.kind == 'wolf-rayet' || s.kind == 'neutron star' ? 1 : 0; if (strip && rng(hashStr('strip:' + s.id + ':' + i))() < strip) atmo = false }
+	const thick = atmo ? (gas ? 3 : logU(r, 0.05, 90)) : 0;   /* surface pressure, bars */
+	const Ts = gas ? Teq : Teq * Math.pow(1 + 0.75 * Math.min(60, 0.84 * Math.pow(thick, 0.7)), .25);
+	const inHZ = hzS && a >= hzS.inner && a <= hzS.outer;
+	/* tidal locking: the despinning time goes as a^6 / M*^2, so a world locks inside about 0.45 AU x M*^(1/3) x
+	   (age / 4.5 Gyr)^(1/6): Mercury's distance for the Sun, every habitable-zone world of a red or L dwarf */
+	if (!(a < 0.4 * Math.cbrt(Math.max(s.M, .1)))) r();   /* (keeps the random stream as it was) */
+	const locked = a < 0.45 * Math.cbrt(Math.max(s.M, 0.01)) * Math.pow(Math.max(s.age, 1e6) / 4.5e9, 1 / 6);
+	const p = {i, a, M, R, rho: rhoE, ve, g, Teq, Ts, atmo, bars: thick, gas, inHZ, locked};
+	p.esi = gas ? 0 : esi(p);
+	p.water = !gas && atmo && Ts > 273 && Ts < 373 && thick > 0.1;
+	/* life: needs liquid water for long and quiet enough; its chance grows with the star's age and the quiet */
+	p.life = p.water ? Math.min(1, s.age / 3e9) * quiet4 * DRAKE.fl : 0;
+	p.alive = p.water && r() < p.life;
+	p.type = classify(p, r);
+	const W = WOS.types[p.type] || WOS.types.Barren;
+	p.ring = r() < W.ring ? (r() < W.iceRing ? 'Ice' : 'Stone') : null;
+	p.res = Object.entries(W.res).filter(([n, f]) => r() < Math.min(1, f * (n == 'Iron' || n == 'Copper' ? 1 : Math.sqrt(Z)))).map(([n]) => n);
+	return p;
+}
+/* the habitability rules and the rings, after the physics (draws of their own, so the rest stays put):
+   - liquid water that lasts is a K, G or F star's gift: around anything else (flares and locked days for M and L
+     dwarfs, short lives and fierce light for A, B and O stars, the dead and the dying), a water world keeps its
+     water only rarely (3%); otherwise it dries out or freezes. The great powers' home stars are kept as they are.
+   - rings: icy only where it's cold enough for ice to last (an equilibrium temperature under 150 K); closer in, rocky
+     or metallic (more often metallic around metal-rich stars and close to them). Moderately or densely strewn. */
+const KGF = s => s.kind == 'star' && 'KGF'.includes(s.cls);
+function finish(s, planets) {
+	const home = s.kind == 'star' && s.M >= 0.45 && !KGF(s) && planets.some(p => p.water) && capitalIds().has(s.id);
+	for (const p of planets) {
+		const q = rng(hashStr('hab:' + s.id + ':' + p.i + (p.host || '')));
+		if (p.water && !KGF(s) && !home && q() > 0.03) { p.water = false; p.alive = false; p.life = 0; p.dried = true; p.type = p.Ts > 300 ? 'Desert' : 'Tundra' }
+		p.moons = moons(s, p);
+		if (p.ring) {
+			const metal = Math.max(0.05, Math.min(0.7, 0.2 + 0.8 * (s.FeH || 0) + (p.Teq > 400 ? 0.2 : 0)));
+			p.ring = p.Teq < 150 ? 'Ice' : q() < metal ? 'Metal' : 'Stone';
+			p.ringDensity = q() < (p.gas ? 0.45 : 0.3) ? 'dense' : 'moderate';
+		}
+	}
+}
+/* moons: gas giants have one to five, other big worlds (5 Earths and up) up to two; small and mostly airless
+   (from Earth's Moon down), and now and then (4%, where it's cold enough to keep it) a thick, hazy air like Titan's */
+const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
+function moons(s, p) {
+	if (!p.gas && p.M < 5) return [];
+	const q = rng(hashStr('moons:' + s.id + ':' + p.i + (p.host || ''))), n = p.gas ? 1 + Math.floor(Math.pow(q(), 0.7) * 5) : Math.floor(q() * 3), out = [];
+	let d = 5 + q() * 6;
+	for (let k = 0; k < n; k++) {
+		if (k) d *= 1.5 + q();
+		const M = logU(q, 0.001, 0.05), R = radiusOf(M), g = M / (R * R), titan = p.Teq < 200 && M > 0.008 && q() < 0.04;
+		const bars = titan ? 1 + q() * 2 : 0, Ts = titan ? p.Teq * Math.pow(1 + 0.75 * 0.84 * Math.pow(bars, 0.7), .25) : p.Teq;
+		out.push({i: k, moon: true, parent: p.name, name: p.name + ' ' + ROMAN[k], dist: d, a: p.a, M, R, rho: M / (R * R * R), ve: Math.sqrt(M / R), g, Teq: p.Teq, Ts, atmo: titan, bars, gas: false, inHZ: false, locked: true,
+			esi: 0, water: false, life: 0, alive: false, type: titan ? 'Exotic' : 'Barren', ring: null, res: titan ? ['Water', 'Coal'] : ['Iron', 'Titanium'].filter(() => q() < 0.5), titan});
+	}
 	return out;
 }
 function classify(p, r) {
@@ -261,13 +333,15 @@ function classify(p, r) {
 
 /* ---------- the Drake equation, with stars counted rather than formed ---------- */
 let ruinChance = null;
-const RUIN_CHANCE = () => ruinChance == null ? (ruinChance = drake(sampleGalaxy(3000, 99), true).past * DRAKE.footprint / STARS_TOTAL) : ruinChance;
+const RUIN_CHANCE = () => ruinChance == null ? (ruinChance = legacy(() => drake(sampleGalaxy(3000, 99), true)).past * DRAKE.footprint / STARS_TOTAL) : ruinChance;
 /* N = N* · fp · ne · fl · fi · fc · (L / T): ne is measured on the model itself (habitable, quiet worlds per star) */
 /* fl, fi, fc and L are the game's choices (nobody knows them): about forty civilisations alive now (six clusters
    of six to eight great powers), each lasting 180,000 years; the millions before them left ruins, each civilisation
    in about ten systems (its home and colonies). The number of earlier ones does not depend on L. */
 const DRAKE = {fl: 0.5, fi: 0.01, fc: 0.2, L: 180000, T: 1e10, footprint: 10};
-function drake(sampleStars, noRuins) {
+/* the Drake equation is measured on the galaxy as the great powers rose in it (LEGACY) */
+function drake(sampleStars, noRuins) { return legacy(() => drake0(sampleStars, noRuins)) }
+function drake0(sampleStars, noRuins) {
 	let withPl = 0, habit = 0, n = 0;
 	/* ne: worlds with liquid water and ESI 0.8 or more that stay undisturbed for 4 billion years, per star with planets */
 	for (const s of sampleStars) { n++; const sy = noRuins ? systemNoRuins(s) : system(s); if (sy.planets.length) withPl++; const q = quietChance(s, 20 * Math.sqrt(Math.max(s.L, 0.01)), 4e9); habit += sy.planets.filter(p => p.water && p.esi >= 0.8).length * q }
@@ -339,7 +413,8 @@ const claimFor = (held, n) => 1.25 * Math.cbrt(3 * held / (4 * Math.PI * n));
 function nearestStars(p, want) { let R = Math.max(0.02, 1.2 * Math.cbrt(want / (numberDensity(...p) + 1e-9))); for (let k = 0; k < 6; k++) { const s = starsNear(p[0], p[1], p[2], R); if (s.length >= want) return s; R *= 1.6 } return starsNear(p[0], p[1], p[2], R) }
 let CIVS = null;
 const MIN_CIVS = 6;   /* per cluster */
-function civilizations() {
+function civilizations() { return CIVS || legacy(civilizations0) }
+function civilizations0() {
 	if (CIVS) return CIVS;
 	const C = GAL.clusters;
 	CIVS = [];
@@ -385,6 +460,6 @@ function civilizations() {
 	return CIVS;
 }
 
-const EmberGalaxy = {MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
+const EmberGalaxy = {legacy, capitalIds, KGF, MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
 if (typeof module != 'undefined') module.exports = EmberGalaxy; else root.EmberGalaxy = EmberGalaxy;
 })(typeof window != 'undefined' ? window : this);

@@ -63,7 +63,7 @@ function unsold(P) {
 	return out;
 }
 /* a planet from its key (the star's id holds its sector and index) */
-function planetByKey(id, name) { const s = starById(id); return s ? G.system(s).planets.find(p => p.name == name) || null : null }
+function planetByKey(id, name) { const s = starById(id); if (!s) return null; const pl = G.system(s).planets; return pl.find(p => p.name == name) || pl.flatMap(p => p.moons || []).find(m => m.name == name) || null }
 const STARS = new Map();
 function starById(id) {
 	if (STARS.has(id)) return STARS.get(id);
