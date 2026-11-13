@@ -24,12 +24,34 @@ const vec = (x, n) => Array.isArray(x) && x.length == n && x.every(num);
 function pack(g) {
 	const r = v => v.map(x => +x.toPrecision(15));
 	const ref = x => x ? {id: x.id, p: [x.x, x.y, x.z]} : null;
-	return {v: VERSION, power: g.power, port: g.port || null, ship: g.ship, day: g.day, t: +g.t.toFixed(3), docked: !!g.docked, pad: g.pad || null,
+	return trim({v: VERSION, power: g.power, port: g.port || null, ship: g.ship, day: g.day, t: +g.t.toFixed(3), docked: !!g.docked, pad: g.pad || null,
 		star: ref(g.star), fuel: +(g.fuel == null ? 1 : g.fuel).toFixed(4), lastPort: ref(g.lastPort), routeTo: ref(g.routeTo),
 		player: g.player ? packPlayer(g.player) : null,
 		p: r(g.s.p), vel: r(g.s.v), q: r(g.s.q), w: r(g.s.w), fa: !!g.s.fa, throttle: +(+g.throttle || 0).toFixed(3),
 		modules: Object.fromEntries(g.fit.modules.map(m => [m.id, +m.hp.toFixed(2)])),
-		settings: {quality: g.settings.quality == 'low' ? 'low' : 'high', sound: g.settings.sound !== false}};
+		settings: {quality: g.settings.quality == 'low' ? 'low' : 'high', sound: g.settings.sound !== false}});
+}
+/* gamekit keeps a save up to 256 KB. A long game's records grow past that (every system charted, every asteroid
+   chipped), so a save over the budget is trimmed, the least needed first: the asteroids mined longest ago (they
+   only matter where you are), old war events, then systems and planets charted long ago whose data is already
+   sold (they may be charted again). First discoveries and names are always kept. */
+const BUDGET = 230 * 1024;
+function trim(out) {
+	const size = () => JSON.stringify(out).length, P = out.player;
+	if (!P || size() <= BUDGET) return out;
+	P.mined = Object.fromEntries(Object.entries(P.mined || {}).slice(-1000)); P.warEvents = (P.warEvents || []).slice(-50);
+	const X = P.explore = P.explore && Object.assign({}, P.explore);   /* (a copy: the game's own record stays whole) */
+	if (X && size() > BUDGET) {
+		X.sys = Object.assign({}, X.sys); X.sold = Object.assign({}, X.sold); X.pl = Object.assign({}, X.pl);
+		/* sold planets that weren't firsts, then sold systems, oldest first, in batches */
+		const pls = Object.keys(X.pl).filter(k => X.pl[k].s && !X.pl[k].f), syss = Object.keys(X.sys).filter(k => X.sold[k]).sort((a, b) => X.sys[a] - X.sys[b]);
+		while (size() > BUDGET && (pls.length || syss.length)) {
+			if (pls.length) for (const k of pls.splice(0, 200)) delete X.pl[k];
+			else for (const k of syss.splice(0, 200)) { delete X.sys[k]; delete X.sold[k] }
+		}
+	}
+	if (size() > BUDGET) P.mined = {};
+	return out;
 }
 /* the save checked against what this game knows: ships (ids), ports (class names), powers (how many) */
 function unpack(raw, known) {
@@ -102,6 +124,6 @@ function restoreModules(fit, saved) {
 	return fit;
 }
 
-const EmberSave = {VERSION, pack, unpack, restoreModules, packPlayer, unpackPlayer};
+const EmberSave = {BUDGET, trim, VERSION, pack, unpack, restoreModules, packPlayer, unpackPlayer};
 if (typeof module != 'undefined') module.exports = EmberSave; else root.EmberSave = EmberSave;
 })(typeof window != 'undefined' ? window : this);

@@ -1,7 +1,7 @@
-/* Ember Reach's cargo hatch and canisters (wip/emberreach/canisters.js, and the hatch's trim in flight.js), in node.
+/* Ember Reach's cargo hatch and canisters (apps/rudolf-emberreach/www/canisters.js, and the hatch's trim in flight.js), in node.
      node tests/emberreach_canisters_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const Ca = require(path.join(DIR, 'canisters.js')), Fl = require(path.join(DIR, 'flight.js')), M = require(path.join(DIR, 'modules.js')), S = require(path.join(DIR, 'ships.js')), Tr = require(path.join(DIR, 'trade.js')), F = require(path.join(DIR, 'factions.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };

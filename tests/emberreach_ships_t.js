@@ -1,7 +1,7 @@
-/* Ember Reach's stock ships (wip/emberreach/ships.js), in node.
+/* Ember Reach's stock ships (apps/rudolf-emberreach/www/ships.js), in node.
      node tests/emberreach_ships_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const S = require(path.join(DIR, 'ships.js')), F = require(path.join(DIR, 'factions.js')), E = require(path.join(DIR, 'economy.js'));
 let P = 0, Fl = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { Fl++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };

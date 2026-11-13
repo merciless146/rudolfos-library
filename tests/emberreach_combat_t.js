@@ -1,7 +1,7 @@
-/* Ember Reach's combat (wip/emberreach/combat.js): weapons, shields, heat, projectiles, missiles, AI, in node.
+/* Ember Reach's combat (apps/rudolf-emberreach/www/combat.js): weapons, shields, heat, projectiles, missiles, AI, in node.
      node tests/emberreach_combat_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const C = require(path.join(DIR, 'combat.js')), Fl = require(path.join(DIR, 'flight.js')), M = require(path.join(DIR, 'modules.js')), S = require(path.join(DIR, 'ships.js')), Sc = require(path.join(DIR, 'scene.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };

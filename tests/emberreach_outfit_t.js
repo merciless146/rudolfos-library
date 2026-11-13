@@ -1,8 +1,8 @@
-/* Ember Reach's outfitting (wip/emberreach/outfit.js): the four categories, stock loadouts, derived stats, power,
+/* Ember Reach's outfitting (apps/rudolf-emberreach/www/outfit.js): the four categories, stock loadouts, derived stats, power,
    the market, languages, scanners' effects and saves, in node.
      node tests/emberreach_outfit_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const O = require(path.join(DIR, 'outfit.js')), S = require(path.join(DIR, 'ships.js')), F = require(path.join(DIR, 'factions.js')), C = require(path.join(DIR, 'combat.js')),
 	En = require(path.join(DIR, 'encounters.js')), Tr = require(path.join(DIR, 'trade.js')), Sv = require(path.join(DIR, 'save.js')), Ca = require(path.join(DIR, 'canisters.js')), Fl = require(path.join(DIR, 'flight.js'));
 let P = 0, N = 0;

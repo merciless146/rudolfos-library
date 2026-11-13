@@ -4,10 +4,12 @@ A 3D open-world spaceflight game about **combat, trade and exploration**, set in
 elliptical galaxy. Every one of its ~8 billion stars exists and can be visited. Each star, its planets and their
 habitability come from the astrophysics below, not from hand-placed content. "Ember Reach" is a working title.
 
-- **Package:** `rudolf-emberreach` (a Library game). The work sits in `wip/emberreach/` until it can be played, so
-  the publish workflow doesn't put it in the App Store early (`tools/publish.sh` builds everything in `apps/`).
+- **Package:** `rudolf-emberreach` (a Library game), in `apps/rudolf-emberreach/` since the **Single-Player Alpha
+  Build (SPAB), 0.1.0**: the publish workflow builds and signs it with the rest, and it's in the App Store's
+  Library tab. Its browser test, as the desktop opens it, is `tests/emberreach_t.js`; the models' tests are
+  `tests/emberreach_*_t.js`.
 - **Status:** the models are done and checked; the game itself is the milestones below.
-  - The galaxy: `wip/emberreach/galaxy.js` (`tests/emberreach_galaxy_t.js`, 25 checks).
+  - The galaxy: `apps/rudolf-emberreach/www/galaxy.js` (`tests/emberreach_galaxy_t.js`, 25 checks).
   - Factions, front-line wars, money and reputation: `factions.js`, `economy.js`, `reputation.js`
     (`tests/emberreach_factions_t.js`, 51 checks).
   - The 40 stock ships: `ships.js` (`tests/emberreach_ships_t.js`, 15 checks).
@@ -21,10 +23,10 @@ habitability come from the astrophysics below, not from hand-placed content. "Em
     checks). The starport: `port.js`.
   - Travel between stars: fuel, misjumps, ports, lanes and routes: `travel.js` (`tests/emberreach_travel_t.js`, 16
     checks). The star map: `map.js`.
-  - **The flight screen (M1):** `play.html`, with `play.js`, `render.js`, `meshes.js` and `hud.js`. Open it from a
-    checkout (it loads gamekit from `lib/`); `?port=trefoil|bloom|lantern|halo`, `?ship=kestrel`, `?power=N`,
+  - **The flight screen (M1):** `index.html` (it was `index.html`), with `play.js`, `render.js`, `meshes.js` and
+    `hud.js`. To open it from a checkout, copy `lib/gamekit/gamekit.js` beside it (the Library's build does); `?port=trefoil|bloom|lantern|halo`, `?ship=kestrel`, `?power=N`,
     `?canvas` for the fallback, `?debug` to break modules.
-  - `wip/emberreach/viewer.html` draws them, the north in 3D.
+  - `apps/rudolf-emberreach/www/viewer.html` draws them, the north in 3D.
 
 ## Exceptions to the games plan's rules
 
@@ -202,7 +204,7 @@ The Drake factors are the main tuning knob. Changing fi, fc or L changes how cro
 ## What the WOS Galaxy Map gives (statistics only)
 
 `tools/wos-stats.py` reads the WOS Galaxy Map's data (Waste of Space's universe, in RudolfOS's desktop). It writes
-only distributions to `wip/emberreach/wos-stats.js`: no names, coordinates or individual objects. Every name in
+only distributions to `apps/rudolf-emberreach/www/wos-stats.js`: no names, coordinates or individual objects. Every name in
 Ember Reach is made by its own name generator.
 
 | From WOS | Used for |
@@ -258,7 +260,7 @@ Ships fly like Oolite: pitch and roll on the stick, a little yaw, and a throttle
 the physics is Newtonian. Every ship, the player's and every NPC's, has **flight assist (FA)** as standard. FA
 drives the ship's RCS (linear thrusters) and ACS (attitude thrusters) so that it handles as if it were swimming in
 a fluid, not floating in empty space. Pilots who want raw Newtonian flight can switch it off.
-(`wip/emberreach/flight.js`, 19 checks in `tests/emberreach_flight_t.js`.)
+(`apps/rudolf-emberreach/www/flight.js`, 19 checks in `tests/emberreach_flight_t.js`.)
 
 **FA on: swimming.**
 - **Stick:** sets a turn rate, reached in a fraction of a second. Let go and the turn stops.
@@ -344,7 +346,7 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
 
 ### Exploration
 
-`wip/emberreach/explore.js` (13 checks in `tests/emberreach_explore_t.js`).
+`apps/rudolf-emberreach/www/explore.js` (13 checks in `tests/emberreach_explore_t.js`).
 
 - **The sweep:** arriving in a system, the sensors sweep it for 8 s and chart it: the star and every planet's type.
 - **Surveys:** fly within 6 radii of a targeted planet for 12 s to survey it: gravity, temperature, atmosphere,
@@ -376,7 +378,7 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
 
 ### Combat
 
-`wip/emberreach/combat.js` (15 checks in `tests/emberreach_combat_t.js`) and `encounters.js` (14 checks in
+`apps/rudolf-emberreach/www/combat.js` (15 checks in `tests/emberreach_combat_t.js`) and `encounters.js` (14 checks in
 `tests/emberreach_encounters_t.js`).
 
 - **Weapons,** one per hardpoint, by size, fixed forward with a 5° gimbal (capital ships' are turrets):
@@ -426,7 +428,7 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
 
 ### Cargo hatch and canisters
 
-`wip/emberreach/canisters.js`, with the trim in `flight.js` (11 checks in `tests/emberreach_canisters_t.js`).
+`apps/rudolf-emberreach/www/canisters.js`, with the trim in `flight.js` (11 checks in `tests/emberreach_canisters_t.js`).
 
 - **Canisters:** goods loose in space are cargo canisters, one tonne of one good each, drifting and tumbling. They
   break up after 15 minutes. Wrecks leave them: a trader 3 to 8 (mostly one good, up to half its hold), a pirate up
@@ -445,7 +447,7 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
 
 ### Outfitting
 
-`wip/emberreach/outfit.js` (21 checks in `tests/emberreach_outfit_t.js`). A ship is its hull plus its modules, in
+`apps/rudolf-emberreach/www/outfit.js` (21 checks in `tests/emberreach_outfit_t.js`). A ship is its hull plus its modules, in
 four categories; its hold, shields, hull, jump range, fuel, speed and guns come from them.
 
 - **Core modules**, one each, sized to the hull (XS 1 … Capital 6) and graded C (stock), B or A: power plant,
@@ -577,7 +579,7 @@ Tested in `tests/emberreach_rift_t.js` (35 checks). End-game play, beyond the Ma
 
 ### Mining
 
-`wip/emberreach/mining.js` (16 checks in `tests/emberreach_mining_t.js`).
+`apps/rudolf-emberreach/www/mining.js` (16 checks in `tests/emberreach_mining_t.js`).
 
 - **Fields:** every ringed planet's rings (stone or ice), and asteroid belts: none in about a third of systems, one
   or two in the rest, in the gaps between the planets' orbits (rocky, or metallic around metal-rich stars). Each
@@ -602,7 +604,7 @@ Tested in `tests/emberreach_rift_t.js` (35 checks). End-game play, beyond the Ma
 ### Modules and damage
 
 Every ship carries the same core modules, each with its own health pool, shown on the **internal-systems HUD**
-(`wip/emberreach/modules.js`, 15 checks in `tests/emberreach_modules_t.js`). A pool is a share of the hull's
+(`apps/rudolf-emberreach/www/modules.js`, 15 checks in `tests/emberreach_modules_t.js`). A pool is a share of the hull's
 points (at least 10), and a hit lands on a module in proportion to its size. A module at zero health is
 **inoperable** until it's repaired at a station (or by a repair tender).
 
@@ -624,7 +626,7 @@ So a Dodo's canopy has 10 points and its engines 13; a Thylacine's 10 and 18; a 
 
 **G-forces.** The canopy is more than glass: while it holds, its field takes the g-forces and the pilot feels
 none, which is why fighters can turn at up to 39 g (see "Flight"). Once the canopy breaks, the pilot feels everything
-the thrusters do (`gForce`), and above 4 g strain builds (`wip/emberreach/pilot.js`, 10 checks in
+the thrusters do (`gForce`), and above 4 g strain builds (`apps/rudolf-emberreach/www/pilot.js`, 10 checks in
 `tests/emberreach_pilot_t.js`):
 1. **The view blurs.**
 2. **It goes dark from the edges inward.**
@@ -660,7 +662,7 @@ like every Library game.
 
 ## Factions, wars and money
 
-The model is in `wip/emberreach/factions.js`, `economy.js`, `reputation.js` and `ships.js` (51 checks in
+The model is in `apps/rudolf-emberreach/www/factions.js`, `economy.js`, `reputation.js` and `ships.js` (51 checks in
 `tests/emberreach_factions_t.js`, 15 in `tests/emberreach_ships_t.js`). The viewer's first panel shows each
 cluster in 3D.
 
@@ -833,7 +835,7 @@ The star map is **three-dimensional**. You turn it, zoom it, and move from the w
 
 ### Ships
 
-Forty stock designs that NPCs fly, and players can buy where a yard sells them (`wip/emberreach/ships.js`, 15
+Forty stock designs that NPCs fly, and players can buy where a yard sells them (`apps/rudolf-emberreach/www/ships.js`, 15
 checks in `tests/emberreach_ships_t.js`). They range from one-seat shuttles to fleet carriers and dreadnoughts.
 - **Who builds them:** a great power's yards in each of the six clusters (two in the North), and three independent
   yards (Brask & Orrel Free Yards,
@@ -989,7 +991,7 @@ home currency.
 1. **M0 (this plan):** the galaxy model; the great powers, alliances, front-line wars, small factions, money,
    reputation and the 40 stock ships as models; their checks and the 3D viewer. Done.
 2. **M1:** fly a ship in one system, with WebGL and the Canvas fallback; planets, a star and a station to dock at.
-   Gamekit controls. **Playable** (`wip/emberreach/play.html`): the home system of any great power from the model,
+   Gamekit controls. **Playable** (`apps/rudolf-emberreach/www/play.html`): the home system of any great power from the model,
    its port in any of the four classes, flight with FA, cruise, docking, collisions and module damage, the HUD (with
    the alerts, internal systems and g-strain vision), and level of detail. **Done** with:
    - **sound** (`sound.js`), all made in Web Audio, so nothing to download:
@@ -1006,7 +1008,7 @@ home currency.
      with **rings** (Ice or Stone, as the galaxy model gives them) and a rim of **haze** on worlds with air. Ports orbit
      their power's own homeworld, clear of any rings.
 3. **M2:** the 3D star map and jumping: the whole galaxy, zoom to a region, plot a route; borders and contested
-   space; lanes. The sky from real neighbours. **Playable** in `play.html`:
+   space; lanes. The sky from real neighbours. **Playable** in `index.html`:
    - **The map** (G, `map.js`):
      - zooms from the whole galaxy (its shape, a scatter of its stars, the six clusters, the long lanes) to a
        cluster (each power's space in its colour, peaceful borders as solid grids, contested space as dashed
@@ -1022,7 +1024,7 @@ home currency.
    - **Saves** keep the system you're in, your fuel, your last port and your route's destination (save version 2;
      M1 saves still load).
 4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.
-   **Playable** in `play.html`:
+   **Playable** in `index.html`:
    - **Choosing an origin:** a new game opens on the 46 great powers, by cluster, with each one's species, currency,
      capital, allies, enemies and starter ship. You start docked at its capital with 20,000 SU in its currency.
    - **The starport** (`port.js`), the design canvas's layout working for real:
@@ -1042,7 +1044,7 @@ home currency.
      ships lost replaced for 5% of their value, the cargo lost with them.
    - **Saves** (version 3) carry the player: money, cargo, reputation, bounties, commission.
 5. **M4:** combat and war: weapons, shields, heat, pirates, patrols; war missions, commissions, moving fronts;
-   carriers and dreadnoughts. **Playable** in `play.html` (see "Combat"):
+   carriers and dreadnoughts. **Playable** in `index.html` (see "Combat"):
    - **Combat** (`combat.js`): weapons by hardpoint, shields, hull damage reaching the modules, heat, homing
      missiles and flares, and AI pilots on the flight model.
    - **Encounters** (`encounters.js`): every system's cast (patrols, traders, pirates, war wings, flagships), who's
@@ -1058,7 +1060,7 @@ home currency.
      trim to collect them; a broken hatch jams open and spills the hold.
    - **Sound:** gunfire, hits on shields and hull, explosions, the missile lock and the incoming-missile warning.
 6. **M5:** exploration in full: scanning, surveys, ruins, naming, missions. The package moves to `apps/` and
-   reaches the App Store. **Exploration is playable** in `play.html` (see "Exploration"): the sweep, surveys, first
+   reaches the App Store. **Exploration is playable** in `index.html` (see "Exploration"): the sweep, surveys, first
    discoveries and naming, Universal Cartographics, ruins with their sentinels and caches, and survey contracts.
    The move to `apps/` is its own step.
 7. **M5b:** colonies: claiming systems and building ports and facilities, after Elite Dangerous's Trailblazers
@@ -1067,6 +1069,17 @@ home currency.
    population and the architect's pay; forward bases on the fronts, raids, independent colonies with their scrip,
    and rented carriers.
 8. **M6:** the Core, the black hole, polish; phones (1.6.0). **The Maw and the Rift are playable** (see "The Rift").
+
+**Released: the Single-Player Alpha Build (SPAB), 0.1.0**, in the Rudolf OS Library (`rudolf-emberreach`). It has
+everything through M5b, and the Maw and the Rift from M6. The release brought these fixes:
+- **Saves no longer fail in long games.** gamekit keeps a save up to 256 KB, and a long game's records
+  (systems charted, asteroids mined) grew past that. The save now trims the least needed records first; the
+  game's own records in memory are untouched. Saves no longer drop one asked for while another is under way.
+- **The alpha is labelled** on the origin and pause screens.
+- **A browser test** (`tests/emberreach_t.js`) plays it in the desktop's sandboxed frame: a new game, the
+  starport, flight, the map, a jump, pausing, the Rift, and resuming from the save.
+
+Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer.
 
 ## Open questions
 

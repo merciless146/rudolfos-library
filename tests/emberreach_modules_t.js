@@ -1,7 +1,7 @@
-/* Ember Reach's ship modules (wip/emberreach/modules.js), with flight (flight.js), in node.
+/* Ember Reach's ship modules (apps/rudolf-emberreach/www/modules.js), with flight (flight.js), in node.
      node tests/emberreach_modules_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const M = require(path.join(DIR, 'modules.js')), Fl = require(path.join(DIR, 'flight.js')), S = require(path.join(DIR, 'ships.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };

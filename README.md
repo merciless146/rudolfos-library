@@ -19,6 +19,7 @@ Published at **https://merciless146.github.io/rudolfos-library/**:
 | 🧩 | `rudolf-logicpack` | Logic Pack: Sudoku, Picture Grid (nonograms) and Cages, made without end, each with one answer; hints, notes, Daily puzzles | GPL-2.0-or-later |
 | 🧱 | `rudolf-blockdrop` | Block Drop: a falling-blocks puzzle with prisms that burst a whole colour and set off chains; Classic, Relaxed and Daily | GPL-2.0-or-later |
 | ⛏️ | `rudolf-faultlines` | Fault Lines: a logic puzzle (clear the ground without opening a fault), with a Daily field | GPL-2.0-or-later |
+| 🌌 | `rudolf-emberreach` | Ember Reach (Single-Player Alpha Build): a whole galaxy to fly, trade, fight, explore, mine and settle, out to the Rift beyond the Maw | GPL-2.0-or-later |
 | 🕹️ | `rudolf-emu` | Emu's Nintendo DS (DeSmuME) and SNES (LakeSnes) cores, as WebAssembly. No games, BIOS files or keys | GPL-2.0-or-later, MIT |
 
 ## Layout
@@ -30,7 +31,7 @@ apps/<name>/source/     (programs built from source) the corresponding source, p
 lib/gamekit/            rudolf-gamekit: input, window shapes, saves and pausing shared by the games; copied into each
                         game whose index.html loads gamekit.js when the Library is built
 wip/<game>/             games still being made (not built or published until they move to apps/)
-docs/                   plans for games in the works (docs/plan-ember-reach.md)
+docs/                   plans for games in the works (docs/plan-ember-reach.md: Ember Reach, released as an alpha)
 tests/                  each game's browser test (Chromium, in a sandboxed frame as the desktop opens it)
 tools/                  rpk-tool.py (from RudolfOS iso/pkgtools), publish.sh, catalog.py, keycheck.py, wos-stats.py
 site/                   the Library's web page

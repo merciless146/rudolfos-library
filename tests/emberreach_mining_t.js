@@ -1,8 +1,8 @@
-/* Ember Reach's mining (wip/emberreach/mining.js): fields, asteroids, chipping ore, the refinery, tractor beams,
+/* Ember Reach's mining (apps/rudolf-emberreach/www/mining.js): fields, asteroids, chipping ore, the refinery, tractor beams,
    with the modules that do it, in node.
      node tests/emberreach_mining_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const Mi = require(path.join(DIR, 'mining.js')), Sc = require(path.join(DIR, 'scene.js')), G = require(path.join(DIR, 'galaxy.js')), F = require(path.join(DIR, 'factions.js')), Ca = require(path.join(DIR, 'canisters.js')),
 	O = require(path.join(DIR, 'outfit.js')), S = require(path.join(DIR, 'ships.js')), Fl = require(path.join(DIR, 'flight.js')), Tr = require(path.join(DIR, 'trade.js')), Sv = require(path.join(DIR, 'save.js'));
 let P = 0, N = 0;

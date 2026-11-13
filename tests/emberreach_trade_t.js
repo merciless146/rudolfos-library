@@ -1,7 +1,7 @@
-/* Ember Reach's trade (wip/emberreach/trade.js): wallet, cargo, markets, exchange, services, shipyards, in node.
+/* Ember Reach's trade (apps/rudolf-emberreach/www/trade.js): wallet, cargo, markets, exchange, services, shipyards, in node.
      node tests/emberreach_trade_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const Tr = require(path.join(DIR, 'trade.js')), E = require(path.join(DIR, 'economy.js')), F = require(path.join(DIR, 'factions.js')), S = require(path.join(DIR, 'ships.js')), M = require(path.join(DIR, 'modules.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };

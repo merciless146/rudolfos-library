@@ -1,7 +1,7 @@
-/* Ember Reach's encounters and war missions (wip/emberreach/encounters.js), in node.
+/* Ember Reach's encounters and war missions (apps/rudolf-emberreach/www/encounters.js), in node.
      node tests/emberreach_encounters_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const En = require(path.join(DIR, 'encounters.js')), F = require(path.join(DIR, 'factions.js')), R = require(path.join(DIR, 'reputation.js')), Tr = require(path.join(DIR, 'trade.js')), T = require(path.join(DIR, 'travel.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };

@@ -1,8 +1,8 @@
-/* Ember Reach's galaxy model (wip/emberreach/galaxy.js): checks against the physics it is built on, then the viewer
+/* Ember Reach's galaxy model (apps/rudolf-emberreach/www/galaxy.js): checks against the physics it is built on, then the viewer
    in Chromium (Playwright).
      node tests/emberreach_galaxy_t.js [PORT]      (needs: playwright; python3 for the file server) */
 const path = require('path'), fs = require('fs');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const G = require(path.join(DIR, 'galaxy.js')), WOS = require(path.join(DIR, 'wos-stats.js'));
 const PORT = +(process.argv[2] || 8193);
 let P = 0, F = 0;
