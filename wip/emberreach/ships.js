@@ -12,6 +12,8 @@
      The list price is in Standard Units; a yard sells in its own currency at the day's rate, within a range
      (cheaper at independent yards and in the builder's own space, dearer abroad and near a front).
    - who: who flies them, so the game can put the right ships in the right places.
+   - Names: every ship is named for a cryptid, a hybrid beast or an animal that's died out, one word or two joined by
+     a hyphen, chosen for what it does (NAMES below). Its id (in saves and code) stays its first, working name.
    GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -71,13 +73,56 @@ function value(s) {
 		* Math.pow(s.speed / 200, 0.25) * Math.pow(s.agility / 40, 0.15) * Math.pow(1.35, s.tech - 1) * (1 + s.hangar / 40);
 }
 let SHIPS = null;
+/* the ships' names, by id: fighters and warships after predators, haulers after beasts of burden, explorers after
+   far-ranging or far-off things, miners after diggers and tuskers, pirates after things that prey in the dark */
+const NAMES = {
+	wren: 'Dodo',                 /* shuttle: a humble island hopper (extinct) */
+	kestrel: 'Thylacine',         /* fighter: a lean hunter (extinct) */
+	dart: 'Microraptor',          /* interceptor: small, feathered, fast (extinct) */
+	hob: 'Glyptodon',             /* mining pod: an armoured digger (extinct) */
+	gnat: 'Jackalope',            /* racer: the horned hare that's never caught (hybrid) */
+	spur: 'Terror-Bird',          /* bomber: strikes from above (extinct) */
+	mote: 'Mothman',              /* scout: watches, and is gone (cryptid) */
+	tinker: 'Hippocamp',          /* repair tender: the sea-horse that tows the broken home (hybrid) */
+	lark: 'Chupacabra',           /* courier and smuggler: in and out by night (cryptid) */
+	packet: 'Quagga',             /* light hauler: a striped pack animal (extinct) */
+	pike: 'Dire-Wolf',            /* gunship: a pack hunter (extinct) */
+	finch: 'Thunderbird',         /* explorer: the great bird of far skies (cryptid) */
+	burrow: 'Megatherium',        /* miner: the ground sloth that dug in (extinct) */
+	shrike: 'Smilodon',           /* heavy fighter: the sabre-toothed cat (extinct) */
+	jackal: 'Wendigo',            /* raider: hunger in the dark (cryptid) */
+	wisp: 'Bunyip',               /* stealth scout: lurks unseen (cryptid) */
+	tern: 'Passenger-Pigeon',     /* passenger shuttle (extinct) */
+	drover: 'Aurochs',            /* hauler: the wild ox (extinct) */
+	corsair: 'Griffin',           /* multirole: lion and eagle, at home anywhere (hybrid) */
+	halberd: 'Manticore',         /* corvette: armed at both ends (hybrid) */
+	seeker: 'Roc',                /* long-range explorer: the bird that crosses oceans (cryptid) */
+	delver: 'Mammoth',            /* miner: tusks for the ice and the rock (extinct) */
+	mule: 'Ankylosaur',           /* armoured trader: a tank on legs (extinct) */
+	lancet: 'Hyaenodon',          /* strike craft: a bone-crushing predator (extinct) */
+	ferry: 'Sea-Cow',             /* liner: Steller's gentle giant (extinct) */
+	scavenger: 'Teratorn',        /* salvager: the giant carrion bird (extinct) */
+	bulwark: 'Basilisk',          /* frigate: a killing look (hybrid) */
+	caravel: 'Woolly-Rhino',      /* freighter: big, shaggy, unstoppable (extinct) */
+	warden: 'Cerberus',           /* patrol cruiser: the hound at the gate (hybrid) */
+	atlas: 'Deinotherium',        /* mining refinery: the down-tusked giant (extinct) */
+	pilgrim: 'Mokele-Mbembe',     /* deep explorer: the one beyond the river (cryptid) */
+	reaver: 'Megalodon',          /* raider: the great shark (extinct) */
+	wellspring: 'Paraceratherium',/* fuel tanker: the biggest land mammal there was (extinct) */
+	citadel: 'Tyrannosaur',       /* destroyer (extinct) */
+	leviathan: 'Brontosaur',      /* bulk freighter: the long-necked giant (extinct) */
+	sovereign: 'Chimera',         /* battlecruiser: lion, goat and serpent (hybrid) */
+	ark: 'Elephant-Bird',         /* colony ship: the egg that held a world (extinct) */
+	bastion: 'Leviathan',         /* fleet carrier: the sea beast (cryptid) */
+	tyrant: 'Kraken',             /* dreadnought (cryptid) */
+	monolith: 'Hydra'};           /* battleship: a head for every gun (hybrid) */
 function ships() {
 	if (SHIPS) return SHIPS;
 	const M = F.majors();
 	SHIPS = STOCK.map(([name, size, role, maker, hull, shield, speed, agility, cargo, jump, hard, crew, tech, length, hangar, who]) => {
 		/* yard k: a power of cluster k (mod 6), so every cluster builds ships (the seventh, the North's second power) */
 		const K = G.clusters(), m = typeof maker == 'number' ? M.filter(x => x.cluster == K[maker % K.length].id)[Math.floor(maker / K.length)] : null, b = BUILD[m ? m.species.build : 'balanced'];
-		const s = {id: name.toLowerCase(), name, size, role, maker: m ? m.id : 'yard' + maker, makerName: m ? m.name.replace(/^The /, '') + ' yards' : INDEPENDENT[maker],
+		const s = {id: name.toLowerCase(), name: NAMES[name.toLowerCase()] || name, size, role, maker: m ? m.id : 'yard' + maker, makerName: m ? m.name.replace(/^The /, '') + ' yards' : INDEPENDENT[maker],
 			hull: Math.round(hull * b.hull), shield: Math.round(shield * b.shield), speed, agility: Math.round(agility * b.agility), cargo, jump, hard, crew, tech, length, hangar, who: who.split(' ')};
 		s.value = value(s);
 		/* independents sell cheaper; great powers' yards charge for their name */
@@ -96,6 +141,6 @@ function price(shipId, star, day, ctx) {
 	else if (s.maker.startsWith('major') && mk.holder) { const r = s.maker == mk.holder ? 1 : F.relation(s.maker, mk.holder); if (r < 0) return null; f = r > 0 && s.maker != mk.holder ? 1.1 : s.maker == mk.holder ? 1 : 1.25 }
 	return {currency: cur, low: Math.round(s.priceSU[0] * f * rate), high: Math.round(s.priceSU[1] * f * rate)};
 }
-const EmberShips = {SIZES, STOCK, ships, value, price};
+const EmberShips = {NAMES, SIZES, STOCK, ships, value, price};
 if (isNode) module.exports = EmberShips; else root.EmberShips = EmberShips;
 })(typeof window != 'undefined' ? window : this);

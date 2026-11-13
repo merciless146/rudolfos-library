@@ -298,12 +298,12 @@ How some stock ships handle:
 
 | Ship | Length | Top speed | Main drive | Side thrust | 0 → 95% | Stop | Best turn | 180° there | Turn radius at top | 180° at top |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Wren (shuttle) | 9 m | 220 m/s | 5.8 g | 12.9 g | 4.5 s | 10 s | 88 m/s | 2.6 s | 450 m | 6.4 s |
-| Kestrel (fighter) | 12 m | 320 m/s | 7.7 g | 28.4 g | 4.9 s | 12 s | 128 m/s | 1.7 s | 432 m | 4.2 s |
-| Dart (interceptor) | 10 m | 380 m/s | 9.7 g | 39.1 g | 4.6 s | 11 s | 152 m/s | 1.5 s | 443 m | 3.7 s |
-| Packet (light hauler) | 28 m | 210 m/s | 3.9 g | 7.9 g | 6.3 s | 14 s | 84 m/s | 4.0 s | 668 m | 10 s |
-| Sovereign (battlecruiser) | 520 m | 170 m/s | 1.3 g | 1.7 g | 15 s | 34 s | 68 m/s | 15 s | 2.0 km | 37 s |
-| Monolith (battleship) | 1.9 km | 85 m/s | 0.4 g | 0.2 g | 22 s | 47 s | 34 m/s | 60 s | 4.1 km | 2.5 min |
+| Dodo (shuttle) | 9 m | 220 m/s | 5.8 g | 12.9 g | 4.5 s | 10 s | 88 m/s | 2.6 s | 450 m | 6.4 s |
+| Thylacine (fighter) | 12 m | 320 m/s | 7.7 g | 28.4 g | 4.9 s | 12 s | 128 m/s | 1.7 s | 432 m | 4.2 s |
+| Microraptor (interceptor) | 10 m | 380 m/s | 9.7 g | 39.1 g | 4.6 s | 11 s | 152 m/s | 1.5 s | 443 m | 3.7 s |
+| Quagga (light hauler) | 28 m | 210 m/s | 3.9 g | 7.9 g | 6.3 s | 14 s | 84 m/s | 4.0 s | 668 m | 10 s |
+| Chimera (battlecruiser) | 520 m | 170 m/s | 1.3 g | 1.7 g | 15 s | 34 s | 68 m/s | 15 s | 2.0 km | 37 s |
+| Hydra (battleship) | 1.9 km | 85 m/s | 0.4 g | 0.2 g | 22 s | 47 s | 34 m/s | 60 s | 4.1 km | 2.5 min |
 
 **Controls.** On keyboard and mouse, controller and touch alike: pitch and roll on the stick (or mouse), yaw on
 a pair of keys or a second axis, the throttle on an axis or keys, strafe on a hat or keys, and one button to switch
@@ -535,7 +535,7 @@ ports and outposts come later. (Before this, flying into a planet or star lost t
   be emptied on the starport's Status screen.
 - **Tractor beams** (small external modules) pull canisters and ore within 600 m to an open hatch, fast far out and
   slowing to scooping speed at the hatch.
-- **Stock miners** (the Hob, Burrow, Delver and Atlas) come with a mining laser, a tractor beam where there's a
+- **Stock miners** (the Glyptodon, Megatherium, Mammoth and Deinotherium) come with a mining laser, a tractor beam where there's a
   second small hardpoint, a refinery, and a resource scanner where there's a mount for it.
 
 ### Modules and damage
@@ -559,7 +559,7 @@ points (at least 10), and a hit lands on a module in proportion to its size. A m
 | Weapons (armed ships) | 6% | The guns and missiles don't fire. |
 | Cargo hatch (ships with a hold) | 6% | Jammed open: the ship is held to its scooping trim, can't scoop, and the hold spills a tonne every 8 s (see "Cargo hatch and canisters"). |
 
-So a Wren's canopy has 10 points and its engines 13; a Kestrel's 10 and 18; a Monolith's 6,480 and 15,120.
+So a Dodo's canopy has 10 points and its engines 13; a Thylacine's 10 and 18; a Hydra's 6,480 and 15,120.
 
 **G-forces.** The canopy is more than glass: while it holds, its field takes the g-forces and the pilot feels
 none, which is why fighters can turn at up to 39 g (see "Flight"). Once the canopy breaks, the pilot feels everything
@@ -574,7 +574,7 @@ the thrusters do (`gForce`), and above 4 g strain builds (`wip/emberreach/pilot.
    dark at the edges, clearing over a couple of seconds.
 
 How fast strain builds depends on how hard the pull is: (felt g − 4) / 16 per second, so 8 g blacks a pilot out
-in 4 s, 12 g in 2 s and 20 g in 1 s. Below 4 g the strain falls by 0.15 a second. For example, a Kestrel with a
+in 4 s, 12 g in 2 s and 20 g in 1 s. Below 4 g the strain falls by 0.15 a second. For example, a Thylacine with a
 broken canopy pulling full pitch at 128 m/s (25 g) blurs at 0.3 s, darkens at 0.5 s and blacks out at 1.0 s;
 the pilot wakes at 5.0 s and sees clearly again at 7 s. At 48 m/s (9 g) a pilot who lets go after 2.5 s gets
 the blur and dark edges but stays awake. Repair the canopy and the protection comes back. These are starting
@@ -781,7 +781,7 @@ checks in `tests/emberreach_ships_t.js`). They range from one-seat shuttles to f
   10% agility; light ones lose 10% armour, gain 10% shields and turn 12% faster.
 - **Who flies what:** every design lists its pilots (navies, pirates, traders, miners, explorers, nomads, couriers,
   passengers, prospectors, salvagers, bounty hunters, smugglers), so the game puts the right ships in the right
-  places. The small factions' fleet carriers and dreadnoughts are the Bastion, Tyrant and Monolith classes.
+  places. The small factions' fleet carriers and dreadnoughts are the Leviathan, Kraken and Hydra classes.
 
 **Price from the stats.** A ship's list value in SU is:
 
@@ -799,51 +799,57 @@ checks in `tests/emberreach_ships_t.js`). They range from one-seat shuttles to f
 
 The catalogue, with prices in SU and in the Roarvorum Compact's mark at home on day 0 (5.50 marks per SU):
 
+**Names:** every ship is named for a cryptid, a hybrid beast or an animal that's died out, one word or two joined by a
+hyphen, chosen for what it does: fighters and warships after predators (Thylacine, Smilodon, Tyrannosaur), haulers
+after beasts of burden (Quagga, Aurochs, Woolly-Rhino), explorers after far-ranging or far-off things (Thunderbird,
+Roc, Mokele-Mbembe), miners after diggers and tuskers (Glyptodon, Mammoth), pirates after things that prey in the dark
+(Wendigo, Megalodon). Each keeps its first, working name as its id in saves and code.
+
 | Ship | Size | Role | Yard | Hull / shields | Speed m/s, turn °/s | Cargo t | Jump pc | Guns S/M/L/H | Crew | Tech | Price, SU | In ROA at home |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Wren | XS | shuttle | Brask & Orrel Free Yards | 90 / 40 | 220, 70 | 4 | 2 | 0/0/0/0 | 1 | 1 | 15 k – 20 k | 85 k – 108 k |
-| Kestrel | XS | fighter | Roarvorum Compact yards | 126 / 99 | 320, 106 | 0 | – | 2/0/0/0 | 1 | 2 | 46 k – 58 k | 251 k – 321 k |
-| Dart | XS | interceptor | Ixemos Directorate yards | 99 / 88 | 380, 123 | 0 | – | 2/0/0/0 | 1 | 3 | 53 k – 67 k | 289 k – 369 k |
-| Hob | XS | mining pod | Tamsin Mining Cooperative | 160 / 30 | 150, 50 | 12 | 1.5 | 1/0/0/0 | 1 | 1 | 18 k – 23 k | 98 k – 126 k |
-| Gnat | XS | racer | Ulis Concord yards | 92 / 60 | 420, 95 | 2 | 3 | 0/0/0/0 | 1 | 3 | 54 k – 68 k | 295 k – 376 k |
-| Spur | XS | bomber | Mariajunumos Republic yards | 180 / 110 | 240, 67 | 0 | – | 0/1/0/0 | 2 | 2 | 48 k – 61 k | 263 k – 336 k |
-| Mote | XS | scout | Greyhook Salvage Works | 70 / 50 | 300, 90 | 1 | 4 | 0/0/0/0 | 1 | 2 | 27 k – 34 k | 146 k – 187 k |
-| Tinker | XS | repair tender | Astevin Dominion yards | 150 / 70 | 200, 60 | 6 | 2 | 0/0/0/0 | 2 | 2 | 41 k – 52 k | 225 k – 288 k |
-| Lark | S | courier | Ixemos Directorate yards | 270 / 242 | 330, 84 | 20 | 6 | 1/0/0/0 | 2 | 3 | 217 k – 278 k | 1.2 m – 1.5 m |
-| Packet | S | light hauler | Brask & Orrel Free Yards | 380 / 150 | 210, 45 | 120 | 4 | 2/0/0/0 | 2 | 1 | 80 k – 102 k | 437 k – 559 k |
-| Pike | S | gunship | Othumfaax Throne yards | 598 / 300 | 260, 50 | 10 | 4 | 2/2/0/0 | 3 | 2 | 233 k – 298 k | 1.3 m – 1.6 m |
-| Finch | S | explorer | Ulis Concord yards | 379 / 260 | 250, 50 | 30 | 9 | 1/0/0/0 | 2 | 3 | 276 k – 352 k | 1.5 m – 1.9 m |
-| Burrow | S | miner | Tamsin Mining Cooperative | 480 / 180 | 170, 40 | 160 | 4 | 1/1/0/0 | 3 | 1 | 100 k – 127 k | 547 k – 699 k |
-| Shrike | S | heavy fighter | Roarvorum Compact yards | 378 / 352 | 300, 78 | 5 | 5 | 3/1/0/0 | 2 | 3 | 316 k – 403 k | 1.7 m – 2.2 m |
-| Jackal | S | raider | Greyhook Salvage Works | 400 / 250 | 310, 68 | 40 | 5 | 2/1/0/0 | 3 | 2 | 163 k – 209 k | 898 k – 1.1 m |
-| Wisp | S | stealth scout | Astevin Dominion yards | 280 / 300 | 290, 65 | 10 | 8 | 1/0/0/0 | 2 | 4 | 362 k – 463 k | 2.0 m – 2.5 m |
-| Tern | S | passenger shuttle | Voru Collective yards | 315 / 220 | 240, 50 | 30 | 5 | 0/0/0/0 | 2 | 2 | 135 k – 172 k | 741 k – 947 k |
-| Drover | M | hauler | Brask & Orrel Free Yards | 1,100 / 500 | 180, 30 | 600 | 5 | 2/1/0/0 | 5 | 1 | 348 k – 445 k | 1.9 m – 2.4 m |
-| Corsair | M | multirole | Mariajunumos Republic yards | 1,260 / 990 | 240, 47 | 150 | 6 | 2/2/1/0 | 6 | 3 | 1.2 m – 1.5 m | 6.5 m – 8.3 m |
-| Halberd | M | corvette | Othumfaax Throne yards | 2,415 / 1,300 | 230, 34 | 60 | 6 | 3/3/1/0 | 18 | 3 | 1.7 m – 2.2 m | 9.3 m – 11.9 m |
-| Seeker | M | long-range explorer | Ulis Concord yards | 1,150 / 1,100 | 220, 36 | 120 | 14 | 1/1/0/0 | 5 | 4 | 1.8 m – 2.3 m | 10.0 m – 12.8 m |
-| Delver | M | miner | Tamsin Mining Cooperative | 1,600 / 600 | 150, 28 | 700 | 5 | 2/1/0/0 | 8 | 2 | 624 k – 797 k | 3.4 m – 4.4 m |
-| Mule | M | armoured trader | Voru Collective yards | 1,620 / 880 | 170, 34 | 500 | 6 | 2/2/0/0 | 7 | 2 | 981 k – 1.3 m | 5.4 m – 6.9 m |
-| Lancet | M | strike craft | Ixemos Directorate yards | 1,080 / 1,210 | 290, 56 | 40 | 7 | 2/3/0/0 | 6 | 4 | 1.5 m – 1.9 m | 8.3 m – 10.6 m |
-| Ferry | M | liner | Astevin Dominion yards | 1,300 / 1,000 | 200, 30 | 200 | 7 | 1/0/0/0 | 30 | 3 | 943 k – 1.2 m | 5.2 m – 6.6 m |
-| Scavenger | M | salvager | Greyhook Salvage Works | 1,500 / 500 | 170, 32 | 450 | 5 | 2/1/0/0 | 8 | 1 | 384 k – 491 k | 2.1 m – 2.7 m |
-| Bulwark | L | frigate | Roarvorum Compact yards | 4,680 / 3,520 | 190, 27 | 300 | 7 | 4/4/2/0 | 60 | 3 | 5.5 m – 7.0 m | 30.3 m – 38.7 m |
-| Caravel | L | freighter | Brask & Orrel Free Yards | 4,200 / 1,600 | 150, 18 | 3,000 | 6 | 2/2/0/0 | 20 | 1 | 2.2 m – 2.7 m | 11.8 m – 15.1 m |
-| Warden | L | patrol cruiser | Mariajunumos Republic yards | 7,020 / 4,620 | 180, 22 | 250 | 7 | 4/4/3/0 | 90 | 3 | 7.1 m – 9.1 m | 39.1 m – 49.9 m |
-| Atlas | L | mining refinery | Tamsin Mining Cooperative | 6,500 / 2,000 | 120, 14 | 4,000 | 5 | 2/2/1/0 | 40 | 2 | 4.5 m – 5.8 m | 24.9 m – 31.8 m |
-| Pilgrim | L | deep explorer | Ulis Concord yards | 4,370 / 3,800 | 170, 18 | 600 | 20 | 2/2/0/0 | 30 | 5 | 14.0 m – 17.9 m | 76.9 m – 98.2 m |
-| Reaver | L | raider | Greyhook Salvage Works | 5,000 / 2,600 | 210, 24 | 800 | 7 | 4/3/2/0 | 45 | 2 | 3.8 m – 4.8 m | 20.8 m – 26.6 m |
-| Wellspring | L | fuel tanker | Astevin Dominion yards | 4,500 / 1,800 | 140, 15 | 2,500 | 8 | 2/1/0/0 | 25 | 2 | 3.7 m – 4.8 m | 20.6 m – 26.3 m |
-| Citadel | XL | destroyer (4 in hangar) | Othumfaax Throne yards | 20,700 / 11,000 | 160, 11 | 800 | 8 | 6/6/4/1 | 320 | 4 | 47.5 m – 60.7 m | 261.2 m – 333.8 m |
-| Leviathan | XL | bulk freighter | Brask & Orrel Free Yards | 15,000 / 5,000 | 110, 8 | 30,000 | 6 | 3/3/1/0 | 120 | 1 | 18.7 m – 23.9 m | 102.8 m – 131.4 m |
-| Sovereign | XL | battlecruiser (6 in hangar) | Voru Collective yards | 23,400 / 17,600 | 170, 12 | 1,000 | 8 | 6/8/5/2 | 600 | 4 | 85.1 m – 108.7 m | 467.9 m – 597.8 m |
-| Ark | XL | colony ship (2 in hangar) | Astevin Dominion yards | 20,000 / 9,000 | 100, 7 | 12,000 | 10 | 2/2/1/0 | 3,000 | 3 | 50.1 m – 64.0 m | 275.5 m – 352.0 m |
-| Bastion | Capital | fleet carrier (36 in hangar) | Brask & Orrel Free Yards | 90,000 / 40,000 | 90, 4 | 60,000 | 12 | 8/8/4/2 | 8,000 | 4 | 1.63 bn – 2.08 bn | 8.96 bn – 11.44 bn |
-| Tyrant | Capital | dreadnought (24 in hangar) | Roarvorum Compact yards | 144,000 / 77,000 | 80, 3 | 8,000 | 10 | 12/12/8/4 | 12,000 | 4 | 1.33 bn – 1.70 bn | 7.31 bn – 9.34 bn |
-| Monolith | Capital | battleship (12 in hangar) | Mariajunumos Republic yards | 108,000 / 66,000 | 85, 3 | 5,000 | 9 | 10/10/8/4 | 9,000 | 5 | 854.3 m – 1.09 bn | 4.70 bn – 6.00 bn |
+| Dodo | XS | shuttle | Brask & Orrel Free Yards | 90 / 40 | 220, 70 | 4 | 2 | 0/0/0/0 | 1 | 1 | 15 k – 20 k | 85 k – 108 k |
+| Thylacine | XS | fighter | Roarvorum Compact yards | 126 / 99 | 320, 106 | 0 | – | 2/0/0/0 | 1 | 2 | 46 k – 58 k | 251 k – 321 k |
+| Microraptor | XS | interceptor | Ixemos Directorate yards | 99 / 88 | 380, 123 | 0 | – | 2/0/0/0 | 1 | 3 | 53 k – 67 k | 289 k – 369 k |
+| Glyptodon | XS | mining pod | Tamsin Mining Cooperative | 160 / 30 | 150, 50 | 12 | 1.5 | 1/0/0/0 | 1 | 1 | 18 k – 23 k | 98 k – 126 k |
+| Jackalope | XS | racer | Ulis Concord yards | 92 / 60 | 420, 95 | 2 | 3 | 0/0/0/0 | 1 | 3 | 54 k – 68 k | 295 k – 376 k |
+| Terror-Bird | XS | bomber | Mariajunumos Republic yards | 180 / 110 | 240, 67 | 0 | – | 0/1/0/0 | 2 | 2 | 48 k – 61 k | 263 k – 336 k |
+| Mothman | XS | scout | Greyhook Salvage Works | 70 / 50 | 300, 90 | 1 | 4 | 0/0/0/0 | 1 | 2 | 27 k – 34 k | 146 k – 187 k |
+| Hippocamp | XS | repair tender | Astevin Dominion yards | 150 / 70 | 200, 60 | 6 | 2 | 0/0/0/0 | 2 | 2 | 41 k – 52 k | 225 k – 288 k |
+| Chupacabra | S | courier | Ixemos Directorate yards | 270 / 242 | 330, 84 | 20 | 6 | 1/0/0/0 | 2 | 3 | 217 k – 278 k | 1.2 m – 1.5 m |
+| Quagga | S | light hauler | Brask & Orrel Free Yards | 380 / 150 | 210, 45 | 120 | 4 | 2/0/0/0 | 2 | 1 | 80 k – 102 k | 437 k – 559 k |
+| Dire-Wolf | S | gunship | Othumfaax Throne yards | 598 / 300 | 260, 50 | 10 | 4 | 2/2/0/0 | 3 | 2 | 233 k – 298 k | 1.3 m – 1.6 m |
+| Thunderbird | S | explorer | Ulis Concord yards | 379 / 260 | 250, 50 | 30 | 9 | 1/0/0/0 | 2 | 3 | 276 k – 352 k | 1.5 m – 1.9 m |
+| Megatherium | S | miner | Tamsin Mining Cooperative | 480 / 180 | 170, 40 | 160 | 4 | 1/1/0/0 | 3 | 1 | 100 k – 127 k | 547 k – 699 k |
+| Smilodon | S | heavy fighter | Roarvorum Compact yards | 378 / 352 | 300, 78 | 5 | 5 | 3/1/0/0 | 2 | 3 | 316 k – 403 k | 1.7 m – 2.2 m |
+| Wendigo | S | raider | Greyhook Salvage Works | 400 / 250 | 310, 68 | 40 | 5 | 2/1/0/0 | 3 | 2 | 163 k – 209 k | 898 k – 1.1 m |
+| Bunyip | S | stealth scout | Astevin Dominion yards | 280 / 300 | 290, 65 | 10 | 8 | 1/0/0/0 | 2 | 4 | 362 k – 463 k | 2.0 m – 2.5 m |
+| Passenger-Pigeon | S | passenger shuttle | Voru Collective yards | 315 / 220 | 240, 50 | 30 | 5 | 0/0/0/0 | 2 | 2 | 135 k – 172 k | 741 k – 947 k |
+| Aurochs | M | hauler | Brask & Orrel Free Yards | 1,100 / 500 | 180, 30 | 600 | 5 | 2/1/0/0 | 5 | 1 | 348 k – 445 k | 1.9 m – 2.4 m |
+| Griffin | M | multirole | Mariajunumos Republic yards | 1,260 / 990 | 240, 47 | 150 | 6 | 2/2/1/0 | 6 | 3 | 1.2 m – 1.5 m | 6.5 m – 8.3 m |
+| Manticore | M | corvette | Othumfaax Throne yards | 2,415 / 1,300 | 230, 34 | 60 | 6 | 3/3/1/0 | 18 | 3 | 1.7 m – 2.2 m | 9.3 m – 11.9 m |
+| Roc | M | long-range explorer | Ulis Concord yards | 1,150 / 1,100 | 220, 36 | 120 | 14 | 1/1/0/0 | 5 | 4 | 1.8 m – 2.3 m | 10.0 m – 12.8 m |
+| Mammoth | M | miner | Tamsin Mining Cooperative | 1,600 / 600 | 150, 28 | 700 | 5 | 2/1/0/0 | 8 | 2 | 624 k – 797 k | 3.4 m – 4.4 m |
+| Ankylosaur | M | armoured trader | Voru Collective yards | 1,620 / 880 | 170, 34 | 500 | 6 | 2/2/0/0 | 7 | 2 | 981 k – 1.3 m | 5.4 m – 6.9 m |
+| Hyaenodon | M | strike craft | Ixemos Directorate yards | 1,080 / 1,210 | 290, 56 | 40 | 7 | 2/3/0/0 | 6 | 4 | 1.5 m – 1.9 m | 8.3 m – 10.6 m |
+| Sea-Cow | M | liner | Astevin Dominion yards | 1,300 / 1,000 | 200, 30 | 200 | 7 | 1/0/0/0 | 30 | 3 | 943 k – 1.2 m | 5.2 m – 6.6 m |
+| Teratorn | M | salvager | Greyhook Salvage Works | 1,500 / 500 | 170, 32 | 450 | 5 | 2/1/0/0 | 8 | 1 | 384 k – 491 k | 2.1 m – 2.7 m |
+| Basilisk | L | frigate | Roarvorum Compact yards | 4,680 / 3,520 | 190, 27 | 300 | 7 | 4/4/2/0 | 60 | 3 | 5.5 m – 7.0 m | 30.3 m – 38.7 m |
+| Woolly-Rhino | L | freighter | Brask & Orrel Free Yards | 4,200 / 1,600 | 150, 18 | 3,000 | 6 | 2/2/0/0 | 20 | 1 | 2.2 m – 2.7 m | 11.8 m – 15.1 m |
+| Cerberus | L | patrol cruiser | Mariajunumos Republic yards | 7,020 / 4,620 | 180, 22 | 250 | 7 | 4/4/3/0 | 90 | 3 | 7.1 m – 9.1 m | 39.1 m – 49.9 m |
+| Deinotherium | L | mining refinery | Tamsin Mining Cooperative | 6,500 / 2,000 | 120, 14 | 4,000 | 5 | 2/2/1/0 | 40 | 2 | 4.5 m – 5.8 m | 24.9 m – 31.8 m |
+| Mokele-Mbembe | L | deep explorer | Ulis Concord yards | 4,370 / 3,800 | 170, 18 | 600 | 20 | 2/2/0/0 | 30 | 5 | 14.0 m – 17.9 m | 76.9 m – 98.2 m |
+| Megalodon | L | raider | Greyhook Salvage Works | 5,000 / 2,600 | 210, 24 | 800 | 7 | 4/3/2/0 | 45 | 2 | 3.8 m – 4.8 m | 20.8 m – 26.6 m |
+| Paraceratherium | L | fuel tanker | Astevin Dominion yards | 4,500 / 1,800 | 140, 15 | 2,500 | 8 | 2/1/0/0 | 25 | 2 | 3.7 m – 4.8 m | 20.6 m – 26.3 m |
+| Tyrannosaur | XL | destroyer (4 in hangar) | Othumfaax Throne yards | 20,700 / 11,000 | 160, 11 | 800 | 8 | 6/6/4/1 | 320 | 4 | 47.5 m – 60.7 m | 261.2 m – 333.8 m |
+| Brontosaur | XL | bulk freighter | Brask & Orrel Free Yards | 15,000 / 5,000 | 110, 8 | 30,000 | 6 | 3/3/1/0 | 120 | 1 | 18.7 m – 23.9 m | 102.8 m – 131.4 m |
+| Chimera | XL | battlecruiser (6 in hangar) | Voru Collective yards | 23,400 / 17,600 | 170, 12 | 1,000 | 8 | 6/8/5/2 | 600 | 4 | 85.1 m – 108.7 m | 467.9 m – 597.8 m |
+| Elephant-Bird | XL | colony ship (2 in hangar) | Astevin Dominion yards | 20,000 / 9,000 | 100, 7 | 12,000 | 10 | 2/2/1/0 | 3,000 | 3 | 50.1 m – 64.0 m | 275.5 m – 352.0 m |
+| Leviathan | Capital | fleet carrier (36 in hangar) | Brask & Orrel Free Yards | 90,000 / 40,000 | 90, 4 | 60,000 | 12 | 8/8/4/2 | 8,000 | 4 | 1.63 bn – 2.08 bn | 8.96 bn – 11.44 bn |
+| Kraken | Capital | dreadnought (24 in hangar) | Roarvorum Compact yards | 144,000 / 77,000 | 80, 3 | 8,000 | 10 | 12/12/8/4 | 12,000 | 4 | 1.33 bn – 1.70 bn | 7.31 bn – 9.34 bn |
+| Hydra | Capital | battleship (12 in hangar) | Mariajunumos Republic yards | 108,000 / 66,000 | 85, 3 | 5,000 | 9 | 10/10/8/4 | 9,000 | 5 | 854.3 m – 1.09 bn | 4.70 bn – 6.00 bn |
 
 **Starting out:** a new player gets the cheapest jump-capable design their home yards sell under 100,000 SU (the
-Ulis Concord Gnat, the Astevin Dominion Tinker), or the independent Wren (44 of the 46 powers). They also get money worth 20,000 SU in their
+Ulis Concord Jackalope, the Astevin Dominion Hippocamp), or the independent Dodo (44 of the 46 powers). They also get money worth 20,000 SU in their
 home currency.
 
 ### Money

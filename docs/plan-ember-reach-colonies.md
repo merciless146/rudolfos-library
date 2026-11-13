@@ -56,7 +56,7 @@ These are the public descriptions (Frontier's guide and update notes, and player
 | Claims bought from a contact in a populated system, within ~15 ly | Claims bought from a **colonial office** at a great power's station or a free port, for a system within **one jump** (your drive's range) of a settled system. The galaxy's crowding sets how many systems that is: thousands in the Hearth, a few at the Rim |
 | 24 hours to deploy the beacon; one claim at a time | **2 game days** to deploy; one open claim at a time, more with standing (below) |
 | 4 weeks to build the primary port | **One season (30 game days)** for the primary port |
-| 55–70 kt for a mid port, hauled solo | **Scaled to Ember Reach's ships:** about 1,500 t for an outpost and 8,000 t for a mid port. That's a few runs of a Drover (600 t) or Caravel (3,000 t), or one Leviathan (30,000 t). **And you can pay for help:** NPC haulers on contract, in the sponsor's currency |
+| 55–70 kt for a mid port, hauled solo | **Scaled to Ember Reach's ships:** about 1,500 t for an outpost and 8,000 t for a mid port. That's a few runs of an Aurochs (600 t) or Woolly-Rhino (3,000 t), or one Brontosaur (30,000 t). **And you can pay for help:** NPC haulers on contract, in the sponsor's currency |
 | Fleet carriers stage the cargo | **Hire a carrier:** prospector guilds and nomads rent out their fleet carriers' holds for a season. It's also a way to meet the small factions |
 | Tier 2/3 construction points | **Development points**, the same idea, shown openly: tier 1 builds earn tier 2 points, tier 2 builds cost them and earn tier 3, and the planner says exactly what each choice unlocks |
 | Strong and weak links set the economy | The same, from the model's own data. Each body's real character (type, resources, rings, life, ruins, the star's metals) boosts or cuts its links, through the existing market model |
@@ -218,7 +218,7 @@ easily in a save.
 - `factions.js`: forward bases join war effort (supplied anchors under the same chain and depth rules); colonies
   count in a sponsor's held systems.
 - `reputation.js`: colony actions (claim, finish, abandon, lose); a colony budget by standing.
-- `ships.js`: hauling contracts use the catalogue's traders (Drover, Caravel, Leviathan) at their real cargo and
+- `ships.js`: hauling contracts use the catalogue's traders (Aurochs, Woolly-Rhino, Brontosaur) at their real cargo and
   speed.
 - **The 3D map:** colonies as markers in their sponsor's colour; independent ones in white, with a ring.
 
@@ -262,7 +262,7 @@ Colonies come after trade, combat and exploration work (M3–M5), as **M5b**, be
      outpost takes 1,500 t (iron, aluminium, titanium, machinery, electronics, food, water, fuel); a station
      9,000 t; a great port 25,000 t.
    - **Haulage contracts:** from any port that trades in a power's coin, for each good still wanted, at 10–25% over
-     its market plus 0.4% a parsec, paid up front. A Drover, Caravel or Leviathan brings it (by size) after the days
+     its market plus 0.4% a parsec, paid up front. An Aurochs, Woolly-Rhino or Brontosaur brings it (by size) after the days
      of its journey, at the next day's turn (each jump).
    - **Done:** the port opens the next day as the sponsor's port (Trefoil, Lantern or Halo), with a market in its
      coin, and the sponsor's standing rises by 150. **Lapses** keep the salvage and take a third off a new claim.

@@ -55,7 +55,7 @@ const PORTS = {
 	base: {name: 'Forward base', cls: 'trefoil', fee: 200000, goods: {Iron: 625, Titanium: 500, Machinery: 375, Electronics: 375, Munitions: 625}, base: true}};
 const COL = {claimDays: 2, seasonDays: 30, salvage: 1 / 3, core: 30, beaconRadii: 30, deliverRange: 3000, charter: 100, neutral: -100, perRep: 100, finishRep: 150,
 	raid: {unclaimed: 0.10, claimed: 0.05}, baseEffort: 5, rent: {fee: 40000, cut: 0.3}, scrip: {drift: 0.15}, takeover: 2, indep: {share: [0.10, 0.15], security: -0.15},
-	haul: {over: [0.10, 0.25], perPc: 0.004, fleet: [{ship: 'Drover', t: 600, jump: 5}, {ship: 'Caravel', t: 3000, jump: 6}, {ship: 'Leviathan', t: 30000, jump: 6}]}};
+	haul: {over: [0.10, 0.25], perPc: 0.004, fleet: [{ship: 'Aurochs', t: 600, jump: 5}, {ship: 'Woolly-Rhino', t: 3000, jump: 6}, {ship: 'Brontosaur', t: 30000, jump: 6}]}};
 const at = s => s.at || [s.x, s.y, s.z];
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const total = o => Object.values(o).reduce((t, v) => t + v, 0);
