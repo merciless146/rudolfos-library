@@ -119,9 +119,24 @@ take over.
   covers distant ones.
 - **The height function** `h(direction)` is shared by the renderer and the simulation, so collisions match
   what is drawn. A port's site is flattened to its radius with a short ramp, so pads are level.
-- **Light.** The sun's direction comes from the star. A tidally locked world has fixed day and night sides,
-  and ports there sit near the terminator (within 25° of latitude, 75°–105° of longitude). Rotation of other
-  worlds is ignored in L1: the frame is fixed to the world, and its day is long next to a landing.
+- **Days, years and rotation.** Worlds turn in real time against the in-game calendar, as real worlds do.
+  This is in the galaxy model now (`galaxy.js`'s `spin`; scene test checks 19–21):
+  - **Orbits:**
+    - A world's **year** comes from Kepler's third law, using its distance in AU and its star's mass. An
+      Earth at 1 AU from a Sun takes 365 days.
+    - A moon's **month** comes from its planet's mass and its distance in the planet's radii. A Moon at 60
+      Earth radii takes 27 days.
+    - Positions advance with the calendar between arrivals. During a stay in a system, worlds hold their
+      places.
+  - **Spin:**
+    - A **tidally locked** world, and every moon, turns once per orbit, so its day and night sides are fixed.
+    - **Gas giants** turn in 9–18 hours.
+    - **Rocky worlds** turn in anything from 10 hours to 5 days. Inside 0.4 AU, half are slowed into a 3:2
+      resonance like Mercury's. One in ten turns backwards, like Venus.
+  - **On the ground,** the landed ship's frame turns with the world, so the turning is felt as the sun and sky
+    moving. Over the length of a landing, that is mostly negligible.
+- **Light.** The sun's direction comes from the star. On a tidally locked world the day and night sides never
+  move, so ports there sit near the terminator: within 25° of latitude, at 75°–105° of longitude.
 - **Heat.** On a hot world's day side (above 450 K), the heat gauge (`modules.js`) climbs while landed and
   while flying low. Below 80 K, the thrusters' fuel use rises by 10%.
 
@@ -147,8 +162,17 @@ take over.
 
 ### Where they go
 
-Only systems with a port in space get surface ports (`ports(star, cls)` in `surface.js`). Wild systems and
-the Rift get none. The more important the system's port, the more surface ports it gets:
+Systems with a port in space get surface ports (`ports(star, cls)` in `surface.js`), more for a more
+important port (table below).
+
+Surface ports can also stand with **no port in space above them**:
+- About **one system in twenty-five** with landable ground and no space port has a **lone outpost or mining
+  camp**. A metal-rich world gets a camp more often.
+- In a power's space, it belongs to that power. In unclaimed space, it is independent and run by free
+  traders.
+- It is a place to find. Space has no beacon for it, but a ground scan or the cartographer's charts mark it.
+
+The Rift and the Maw get no surface ports.
 
 | System's port | Surface ports | Kinds |
 |---|---|---|
@@ -287,12 +311,11 @@ beacons, windows) use the emissive channel the stations already use.
    - Surface vehicles.
    - Night lights on dark sides.
 
-## Open questions
+## Settled
 
-Settled: every flyable ship lands; pads need the traffic controller's clearance; a crash is a loss like any
-other, under the ship's insurance.
-
-1. **Rotation.** Should worlds turn (day and night passing while landed), or stay fixed to the world as
-   drafted for L1?
-2. **Surface ports in wild systems.** Should independent outposts sometimes exist where there is no port in
-   space, as places to find?
+All five of the draft's questions are answered:
+- Every flyable ship can land.
+- Pads need the traffic controller's clearance.
+- A crash is a loss like any other, under the ship's insurance.
+- Worlds turn in real time against the calendar, with real years and months.
+- Surface ports can stand with no port in space above them.

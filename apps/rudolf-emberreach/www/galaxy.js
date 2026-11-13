@@ -340,6 +340,7 @@ function finish(s, planets) {
 		const q = rng(hashStr('hab:' + s.id + ':' + p.i + (p.host || '')));
 		if (p.water && !KGF(s) && !home && q() > 0.03) { p.water = false; p.alive = false; p.life = 0; p.dried = true; p.type = p.Ts > 300 ? 'Desert' : 'Tundra' }
 		p.moons = moons(s, p);
+		spin(s, p);
 		if (p.ring) {
 			const metal = Math.max(0.05, Math.min(0.7, 0.2 + 0.8 * (s.FeH || 0) + (p.Teq > 400 ? 0.2 : 0)));
 			p.ring = p.Teq < 150 ? 'Ice' : q() < metal ? 'Metal' : 'Stone';
@@ -359,6 +360,25 @@ function riftWorlds(s, planets) {
 		for (const m of p.moons || []) { m.rift = true; if (q() < RIFT.nullite / 2) m.res.push('Nullite') }
 	}
 	if (rocky.length && q() < RIFT.ruins) { const p = rocky[Math.floor(q() * rocky.length)]; p.ruins = true; p.precursor = true }
+}
+/* ---------- a world's year and day ----------
+   year: its orbit, in days, from Kepler's third law (a in AU around its host's mass in suns). day: one turn on its
+   axis, in days (negative: it turns backwards, as Venus does). A tidally locked world turns once a year. Otherwise
+   as real worlds do: gas giants in 9 to 18 hours; rocky worlds anywhere from 10 hours to 5 days (log-even), slowed
+   by their star's tides close in (inside 0.4 AU half of them are caught in a 3:2 resonance, Mercury's: three turns
+   every two years), and one in ten turns backwards. A moon's year is its orbit round its planet, from the planet's
+   mass and its distance in the planet's radii; moons are locked, so their day is their month. All from draws of
+   their own: nothing else about a system moves. */
+const G_SI = 6.674e-11, M_EARTH = 5.972e24, R_EARTH = 6.371e6;
+function spin(s, p) {
+	const q = rng(hashStr('rot:' + s.id + ':' + p.i + (p.host || '')));
+	p.year = Math.sqrt(Math.pow(p.a, 3) / Math.max(0.05, s.M || 1)) * 365.25;
+	if (p.locked) p.day = p.year;
+	else if (p.gas) p.day = (9 + 9 * q()) / 24;
+	else if (p.a < 0.4 && q() < 0.5) p.day = p.year * 2 / 3;
+	else p.day = Math.exp(Math.log(10 / 24) + q() * Math.log(5 * 24 / 10));
+	if (!p.locked && !p.gas && q() < 0.1) p.day = -p.day;
+	for (const m of p.moons || []) { const r = m.dist * p.R * R_EARTH; m.year = 2 * Math.PI * Math.sqrt(r * r * r / (G_SI * p.M * M_EARTH)) / 86400; m.day = m.year }
 }
 /* moons: gas giants have one to five, other big worlds (5 Earths and up) up to two; small and mostly airless
    (from Earth's Moon down), and now and then (4%, where it's cold enough to keep it) a thick, hazy air like Titan's */
@@ -518,6 +538,6 @@ function civilizations0() {
 	return CIVS;
 }
 
-const EmberGalaxy = {HEART, RIFT_HEART, RIFT, realm, inRealm, normal, riftOf, lookup, byId, legacy, capitalIds, KGF, MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
+const EmberGalaxy = {spin, HEART, RIFT_HEART, RIFT, realm, inRealm, normal, riftOf, lookup, byId, legacy, capitalIds, KGF, MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
 if (typeof module != 'undefined') module.exports = EmberGalaxy; else root.EmberGalaxy = EmberGalaxy;
 })(typeof window != 'undefined' ? window : this);

@@ -92,8 +92,13 @@ const PLACE = {trefoil: {n: 1, kinds: ['outpost', 'camp']}, bloom: {n: 1, kinds:
 	lantern: {n: 2, kinds: ['settlement', 'outpost', 'camp', 'base']}, halo: {n: 3, kinds: ['starport', 'settlement', 'outpost', 'camp', 'base']}};
 const PORT_TS = 500;
 const METALS = ['Iron', 'Titanium', 'Copper', 'Aluminum', 'Gold', 'Uranium', 'Beryllium'];
+/* surface ports with no port in space above: in about one system in twenty-five with landable ground (never in
+   the Rift or at the Maw), a lone outpost or mining camp, found by whoever comes. In a power's space it's the
+   power's; in unclaimed space it's independent (free traders) */
+const LONE = 0.04;
 function ports(star, cls) {
-	if (!cls || !PLACE[cls]) return [];
+	if (star.rift || star.heart) return [];
+	if (!cls || !PLACE[cls]) return lone(star);
 	/* (ports keep to worlds below 500 K: anyone can land on a hotter one, nobody lives there) */
 	const sy = G.system(star), worlds = sy.planets.flatMap(p => [p, ...(p.moons || [])]).filter(p => landable(p).ok && p.Ts <= PORT_TS);
 	const r = G.rng(G.hashStr('surface:' + star.id)), P = PLACE[cls], out = [];
@@ -113,6 +118,13 @@ function ports(star, cls) {
 	return out;
 }
 
+function lone(star) {
+	const r = G.rng(G.hashStr('lone:' + star.id)); if (r() >= LONE) return [];
+	const worlds = G.system(star).planets.flatMap(p => [p, ...(p.moons || [])]).filter(p => landable(p).ok && p.Ts <= PORT_TS); if (!worlds.length) return [];
+	const p = worlds[Math.floor(r() * worlds.length)], rich = (p.res || []).filter(x => METALS.includes(x)).length >= 2, kind = rich && r() < 0.7 ? 'camp' : 'outpost';
+	const lat = (r() * 2 - 1) * (p.locked ? 25 : 60), lon = p.locked ? 90 + (r() * 2 - 1) * 15 : r() * 360 - 180;
+	return [{id: 'surface:' + p.name + ':' + kind, kind, world: p.name, moon: !!p.moon, lat, lon, g: p.g, Ts: p.Ts, seed: G.hashStr(star.id + ':' + p.name + ':' + kind), lone: true}];
+}
 /* ---------- the layout ----------
    Pads first, around the centre (the large ones nearest, so their wide corridors face open ground), then buildings
    placed at random where they don't overlap each other or stand in any pad's corridor (a building of height h must
@@ -218,6 +230,6 @@ function meshes(L, detail) {
 	return m;
 }
 
-const EmberSurface = {lift, padFor, LAND, TOUCH, PAD, CONE, KIND, BLD, PLACE, landable, canLand, maxG, touchdown, ports, layout, check, parts, meshes, dome};
+const EmberSurface = {LONE, lift, padFor, LAND, TOUCH, PAD, CONE, KIND, BLD, PLACE, landable, canLand, maxG, touchdown, ports, layout, check, parts, meshes, dome};
 if (typeof module != 'undefined') module.exports = EmberSurface; else root.EmberSurface = EmberSurface;
 })(typeof window != 'undefined' ? window : globalThis);
