@@ -1,7 +1,7 @@
-/* Ember Reach's travel between stars (wip/emberreach/travel.js): fuel, misjumps, ports, lanes, routes, in node.
+/* Ember Reach's travel between stars (apps/rudolf-emberreach/www/travel.js): fuel, misjumps, ports, lanes, routes, in node.
      node tests/emberreach_travel_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const T = require(path.join(DIR, 'travel.js')), F = require(path.join(DIR, 'factions.js')), G = require(path.join(DIR, 'galaxy.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };

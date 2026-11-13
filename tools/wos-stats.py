@@ -6,7 +6,7 @@ distributions: how often each kind of star, planet, ring, atmosphere and resourc
 has, and the ranges of temperature and gravity per planet type. No names, coordinates or individual objects are
 written, so nothing of the WOS world itself is copied into the game.
 
-  python3 tools/wos-stats.py ../rudolfos/desktop/base_v24.html wip/emberreach/wos-stats.js
+  python3 tools/wos-stats.py ../rudolfos/desktop/base_v24.html apps/rudolf-emberreach/www/wos-stats.js
 """
 import base64, collections, gzip, json, re, statistics as S, struct, sys
 

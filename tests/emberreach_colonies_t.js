@@ -1,7 +1,7 @@
-/* Ember Reach's colonies, part 1 (wip/emberreach/colonies.js): claims, the beacon, goods, haulage, lapses, in node.
+/* Ember Reach's colonies, part 1 (apps/rudolf-emberreach/www/colonies.js): claims, the beacon, goods, haulage, lapses, in node.
      node tests/emberreach_colonies_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const Co = require(path.join(DIR, 'colonies.js')), G = require(path.join(DIR, 'galaxy.js')), F = require(path.join(DIR, 'factions.js')), Tr = require(path.join(DIR, 'trade.js')), T = require(path.join(DIR, 'travel.js')),
 	E = require(path.join(DIR, 'economy.js')), Sv = require(path.join(DIR, 'save.js'));
 let P = 0, N = 0;

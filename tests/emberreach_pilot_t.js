@@ -1,7 +1,7 @@
-/* Ember Reach's pilot under g (wip/emberreach/pilot.js), with flight and modules, in node.
+/* Ember Reach's pilot under g (apps/rudolf-emberreach/www/pilot.js), with flight and modules, in node.
      node tests/emberreach_pilot_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const Pi = require(path.join(DIR, 'pilot.js')), M = require(path.join(DIR, 'modules.js')), Fl = require(path.join(DIR, 'flight.js')), S = require(path.join(DIR, 'ships.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };

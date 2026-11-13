@@ -2,7 +2,7 @@
    the Precursors' blueprints, modules and hulls, in node.
      node tests/emberreach_rift_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const req = n => require(path.join(DIR, n));
 const G = req('galaxy.js'), F = req('factions.js'), T = req('travel.js'), E = req('economy.js'), En = req('encounters.js'), O = req('outfit.js'), S = req('ships.js'),
 	Tr = req('trade.js'), Mi = req('mining.js'), Sc = req('scene.js'), C = req('combat.js'), X = req('explore.js'), Sv = req('save.js'), Ca = req('canisters.js');

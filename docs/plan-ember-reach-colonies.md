@@ -250,7 +250,7 @@ easily in a save.
 
 Colonies come after trade, combat and exploration work (M3–M5), as **M5b**, before the Core and polish (M6):
 1. **M5b-1:** claims, beacons, the primary port and goods delivery, with haulage contracts. A finished outpost with a
-   market. **Playable** (`wip/emberreach/colonies.js`, 19 checks in `tests/emberreach_colonies_t.js`):
+   market. **Playable** (`apps/rudolf-emberreach/www/colonies.js`, 19 checks in `tests/emberreach_colonies_t.js`):
    - **The colonial office** (Contacts, at any great power's port, your own colonies' included): your colonies and
      their builds, haulage from that port, and the **planner**: the ten nearest claimable systems within one jump,
      each with its planets, the port world (the most Earth-like) and the three primary ports' fees and goods.

@@ -1,7 +1,7 @@
-/* Ember Reach's system scene (wip/emberreach/scene.js): bodies, ports, docking, collisions, cruise, in node.
+/* Ember Reach's system scene (apps/rudolf-emberreach/www/scene.js): bodies, ports, docking, collisions, cruise, in node.
      node tests/emberreach_scene_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const Sc = require(path.join(DIR, 'scene.js')), Fl = require(path.join(DIR, 'flight.js')), F = require(path.join(DIR, 'factions.js')), S = require(path.join(DIR, 'ships.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };

@@ -2,7 +2,7 @@
    in node.
      node tests/emberreach_wormholes_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const Sc = require(path.join(DIR, 'scene.js')), G = require(path.join(DIR, 'galaxy.js')), F = require(path.join(DIR, 'factions.js')), O = require(path.join(DIR, 'outfit.js')),
 	S = require(path.join(DIR, 'ships.js')), Tr = require(path.join(DIR, 'trade.js')), Sv = require(path.join(DIR, 'save.js'));
 let P = 0, N = 0;

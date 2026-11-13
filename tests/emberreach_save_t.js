@@ -1,7 +1,7 @@
-/* Ember Reach's save (wip/emberreach/save.js), with the ship's flight state and modules, in node.
+/* Ember Reach's save (apps/rudolf-emberreach/www/save.js), with the ship's flight state and modules, in node.
      node tests/emberreach_save_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const Tr = require(path.join(DIR, 'trade.js')), E = require(path.join(DIR, 'economy.js')), F = require(path.join(DIR, 'factions.js')), Sv = require(path.join(DIR, 'save.js')), Fl = require(path.join(DIR, 'flight.js')), M = require(path.join(DIR, 'modules.js')), S = require(path.join(DIR, 'ships.js')), Sc = require(path.join(DIR, 'scene.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };
@@ -40,6 +40,15 @@ try {
 		const withM = Sv.unpackPlayer(Object.assign({}, p2, {combat: {hull: 0.4, ammo: [null, 90], missiles: 3, flares: 2}, missions: [{id: 'a:1', star: {id: 's', at: [1, 2, 3]}, due: 210, text: 'x'}, {id: 7}]}));
 		const without = Sv.unpackPlayer(p2);
 		return withM.combat.hull == 0.4 && withM.missions.length == 1 && without.combat === null && without.missions.length == 0;
+	})());
+	ok('14. a long game\'s save stays under gamekit\'s 256 KB: old mining and sold charts are trimmed, firsts and names kept, and the game\'s own record untouched', (() => {
+		const big = JSON.parse(JSON.stringify(pl)); big.mined = {}; for (let i = 0; i < 3000; i++) big.mined['ring:Kavethora b#' + i] = 1.23;
+		big.explore = {sys: {}, pl: {}, sold: {}, names: {}};
+		for (let i = 0; i < 6000; i++) { const id = (i % 90) + ',' + (i % 7) + ',' + Math.floor(i / 90) + '/1#' + i; big.explore.sys[id] = i; big.explore.sold[id] = 1; big.explore.pl[id + '|World b'] = {s: 1, f: i % 500 == 0 ? 1 : 0} }
+		big.explore.names['0,0,0/1#0|World b'] = 'Hope';
+		const firsts = Object.keys(big.explore.pl).filter(k => big.explore.pl[k].f).length, was = Object.keys(big.explore.sys).length;
+		const out = Sv.pack(Object.assign({}, g3, {player: big})), n = JSON.stringify(out).length, X = out.player.explore;
+		return n <= 256 * 1024 && n > 150 * 1024 && Object.keys(X.pl).filter(k => X.pl[k].f).length == firsts && X.names['0,0,0/1#0|World b'] == 'Hope' && Object.keys(big.explore.sys).length == was && Sv.unpack(JSON.parse(JSON.stringify(out)), known);
 	})());
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

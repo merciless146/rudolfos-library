@@ -1,0 +1,10 @@
+name = rudolf-emberreach
+version = 0.1.0
+kind = webapp
+title = Ember Reach
+summary = Single-player alpha: fly, trade, fight and explore a whole galaxy, out to the Rift beyond the Maw
+icon = 🌌
+license = GPL-2.0-or-later
+homepage = https://github.com/merciless146/rudolfos-library
+category = Games
+description = Single-Player Alpha Build (SPAB). A space game across a whole galaxy: about eight billion stars, each one there to visit, with forty-six great powers in six clusters, their wars, small factions and currencies. Fly your ship with Newtonian flight and supercruise, jump between stars along routes or the powers' lanes, and dock at their ports to trade, take war and survey contracts, refit in four module categories, and change ships among forty designs. Fight pirates and navies; mine asteroid rings and belts; chart wild systems, survey their worlds and find the ruins of older peoples and their blueprints; claim systems and build colonies. At the galaxy's heart the Maw leads to the Rift, the galaxy upside down, where the Riftborn hunt and the Precursors' ruins hold the strongest ships and modules there are. Still to come: landing on planets, the Core's story and multiplayer. Keyboard and mouse, a controller or touch. Made for Rudolf OS.

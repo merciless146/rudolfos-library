@@ -60,6 +60,8 @@ const E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions,
 	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
+/* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.1.0'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -216,7 +218,9 @@ function resume(sv) {
 }
 /* save now (gamekit keeps it); quietly, at most once a second */
 function persist() {
-	if (!s || !fit || game.saving) return;
+	if (!s || !fit) return;
+	if (game.saving) { game.savePending = true; return }   /* (a save asked for meanwhile follows the one under way, so the last word is kept) */
+	game.savePending = false;
 	game.saving = true; game.savedAt = game.t;
 	const routeTo = game.route && game.route.toStar ? game.route.toStar : null;
 	game.P.day = game.day;
@@ -224,7 +228,7 @@ function persist() {
 	RG.save(Sv.pack({player: game.P, power: game.power, port: st ? st.cls : null, ship: ship.id, day: game.day, t: game.t, docked: game.docked, pad: game.clearance && game.clearance.pad, s, throttle: game.throttle, fit,
 		star: game.star, fuel: game.fuel, lastPort: game.lastPort, routeTo, settings: {quality, sound: Snd.on}}))
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
-		.then(() => { setTimeout(() => { game.saving = false }, 1000) });
+		.then(() => { setTimeout(() => { game.saving = false; if (game.savePending) persist() }, 1000) });
 }
 const nearRocks = () => game.rocks.filter(r => len(sub(r.pos, s.p)) < 5000).sort((a, b) => len(sub(a.pos, s.p)) - len(sub(b.pos, s.p))).slice(0, 5);
 const targets = () => [...(st ? [st] : []), ...(game.beacon ? [game.beacon] : []), ...nearRocks(), ...game.fields, ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
@@ -631,7 +635,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -928,7 +932,7 @@ function chooseOrigin() {
 		const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns'), majors = F.majors();
 		btns.textContent = '';
 		const K = G.clusters();
-		body.innerHTML = '<h1 id="ovT">Choose your origin</h1><p>You start at your power\'s capital, with 20,000 SU in its currency and a ship from its yards. Its allies welcome you; its enemies won\'t let you dock.</p>'
+		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">Choose your origin</h1><p class="small">An alpha: the galaxy, flight, trade, combat, exploration, mining, colonies and the Rift are in; landing on planets, the Core\'s story and multiplayer are still to come. Your save carries over to later builds where it can.</p><p>You start at your power\'s capital, with 20,000 SU in its currency and a ship from its yards. Its allies welcome you; its enemies won\'t let you dock.</p>'
 			+ K.map(cl => '<h2 class="org-h">' + esc(cl.name) + '</h2><div class="org">' + majors.map((m, i) => [m, i]).filter(([m]) => m.cluster == cl.id).map(([m, i]) => {
 				const al = majors.filter(x => x.id != m.id && F.relation(m.id, x.id) > 0).length, en = majors.filter(x => F.relation(m.id, x.id) < 0).length, sh = S.ships().find(x => x.id == Tr.newPlayer(m.id).ship.model);
 				return '<button data-i="' + i + '"><b>' + esc(m.name.replace(/^The /, '')) + '</b><span>' + esc(m.species.name) + ' · ' + esc(m.species.build) + ' build, ' + esc(m.species.sight) + ' sight</span><span>' + esc(m.currency.name) + ' (' + m.currency.code + ') · ' + esc(m.home.name) + '</span><span>' + al + ' allies, ' + en + ' enemies · starts in a ' + esc(sh.name) + '</span></button>' }).join('') + '</div>').join('');
@@ -1124,7 +1128,7 @@ function overlay(kind) {
 	const o = owner(), where = game.star.name + (o ? ' · ' + o.name.replace(/^The /, '') : ' · unclaimed space');
 	if (kind == 'help' || kind == 'pause') {
 		RG.pause();
-		body.innerHTML = '<h1 id="ovT">' + (kind == 'pause' ? 'Paused' : 'Controls') + '</h1><p>' + esc(ship.name) + ' · ' + esc(where) + ' · day ' + Math.floor(game.day) + ' · fuel ' + Math.round(game.fuel * 100) + '%. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + HELP.map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table>';
+		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + (kind == 'pause' ? 'Paused' : 'Controls') + '</h1><p>' + esc(ship.name) + ' · ' + esc(where) + ' · day ' + Math.floor(game.day) + ' · fuel ' + Math.round(game.fuel * 100) + '%. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + HELP.map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table>';
 		button('Resume', close, true).focus();
 		button('Graphics: ' + (quality == 'high' ? 'High' : 'Low'), e => { quality = quality == 'high' ? 'low' : 'high'; meshes(); e.target.textContent = 'Graphics: ' + (quality == 'high' ? 'High' : 'Low'); persist() });
 		button('Sound: ' + (Snd.on ? 'On' : 'Off'), e => { Snd.setOn(!Snd.on); e.target.textContent = 'Sound: ' + (Snd.on ? 'On' : 'Off'); persist() });

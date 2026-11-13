@@ -1,8 +1,8 @@
-/* Ember Reach's exploration (wip/emberreach/explore.js): charting, surveys, first discoveries, selling, naming and
+/* Ember Reach's exploration (apps/rudolf-emberreach/www/explore.js): charting, surveys, first discoveries, selling, naming and
    contracts, in node.
      node tests/emberreach_explore_t.js */
 const path = require('path');
-const DIR = path.join(__dirname, '..', 'wip/emberreach');
+const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
 const X = require(path.join(DIR, 'explore.js')), G = require(path.join(DIR, 'galaxy.js')), F = require(path.join(DIR, 'factions.js')), Tr = require(path.join(DIR, 'trade.js')), T = require(path.join(DIR, 'travel.js')),
 	En = require(path.join(DIR, 'encounters.js')), Sv = require(path.join(DIR, 'save.js')), E = require(path.join(DIR, 'economy.js'));
 let P = 0, N = 0;
