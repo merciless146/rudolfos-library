@@ -29,6 +29,7 @@ const WEAPONS = {
 	driver: {name: 'Mass driver', size: 1, dmg: 4.5, rate: 2, speed: 1500, range: 3000, heat: 0.01, vsShield: 0.6, vsHull: 1.3, ammo: 150, col: [1, 0.85, 0.4]},
 	heavy: {name: 'Heavy laser', size: 2, dmg: 9, rate: 1.5, speed: 3500, range: 4000, heat: 0.08, vsShield: 1.2, vsHull: 0.8, ammo: null, col: [0.5, 0.8, 1]},
 	torpedo: {name: 'Torpedo rack', size: 3, dmg: 150, rate: 0.2, speed: 400, range: 9000, heat: 0, vsShield: 0.8, vsHull: 1.6, ammo: 8, homing: 1.2, col: [1, 1, 0.9]},
+	mining: {name: 'Mining laser', size: 0, dmg: 0.4, rate: 4, speed: 3000, range: 600, heat: 0.008, vsShield: 0.5, vsHull: 0.5, ammo: null, col: [0.45, 1, 0.55]},
 	missile: {name: 'Missile', size: -1, dmg: 30, rate: 1, speed: 600, range: 7000, heat: 0, vsShield: 1, vsHull: 1.5, ammo: 4, homing: 2.2, col: [1, 1, 1]}};
 const BY_SIZE = ['pulse', 'driver', 'heavy', 'torpedo'];
 const COMBAT = {gimbal: 5, lockCone: 15, lockTime: 2, flares: 6, flareChance: 0.7, regenDelay: 2.5, regenTime: 15, coolRate: 0.12, overheat: 1, cooled: 0.6, cookRate: 4, moduleShare: 0.6};

@@ -56,7 +56,7 @@ function packPlayer(P) {
 	const r = (o, d) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v).map(([k, v]) => [k, +v.toFixed(d)]));
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
 		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], day: P.day || 0,
-		combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
+		mined: P.mined || {}, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
 		colonies: P.colonies || [], hauls: P.hauls || []};
 }
 const numMap = o => o && typeof o == 'object' && !Array.isArray(o) && Object.values(o).every(num);
@@ -66,6 +66,9 @@ function unpackPlayer(x) {
 	return {v: 1, origin: x.origin, species: x.species || '', wallet: Object.assign({}, x.wallet), cargo: Object.assign({}, x.cargo), cost: numMap(x.cost) ? Object.assign({}, x.cost) : {}, rep: Object.assign({}, x.rep),
 		start: numMap(x.start) ? Object.assign({}, x.start) : {}, lawful: num(x.lawful) ? x.lawful : 0, bounties: numMap(x.bounties) ? Object.assign({}, x.bounties) : {}, commission: typeof x.commission == 'string' ? x.commission : null,
 		warEvents: Array.isArray(x.warEvents) ? x.warEvents : [], ship: {model: x.ship.model, build: x.ship.build, sensors: x.ship.sensors, fit: shipFit(x.ship)}, day: num(x.day) ? x.day : 0, at: {},
+		/* mining: tonnes taken from each asteroid, and the refinery's bins */
+		mined: obj(x.mined) ? Object.fromEntries(Object.entries(x.mined).filter(([k, v]) => num(v) && v >= 0).slice(-3000)) : {},
+		refinery: obj(x.refinery) ? Object.fromEntries(Object.entries(x.refinery).filter(([k, v]) => num(v) && v > 0 && v < 1)) : {},
 		/* modules in storage (bought, taken out, or found) */
 		stored: Array.isArray(x.stored) ? x.stored.filter(m => obj(m) && O && O.CAT[m.id] && O.GRADE[m.grade]).slice(0, 60) : [],
 		/* M4: the hull's health and ammunition carried over; war missions in hand */

@@ -48,7 +48,7 @@ const CAT = {
 	missile: {cat: 'external', name: 'Missile rack', grades: 'C', sizes: [2, 2], price: 12000, draw: 0.2, weapon: true, text: '4 homing missiles, needs a lock'},
 	heavy: {cat: 'external', name: 'Heavy laser', grades: 'C', sizes: [3, 3], price: 30000, draw: 0.7, weapon: true, text: '9 dmg × 1.5/s, heats'},
 	torpedo: {cat: 'external', name: 'Torpedo rack', grades: 'C', sizes: [4, 4], price: 90000, draw: 0.6, weapon: true, text: '150 dmg homing, 8 torpedoes'},
-	mining: {cat: 'external', name: 'Mining laser', grades: 'C', sizes: [1, 1], price: 5000, draw: 0.4, text: 'Breaks ore from asteroids'},
+	mining: {cat: 'external', name: 'Mining laser', grades: 'C', sizes: [1, 1], price: 5000, draw: 0.4, weapon: true, text: 'Breaks ore from asteroids'},
 	tractor: {cat: 'external', name: 'Tractor beam', grades: 'C', sizes: [1, 1], price: 7000, draw: 0.3, text: 'Pulls canisters and ore to an open hatch'},
 	/* utility: one per mount, no size */
 	warrant: {cat: 'utility', name: 'Warrant scanner', kind: 'scanner', grades: 'C', price: 15000, draw: 0.2, text: 'Scan a ship for bounties in every jurisdiction'},
@@ -96,6 +96,7 @@ function stock0(ship) {
 	/* the shield generator in the first slot that fits it, then racks for the hold, largest first */
 	const free = L.internal.map((s, i) => i);
 	if (ship.shield > 0) { const want = shieldSize(ship), i = free.slice().sort((a, b) => L.internal[a] - L.internal[b]).find(j => L.internal[j] >= want); if (i != null) { fit.internal[i] = {id: 'shield', size: want, grade: 'C'}; free.splice(free.indexOf(i), 1) } }
+	if (/min/.test(ship.role) && free.length > 1) { const i = free.slice().sort((a, b) => L.internal[a] - L.internal[b])[0]; fit.internal[i] = {id: 'refinery', size: Math.min(6, L.internal[i]), grade: 'C'}; free.splice(free.indexOf(i), 1) }
 	/* racks: the set of rack sizes in the free slots that comes nearest the hull's hold (a search: a handful of
 	   slots), fewest racks on a tie */
 	if (ship.cargo > 0) {
@@ -111,8 +112,14 @@ function stock0(ship) {
 	   lasers, huge torpedo racks */
 	const meds = L.external.filter(s => s == 2).length; let m = 0;
 	fit.external = L.external.map(s => s == 1 ? {id: 'pulse', size: 1, grade: 'C'} : s == 2 ? {id: ++m == meds && meds >= 2 ? 'missile' : 'driver', size: 2, grade: 'C'} : s == 3 ? {id: 'heavy', size: 3, grade: 'C'} : {id: 'torpedo', size: 4, grade: 'C'});
+	/* miners: a mining laser on the first small hardpoint, a tractor on the second, and a refinery */
+	if (/min/.test(ship.role)) {
+		const sm = L.external.map((z, i) => z == 1 ? i : -1).filter(i => i >= 0);
+		if (sm[0] != null) fit.external[sm[0]] = {id: 'mining', size: 1, grade: 'C'};
+		if (sm[1] != null) fit.external[sm[1]] = {id: 'tractor', size: 1, grade: 'C'};
+	}
 	/* utility: the nav receiver and the cartographic sensor; a warrant scanner on fighting ships */
-	const u = ['nav', 'carto']; if (/fighter|interceptor|gunship|corvette|frigate|cruiser|destroyer|battle|raider|strike|patrol|dreadnought/.test(ship.role)) u.push('warrant');
+	const u = ['nav', 'carto']; if (/min/.test(ship.role)) u.push('prospector'); if (/fighter|interceptor|gunship|corvette|frigate|cruiser|destroyer|battle|raider|strike|patrol|dreadnought/.test(ship.role)) u.push('warrant');
 	u.slice(0, L.utility).forEach((id, i) => fit.utility[i] = {id, grade: 'C'});
 	/* a plant that covers it */
 	for (const g of ['C', 'B', 'A']) { fit.core.power.grade = g; if (power(ship, fit).ok) break }

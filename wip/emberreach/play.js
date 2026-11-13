@@ -40,13 +40,16 @@
      wild system) you come out near the star. The cartographic sensor charts wild systems and surveys planets.
      Warrant and manifest scanners read a targeted ship within 3 km in 3 s. Linguistic decoders let you understand
      other species: untranslated, their comms are garbled and their ports' services closed (fuel excepted).
+   - Mining (mining.js): rings and belts have mining sites (targets); at one, a mining laser (fired with the guns)
+     chips ore from asteroids; ore scooped through the hatch (or pulled in by a tractor beam) goes to the refinery,
+     which turns each full tonne into cargo. A resource scanner reads an asteroid's contents.
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
-	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit;
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 const $ = id => document.getElementById(id);
@@ -76,7 +79,7 @@ let baseShip = null, W = 1, Hh = 1, view = null, R = null, scene = null, st = nu
 const game = {t: 0, day: 200, star: null, port: null, fuel: 1, route: null, jump: null, lastPort: null, mapOpen: false,
 	cruise: {on: false, v: 0, charge: 0}, throttle: 0, target: 0, clearance: null, docked: false, chase: false, systems: false, mouseFly: false, msgs: [], vision: null, gFelt: null, lastStep: null,
 	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: {stick: null, dx: 0, dy: 0, thr: null, fire: null, msl: false},
-	tgt: null, npcs: [], shots: [], booms: [], cans: [], hatch: false, spill: {}, sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, visits: 0, mouseFire: false, own: null};
+	tgt: null, npcs: [], shots: [], booms: [], cans: [], hatch: false, spill: {}, fields: [], field: null, rocks: [], sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, visits: 0, mouseFire: false, own: null};
 const say = (text, col) => { game.msgs.push({text, col, t: game.t}); if (game.msgs.length > 12) game.msgs.shift() };
 const at = x => [x.x, x.y, x.z];
 const owner = () => game.port ? F.byId(game.port.owner) : null;
@@ -148,6 +151,7 @@ function enterSystem(star) {
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
 	site(); beaconAt();
+	game.fields = Mi.fields(scene, star).map(f => Object.assign(f, {kind: 'field', radius: 500, fieldKind: f.kind})); game.field = null; game.rocks = [];
 	meshes();
 }
 /* every mesh, at the graphics setting */
@@ -156,8 +160,9 @@ function meshes() {
 	if (st) for (const det of ['hi', 'lo']) Me.station(st.def, st.parts, det).forEach(g => R.upload('station:' + det + ':' + g.spin, g.mesh));
 	R.upload('ship', Me.ship(ship.length, quality));
 	R.upload('constructor', Me.ship(600, quality));
+	R.upload('ore', Me.rock(1.6, 5, 'rocky'));
 	R.upload('can', Me.box([0, 0, 0], [0.8, 0.8, 1.3], [0.86, 0.52, 0.18, 0]));
-	game.npcMeshes = new Set(); for (const n of game.npcs) npcMesh(n);
+	game.npcMeshes = new Set(); for (const n of game.npcs) npcMesh(n); if (game.field) for (const r of game.rocks) rockMesh(r);
 	R.setSky(sky(game.star));
 }
 /* the sky: real neighbours by their light, out to 30 pc (closer where stars crowd: at most a few thousand); and
@@ -212,7 +217,8 @@ function persist() {
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
 		.then(() => { setTimeout(() => { game.saving = false }, 1000) });
 }
-const targets = () => [...(st ? [st] : []), ...(game.beacon ? [game.beacon] : []), ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
+const nearRocks = () => game.rocks.filter(r => len(sub(r.pos, s.p)) < 5000).sort((a, b) => len(sub(a.pos, s.p)) - len(sub(b.pos, s.p))).slice(0, 5);
+const targets = () => [...(st ? [st] : []), ...(game.beacon ? [game.beacon] : []), ...nearRocks(), ...game.fields, ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
 /* the target is kept by reference (ships come and go); a lost one falls back to the port, or the first body */
 function curTarget() { const L = targets(); if (!L.includes(game.tgt)) game.tgt = L[0]; return game.tgt }
 const posOf = x => x.pos || x.c;
@@ -471,6 +477,7 @@ function update(dt) {
 	}
 	game.lastStep = r;
 	cargo(dt, cz.on);
+	if (!cz.on) mine(dt);
 	explore(dt, cz.on);
 	if (!cz.on) { const pc = game.pcs; combat(dt); if (game.pcs !== pc) return }
 	/* the sound follows the thrusters */
@@ -581,6 +588,12 @@ function combat(dt) {
 		else if (C.launch(pc, s, foe, game.shots)) { say('Missile away · ' + pc.load.missiles + ' left'); Snd.cue('missile'); if (!En.hostile(P, tg)) provoke(tg) }
 	}
 	if (RG.pressed('flare') || game.touch.flare) { game.touch.flare = false; if (pc.load.flares > 0) { const k = C.flare(pc, game.shots); say('Flare' + (k ? ': ' + k + (k == 1 ? ' missile' : ' missiles') + ' decoyed' : '') + ' · ' + pc.load.flares + ' left'); Snd.cue('flare') } else say('No flares left', '#f2a33a') }
+	/* bolts against asteroids: mining lasers chip ore; anything else just stops */
+	if (game.rocks.length) for (let i = game.shots.length - 1; i >= 0; i--) {
+		const m = game.shots[i], rk = Mi.hitRock(game.rocks, m.p, add(m.p, mul(m.v, dt))); if (!rk) continue;
+		game.shots.splice(i, 1); game.booms.push({pos: m.p.slice(), t: game.t, r: 3, col: [0.7, 0.65, 0.55], life: 0.3});
+		if (m.kind == 'mining') { const ch = Mi.chip(rk, m.owner == 'me' ? s.p : m.p, Math.random, game.P.mined = game.P.mined || {}); if (ch) { const c = Ca.make(ch.good, ch.p, ch.v, game.t); c.ore = ch.t; c.name = ch.good + ' ore'; game.cans.push(c); if (m.owner == 'me') say('Ore: ' + ch.t + ' t ' + ch.good + (rk.left <= 0 ? ' · the asteroid is spent' : ''), '#c9a46a') } }
+	}
 	/* everything in flight */
 	const ships = [{id: 'me', s, cs: pc}, ...game.npcs.filter(n => !n.cs.dead).map(n => ({id: n.id, s: n.s, cs: n.cs, n}))];
 	for (const h of C.stepProjectiles(game.shots, ships, dt)) {
@@ -645,7 +658,10 @@ function cargo(dt, cruising) {
 		return;
 	}
 	if (!game.hatch || cruising) return;
-	const r = Ca.scoop(game.cans, s, down, back, game.P, ship.cargo);
+	if (ship.tractor && M.works(fit, 'weapons')) Mi.tractor(game.cans, s, Ca.hatchAt(s, down, back), ship.tractor, dt);
+	const r = Ca.scoop(game.cans, s, down, back, game.P, ship.cargo, {refine: (g, t) => Mi.refine(game.P, g, t, ship.refinery, ship.cargo)});
+	for (const o of r.ore) { say('Refinery: ' + o.t + ' t ' + o.good + ' ore · bin ' + ((game.P.refinery || {})[o.good] || 0).toFixed(2) + ' t', '#c9a46a'); Snd.cue('scoop'); for (const g of o.made) say('Refined: 1 t ' + g + ' to the hold', '#7fd1a8') }
+	if ((r.noRefinery || r.binsFull) && (!game.saidOre || game.t - game.saidOre > 4)) { game.saidOre = game.t; say(r.noRefinery ? 'No refinery: ore can\'t be taken aboard' : 'Refinery bins full: empty one at a port (Status)', '#f2a33a') }
 	for (const g of r.got) { say('Scooped 1 t ' + g + ' · hold ' + Tr.held(game.P) + '/' + ship.cargo + ' t', '#7fd1a8'); Snd.cue('scoop') }
 	if ((r.full || r.fast) && (!game.saidScoop || game.t - game.saidScoop > 3)) { game.saidScoop = game.t; say(r.full ? 'Hold full: nothing more fits' : 'Too fast to scoop: under 20 m/s relative to the canister', '#f2a33a') }
 }
@@ -726,6 +742,28 @@ function scanned(n) {
 	if (n.scanned.manifest) { const by = {}; for (const g of n.cargo || []) by[g] = (by[g] || 0) + 1; say('Manifest, ' + n.name + ': ' + (Object.keys(by).length ? Object.entries(by).map(([g, t]) => t + ' t ' + g).join(', ') : 'empty hold'), '#9fb0cc') }
 	Snd.cue('chart');
 }
+/* ---------------- mining ---------------- */
+function mine(dt) {
+	/* the site you're at: its asteroids, the same every visit */
+	const f = game.fields.find(x => len(sub(x.pos, s.p)) < 25000);
+	if (f && game.field != f) { game.field = f; game.rocks = Mi.rocks(f, game.P.mined); for (const r of game.rocks) rockMesh(r); say('Mining site: ' + f.name + ', ' + Mi.KINDS[f.fieldKind].name, '#c9a46a') }
+	else if (!f && game.field) { game.field = null; game.rocks = [] }
+	if (!game.rocks.length) return;
+	/* bumping into rocks */
+	for (const r of game.rocks) {
+		const d = sub(s.p, r.pos), L = len(d), min = r.radius * 0.9 + s.radius; if (L >= min) continue;
+		const n = mul(d, 1 / (L || 1)), vn = dot(s.v, n); s.p = add(r.pos, mul(n, min));
+		if (vn < 0) { s.v = sub(s.v, mul(n, vn * 1.6)); if (-vn > 8) { say('Collision with an asteroid at ' + Math.round(-vn) + ' m/s', '#f2a33a'); Snd.cue('collide', -vn); damage(-vn * 0.6) } }
+	}
+	/* the resource scanner: a targeted asteroid within 3 km, for 3 s */
+	const Tg = curTarget();
+	if (Tg && Tg.kind == 'asteroid' && !Tg.prospected && ship.utility.prospector && M.works(fit, 'sensors')) {
+		if (len(sub(s.p, Tg.pos)) < Mi.MINE.scanRange) { Tg.scanT = (Tg.scanT || 0) + dt; if (Tg.scanT >= Mi.MINE.scanTime) { Tg.prospected = true; say('Prospected ' + Tg.name + ': ' + comp(Tg) + ' · ' + Tg.left + ' t left', '#c9a46a'); Snd.cue('chart') } }
+		else Tg.scanT = 0;
+	}
+}
+const comp = r => Object.entries(r.comp).sort((a, b) => b[1] - a[1]).map(([g, k]) => g + ' ' + Math.round(k * 100) + '%').join(', ');
+function rockMesh(r) { const k = 'rock:' + r.radius + ':' + r.shape + ':' + game.field.fieldKind; r.mesh = k; if (!game.npcMeshes.has(k)) { game.npcMeshes.add(k); R.upload(k, Me.rock(r.radius, 11 + r.shape * 17 + r.radius, game.field.fieldKind)) } }
 /* ---------------- exploration ---------------- */
 const pname = b => b.kind == 'planet' ? X.nameOf(game.P, game.star.id, b.name) : b.name;
 const TYPE = {EarthLike: 'Earth-like', Gas: 'gas giant'};
@@ -887,10 +925,11 @@ function draw() {
 		items.push({id: 'npc:' + n.ship.length, pos: n.s.p, rot: mat3(nb.r, nb.u, nb.f), light: norm(sub(sun.pos, n.s.p)), amb: 0.15});
 	}
 	if (game.site && game.site.kind == 'site' && game.site.colony.stage == 'building') items.push({id: 'constructor', pos: game.site.pos, rot: mat3([1, 0, 0], [0, 1, 0], [0, 0, 1]), light: norm(sub(sun.pos, game.site.pos)), amb: 0.2});
+	for (const r of game.rocks) { if (len(sub(r.pos, cam.p)) > 40000) continue; const a = r.radius * 0.001 + game.t * 0.02, co = Math.cos(a), si = Math.sin(a); items.push({id: r.mesh, pos: r.pos, rot: mat3([co, si, 0], [-si, co, 0], [0, 0, 1]), light: norm(sub(sun.pos, r.pos)), amb: 0.12}) }
 	for (const c of game.cans) {
 		if (len(sub(c.p, cam.p)) > 20000) continue;
 		const ax = norm(c.spin), a = c.angle, co = Math.cos(a), si = Math.sin(a), rotAx = v => add(add(mul(v, co), mul(cross(ax, v), si)), mul(ax, dot(ax, v) * (1 - co)));
-		items.push({id: 'can', pos: c.p, rot: mat3(rotAx([1, 0, 0]), rotAx([0, 1, 0]), rotAx([0, 0, 1])), light: norm(sub(sun.pos, c.p)), amb: 0.2});
+		items.push({id: c.ore ? 'ore' : 'can', pos: c.p, rot: mat3(rotAx([1, 0, 0]), rotAx([0, 1, 0]), rotAx([0, 0, 1])), light: norm(sub(sun.pos, c.p)), amb: 0.2});
 	}
 	if (game.beacon) glows.push({pos: game.beacon.pos, radius: 12, col: [0.45, 0.8, 1], alpha: 0.6 + 0.4 * Math.sin(game.t * 3), scale: 6, min: 0.005});
 	for (const m of game.shots) { const W = C.WEAPONS[m.kind], big = m.kind == 'missile' || m.kind == 'torpedo'; glows.push({pos: m.p, radius: big ? 6 : 2.5, col: W.col, alpha: 1, scale: 4, min: big ? 0.012 : 0.007}) }
@@ -915,6 +954,8 @@ function hudDraw(cam) {
 	const target = {name: pname(Tg), kind: Tg == st ? st.def.name + ' · ' + st.def.size : isShip ? Tg.ship.size + ' ' + Tg.ship.role + ' · ' + Tg.role : isCan ? 'cargo canister · 1 t' : Tg.kind == 'planet' ? Tg.type + ' world' : 'star, class ' + (Tg.cls || ''), x: pr.x, y: pr.y, on, dist: Math.max(0, dist),
 		size: on ? radiusOf(Tg) * pr.k / pr.z : 0, dx: pr.dx, dy: pr.dy, closing: dot(cz.on ? mul(Fl.forward(s), cz.v) : sub(s.v, isShip ? Tg.s.v : isCan ? Tg.v : [0, 0, 0]), norm(sub(tp, s.p)))};
 	if (Tg == st) target.dock = dockCues(rel);
+	if (Tg.kind == 'asteroid') { const d = len(sub(s.p, Tg.pos)); target.kind = 'asteroid · ' + Tg.radius * 2 + ' m'; target.dock = Tg.prospected ? {line1: comp(Tg), line2: Tg.left > 0 ? Tg.left + ' t left · fire a mining laser within 600 m' : 'Spent', col: '#c9a46a'} : !ship.utility.prospector ? {line1: 'Composition unknown', line2: 'A resource scanner reads it', col: '#9fb0cc'} : {line1: d < Mi.MINE.scanRange ? 'Prospecting… ' + Math.round((Tg.scanT || 0) / Mi.MINE.scanTime * 100) + '%' : 'Prospect within 3 km', col: '#c9a46a'} }
+	if (Tg.kind == 'field') { target.kind = 'mining site · ' + Mi.KINDS[Tg.fieldKind].name; target.dock = {line1: 'Cruise here and drop out to mine', line2: (ship.mining ? ship.mining + ' mining laser' + (ship.mining > 1 ? 's' : '') : 'No mining laser') + ' · ' + (ship.refinery ? ship.refinery + ' refinery bins' : 'no refinery'), col: '#c9a46a'} }
 	if (Tg.kind == 'beacon') { target.kind = 'navigation beacon'; target.dock = {line1: 'Hyperspace arrivals come out here', line2: navWorks() ? 'Receiver working' : ship.utility.nav ? 'Receiver offline' : 'No nav beacon receiver fitted', col: '#6cc9e8'} }
 	if (Tg.kind == 'site') {
 		const c = Tg.colony, d = len(sub(s.p, Tg.pos)) - (c.stage == 'building' ? Tg.radius : 0);
@@ -955,6 +996,7 @@ function hudDraw(cam) {
 		nextLeg: leg ? 'Next: ' + leg.star.name + ' · ' + leg.d.toFixed(1) + ' pc' + (leg.kind != 'jump' ? ' (lane)' : '') + ' · J' : null,
 		touch: RG.lastInput == 'touch', touchUI: touchLayout(),
 		sweep: game.sweep > 0 ? 1 - game.sweep / X.EXPLORE.sweep : 0,
+		refinery: Object.keys(game.P.refinery || {}).length ? Object.entries(game.P.refinery).map(([g, t]) => g + ' ' + t.toFixed(1)).join(' · ') : null,
 		hatch: !hasHatch() ? null : !M.works(fit, 'hatch') ? 'jammed' : game.hatch ? 'open' : null,
 		scanner: M.works(fit, 'sensors') ? {range: 8000, blips} : null, incoming: game.incoming > 0, hitAge: game.hitAt != null ? game.t - game.hitAt : null,
 		combat: {shield: pc.shield / Math.max(1, pc.shieldMax), hull: pc.hull / pc.hullMax, heat: Math.min(1, pc.heat), hot: pc.hot, armed: pc.load.guns.length > 0,
