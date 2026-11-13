@@ -410,6 +410,46 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
   scooping trim, it can't scoop (the mechanism is wrecked), and the hold spills a tonne every 8 s, the commonest good
   first, as canisters drifting off behind. Ports repair it.
 
+### Outfitting
+
+`wip/emberreach/outfit.js` (21 checks in `tests/emberreach_outfit_t.js`). A ship is its hull plus its modules, in
+four categories; its hold, shields, hull, jump range, fuel, speed and guns come from them.
+
+- **Core modules**, one each, sized to the hull (XS 1 … Capital 6) and graded C (stock), B or A: power plant,
+  thrusters, manoeuvring thrusters, hyperdrive (on hulls with a drive), life support, fuel tank (B holds 45% more,
+  A 90%) and canopy (reinforced canopies take more punishment).
+- **Internal modules** in the hull's internal slots (three on an XS to seven on a capital ship, sizes 1–8; hulls
+  built for holds get every bay a size bigger): cargo racks (2.5 t at size 1, four times more each size up),
+  shield generators, armour plating, refineries (for mining), relay boosters (+0.35 pc a size, more by grade) and
+  alien relay boosters (+1.5 pc a size), which no outfitter sells: about one ruin cache in three holds one.
+- **External modules** on the hardpoints (small, medium, large, huge; a module fits its size or bigger): pulse
+  lasers, mass drivers, missile racks (four missiles each), heavy lasers, torpedo racks, mining lasers and tractor
+  beams.
+- **Utility mounts** (two on an XS to eight on a capital ship): active scanners (warrant, manifest, resource) and
+  passive sensors (nav beacon receiver, cartographic sensor, linguistic decoder).
+- **Power:** each module draws power; the plant must cover the total, or the fit is refused.
+- **Stock loadouts** match the hull's figures: its shields exactly, its hold as near as the racks allow, its guns
+  (small pulse lasers, medium mass drivers with the last of two or more a missile rack, large heavy lasers, huge
+  torpedo racks), and utility of a nav receiver, a cartographic sensor and, on warships, a warrant scanner.
+- **The market:** outposts sell sizes up to 3 (racks 4) in grades C and B; lanterns and blooms to size 5 in all
+  grades; halos everything. Prices rise 2.4 times a size and 2.6 / 6.5 times for grades B / A. A module taken out
+  goes to storage (any port) or sells for 80%; modules beyond stock add 80% of their price when trading in a ship.
+- **Nav beacons:** every system with a port has one, near its main planet on the sunward side. With a working nav
+  beacon receiver, a hyperspace jump comes out at the beacon and takes the system's data (charted at once). Without
+  one, or with the sensors down, or in a system with no port, you come out near the main star, a safe way off.
+- **The cartographic sensor** charts wild systems (the 8 s sweep) and surveys planets; without it you can do
+  neither (populated systems still chart from their beacon).
+- **Scanners:** a warrant or manifest scanner reads a targeted ship within 3 km in 3 s. A warrant scan shows its
+  bounties; killing a wanted ship is no crime, and its warrant pays only if you scanned it (on pirates, a scan adds
+  half again from other jurisdictions). A manifest scan shows its cargo, which its wreck leaves. The resource
+  scanner reads asteroids (see "Mining").
+- **Languages:** each great power's species speaks its own language; small factions speak their species' (mixed
+  crews speak trade pidgin, which everyone knows). A linguistic decoder holds 2, 4 or 8 languages by grade (2,500
+  SU each to load). Untranslated, a faction's comms are garbled (the docking computer still gets the pad), and its
+  ports' market, contracts, yards, outfitting, cartographics, colonial office, repairs and restocking are closed;
+  fuel is still sold.
+- Saves keep the fit (checked against the hull; a bad one falls back to stock) and the storage.
+
 ### Modules and damage
 
 Every ship carries the same core modules, each with its own health pool, shown on the **internal-systems HUD**

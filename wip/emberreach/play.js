@@ -34,13 +34,19 @@
    - Colonies (M5b, colonies.js): claimed at a colonial office (Contacts); in the system, N near the chosen world
      drops the beacon, and a constructor arrives; N within 3 km of it hands over the goods in your hold. Haulers on
      contract bring the rest. Finished, the colony's port opens the next day.
+   - Outfitting (outfit.js): the ship is its hull plus its modules (core, internal, external, utility); its hold,
+     shields, hull, range, fuel and guns come from them. Utility mounts decide what the ship can do: the nav beacon
+     receiver brings you out at a populated system's nav beacon (and takes its system data); without one (or in a
+     wild system) you come out near the star. The cartographic sensor charts wild systems and surveys planets.
+     Warrant and manifest scanners read a targeted ship within 3 km in 3 s. Linguistic decoders let you understand
+     other species: untranslated, their comms are garbled and their ports' services closed (fuel excepted).
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
-	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies;
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 const $ = id => document.getElementById(id);
@@ -66,7 +72,7 @@ const HELP = [['↑ ↓  or  W S', 'pitch (nose down / up)'], ['← →', 'roll'
 	['I', 'cargo hatch open / shut (open: slow, fine handling; drift onto a canister to scoop it)'],
 	['P  or  Esc', 'pause'], ['Gamepad', 'left stick pitch and roll, right stick yaw and throttle, RT fire, LT missile, A dock, B FA, X target, Y cruise, d-pad strafe, Back map, left stick click jump']];
 
-let W = 1, Hh = 1, view = null, R = null, scene = null, st = null, ship = null, s = null, fit = null, pilot = null, map = null;
+let baseShip = null, W = 1, Hh = 1, view = null, R = null, scene = null, st = null, ship = null, s = null, fit = null, pilot = null, map = null;
 const game = {t: 0, day: 200, star: null, port: null, fuel: 1, route: null, jump: null, lastPort: null, mapOpen: false,
 	cruise: {on: false, v: 0, charge: 0}, throttle: 0, target: 0, clearance: null, docked: false, chase: false, systems: false, mouseFly: false, msgs: [], vision: null, gFelt: null, lastStep: null,
 	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: {stick: null, dx: 0, dy: 0, thr: null, fire: null, msl: false},
@@ -96,7 +102,9 @@ async function start() {
 	if (Q.has('ship') && !ok) game.P.ship.model = Q.get('ship');
 	Co.registerScrips(game.P);
 	game.homePort = !ok && Sc.STATION[Q.get('port')] ? Q.get('port') : ok && sv.version == 1 ? sv.port : 'halo';
-	ship = S.ships().find(x => x.id == game.P.ship.model) || S.ships().find(x => x.id == 'wren');
+	baseShip = S.ships().find(x => x.id == game.P.ship.model) || S.ships().find(x => x.id == 'wren');
+	if (!O.valid(baseShip, game.P.ship.fit)) game.P.ship.fit = O.stock(baseShip);
+	ship = O.derive(baseShip, game.P.ship.fit);
 	game.day = ok ? sv.day : +(Q.get('day') || 200);
 	game.fuel = ok ? sv.fuel : 1;
 	const here = ok && sv.star ? T.starAt(sv.star.id, sv.star.p) : null;
@@ -139,7 +147,7 @@ function enterSystem(star) {
 	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = [];
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
-	site();
+	site(); beaconAt();
 	meshes();
 }
 /* every mesh, at the graphics setting */
@@ -169,7 +177,7 @@ function sky(home) {
 
 /* a fresh ship outside the port (or just launched from it); with no port, where a jump arrives */
 function launch(first) {
-	if (!st) { const a = Sc.arrival(scene); s = Fl.create(ship, a) }
+	if (!st) { const a = arrivalPoint(); s = Fl.create(ship, a) }
 	else {
 		const sp = Sc.spawn(scene, first ? (DEBUG && +Q.get('spawn') || 2500) : 30);
 		s = Fl.create(ship, first ? sp : {p: sp.p, q: Sc.lookRotation(st.axis, st.y), v: mul(st.axis, 40)});
@@ -204,7 +212,7 @@ function persist() {
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
 		.then(() => { setTimeout(() => { game.saving = false }, 1000) });
 }
-const targets = () => [...(st ? [st] : []), ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
+const targets = () => [...(st ? [st] : []), ...(game.beacon ? [game.beacon] : []), ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
 /* the target is kept by reference (ships come and go); a lost one falls back to the port, or the first body */
 function curTarget() { const L = targets(); if (!L.includes(game.tgt)) game.tgt = L[0]; return game.tgt }
 const posOf = x => x.pos || x.c;
@@ -294,12 +302,13 @@ function requestDock() {
 	if (d > 10000) { say('Docking clearance is given within 10 km of the port (' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
 	if (game.clearance) { say('Clearance already granted: pad ' + game.clearance.pad); return }
 	const o = owner();
-	if (o && game.P.bounties[o.currency.code] > 0 && game.npcs.some(n => n.role == 'patrol' && !n.cs.dead && n.faction == o.id)) { say(st.name + ': docking denied. You are wanted here: ' + Math.round(game.P.bounties[o.currency.code]).toLocaleString('en-US') + ' ' + o.currency.code + '.', '#e5484d'); Snd.cue('refused'); return }
-	if (o && o.id != game.home.id && F.relation(game.home.id, o.id) < 0) { say(st.name + ': docking denied. ' + o.name.replace(/^The /, '') + ' is at war with you.', '#e5484d'); Snd.cue('refused'); return }
+	if (o && game.P.bounties[o.currency.code] > 0 && game.npcs.some(n => n.role == 'patrol' && !n.cs.dead && n.faction == o.id)) { talk(o.id, st.name + ': docking denied. You are wanted here: ' + Math.round(game.P.bounties[o.currency.code]).toLocaleString('en-US') + ' ' + o.currency.code + '.', '#e5484d'); Snd.cue('refused'); return }
+	if (o && o.id != game.home.id && F.relation(game.home.id, o.id) < 0) { talk(o.id, st.name + ': docking denied. ' + o.name.replace(/^The /, '') + ' is at war with you.', '#e5484d'); Snd.cue('refused'); return }
 	game.clearance = {pad: 1 + Math.floor(Math.random() * 24), until: game.t + 600};
 	game.tgt = st;
 	const D = st.def.dock;
-	say(st.name + ': clearance granted, pad ' + game.clearance.pad + '. Approach along the axis' + (D.spins ? ', and match our spin.' : '.'), '#7fd1a8'); Snd.cue('clearance');
+	talk(owner() && owner().id, st.name + ': clearance granted, pad ' + game.clearance.pad + '. Approach along the axis' + (D.spins ? ', and match our spin.' : '.'), '#7fd1a8'); Snd.cue('clearance');
+	if (owner() && !O.understands(game.P, ship, owner().id)) say('(Untranslated, but the docking computer has the pad: ' + game.clearance.pad + ')', '#9fb0cc');
 }
 function toggleCruise() {
 	const cz = game.cruise;
@@ -326,7 +335,7 @@ function requestJump() {
 	const st0 = M.status(fit);
 	if (!st0.jump) { say('Hyperspace drive inoperable', '#e5484d'); Snd.cue('refused'); return }
 	if (Sc.massLocked(scene, s.p)) { say('Mass locked by ' + st.name + ': jumps need 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
-	const can = T.canMake(leg, ship.jump, game.fuel);
+	const can = T.canMake(leg, ship.jump, game.fuel * ship.tank);
 	if (!can.ok) { say(can.why == 'range' ? leg.star.name + ' is ' + leg.d.toFixed(1) + ' pc away; the ' + ship.name + ' jumps ' + ship.jump + ' pc. Plot a route (Enter on the map).' : 'Not enough fuel: the jump needs ' + Math.round(can.cost * 100) + '% of a tank. Dock to refuel.', '#f2a33a'); Snd.cue('refused'); return }
 	shutHatch('the jump');
 	game.jump = {leg, charge: JUMP.charge, tunnel: null, cost: can.cost};
@@ -334,10 +343,10 @@ function requestJump() {
 }
 function arrive() {
 	const J = game.jump, leg = J.leg, a = leg.kind == 'jump' ? T.arrival(leg.star, Math.random()) : {star: leg.star, misjump: false};
-	game.fuel = Math.max(0, game.fuel - J.cost); game.day += leg.kind == 'jump' ? T.TRAVEL.jumpDays : T.TRAVEL.laneDays;
+	game.fuel = Math.max(0, game.fuel - J.cost / ship.tank); game.day += leg.kind == 'jump' ? T.TRAVEL.jumpDays : T.TRAVEL.laneDays;
 	game.jump = null;
 	enterSystem(a.star);
-	const p = Sc.arrival(scene); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0];
+	const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0];
 	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = 0;
 	settle(); colonyTurn(); populate();
 	const o = owner(), who = o ? (game.port && game.port.contested ? 'contested, held by ' : '') + o.name.replace(/^The /, '') : 'unclaimed space';
@@ -504,7 +513,11 @@ function place(list) {
 		const p = add(centre, mul(dir, n.range)), face = norm(sub(n.ai == 'attack' ? s.p : add(p, mul(dir, 1)), p));
 		n.s = Fl.create(n.ship, {p, q: Sc.lookRotation(Math.abs(face[1]) > 0.99 ? norm(add(face, [0.1, 0, 0])) : face, [0, 1, 0]), v: [0, 0, 0]});
 		n.s.radius = Math.max(2, n.ship.length / 2);
-		n.cs = C.state(n.ship); n.cs.id = n.id;
+		n.cs = C.state(O.derive(n.ship)); n.cs.id = n.id;
+		/* who's wanted, and what's aboard (warrant and manifest scanners read these) */
+		n.cargo = n.cargo || Ca.wreck(n.role, n.ship);
+		if (n.wanted == null) n.wanted = n.role == 'pirate' ? wantedFor(n, 1) : ['trader', 'navy'].includes(n.role) && Math.random() < 0.08 ? wantedFor(n, 0.3) : null;
+		n.scanned = null; n.scanT = 0;
 		n.ai = {mode: n.ai, base: n.ai, fleeAt: n.role == 'pirate' ? 0.3 : n.role == 'trader' ? 2 : n.role == 'flagship' ? 0 : 0.15};
 		n.home = n.where == 'port' && st ? st.c : p;
 		n.pos = n.s.p; n.radius = n.s.radius; n.kind = 'ship'; n.next = 0; n.foe = null;
@@ -534,7 +547,7 @@ function combat(dt) {
 			n.foe = best;
 			if (best && n.ai.mode == n.ai.base && n.ai.base != 'hold') n.ai.mode = n.role == 'trader' ? 'flee' : 'attack';
 			if (!best && n.ai.mode == 'attack') n.ai.mode = n.ai.base;
-			if (best == ME && !n.provokedByPlayer) n.wasHostile = true;
+			if (best == ME && !n.provokedByPlayer) { if (!n.wasHostile) hail(n); n.wasHostile = true }
 		}
 		const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, id: f.id} : null;
 		const c = C.think(n, tgt, n.home, game.t);
@@ -595,7 +608,7 @@ function debugPirates(k) {
 }
 if (DEBUG) window.EmberDebug = {game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
-	go: star => { enterSystem(star); const p = Sc.arrival(scene); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
+	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	get scene() { return scene }};
 function provoke(n) {
 	En.provoke(n, game.npcs);
@@ -611,7 +624,7 @@ function hitMe(pr) {
 }
 function destroyed(n, byMe) {
 	game.booms.push({pos: n.s.p.slice(), t: game.t, r: n.s.radius * 4, col: [1, 0.72, 0.4], life: 1.8});
-	for (const g of Ca.wreck(n.role, n.ship)) game.cans.push(Ca.make(g, n.s.p, n.s.v, game.t));
+	for (const g of n.cargo || []) game.cans.push(Ca.make(g, n.s.p, n.s.v, game.t));
 	Snd.cue('boom', Math.max(0.15, Math.min(1, 3000 / (len(sub(n.s.p, s.p)) + 1))));
 	if (byMe) {
 		const res = En.killed(game.P, n, {star: game.star, day: game.day, own: game.own});
@@ -669,13 +682,57 @@ function colonyAct() {
 }
 /* the day's turn for colonies: haulers, finished builds, lapses */
 function colonyTurn() { for (const n of Co.turn(game.P, game.day)) { say(n.text, n.ok ? '#7fd1a8' : '#e5484d'); Snd.cue(n.ok ? 'clearance' : 'warning') } site() }
+/* ---------------- outfitting in flight: arrival, languages, scanners ---------------- */
+/* a populated system's nav beacon, near its main planet on the sunward side */
+function beaconAt() {
+	game.beacon = null;
+	if (!game.port || !scene) return;
+	const w = scene.bodies.find(b => b.kind == 'planet' && b.name == game.port.world) || scene.bodies.find(b => b.kind == 'planet'); if (!w) return;
+	const sun = scene.bodies[0], d = norm(sub(sun.pos, w.pos));
+	game.beacon = {kind: 'beacon', name: 'Nav beacon · ' + w.name, pos: add(w.pos, mul(d, w.radius * 8)), radius: 30, world: w, dir: d};
+}
+const navWorks = () => ship.utility.nav && M.works(fit, 'sensors') && M.works(fit, 'power');
+/* where a ship comes out of hyperspace: the nav beacon, if it can find one; otherwise near the star, a safe way off */
+function arrivalPoint() {
+	if (game.beacon && navWorks()) {
+		const b = game.beacon, p = add(b.pos, mul(b.dir, 3000)), f = norm(sub(b.world.pos, p));
+		if (game.P && X.chartSystem(game.P, game.star, game.day)) say('System data from the nav beacon: ' + G.system(game.star).planets.length + ' planets charted', '#6cc9e8');
+		game.sweep = 0;
+		return {p, q: Sc.lookRotation(f, Math.abs(f[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0])};
+	}
+	if (game.port && !ship.utility.nav) say('No nav beacon receiver: out near the star', '#9fb0cc');
+	else if (game.port) say('Nav beacon not found (sensors down): out near the star', '#f2a33a');
+	return Sc.arrival(scene);
+}
+/* comms from a faction: plain if you understand them, garbled if not */
+function talk(fid, text, col) {
+	if (!fid || O.understands(game.P, ship, fid)) { say(text, col); return }
+	say(O.garble(text, fid) + ' [' + O.langName(O.langOf(fid)) + ', untranslated]', '#9fb0cc');
+}
+/* a ship hails you as it attacks */
+const HAILS = {pirate: ['Cut your engines and dump your cargo.', 'Nice ship. It\'s ours now.', 'Nobody\'s coming for you out here.'], patrol: ['You are wanted. Power down and submit.', 'Wanted vessel: you are ordered to stand down.'], navy: ['Enemy contact. Engaging.', 'You picked the wrong side, pilot.'], sentinel: []};
+function hail(n) {
+	const L = HAILS[n.role]; if (!L || !L.length) return;
+	talk(n.faction, n.name + ': ' + L[Math.floor(Math.random() * L.length)], '#e5484d');
+}
+/* bounties on NPCs: pirates always, a few others; in the space's coin */
+function wantedFor(n, k) {
+	const o = game.own && game.own.owner ? F.byId(game.own.owner) : F.byId(game.P.origin), code = o && o.kind == 'major' ? o.currency.code : F.byId(game.P.origin).currency.code;
+	return {code, amount: Math.round(Math.max(200, (n.ship.priceSU ? n.ship.priceSU[0] : 50000) * 0.01 * k) * E.rate(code, game.day))};
+}
+function scanned(n) {
+	n.scanned = {warrant: !!ship.utility.warrant, manifest: !!ship.utility.manifest};
+	if (n.scanned.warrant) say('Warrant scan, ' + n.name + ': ' + (n.wanted ? 'WANTED, ' + n.wanted.amount.toLocaleString('en') + ' ' + n.wanted.code : 'clean'), n.wanted ? '#f2d36a' : '#9fb0cc');
+	if (n.scanned.manifest) { const by = {}; for (const g of n.cargo || []) by[g] = (by[g] || 0) + 1; say('Manifest, ' + n.name + ': ' + (Object.keys(by).length ? Object.entries(by).map(([g, t]) => t + ' t ' + g).join(', ') : 'empty hold'), '#9fb0cc') }
+	Snd.cue('chart');
+}
 /* ---------------- exploration ---------------- */
 const pname = b => b.kind == 'planet' ? X.nameOf(game.P, game.star.id, b.name) : b.name;
 const TYPE = {EarthLike: 'Earth-like', Gas: 'gas giant'};
 function explore(dt, cruising) {
-	const P = game.P, sensors = M.works(fit, 'sensors') && M.works(fit, 'power');
+	const P = game.P, sensors = M.works(fit, 'sensors') && M.works(fit, 'power'), carto = sensors && ship.utility.carto;
 	/* the sweep: chart the system */
-	if (game.sweep > 0 && sensors) {
+	if (game.sweep > 0 && carto) {
 		game.sweep -= dt;
 		if (game.sweep <= 0) {
 			game.sweep = 0;
@@ -688,13 +745,17 @@ function explore(dt, cruising) {
 	}
 	/* a survey: the targeted planet, within 6 radii */
 	const Tg = curTarget();
-	if (Tg && Tg.kind == 'planet' && sensors && !cruising) {
+	if (Tg && Tg.kind == 'planet' && carto && !cruising) {
 		const key = X.keyOf(game.star.id, Tg.name), d = len(sub(s.p, Tg.pos));
 		if (game.surveyKey != key) { game.surveyKey = key; game.surveyT = 0 }
 		if (!X.surveyed(P, game.star.id, Tg.name) && d < Tg.radius * X.EXPLORE.surveyRadii) {
 			game.surveyT += dt;
 			if (game.surveyT >= X.EXPLORE.survey) surveyed(Tg);
 		} else game.surveyT = Math.max(0, game.surveyT - dt * 0.5);
+	}
+	/* scanners: a targeted ship within 3 km, for 3 s */
+	if (Tg && Tg.kind == 'ship' && sensors && !cruising && (ship.utility.warrant || ship.utility.manifest) && !Tg.scanned) {
+		if (len(sub(s.p, Tg.s.p)) < 3000) { Tg.scanT += dt; if (Tg.scanT >= 3) scanned(Tg) } else Tg.scanT = 0;
 	}
 	/* ruins: old sentinels rise to meet you, once a visit */
 	if (!cruising) for (const b of scene.bodies) {
@@ -714,6 +775,7 @@ function surveyed(b) {
 	if (p.ruins) {
 		const k = 2 + Math.floor(Math.random() * 3), up = norm(sub(s.p, b.pos)), f = Fl.forward(s);
 		for (let i = 0; i < k; i++) game.cans.push(Ca.make('Artefacts', add(add(s.p, mul(f, 400 + i * 40)), mul(up, -60)), add(s.v, mul(up, 3)), game.t));
+		if (Math.random() < 0.3) { const c = Ca.make('Alien relay booster', add(add(s.p, mul(f, 520)), mul(up, -60)), add(s.v, mul(up, 3)), game.t); c.module = {id: 'alien', size: 2 + Math.floor(Math.random() * 3), grade: 'A'}; game.cans.push(c); say('Among them, something else: an alien relay booster. Scoop it and fit it at any outfitter.', '#f2d36a') }
 		say('The survey marks a cache: ' + k + ' canisters of Artefacts drift up ahead. Open the hatch (I) to scoop them.', '#f2d36a');
 	}
 	persist();
@@ -752,10 +814,12 @@ function docked() {
 }
 /* the starport, while docked */
 function openPort() {
-	Port.open({P: game.P, ship, fit, fuel: () => game.fuel, setFuel: f => { game.fuel = f; persist() }, star: game.star, port: game.port, stationName: st.name, day: game.day,
+	const env = {P: game.P, ship, hullShip: baseShip, fit, fuel: () => game.fuel, setFuel: f => { game.fuel = f; persist() }, star: game.star, port: game.port, stationName: st.name, day: game.day,
 		onLaunch: () => { persist(); launch(false); hud.focus() },
-		onShip: id => { ship = S.ships().find(x => x.id == id); fit = M.fit(ship); game.fuel = 1; game.P.combat = C.refill(ship, {hull: 1}); arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist() },
-		say: t => say(t), cue: k => Snd.cue(k)});
+		onRefit: () => { const old = fit; ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); for (const m of fit.modules) { const o = old.modules.find(x => x.id == m.id); if (o) m.hp = Math.min(m.max, o.hp / o.max * m.max) } env.ship = ship; arm(); persist() },
+		onShip: id => { baseShip = S.ships().find(x => x.id == id); game.P.ship.fit = O.stock(baseShip); ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); env.ship = ship; env.hullShip = baseShip; game.fuel = 1; game.P.combat = C.refill(ship, {hull: 1}); arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist() },
+		say: t => say(t), cue: k => Snd.cue(k)};
+	Port.open(env);
 }
 /* after buying a ship, reopen with the new one (same screen) */
 function openPortAgain() { const scr = document.querySelector('#port [aria-current="page"]'), k = scr && scr.dataset.screen; openPort(); if (k) { const b = document.querySelector('#port [data-screen="' + k + '"]'); if (b) b.click() } }
@@ -828,6 +892,7 @@ function draw() {
 		const ax = norm(c.spin), a = c.angle, co = Math.cos(a), si = Math.sin(a), rotAx = v => add(add(mul(v, co), mul(cross(ax, v), si)), mul(ax, dot(ax, v) * (1 - co)));
 		items.push({id: 'can', pos: c.p, rot: mat3(rotAx([1, 0, 0]), rotAx([0, 1, 0]), rotAx([0, 0, 1])), light: norm(sub(sun.pos, c.p)), amb: 0.2});
 	}
+	if (game.beacon) glows.push({pos: game.beacon.pos, radius: 12, col: [0.45, 0.8, 1], alpha: 0.6 + 0.4 * Math.sin(game.t * 3), scale: 6, min: 0.005});
 	for (const m of game.shots) { const W = C.WEAPONS[m.kind], big = m.kind == 'missile' || m.kind == 'torpedo'; glows.push({pos: m.p, radius: big ? 6 : 2.5, col: W.col, alpha: 1, scale: 4, min: big ? 0.012 : 0.007}) }
 	for (const b of game.booms) { const k = (game.t - b.t) / b.life; glows.push({pos: b.pos, radius: b.r * (0.4 + k), col: b.col, alpha: Math.max(0, 1 - k), scale: 3, min: 0.01}) }
 	glows.push({pos: add(cam.p, mul(game.coreDir, 1e18)), radius: 1e16, col: [1, 0.85, 0.6], alpha: 0.22, scale: 1, min: 0.6});
@@ -850,6 +915,7 @@ function hudDraw(cam) {
 	const target = {name: pname(Tg), kind: Tg == st ? st.def.name + ' · ' + st.def.size : isShip ? Tg.ship.size + ' ' + Tg.ship.role + ' · ' + Tg.role : isCan ? 'cargo canister · 1 t' : Tg.kind == 'planet' ? Tg.type + ' world' : 'star, class ' + (Tg.cls || ''), x: pr.x, y: pr.y, on, dist: Math.max(0, dist),
 		size: on ? radiusOf(Tg) * pr.k / pr.z : 0, dx: pr.dx, dy: pr.dy, closing: dot(cz.on ? mul(Fl.forward(s), cz.v) : sub(s.v, isShip ? Tg.s.v : isCan ? Tg.v : [0, 0, 0]), norm(sub(tp, s.p)))};
 	if (Tg == st) target.dock = dockCues(rel);
+	if (Tg.kind == 'beacon') { target.kind = 'navigation beacon'; target.dock = {line1: 'Hyperspace arrivals come out here', line2: navWorks() ? 'Receiver working' : ship.utility.nav ? 'Receiver offline' : 'No nav beacon receiver fitted', col: '#6cc9e8'} }
 	if (Tg.kind == 'site') {
 		const c = Tg.colony, d = len(sub(s.p, Tg.pos)) - (c.stage == 'building' ? Tg.radius : 0);
 		target.kind = c.stage == 'building' ? 'constructor · ' + Co.PORTS[c.port].name.toLowerCase() : 'your claim · ' + Co.PORTS[c.port].name.toLowerCase();
@@ -860,13 +926,16 @@ function hudDraw(cam) {
 		const done = X.surveyed(game.P, game.star.id, Tg.name), p = Tg.src, near = len(sub(s.p, Tg.pos)) < Tg.radius * X.EXPLORE.surveyRadii;
 		target.dock = done ? {line1: 'Surveyed · ' + p.g.toFixed(2) + ' g · ' + Math.round(p.Ts) + ' K · ESI ' + p.esi.toFixed(2), line2: [p.alive ? 'life' : p.life ? 'traces of life' : null, p.ruins ? 'ruins' : null, p.atmo ? 'air ' + Math.round(p.bars * 10) / 10 + ' bar' : 'no air'].filter(Boolean).join(' · '), col: p.ruins || p.alive ? '#f2d36a' : '#7fd1a8'}
 			: !M.works(fit, 'sensors') ? {line1: 'Sensors down: no survey', col: '#e5484d'}
+			: !ship.utility.carto ? {line1: 'No cartographic sensor: no survey', col: '#f2a33a'}
 			: near ? {line1: 'Surveying… ' + Math.round(100 * game.surveyT / X.EXPLORE.survey) + '%', col: '#6cc9e8'}
 			: {line1: 'Survey: fly within ' + H.fmtDist(Tg.radius * X.EXPLORE.surveyRadii) + ' of the centre', col: '#9fb0cc'};
 	}
 	if (isCan) { const rv = len(sub(s.v, Tg.v)); target.dock = {line1: !hasHatch() ? 'No cargo hatch on this ship' : !M.works(fit, 'hatch') ? 'Hatch jammed: can\'t scoop' : !game.hatch ? 'Open the cargo hatch (I) to scoop' : rv > Ca.CAN.speed ? 'Slow down: ' + Math.round(rv) + ' m/s, under ' + Ca.CAN.speed : 'Drift it under the belly', col: game.hatch && rv <= Ca.CAN.speed ? '#7fd1a8' : '#f2a33a'} }
 	if (isShip) {
 		target.hostile = isHostile(Tg);
-		target.bars = {what: target.hostile ? 'HOSTILE' : Tg.role == 'trader' ? 'CIVILIAN' : 'NEUTRAL', shield: Tg.cs.shield / Math.max(1, Tg.cs.shieldMax), hull: Tg.cs.hull / Tg.cs.hullMax};
+		const scan = Tg.scanned ? (Tg.scanned.warrant ? (Tg.wanted ? ' · WANTED ' + Tg.wanted.amount.toLocaleString('en') + ' ' + Tg.wanted.code : ' · CLEAN') : '') : (ship.utility.warrant || ship.utility.manifest) && Tg.scanT > 0 ? ' · SCANNING ' + Math.round(Tg.scanT / 3 * 100) + '%' : '';
+		if (Tg.scanned && Tg.scanned.manifest) { const by = {}; for (const g of Tg.cargo || []) by[g] = (by[g] || 0) + 1; target.kind += ' · ' + (Object.keys(by).length ? Object.entries(by).map(([g, t]) => g + ' ' + t + ' t').join(', ') : 'empty hold') }
+		target.bars = {what: (target.hostile ? 'HOSTILE' : Tg.role == 'trader' ? 'CIVILIAN' : 'NEUTRAL') + scan, shield: Tg.cs.shield / Math.max(1, Tg.cs.shieldMax), hull: Tg.cs.hull / Tg.cs.hullMax};
 		const g = game.pcs.load.guns.find(x => !C.WEAPONS[x.kind].homing);
 		if (g && dist < 6000) { const lp = project(cam, C.lead(s.p, s.v, Tg.s.p, Tg.s.v, C.WEAPONS[g.kind].speed)); target.lead = {x: lp.x, y: lp.y, on: lp.z > 0} }
 		const lk = game.pcs.lock; target.lock = lk.id == Tg.id ? Math.min(1, lk.t / C.COMBAT.lockTime) : 0; target.locked = !!game.locked;

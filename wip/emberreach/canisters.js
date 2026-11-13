@@ -56,6 +56,8 @@ function scoop(list, s, down, back, P, capacity) {
 		const c = list[i];
 		if (len(sub(c.p, at)) > CAN.reach + s.radius * 0.3) continue;
 		if (len(sub(c.v, s.v)) > CAN.speed) { out.fast = true; continue }
+		/* a module (an alien relay from a ruin) goes to storage, not the hold */
+		if (c.module) { (P.stored = P.stored || []).push(c.module); out.got.push(c.good); list.splice(i, 1); continue }
 		const held = Object.values(P.cargo).reduce((t, q) => t + q, 0);
 		if (held + 1 > capacity) { out.full = true; continue }
 		const have = P.cargo[c.good] || 0;

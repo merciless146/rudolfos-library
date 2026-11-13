@@ -10,12 +10,14 @@
    the bulletin board, and the missions in hand on the Status screen. M5: Universal Cartographics buys your survey
    data and lets you name your first discoveries; the bulletin board carries the cartographers' contracts.
    M5b: the colonial office (from Contacts): your colonies and their builds, haulage contracts, and the planner for
-   claims within one jump.
+   claims within one jump. Outfitting: the ship's modules in four categories (core, internal, external, utility),
+   bought, swapped and stored; linguistic decoders loaded with languages. A port whose people you can't understand
+   (no decoder for their language) keeps its services closed, fuel excepted.
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -70,7 +72,16 @@ function restockCost() {
 const stat = (k, v, gold) => '<div><span>' + esc(k) + '</span><b' + (gold ? ' class="gold"' : '') + '>' + esc(v) + '</b></div>';
 const svcBtn = (act, label, sub, off) => '<button class="pt-svcb" data-act="' + act + '"' + (off ? ' disabled' : '') + '><b>' + label + '</b><span>' + esc(sub) + '</span></button>';
 const h1 = (t, sub) => '<div class="pt-h"><h1>' + esc(t) + '</h1>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div>';
+/* can you understand this port's people? */
+const lockedHere = () => { const o = holder(); return o && !O.understands(P(), env.ship, o) };
+const OPEN_ANYWAY = ['launch', 'station', 'status'];
+function lockedScreen() {
+	const o = holder(), l = O.langOf(o);
+	return h1(O.garble('Services of the port', o), 'untranslated · ' + O.langName(l)) + '<section class="pt-card pt-narrow"><p>' + esc(O.garble('Welcome, traveller. Our market, our contracts and our yards are open to all who speak with us.', o)) + '</p>'
+		+ '<p>You can\'t understand the ' + esc(O.langName(l)) + '. Their market, contracts, yards and services are closed to you until you fit a <b>linguistic decoder</b> loaded with their language (at an outfitter whose people you understand). Fuel is sold by sign and dial: you can still refuel.</p></section>';
+}
 function body() {
+	if (lockedHere() && !OPEN_ANYWAY.includes(screen)) return lockedScreen();
 	switch (screen) {
 	case 'launch': return h1('Launch') + '<section class="pt-card pt-narrow"><p>Leave ' + esc(env.stationName) + '. Fuel ' + Math.round(env.fuel() * 100) + '%, cargo ' + Tr.held(P()) + ' t, ' + M.alerts(env.fit).length + ' modules down.</p><button class="pt-primary" data-act="launch">Request launch</button></section>';
 	case 'station': return station();
@@ -201,7 +212,55 @@ function colonies() {
 		+ (mine.length ? '<div class="pt-cols">' + mine.map(card).join('') + '</div>' : '')
 		+ '<div class="pt-split"><section class="pt-card pt-table" role="list"><h2>Planner · within one jump (' + jump + ' pc)</h2>' + (rows || '') + '</section><aside class="pt-card pt-side">' + side + '</aside></div>';
 }
+/* ---------- outfitting: four categories of modules ---------- */
+let ofTab = 'core', ofSlot = null, ofLang = '';
+const TABS = [['core', 'Core'], ['internal', 'Internal'], ['external', 'External'], ['utility', 'Utility']];
+const HP = ['', 'small', 'medium', 'large', 'huge'];
+const gname = m => !m ? 'Empty' : O.CAT[m.id].name + (m.size || O.CAT[m.id].grades.length > 1 || m.grade != 'C' ? ' ' : '') + (m.size ? m.size : '') + (O.CAT[m.id].grades.length > 1 || m.grade != 'C' ? m.grade : '') + (m.id == 'decoder' ? ' · ' + ((m.langs || []).map(l => O.langName(l)).join(', ') || 'no languages') : '');
+const rateHere = () => here() == 'SU' ? 1 : E.rate(here(), env.day);
+function slotsOf(tab) {
+	const L = O.layout(env.hullShip), f = P().ship.fit;
+	if (tab == 'core') return L.core.map(k => ({cat: 'core', key: k, label: O.CAT[k].name + ' · size ' + L.coreSize, m: f.core[k]}));
+	if (tab == 'internal') return L.internal.map((z, i) => ({cat: 'internal', i, label: 'Slot ' + (i + 1) + ' · size ' + z, m: f.internal[i]}));
+	if (tab == 'external') return L.external.map((z, i) => ({cat: 'external', i, label: 'Hardpoint ' + (i + 1) + ' · ' + HP[z], m: f.external[i]}));
+	return f.utility.map((m, i) => ({cat: 'utility', i, label: 'Mount ' + (i + 1), m}));
+}
+function effect(m) {
+	const sh = env.hullShip, c = O.CAT[m.id];
+	if (m.id == 'cargo') return O.rack(m.size) + ' t';
+	if (m.id == 'shield') return fmt(O.derive(sh, Object.assign({}, P().ship.fit, {internal: [m]})).shield) + ' shields';
+	if (m.id == 'armour') return '+' + fmt(sh.hull * 0.08 * m.size * O.GRADE[m.grade].k) + ' hull';
+	if (m.id == 'relay' || m.id == 'alien') return '+' + (m.id == 'alien' ? 1.5 * m.size : 0.35 * m.size * O.GRADE[m.grade].k).toFixed(2) + ' pc';
+	if (m.id == 'refinery') return (m.size + 1) + ' bins';
+	if (m.id == 'power') return O.powerOf(sh, m).toFixed(1) + ' MW';
+	if (m.id == 'decoder') return O.DECODER[m.grade] + ' languages';
+	return c.text;
+}
 function outfitting() {
+	const me = P(), sh = env.ship, pw = sh.power, rows = slotsOf(ofTab), cur = here(), rate = rateHere();
+	if (!ofSlot || ofSlot.cat != ofTab || !rows.some(r => (r.key || r.i) == (ofSlot.key || ofSlot.i))) ofSlot = rows[0] ? {cat: rows[0].cat, key: rows[0].key, i: rows[0].i} : null;
+	const tabs = '<div class="pt-tabs" role="tablist">' + TABS.map(([k, t]) => '<button role="tab" data-oftab="' + k + '" class="' + (k == ofTab ? 'on' : '') + '" aria-selected="' + (k == ofTab) + '">' + t + '</button>').join('') + '</div>';
+	const list = rows.map(r => '<button class="pt-row pt-row3' + (ofSlot && (r.key || r.i) == (ofSlot.key || ofSlot.i) ? ' on' : '') + '" data-ofslot="' + (r.key != null ? r.key : r.i) + '"><span class="muted">' + esc(r.label) + '</span><b>' + esc(gname(r.m)) + '</b><span class="num">' + (r.m ? fmt(O.drawOf(r.m), 1) + ' MW' : '') + '</span></button>').join('');
+	let side = '<p class="muted">Pick a slot.</p>';
+	if (ofSlot) {
+		const cur0 = O.at(me.ship.fit, ofSlot), offers = O.offers(env.hullShip, ofSlot, env.port), stored = (me.stored || []).map((m, j) => ({m, j})).filter(x => O.CAT[x.m.id].cat == ofSlot.cat);
+		side = '<span class="pt-label">' + esc(ofSlot.cat == 'core' ? 'Core' : ofSlot.cat == 'internal' ? 'Internal' : ofSlot.cat == 'external' ? 'External' : 'Utility') + '</span><div class="pt-big">' + esc(gname(cur0)) + '</div>'
+			+ (cur0 ? '<p class="small">' + esc(effect(cur0)) + ' · sells for ' + money(O.price(cur0) * 0.8 * rate, cur) + '</p>' + (ofSlot.cat != 'core' ? '<div class="pt-btns"><button class="pt-ghost" data-act="ofstore">Take out (store)</button><button class="pt-ghost" data-act="ofsell">Take out and sell</button></div>' : '') : '')
+			+ (cur0 && cur0.id == 'decoder' ? langLoader(cur0) : '')
+			+ (stored.length ? '<h3>In storage</h3>' + stored.map(x => '<div class="pt-claim"><span>' + esc(gname(x.m)) + ' · ' + esc(effect(x.m)) + '</span><span><button class="pt-ghost" data-act="offitstore" data-j="' + x.j + '">Fit</button> <button class="pt-ghost" data-act="ofsellstore" data-j="' + x.j + '">Sell · ' + money(O.price(x.m) * 0.8 * rate, cur) + '</button></span></div>').join('') : '')
+			+ '<h3>For sale here</h3>' + (offers.length ? offers.map((o, j) => { const ck = O.install(env.hullShip, me.ship.fit, ofSlot, o); return '<div class="pt-claim"><div><b>' + esc(gname(o)) + '</b><span class="muted small">' + esc(effect(o)) + ' · ' + fmt(O.drawOf(o), 1) + ' MW</span></div><button class="pt-ghost" data-act="ofbuy" data-j="' + j + '"' + (ck.ok ? '' : ' disabled title="' + esc(ck.why) + '"') + '>Buy and fit · ' + money(o.price * rate, cur) + '</button>' + (ck.ok ? '' : '<span class="bad small">' + esc(ck.why) + '</span>') + '</div>' }).join('') : '<p class="muted small">Nothing for this slot here.</p>');
+	}
+	return h1('Outfitting', sh.name + ' · power ' + pw.draw.toFixed(1) + ' / ' + pw.out.toFixed(1) + ' MW')
+		+ '<div class="pt-chips"><span>Hold ' + fmt(sh.cargo) + ' t</span><span>Shields ' + fmt(sh.shield) + '</span><span>Hull ' + fmt(sh.hull) + '</span><span>Jump ' + (sh.jump ? sh.jump.toFixed(1) + ' pc' : 'none') + '</span><span>Tank ×' + sh.tank.toFixed(2) + '</span><span>' + (sh.guns.length ? sh.guns.length + ' weapons' : 'unarmed') + '</span>' + (sh.langs.length ? '<span>Speaks ' + sh.langs.map(O.langName).join(', ') + '</span>' : '') + '</div>'
+		+ tabs + '<div class="pt-split"><section class="pt-card pt-table" role="list">' + list + '</section><aside class="pt-card pt-side">' + side + '</aside></div>';
+}
+/* a decoder's languages: load another (from the great powers you know of), or clear them */
+function langLoader(m) {
+	const cap = O.DECODER[m.grade], have = m.langs || [], opts = F.majors().filter(x => x.id != P().origin && !have.includes(x.id)).sort((a, b) => (F.relation(P().origin, b.id) != 0) - (F.relation(P().origin, a.id) != 0) || a.species.name.localeCompare(b.species.name));
+	return '<h3>Languages · ' + have.length + ' of ' + cap + '</h3>' + (have.length ? '<div class="pt-chips">' + have.map(l => '<span>' + esc(O.langName(l)) + '</span>').join('') + '</div>' : '')
+		+ (have.length < cap ? '<div class="pt-form"><label>Load<select data-oflang="1">' + opts.map(x => '<option value="' + x.id + '"' + (x.id == ofLang ? ' selected' : '') + '>' + esc(x.species.name) + ' (' + esc(x.name.replace(/^The /, '')) + ')</option>').join('') + '</select></label></div><div class="pt-btns"><button class="pt-ghost" data-act="oflang">Load · ' + money(O.LANG_PRICE * rateHere(), here()) + '</button></div>' : '<p class="muted small">Full: a better grade holds more.</p>');
+}
+function outfittingOld() {
 	const L = C.loadout(env.ship), k = P().combat, guns = {};
 	L.guns.forEach((g, i) => { const W = C.WEAPONS[g.kind]; guns[g.kind] = guns[g.kind] || {W, n: 0, ammo: 0}; guns[g.kind].n++; if (W.ammo != null) guns[g.kind].ammo += k && k.ammo && typeof k.ammo[i] == 'number' ? k.ammo[i] : W.ammo });
 	const rows = Object.values(guns).map(x => '<dt>' + x.n + ' × ' + esc(x.W.name) + '</dt><dd>' + x.W.dmg + ' dmg × ' + x.W.rate + '/s · ' + fmt(x.W.range) + ' m' + (x.W.ammo != null ? ' · ' + x.ammo + ' rounds' : '') + '</dd>').join('');
@@ -261,21 +320,25 @@ function click(e) {
 	const t = e.target.closest('button'); if (!t || t.disabled) return;
 	if (t.dataset.screen) { screen = t.dataset.screen; env.cue('tick'); if (screen == 'launch') {} render(); focusScreen(); return }
 	if (t.dataset.good) { sel.good = t.dataset.good; render(); const b = root.querySelector('[data-good="' + sel.good + '"]'); if (b) b.focus(); return }
+	if (t.dataset.oftab) { ofTab = t.dataset.oftab; ofSlot = null; render(); const b = root.querySelector('[data-oftab="' + ofTab + '"]'); if (b) b.focus(); return }
+	if (t.dataset.ofslot != null) { const v = t.dataset.ofslot; ofSlot = ofTab == 'core' ? {cat: 'core', key: v} : {cat: ofTab, i: +v}; render(); const b = root.querySelector('[data-ofslot="' + v + '"]'); if (b) b.focus(); return }
 	if (t.dataset.col) { colSel = t.dataset.col; render(); const b = root.querySelector('[data-col="' + colSel + '"]'); if (b) b.focus(); return }
 	if (t.dataset.ship) { sel.ship = t.dataset.ship; render(); const b = root.querySelector('[data-ship="' + sel.ship + '"]'); if (b) b.focus(); return }
 	const me = P(), act = t.dataset.act, d = env.day;
 	if (act == 'launch') { const l = env.onLaunch; close(); l(); return }
 	if (act == 'refuel') { const c = Tr.refuelCost(env.ship, env.fuel(), mkt), r = Tr.pay(me, c, here(), d); if (r.ok) { env.setFuel(1); env.say('Refuelled: ' + money(r.amount, r.code)); env.cue('clearance') } else env.say('Not enough ' + r.code + ' to refuel') }
+	if (lockedHere() && act && !['refuel', 'launch'].includes(act)) { env.say('Untranslated: you can\'t make yourself understood here. Fit a linguistic decoder for the ' + O.langName(O.langOf(holder())) + '.'); env.cue('refused'); return }
 	if (act == 'repair') { const c = Tr.repairCost(env.ship, env.fit, mkt, d, hull()), r = Tr.pay(me, c, here(), d); if (r.ok) { M.repair(env.fit); me.combat = Object.assign(me.combat || {}, {hull: 1}); env.say('Repaired: ' + money(r.amount, r.code)); env.cue('clearance') } else env.say('Not enough ' + r.code + ' to repair') }
 	if (act == 'buy') { const n = t.dataset.n == 'max' ? Tr.canBuy(me, env.ship, mkt, sel.good, d) : 1, r = Tr.buy(me, env.ship, mkt, sel.good, n, d); if (r.ok) { env.say('Bought ' + r.qty + ' t ' + sel.good + ' for ' + money(r.paid.amount, r.paid.code)); env.cue('tick') } }
 	if (act == 'sell') { const n = t.dataset.n == 'all' ? me.cargo[sel.good] || 0 : 1, r = Tr.sell(me, mkt, sel.good, n, d); if (r.ok) { env.say('Sold ' + r.qty + ' t ' + sel.good + ' for ' + money(r.got.amount, r.got.code) + (Math.abs(r.profit) > 0.5 ? ' (' + (r.profit > 0 ? '+' : '') + fmt(r.profit) + ' SU)' : '')); env.cue('tick') } }
-	if (act == 'buyship') { const r = Tr.buyShip(me, env.ship.id, sel.ship, env.star, d); if (r.ok) { env.onShip(sel.ship); env.say('Bought a ' + env.ship.name + ': paid ' + fmt(Math.max(0, r.cost)) + ' ' + r.currency); env.cue('docked') } else env.say(r.why == 'hold' ? 'Your cargo won\'t fit its hold' : 'Not enough ' + (r.code || '') + ' for that ship') }
+	if (act == 'buyship') { const extra = O.extra(env.hullShip, me.ship.fit), r = Tr.buyShip(me, env.ship.id, sel.ship, env.star, d); if (r.ok) { if (extra > 0) Tr.receive(me, extra * 0.8 * rateHere(), here(), d); env.onShip(sel.ship); env.say('Bought a ' + env.ship.name + ': paid ' + fmt(Math.max(0, r.cost)) + ' ' + r.currency); env.cue('docked') } else env.say(r.why == 'hold' ? 'Your cargo won\'t fit its hold' : 'Not enough ' + (r.code || '') + ' for that ship') }
 	if (act == 'restock') { const c = restockCost(), r = Tr.pay(me, c.cost, here(), d); if (r.ok) { me.combat = C.refill(env.ship, me.combat); env.say('Restocked: ' + fmt(c.tons, 1) + ' t of munitions for ' + money(r.amount, r.code)); env.cue('clearance') } else env.say('Not enough ' + r.code + ' to restock') }
 	if (act == 'accept') { const m = En.offers(me, env.port, d).find(x => x.id == t.dataset.m), r = m ? En.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Mission accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'acceptx') { const m = X.offers(me, env.star, env.port, d).find(x => x.id == t.dataset.m), r = m ? X.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Contract accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'selldata') { const o = holder(), r = X.sell(me, o, o ? here() : 'SU', d); env.say(r.ok ? 'Sold ' + r.items + ' charts and surveys for ' + money(r.amount, r.code) : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	if (act == 'rename') { const k = t.dataset.k, r = X.rename(me, k, naming[k] || ''); env.say(r.ok ? 'Named: ' + r.name + '. The name goes in the charts.' : r.why); env.cue(r.ok ? 'clearance' : 'refused'); if (r.ok) delete naming[k] }
 	if (act == 'claim') { const st = Co.candidates(me, {star: env.star, owner: holder()}, d, env.ship.jump || 0, 10).find(x => x.id == colSel), r = st ? Co.claim(me, {star: env.star, owner: holder()}, st, t.dataset.k, d, env.ship.jump || 0) : {ok: false, why: 'Pick a system.'}; env.say(r.ok ? 'Claim filed on ' + st.name + ': fly there by day ' + r.colony.beaconBy + ' and press N near ' + r.colony.world + ' to drop the beacon.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
+	if (act && act.startsWith('of')) { outfitAct(act, t, me, d); }
 	if (act == 'claimi') { const st = Co.candidates(me, {star: env.star, owner: holder()}, d, env.ship.jump || 0, 10).find(x => x.id == colSel), r = st ? Co.claim(me, {star: env.star, owner: holder()}, st, t.dataset.k, d, env.ship.jump || 0, true) : {ok: false, why: 'Pick a system.'}; env.say(r.ok ? 'Independent claim filed on ' + st.name + ' (scrip ' + r.colony.scrip + '): drop the beacon by day ' + r.colony.beaconBy + ' near ' + r.colony.world + '.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	if (act == 'rent') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = c ? Co.rent(me, c, t.dataset.m, d, here()) : {ok: false, why: 'No such colony.'}; env.say(r.ok ? r.carrier.name + ' will park at ' + c.star.name + ' until day ' + r.carrier.until : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'haul') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = c ? Co.postHaul(me, {star: env.star, owner: holder()}, mkt, c, t.dataset.g, +t.dataset.n, d, t.dataset.j) : {ok: false, why: 'No such colony.'}; env.say(r.ok ? 'Haulage contracted: ' + r.quote.tons + ' t ' + r.quote.good + ' by ' + r.quote.ship + ', ' + r.quote.days + (r.quote.days == 1 ? ' day' : ' days') : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
@@ -288,7 +351,42 @@ function click(e) {
 	const keep = act; render();
 	const again = root.querySelector('[data-act="' + keep + '"]:not([disabled])'); if (again) again.focus();
 }
+/* buying, fitting, storing and selling modules; a fit change goes back to the game (env.onRefit) */
+function outfitAct(act, t, me, d) {
+	const sh = env.hullShip, rate = rateHere(), cur = here(), done = (msg, fit) => { if (fit) me.ship.fit = fit; env.onRefit(); env.say(msg); env.cue('clearance') };
+	const holdOk = fit => Tr.held(me) <= O.holdOf(sh, fit);
+	if (act == 'ofbuy') {
+		const o = O.offers(sh, ofSlot, env.port)[+t.dataset.j]; if (!o) return;
+		const m = {id: o.id, size: o.size, grade: o.grade}; if (m.id == 'decoder') m.langs = [];
+		const r = O.install(sh, me.ship.fit, ofSlot, m); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
+		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
+		const p = Tr.pay(me, o.price * rate, cur, d); if (!p.ok) { env.say('Not enough ' + p.code + ' for it'); env.cue('refused'); return }
+		if (r.old) (me.stored = me.stored || []).push(r.old);
+		done('Fitted: ' + gname(m) + ' for ' + money(p.amount, p.code) + (r.old ? '. ' + gname(r.old) + ' went to storage.' : ''), r.fit);
+	}
+	if (act == 'ofstore' || act == 'ofsell') {
+		const r = O.remove(sh, me.ship.fit, ofSlot); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
+		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
+		if (act == 'ofstore') { (me.stored = me.stored || []).push(r.old); done(gname(r.old) + ' taken out and stored', r.fit) }
+		else { Tr.receive(me, O.price(r.old) * 0.8 * rate, cur, d); done(gname(r.old) + ' sold for ' + money(O.price(r.old) * 0.8 * rate, cur), r.fit) }
+	}
+	if (act == 'offitstore') {
+		const j = +t.dataset.j, m = me.stored[j], r = O.install(sh, me.ship.fit, ofSlot, m); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
+		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
+		me.stored.splice(j, 1); if (r.old) me.stored.push(r.old);
+		done('Fitted from storage: ' + gname(m), r.fit);
+	}
+	if (act == 'ofsellstore') { const j = +t.dataset.j, m = me.stored[j]; me.stored.splice(j, 1); Tr.receive(me, O.price(m) * 0.8 * rate, cur, d); done(gname(m) + ' sold for ' + money(O.price(m) * 0.8 * rate, cur)) }
+	if (act == 'oflang') {
+		const m = O.at(me.ship.fit, ofSlot), l = ofLang || (root.querySelector('[data-oflang]') || {}).value; if (!m || m.id != 'decoder' || !l) return;
+		if ((m.langs || []).length >= O.DECODER[m.grade]) { env.say('That decoder is full'); env.cue('refused'); return }
+		const p = Tr.pay(me, O.LANG_PRICE * rate, cur, d); if (!p.ok) { env.say('Not enough ' + p.code); env.cue('refused'); return }
+		m.langs = [...(m.langs || []), l]; ofLang = '';
+		done('Loaded the ' + O.langName(l) + ' language into the decoder');
+	}
+}
 function input(e) {
+	if (e.target.dataset.oflang) { ofLang = e.target.value; return }
 	if (e.target.dataset.pick) { const id = e.target.dataset.c, k = e.target.dataset.pick; pick[id] = pick[id] || {}; pick[id][k] = e.target.value; render(); const el = root.querySelector('[data-pick="' + k + '"][data-c="' + id + '"]'); if (el) el.focus(); return }
 	if (e.target.dataset.name) { naming[e.target.dataset.name] = e.target.value; return }
 	const k = e.target.dataset.ex; if (!k) return;

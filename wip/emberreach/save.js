@@ -55,7 +55,7 @@ function unpack(raw, known) {
 function packPlayer(P) {
 	const r = (o, d) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v).map(([k, v]) => [k, +v.toFixed(d)]));
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
-		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, day: P.day || 0,
+		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], day: P.day || 0,
 		combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
 		colonies: P.colonies || [], hauls: P.hauls || []};
 }
@@ -65,7 +65,9 @@ function unpackPlayer(x) {
 	if (Object.values(x.wallet).some(v => v < 0) || Object.values(x.cargo).some(v => v < 0 || !Number.isInteger(v))) return null;
 	return {v: 1, origin: x.origin, species: x.species || '', wallet: Object.assign({}, x.wallet), cargo: Object.assign({}, x.cargo), cost: numMap(x.cost) ? Object.assign({}, x.cost) : {}, rep: Object.assign({}, x.rep),
 		start: numMap(x.start) ? Object.assign({}, x.start) : {}, lawful: num(x.lawful) ? x.lawful : 0, bounties: numMap(x.bounties) ? Object.assign({}, x.bounties) : {}, commission: typeof x.commission == 'string' ? x.commission : null,
-		warEvents: Array.isArray(x.warEvents) ? x.warEvents : [], ship: {model: x.ship.model, build: x.ship.build, sensors: x.ship.sensors}, day: num(x.day) ? x.day : 0, at: {},
+		warEvents: Array.isArray(x.warEvents) ? x.warEvents : [], ship: {model: x.ship.model, build: x.ship.build, sensors: x.ship.sensors, fit: shipFit(x.ship)}, day: num(x.day) ? x.day : 0, at: {},
+		/* modules in storage (bought, taken out, or found) */
+		stored: Array.isArray(x.stored) ? x.stored.filter(m => obj(m) && O && O.CAT[m.id] && O.GRADE[m.grade]).slice(0, 60) : [],
 		/* M4: the hull's health and ammunition carried over; war missions in hand */
 		combat: x.combat && typeof x.combat == 'object' && num(x.combat.hull) ? x.combat : null,
 		/* M5: what you've charted, surveyed, sold and named */
@@ -76,6 +78,10 @@ function unpackPlayer(x) {
 		missions: Array.isArray(x.missions) ? x.missions.filter(m => m && typeof m.id == 'string' && m.star && typeof m.star.id == 'string' && Array.isArray(m.star.at) && num(m.due)) : []};
 }
 const obj = o => o && typeof o == 'object' && !Array.isArray(o);
+const O = typeof module != 'undefined' ? require('./outfit.js') : (typeof window != 'undefined' ? window.EmberOutfit : null);
+const S0 = typeof module != 'undefined' ? require('./ships.js') : (typeof window != 'undefined' ? window.EmberShips : null);
+/* the ship's fit, if it's a valid fit for that hull (else the stock fit is used on load) */
+function shipFit(sh) { const hull = S0 && S0.ships().find(s => s.id == sh.model); return hull && O && O.valid(hull, sh.fit) ? sh.fit : null }
 function exploreOk(e) {
 	return obj(e) && obj(e.sys) && obj(e.pl) && obj(e.sold) && obj(e.names) && Object.values(e.sys).every(num) && Object.values(e.pl).every(obj)
 		&& Object.values(e.names).every(n => typeof n == 'string' && n.length <= 24);

@@ -113,8 +113,16 @@ function killed(P, npc, ctx) {
 	const day = ctx.day, star = ctx.star, own = ctx.own || {}, msg = [], pay = [];
 	const f = F.byId(npc.faction), value = npc.ship.value || 0;
 	if (npc.wasHostile == null) npc.wasHostile = !npc.provokedByPlayer && hostile(P, npc);
+	/* a warrant scan pays the bounties every jurisdiction has on them */
+	const warrant = npc.scanned && npc.scanned.warrant && npc.wanted;
 	if (npc.role == 'sentinel') msg.push('An old defence falls silent');
+	else if (npc.role != 'pirate' && npc.wanted && npc.role != 'depot') {
+		/* a wanted ship: no crime to kill it; its bounty is paid if you scanned the warrant */
+		if (warrant) { P.wallet[npc.wanted.code] = (P.wallet[npc.wanted.code] || 0) + npc.wanted.amount; pay.push({code: npc.wanted.code, amount: npc.wanted.amount}); msg.push('Warrant claimed: ' + npc.wanted.amount.toLocaleString('en') + ' ' + npc.wanted.code) }
+		else msg.push('They were wanted: no crime. (A warrant scan first would have paid their bounty.)');
+	}
 	else if (npc.role == 'pirate') {
+		if (warrant) { const extra = Math.round(npc.wanted.amount * 0.5); P.wallet[npc.wanted.code] = (P.wallet[npc.wanted.code] || 0) + extra; msg.push('Warrants from other jurisdictions: ' + extra.toLocaleString('en') + ' ' + npc.wanted.code) }
 		const owner = own.owner || P.origin, code = currencyOf(owner) || currencyOf(P.origin), amount = Math.round(Math.max(50, value * ENC.bountyShare) * E.rate(code, day));
 		P.wallet[code] = (P.wallet[code] || 0) + amount; pay.push({code, amount});
 		if (own.owner) R.act(P, 'killPirate', own.owner);
