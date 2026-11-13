@@ -8,7 +8,8 @@
    The player also carries (M4) the hull's health and ammunition, and the war missions in hand; saves without them
    load with a whole hull, full magazines and no missions. And (M5) the exploration record: systems charted,
    planets surveyed (first discoveries marked), what's been sold, and the names given. And (M5b) colonies and the
-   haulage contracts on their way.
+   haulage contracts on their way. And the Rift: a star there is saved like any other (its id starts "R:"), the
+   blueprints may be Precursor ones, and P.rift remembers the first crossing.
    unpack() checks everything, and gives null for anything it can't trust (another version, a damaged file), so a
    bad save starts a new game instead of breaking one.
    GPL-2.0-or-later. ===== */
@@ -57,7 +58,7 @@ function packPlayer(P) {
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
 		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
 		mined: P.mined || {}, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
-		colonies: P.colonies || [], hauls: P.hauls || []};
+		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null};
 }
 const numMap = o => o && typeof o == 'object' && !Array.isArray(o) && Object.values(o).every(num);
 function unpackPlayer(x) {
@@ -72,7 +73,9 @@ function unpackPlayer(x) {
 		/* recycling: the days of the latest modules each station took */
 		recycled: obj(x.recycled) ? Object.fromEntries(Object.entries(x.recycled).filter(([k, v]) => Array.isArray(v) && v.every(num)).slice(-200)) : {},
 		/* alien blueprints found in ruins */
-		blueprints: Array.isArray(x.blueprints) ? x.blueprints.filter(b => obj(b) && (b.id == 'alien' || b.id == 'phaser') && num(b.size)).slice(0, 20) : [],
+		blueprints: Array.isArray(x.blueprints) ? x.blueprints.filter(b => obj(b) && num(b.size) && (b.id == 'alien' || b.id == 'phaser' || (b.id == 'precursor' && O && O.PRECURSOR_MODS.includes(b.mod)) || (b.id == 'hull' && typeof b.hull == 'string' && S0 && S0.hull(b.hull) && S0.hull(b.hull).precursor))).slice(0, 30) : [],
+		/* the Rift: whether you've been (and the Maw's side you're on comes back with the star) */
+		rift: obj(x.rift) ? {first: num(x.rift.first) ? x.rift.first : null, crossings: num(x.rift.crossings) ? x.rift.crossings : 0} : null,
 		/* modules in storage (bought, taken out, or found) */
 		stored: Array.isArray(x.stored) ? x.stored.filter(m => obj(m) && O && O.CAT[m.id] && O.GRADE[m.grade]).slice(0, 60) : [],
 		/* M4: the hull's health and ammunition carried over; war missions in hand */
@@ -88,7 +91,7 @@ const obj = o => o && typeof o == 'object' && !Array.isArray(o);
 const O = typeof module != 'undefined' ? require('./outfit.js') : (typeof window != 'undefined' ? window.EmberOutfit : null);
 const S0 = typeof module != 'undefined' ? require('./ships.js') : (typeof window != 'undefined' ? window.EmberShips : null);
 /* the ship's fit, if it's a valid fit for that hull (else the stock fit is used on load) */
-function shipFit(sh) { const hull = S0 && S0.ships().find(s => s.id == sh.model); return hull && O && O.valid(hull, sh.fit) ? sh.fit : null }
+function shipFit(sh) { const hull = S0 && (S0.hull ? S0.hull(sh.model) : S0.ships().find(s => s.id == sh.model)); return hull && O && O.valid(hull, sh.fit) ? sh.fit : null }
 function exploreOk(e) {
 	return obj(e) && obj(e.sys) && obj(e.pl) && obj(e.sold) && obj(e.names) && Object.values(e.sys).every(num) && Object.values(e.pl).every(obj)
 		&& Object.values(e.names).every(n => typeof n == 'string' && n.length <= 24);

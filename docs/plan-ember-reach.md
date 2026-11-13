@@ -494,11 +494,11 @@ Tested in `tests/emberreach_wormholes_t.js` (16 checks, with the safety and blue
   within 2,500 km; after an 8 s charge it phases through to a random star anywhere the galaxy has stars, drawn by
   the galaxy's own density, so most often towards the centre, sometimes far out. You come out near that star
   (wormholes have no nav beacons), a day later, with no route. Without a phaser the wormhole is closed.
-- The galaxy's central black hole comes with the Core.
+- The galaxy's central black hole, **the Maw**, is a wormhole of its own: it leads only to the Rift (below).
 
 ### Proximity safety
 
-The ship won't go dangerously close: it holds 2,000 km off a black hole, 1.6 radii off a star, and at the top of a
+The ship won't go dangerously close: it holds 2,000 km off a black hole (three horizon radii off the Maw), 1.6 radii off a star, and at the top of a
 world's atmosphere (1.12 radii); at an airless world it stops 300 m above the surface. No landing yet: surface
 ports and outposts come later. (Before this, flying into a planet or star lost the ship.)
 
@@ -513,6 +513,67 @@ ports and outposts come later. (Before this, flying into a planet or star lost t
 - **Recycling** (at the outfitter, from storage) breaks any module into materials for the hold: an alien module
   gives its blueprint back with half its recipe's goods; others give metals and electronics by category, size and
   grade. Each station recycles **3 modules in any 7 days**.
+
+### The Rift
+
+Tested in `tests/emberreach_rift_t.js` (35 checks). End-game play, beyond the Maw.
+
+- **The Maw** is the black hole at the galaxy's centre: five million suns, its horizon 0.1 AU across. It's on the
+  map and the route planner like any star (id `heart`), though no power holds it and it has no port or worlds.
+  The ship's safety holds three horizon radii off it (any black hole: 2,000 km, or three radii if that's more), and
+  a phaser works within 1.25 times that. Riftborn slip through to this side now and then (half of visits).
+- With a **dimensional phaser**, J at the Maw crosses into **the Rift**, and J at the Rift's own Maw crosses home.
+  Other black holes in the Rift are wormholes to random Rift stars.
+- **The galaxy upside down.** Every Rift star is a normal star turned over (its height above the galactic plane
+  the other way), the same in class, mass and age, its name written backwards (Kaveth becomes Htevak); its id is
+  the normal one after `R:`. Its worlds are drawn afresh, so they're its own. Nothing lives on any of them.
+- **Its riches.** Rocky worlds hold **nullite** (40%) and **voidglass** (15%); gas giants **aetherium** (50%). Its
+  rings and belts carry the same ores as well as the usual. In about one system in ten with a rocky world lie
+  **Precursor ruins**, guarded by Precursor guardians (Riftborn-strong). Surveying one yields **Precursor relics**
+  and, more often than not, a **Precursor blueprint**. Rift charts and surveys sell for twice as much, and a
+  Precursor ruin's survey for three times a ruin's.
+  | Good | Base value (SU) |
+  |---|---|
+  | Nullite | 180 |
+  | Voidglass | 320 |
+  | Aetherium | 260 |
+  | Precursor relics | 1,500 |
+  This side of the Maw, every market buys them at a premium (+25%) and none sells them.
+- **No powers, no lanes.** Nobody holds anything there, there are no lanes, and no colonies can be claimed. The only
+  ports are **Precursor anchorages**: old automated docks in about one system in twenty-five. They offer fuel,
+  repairs and trade in SU, pay half for the Rift's goods, and build nothing (no shipyard).
+- **The Riftborn** crew every ship there. They fly copies of the living's warships and pirate hulls (up to L; up
+  to XL at the Maw) with three times the hull and shields, 2.2 times the damage and 15% more speed and agility.
+  They attack everyone, never flee, and their wrecks drop the Rift's goods (8% chance of a relic).
+- **Precursor work** is stronger than anything sold. Grade **P** (×1.6, against A's ×1.3) comes in:
+  - core: power plants, thrusters, manoeuvring thrusters, hyperdrives;
+  - internal: shields, armour, relay boosters;
+  - external: two weapons, the **needle** (small, 3 dmg × 6/s, runs cool) and the **lance** (large, 26 dmg ×
+    1.5/s).
+
+  A Precursor ruin's survey gives a hull blueprint 10% of the time, a weapon 15% and a module 45%. An artifact
+  broker builds them on this side.
+
+  | Blueprint | Recipe |
+  |---|---|
+  | Module | Precursor relics, nullite, voidglass (and aetherium for lances and hyperdrives) from the Rift; titanium and electronics from this side; 120,000 SU a size |
+  | Hull | Relics, all three Rift ores, titanium, electronics and diamonds; half the hull's value |
+
+  Further rules:
+  - A core module is made at the size of the hull you're flying.
+  - A hull takes your ship in part-exchange.
+  - Recycling Precursor work gives its blueprint back.
+- **Precursor hulls**, never sold, named (like their makers) for the oldest extinct things. Each beats every stock
+  hull of its size:
+
+  | Hull | Size | Role |
+  |---|---|---|
+  | Opabinia | S | scout |
+  | Anomalocaris | M | hunter |
+  | Dunkleosteus | L | warship |
+  | Arthropleura | XL | freighter |
+
+- Saves keep the Rift star you're at, Precursor blueprints and hulls, and the day of your first crossing.
 
 ### Mining
 
@@ -1005,7 +1066,7 @@ home currency.
    beacon, the primary port's goods, haulage, and the finished port; slots, facilities, points, links and the market,
    population and the architect's pay; forward bases on the fronts, raids, independent colonies with their scrip,
    and rented carriers.
-8. **M6:** the Core, the black hole, polish; phones (1.6.0).
+8. **M6:** the Core, the black hole, polish; phones (1.6.0). **The Maw and the Rift are playable** (see "The Rift").
 
 ## Open questions
 

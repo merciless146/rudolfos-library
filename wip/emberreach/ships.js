@@ -132,15 +132,36 @@ function ships() {
 	});
 	return SHIPS;
 }
+/* the Precursors' hulls: never sold, built only by an artifact broker from a blueprint found in the Rift's ruins
+   (outfit.js), with goods from both galaxies. Named, like their makers, for the oldest things that ever swam:
+   stronger, faster and longer-legged than anything of their size the living build */
+const PRECURSOR = [
+	['Opabinia', 'S', 'precursor scout', 700, 600, 420, 100, 40, 16, [2, 0, 0, 0], 1, 6, 24],
+	['Anomalocaris', 'M', 'precursor hunter', 3200, 2600, 360, 68, 150, 11, [3, 3, 2, 0], 6, 6, 62],
+	['Dunkleosteus', 'L', 'precursor warship', 12500, 8000, 260, 32, 700, 12, [4, 5, 4, 0], 60, 6, 150],
+	['Arthropleura', 'XL', 'precursor freighter', 30000, 19000, 180, 15, 40000, 15, [4, 4, 2, 0], 120, 6, 650]];
+let PRE = null;
+function precursors() {
+	if (PRE) return PRE;
+	PRE = PRECURSOR.map(([name, size, role, hull, shield, speed, agility, cargo, jump, hard, crew, tech, length]) => {
+		const s = {id: name.toLowerCase(), name, size, role, maker: 'precursor', makerName: 'Precursor design', hull, shield, speed, agility, cargo, jump, hard, crew, tech, length, hangar: 0, who: [], precursor: true};
+		s.value = value(s); s.premium = 1; s.priceSU = [Math.round(s.value), Math.round(s.value * 1.2)];
+		return s;
+	});
+	return PRE;
+}
+/* any hull by id: the stock ones and the Precursors' */
+const hull = id => ships().find(x => x.id == id) || precursors().find(x => x.id == id) || null;
 /* what a ship costs at a station on a day: the range in the local currency (cheapest in its maker's own space,
    +10% at an ally's yard, +25% elsewhere, +40% near a front; enemies' ships aren't sold) */
 function price(shipId, star, day, ctx) {
-	const s = ships().find(x => x.id == shipId), mk = E.market(star, day, ctx), cur = mk.currency, rate = cur == 'SU' ? 1 : E.rate(cur, day, ctx);
+	const s = ships().find(x => x.id == shipId); if (!s) return null;
+	const mk = E.market(star, day, ctx), cur = mk.currency, rate = cur == 'SU' ? 1 : E.rate(cur, day, ctx);
 	let f = 1;
 	if (mk.contested) f = 1.4;
 	else if (s.maker.startsWith('major') && mk.holder) { const r = s.maker == mk.holder ? 1 : F.relation(s.maker, mk.holder); if (r < 0) return null; f = r > 0 && s.maker != mk.holder ? 1.1 : s.maker == mk.holder ? 1 : 1.25 }
 	return {currency: cur, low: Math.round(s.priceSU[0] * f * rate), high: Math.round(s.priceSU[1] * f * rate)};
 }
-const EmberShips = {NAMES, SIZES, STOCK, ships, value, price};
+const EmberShips = {NAMES, SIZES, STOCK, PRECURSOR, ships, precursors, hull, value, price};
 if (isNode) module.exports = EmberShips; else root.EmberShips = EmberShips;
 })(typeof window != 'undefined' ? window : this);

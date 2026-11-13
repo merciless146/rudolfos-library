@@ -232,11 +232,13 @@ const massLocked = (scene, p) => !!scene.station && len(sub(p, scene.station.c))
 /* the fastest cruise allowed here */
 const cruiseLimit = (scene, p) => Math.min(CRUISE.cap, Math.max(CRUISE.min, CRUISE.k * Math.max(0, nearest(scene, p).d)));
 /* how close to a target (its surface, m) the cruise drops out */
-const dropRange = (target) => target.bh ? SAFE.bh * 1.5 : target.kind == 'planet' ? target.radius * CRUISE.drop.planet : target.kind == 'star' ? target.radius * CRUISE.drop.star : CRUISE.drop.station;
+const dropRange = (target) => target.bh ? bhSafe(target) * 1.5 : target.kind == 'planet' ? target.radius * CRUISE.drop.planet : target.kind == 'star' ? target.radius * CRUISE.drop.star : CRUISE.drop.station;
 /* the ship's proximity safety: how close it lets itself go. Black holes 2,000 km; stars 1.6 radii; worlds with air
    their atmosphere's top (1.12 radii); airless worlds their surface, 300 m up (no landing yet) */
 const SAFE = {bh: 2e6, star: 1.6, atmo: 1.12, ground: 300};
-function safeDist(b) { return b.bh ? SAFE.bh : b.kind == 'star' ? b.radius * SAFE.star : b.kind == 'planet' ? (b.atmo ? b.radius * SAFE.atmo : b.radius + SAFE.ground) : 0 }
+/* (a black hole as big as the Maw, five million suns: three of its horizon's radii) */
+function bhSafe(b) { return Math.max(SAFE.bh, 3 * b.radius) }
+function safeDist(b) { return b.bh ? bhSafe(b) : b.kind == 'star' ? b.radius * SAFE.star : b.kind == 'planet' ? (b.atmo ? b.radius * SAFE.atmo : b.radius + SAFE.ground) : 0 }
 const surfaceDist = (target, p) => len(sub(p, target.pos || target.c)) - (target.radius || target.def.radius);
 /* one cruise step: the ship turns as in flight (at half rates), and moves along its nose at the cruise speed.
    cz = {v (m/s)}; throttle 0..1; returns 'drop' when it should drop out at the target */
@@ -251,7 +253,7 @@ function cruiseStep(scene, s, cz, input, dt, target) {
 	if (target && surfaceDist(target, s.p) < dropRange(target)) return 'drop';
 	/* too close to anything: drop out (a star throws you out sooner, from three of its radii) */
 	const nb = nearest(scene, s.p);
-	if (nb.what && nb.d < (nb.what.bh ? SAFE.bh : nb.what.kind == 'planet' ? 0.15 * nb.what.radius : nb.what.kind == 'star' ? 2 * nb.what.radius : CRUISE.drop.station * 0.5)) return 'drop';
+	if (nb.what && nb.d < (nb.what.bh ? bhSafe(nb.what) : nb.what.kind == 'planet' ? 0.15 * nb.what.radius : nb.what.kind == 'star' ? 2 * nb.what.radius : CRUISE.drop.station * 0.5)) return 'drop';
 	return null;
 }
 /* leaving cruise: the ship keeps its heading at up to its top speed; above 300 km/s it's an emergency drop */
@@ -275,7 +277,7 @@ function spawn(scene, dist) {
 }
 
 const EmberScene = {AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
-	SAFE, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
+	SAFE, bhSafe, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
 	v: {add, sub, mul, dot, cross, len, norm}};
 if (isNode) module.exports = EmberScene; else root.EmberScene = EmberScene;
 })(typeof window != 'undefined' ? window : this);

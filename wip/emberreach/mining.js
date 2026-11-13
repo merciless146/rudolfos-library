@@ -22,6 +22,8 @@ const KINDS = {
 	Metal: {name: 'metallic ring', goods: {Iron: 6, Titanium: 3, Aluminum: 2, Copper: 2, Gold: 0.5, Diamond: 0.2, Uranium: 0.5}},
 	rocky: {name: 'rocky belt', goods: {Iron: 4, Copper: 3, Coal: 2, Lead: 2, Aluminum: 3, Titanium: 1.2, Uranium: 0.5, Jade: 0.3}},
 	metallic: {name: 'metallic belt', goods: {Iron: 6, Titanium: 3, Aluminum: 2, Copper: 2, Gold: 0.6, Uranium: 0.6, Diamond: 0.25}}};
+/* in the Rift, the same fields carry its own ores too */
+const RIFT_ORE = {Stone: {Nullite: 1.5, Voidglass: 0.5}, Ice: {Aetherium: 2, Voidglass: 0.4}, Metal: {Nullite: 2.5, Voidglass: 0.5}, rocky: {Nullite: 1.2, Voidglass: 0.4}, metallic: {Nullite: 2.2, Voidglass: 0.5}};
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const mul = (a, s) => [a[0] * s, a[1] * s, a[2] * s], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const len = a => Math.sqrt(dot(a, a)), norm = a => mul(a, 1 / (len(a) || 1));
@@ -34,20 +36,21 @@ function fields(scene, star) {
 	for (const b of planets) {
 		if (!b.ring) continue;
 		const r = G.rng(G.hashStr('ring:' + b.name)), ax = norm(b.axis || [0, 0, 1]), e1 = norm(cross(ax, Math.abs(ax[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = cross(ax, e1), th = r() * 6.283;
-		out.push({id: 'ring:' + b.name, name: b.name + ' rings', kind: b.ring, density: b.ringDensity || 'moderate', pos: add(b.pos, mul(add(mul(e1, Math.cos(th)), mul(e2, Math.sin(th))), b.radius * 1.8)), normal: ax, body: b.name});
+		out.push({id: 'ring:' + b.name, name: b.name + ' rings', kind: b.ring, rift: !!star.rift, density: b.ringDensity || 'moderate', pos: add(b.pos, mul(add(mul(e1, Math.cos(th)), mul(e2, Math.sin(th))), b.radius * 1.8)), normal: ax, body: b.name});
 	}
 	/* belts: in the gaps between planets' orbits, or out past the last */
-	const r = G.rng(G.hashStr('belts:' + star.id)), n = r() < 0.35 ? 0 : r() < 0.75 ? 1 : 2, orbits = planets.map(b => len(sub(b.pos, sun.pos))).sort((a, b) => a - b);
+	const r = G.rng(G.hashStr('belts:' + star.id)), n = star.heart ? 0 : r() < 0.35 ? 0 : r() < 0.75 ? 1 : 2, orbits = planets.map(b => len(sub(b.pos, sun.pos))).sort((a, b) => a - b);
 	for (let k = 0; k < n; k++) {
 		const i = Math.floor(r() * (orbits.length + 1)), a = orbits.length ? (i == 0 ? orbits[0] * 0.6 : i == orbits.length ? orbits[i - 1] * 1.6 : (orbits[i - 1] + orbits[i]) / 2) : 2.5 * MINE.AU;
 		const th = r() * 6.283, kind = (star.FeH || 0) > 0.05 && r() < 0.6 ? 'metallic' : 'rocky';
-		out.push({id: 'belt:' + star.id + ':' + k, name: star.name + ' belt ' + 'AB'[k], kind, pos: add(sun.pos, [a * Math.cos(th), a * Math.sin(th), 0]), normal: [0, 0, 1]});
+		out.push({id: 'belt:' + star.id + ':' + k, name: star.name + ' belt ' + 'AB'[k], kind, rift: !!star.rift, pos: add(sun.pos, [a * Math.cos(th), a * Math.sin(th), 0]), normal: [0, 0, 1]});
 	}
 	return out;
 }
 /* the asteroids at a field's site: the same every visit; `mined` (P.mined) holds the tonnes already taken */
 function rocks(field, mined) {
-	const r = G.rng(G.hashStr('rocks:' + field.id)), K = KINDS[field.fieldKind || field.kind] || KINDS.rocky, out = [];
+	const fk = field.fieldKind || field.kind, K0 = KINDS[fk] || KINDS.rocky, K = field.rift ? {name: K0.name, goods: Object.assign({}, K0.goods, RIFT_ORE[fk] || RIFT_ORE.rocky)} : K0;
+	const r = G.rng(G.hashStr('rocks:' + field.id)), out = [];
 	const e1 = norm(cross(field.normal, Math.abs(field.normal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = cross(field.normal, e1);
 	/* moderately strewn fields hold 64 at a site; dense ones 96 (still a kilometre and more apart, on average) */
 	const n = field.density == 'dense' ? 96 : MINE.rocks;
@@ -112,6 +115,6 @@ function hitRock(rocks, p0, p1) {
 	return null;
 }
 
-const EmberMining = {MINE, KINDS, fields, rocks, chip, refine, purge, tractor, hitRock};
+const EmberMining = {MINE, KINDS, RIFT_ORE, fields, rocks, chip, refine, purge, tractor, hitRock};
 if (isNode) module.exports = EmberMining; else root.EmberMining = EmberMining;
 })(typeof window != 'undefined' ? window : this);

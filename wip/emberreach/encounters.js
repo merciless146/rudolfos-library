@@ -34,12 +34,25 @@ function hulls(role, maxSize, maker) {
 }
 const currencyOf = id => { const f = id && F.byId(id); return f && f.currency && f.currency.code && f.currency.code.length == 3 && f.kind == 'major' ? f.currency.code : null };
 
+/* the Riftborn: whatever crews the Rift's ships, flying copies of the living's hulls made far tougher, quicker and
+   harder-hitting (three times the hull and shields, twice and more the damage). They attack everyone */
+const RIFTBORN = {hull: 3, shield: 3, speed: 1.15, agility: 1.15, dmgK: 2.2, odds: 0.65, heart: 0.9, maw: 0.5};
+function riftborn(ship) { return Object.assign({}, ship, {hull: Math.round(ship.hull * RIFTBORN.hull), shield: Math.round(ship.shield * RIFTBORN.shield), speed: ship.speed * RIFTBORN.speed, agility: ship.agility * RIFTBORN.agility, dmgK: RIFTBORN.dmgK, value: ship.value * 3, rift: true}) }
+function riftCast(star, r, add, odds) {
+	if (r() >= odds) return;
+	const big = star.heart ? 'XL' : 'L', pool = S.ships().filter(s => s.who.some(w => w == 'navy' || w == 'pirate') && SIZES.indexOf(s.size) <= SIZES.indexOf(big) && s.hard.some(Boolean));
+	const k = star.heart ? 3 + Math.floor(r() * 3) : 1 + Math.floor(r() * 3);
+	for (let i = 0; i < k; i++) { const small = pool.filter(s => SIZES.indexOf(s.size) <= (i == 0 ? SIZES.indexOf(big) : 2)); add({role: 'riftborn', faction: 'riftborn', ship: riftborn(pick(small, r)), where: 'arrival', range: 7000 + r() * 6000, ai: 'attack', wing: 'r'}) }
+}
 /* the cast at a star on a day. ctx: {port (portFor result or null), visit (a count, so each arrival differs), missions} */
 function cast(star, day, P, ctx) {
 	ctx = ctx || {};
 	const r = rng(hash('enc:' + star.id + ':' + day + ':' + (ctx.visit || 0))), out = [];
 	let n = 0;
 	const add = (o) => { o.id = 'n' + (n++); o.provoked = false; out.push(o); return o };
+	/* the Rift has only the Riftborn; some slip through the Maw to this side too */
+	if (star.rift) { riftCast(star, r, add, star.heart ? RIFTBORN.heart : RIFTBORN.odds); return out }
+	if (star.heart) { riftCast(star, r, add, RIFTBORN.maw); return out }
 	const capital = F.majors().find(m => m.star.id == star.id);
 	const own = capital ? {owner: capital.id, contested: false} : T.ownerOf(star, day);
 	const port = ctx.port;
@@ -85,7 +98,7 @@ function cast(star, day, P, ctx) {
 /* will this ship attack the player? */
 function hostile(P, npc, ctx) {
 	if (npc.provoked) return true;
-	if (npc.role == 'sentinel') return true;   /* the old defences around ruins answer to nobody living */
+	if (npc.role == 'sentinel' || npc.role == 'riftborn') return true;   /* the old defences around ruins answer to nobody living */
 	if (npc.role == 'trader' || npc.role == 'depot') return false;
 	const rep = P.rep[npc.faction] || 0;
 	if (npc.role == 'pirate') return rep < 500;
@@ -100,6 +113,7 @@ function hostile(P, npc, ctx) {
 function enemies(a, b, P) {
 	if (b.player) return hostile(P, a);
 	if (a.player) return hostile(P, b);
+	if ((a.role == 'riftborn') != (b.role == 'riftborn')) return a.role != 'depot' && b.role != 'depot';
 	if (a.role == 'depot' || b.role == 'depot' || a.role == 'sentinel' || b.role == 'sentinel' || a.role == 'flagship' && b.role == 'flagship') return false;
 	if (a.role == 'pirate' || b.role == 'pirate') return (a.role == 'pirate') != (b.role == 'pirate');
 	if (a.faction == b.faction) return false;
@@ -115,7 +129,8 @@ function killed(P, npc, ctx) {
 	if (npc.wasHostile == null) npc.wasHostile = !npc.provokedByPlayer && hostile(P, npc);
 	/* a warrant scan pays the bounties every jurisdiction has on them */
 	const warrant = npc.scanned && npc.scanned.warrant && npc.wanted;
-	if (npc.role == 'sentinel') msg.push('An old defence falls silent');
+	if (npc.role == 'sentinel') msg.push(npc.rift ? 'A Precursor guardian falls silent' : 'An old defence falls silent');
+	else if (npc.role == 'riftborn') msg.push('A Riftborn ship breaks apart: what it carried is the Rift\'s');
 	else if (npc.role != 'pirate' && npc.wanted && npc.role != 'depot') {
 		/* a wanted ship: no crime to kill it; its bounty is paid if you scanned the warrant */
 		if (warrant) { P.wallet[npc.wanted.code] = (P.wallet[npc.wanted.code] || 0) + npc.wanted.amount; pay.push({code: npc.wanted.code, amount: npc.wanted.amount}); msg.push('Warrant claimed: ' + npc.wanted.amount.toLocaleString('en') + ' ' + npc.wanted.code) }
@@ -202,6 +217,6 @@ function settle(P, day) {
 	return out;
 }
 
-const EmberEncounters = {ENC, NEEDS, DEPOT, cast, hostile, enemies, killed, provoke, offers, missionStar, accept, need, tick, complete, settle};
+const EmberEncounters = {RIFTBORN, riftborn, ENC, NEEDS, DEPOT, cast, hostile, enemies, killed, provoke, offers, missionStar, accept, need, tick, complete, settle};
 if (isNode) module.exports = EmberEncounters; else root.EmberEncounters = EmberEncounters;
 })(typeof window != 'undefined' ? window : this);

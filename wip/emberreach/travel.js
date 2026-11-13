@@ -24,7 +24,8 @@ const TRAVEL = {fullJump: 0.25, laneCost: 0.08, laneMax: 50, hubSpacing: 25, lon
 const jumpCost = (d, range) => TRAVEL.fullJump * Math.pow(Math.min(1, d / Math.max(1e-6, range)), 2);
 /* ---------- finding stars ---------- */
 /* the star with this id at (about) this place */
-function starAt(id, p) { return G.starsNear(p[0], p[1], p[2], 1e-3).find(s => s.id == id) || G.starsNear(p[0], p[1], p[2], 0.05).find(s => s.id == id) || null }
+/* (either galaxy: the id says which) */
+function starAt(id, p) { return G.lookup(id, p) }
 /* a star near p (the nearest, or the nearest that passes ok) */
 function starNear(p, ok) { const list = G.nearestStars(p, 24); return list.find(s => !ok || ok(s)) || list[0] || null }
 const hasPlanets = s => G.system(s).planets.length > 0;
@@ -44,6 +45,7 @@ function arrival(target, rnd) {
 
 /* ---------- who holds a system, and its port ---------- */
 function ownerOf(star, day) {
+	if (star.rift || star.heart) return {owner: null, contested: false};   /* no power holds the Maw, or anything in the Rift */
 	const c = F.claimAt(at(star));
 	if (c.owner) return {owner: c.owner, contested: false};
 	if (c.contested) { const h = F.contestedHolder(at(star), day || 0); return {owner: h.holder, contested: true, war: h.war} }
@@ -52,6 +54,7 @@ function ownerOf(star, day) {
 /* the port at a star, if any: {cls, world (planet name), owner, capital} */
 function portFor(star, day) {
 	/* a capital needs no look at the claims (which are slow to set up the first time) */
+	if (star.rift) return anchorage(star);
 	const cap = F.majors().find(m => m.star.id == star.id);
 	if (cap) return {cls: 'halo', world: cap.home.name, owner: cap.id, capital: true, contested: false};
 	const o = ownerOf(star, day);
@@ -66,11 +69,20 @@ function portFor(star, day) {
 	return null;
 }
 
+/* the Rift has no powers' ports: only the Precursors' anchorages, old automated docks in about one system in
+   twenty-five that still give fuel and repairs, and trade (in standard units) with whoever comes */
+const ANCHORAGE = 0.04;
+function anchorage(star) {
+	if (star.heart) return null;
+	const pl = G.system(star).planets; if (!pl.length) return null;
+	if (G.rng(G.hashStr('anchorage:' + star.id))() >= ANCHORAGE) return null;
+	return {cls: 'trefoil', world: pl[pl.length - 1].name, owner: null, capital: false, contested: false, anchorage: true};
+}
 /* ---------- lanes ---------- */
 let LANES = null;
 /* every power's beacons (capital, then hubs on shells 25 pc apart through its own space), and the long lanes */
-function lanes() {
-	if (LANES) return LANES;
+function lanes() { return LANES || G.normal(lanes0) }
+function lanes0() {
 	const nodes = [], edges = [], M = F.majors();
 	const add = n => { n.i = nodes.length; nodes.push(n); return n };
 	const byPower = {};
@@ -163,7 +175,7 @@ function route(from, to, range, origin) {
 	const tp = at(to), direct = hopsToward(from, tp, range, 400, to);
 	let best = direct.ok ? direct.hops : null;
 	/* through the lanes: to the beacon nearest us, along the lanes, from the beacon nearest the target */
-	const bA = nearestBeacon(at(from), origin), bB = nearestBeacon(tp, origin);
+	const bA = !from.rift && !to.rift && nearestBeacon(at(from), origin), bB = bA && nearestBeacon(tp, origin);   /* no lanes in the Rift */
 	if (bA && bB && bA.n.i != bB.n.i) {
 		const path = lanePath(bA.n.i, bB.n.i, origin);
 		if (path) {
@@ -187,6 +199,6 @@ function canMake(leg, range, fuel) {
 	return {ok: true, cost};
 }
 
-const EmberTravel = {TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
+const EmberTravel = {ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
 if (isNode) module.exports = EmberTravel; else root.EmberTravel = EmberTravel;
 })(typeof window != 'undefined' ? window : this);

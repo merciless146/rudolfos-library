@@ -87,7 +87,7 @@ function create() {
 		ctx.save();
 		ctx.fillStyle = '#020409'; ctx.fillRect(0, 0, W, H);
 		if (M.charting) { text(ctx, '> charting the powers\' space…', W / 2, H / 2, {mono: true, col: C.muted, align: 'center'}); ctx.restore(); return }
-		const D = M.D, far = D > 700, mid = D > 25;
+		const D = M.D, far = D > 700, mid = D > 25, rift = G.realm() == 'rift';
 		/* the galaxy: a scatter of its stars and its outline */
 		const bA = Math.max(0.12, Math.min(0.9, (D - 60) / 900));
 		if (D > 60) for (const b of backdropOf()) { const p = proj(b.p); if (!p) continue; ctx.fillStyle = 'rgba(' + b.c[0] + ',' + b.c[1] + ',' + b.c[2] + ',' + bA.toFixed(2) + ')'; ctx.fillRect(p[0], p[1], 1.3, 1.3) }
@@ -97,18 +97,21 @@ function create() {
 			for (const [i, j] of [[0, 1], [0, 2], [1, 2]]) { ctx.beginPath(); for (let k = 0; k <= 64; k++) { const a = k / 64 * 2 * Math.PI, q = [0, 0, 0]; q[i] = ax[i] * Math.cos(a); q[j] = ax[j] * Math.sin(a); const p = proj(q); if (p) k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]) } ctx.stroke() }
 		}
 		/* the long lanes and the clusters */
-		const L = M.ready ? T.lanes() : null;
+		const L = M.ready && !rift ? T.lanes() : null;
 		if (L && D > 40) {
 			ctx.strokeStyle = 'rgba(242,163,58,0.55)'; ctx.lineWidth = 1.2; ctx.setLineDash([6, 5]);
 			for (const ch of L.chains) { ctx.beginPath(); let first = true; for (const i of ch.nodes) { const p = proj(L.nodes[i].at); if (!p) { first = true; continue } first ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); first = false } ctx.stroke() }
 			ctx.setLineDash([]);
 		}
-		for (const cl of G.clusters()) {
+		/* the Maw, at the centre: the way between the galaxy and the Rift */
+		{ const p = proj([0, 0, 0]); if (p) { ctx.strokeStyle = '#c9a0ff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(p[0], p[1], 6, 0, 7); ctx.stroke(); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(p[0], p[1], 3.5, 0, 7); ctx.fill(); text(ctx, 'The Maw', p[0] + 9, p[1] + 14, {size: 11, weight: 600, col: '#c9a0ff'}); M.hits.push({x: p[0], y: p[1], kind: 'star', s: G.lookup(rift ? 'R:heart' : 'heart', [0, 0, 0])}) } }
+		if (rift) text(ctx, 'THE RIFT · the galaxy upside down · no powers, no lanes', W / 2, 30, {align: 'center', mono: true, size: 12, col: '#c9a0ff'});
+		if (!rift) for (const cl of G.clusters()) {
 			const p = proj(cl.at); if (!p) continue;
 			if (far) { text(ctx, cl.name, p[0] + 8, p[1] + 4, {size: 13, weight: 600}); ctx.fillStyle = C.amber; ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, 7); ctx.fill(); M.hits.push({x: p[0], y: p[1], kind: 'cluster', cl}) }
 		}
 		/* a cluster near the centre of the view, in detail */
-		if (!far && M.ready) {
+		if (!far && M.ready && !rift) {
 			const cl = G.clusters().map(c => ({c, d: dist(c.at, M.focus)})).sort((a, b) => a.d - b.d)[0];
 			if (cl && cl.d < 900) drawCluster(ctx, art(cl.c), D);
 		}
@@ -224,9 +227,9 @@ function create() {
 		const m = o.owner ? F.byId(o.owner) : null, rel = m && M.origin && m.id != M.origin ? F.relation(M.origin, m.id) : 0;
 		const d = M.here ? dist(at(M.here), at(s)) : 0, mj = T.misjumpChance(s);
 		return {kind: (s.cls || s.kind || 'star') + ' class · ' + (s.M || 0).toFixed(2) + ' suns',
-			owner: o.owner ? (o.contested ? 'Contested, held by ' : '') + m.name.replace(/^The /, '') + (rel < 0 ? ' (at war with you)' : rel > 0 ? ' (allied)' : '') : 'Unclaimed space', ownerCol: rel < 0 ? C.red : rel > 0 ? C.green : C.text,
-			port: col ? 'Your colony: ' + {claimed: 'claimed, beacon by day ' + col.beaconBy, building: 'building, ' + Math.round(100 * Co.progress(col)) + '%', done: col.port + ' built'}[col.stage] : port ? 'Port: ' + {halo: 'Halo (capital)', lantern: 'Lantern', trefoil: 'Trefoil outpost', bloom: 'Bloom'}[port.cls] + ' at ' + port.world : 'No port',
-			planets: s.kind == 'black hole' ? 'A black hole: a wormhole to anywhere, for a ship with a dimensional phaser' : sys.planets.length + (sys.planets.length == 1 ? ' planet' : ' planets') + (live ? ' · ' + live + ' living' : '') + (M.explore && M.explore.sys[s.id] != null ? ' · charted by you' : !o.owner ? ' · uncharted' : ''),
+			owner: o.owner ? (o.contested ? 'Contested, held by ' : '') + m.name.replace(/^The /, '') + (rel < 0 ? ' (at war with you)' : rel > 0 ? ' (allied)' : '') : (s.rift ? 'The Rift: nobody\'s' : 'Unclaimed space'), ownerCol: rel < 0 ? C.red : rel > 0 ? C.green : C.text,
+			port: port && port.anchorage ? 'Precursor anchorage at ' + port.world + ': fuel, repairs, trade' : col ? 'Your colony: ' + {claimed: 'claimed, beacon by day ' + col.beaconBy, building: 'building, ' + Math.round(100 * Co.progress(col)) + '%', done: col.port + ' built'}[col.stage] : port ? 'Port: ' + {halo: 'Halo (capital)', lantern: 'Lantern', trefoil: 'Trefoil outpost', bloom: 'Bloom'}[port.cls] + ' at ' + port.world : 'No port',
+			planets: s.heart ? (s.rift ? 'The Maw: the way home, for a ship with a dimensional phaser' : 'The Maw: five million suns, and the way into the Rift, for a ship with a dimensional phaser') : s.kind == 'black hole' ? 'A black hole: a wormhole to ' + (s.rift ? 'anywhere in the Rift' : 'anywhere') + ', for a ship with a dimensional phaser' : sys.planets.length + (sys.planets.length == 1 ? ' planet' : ' planets') + (live ? ' · ' + live + ' living' : '') + (M.explore && M.explore.sys[s.id] != null ? ' · charted by you' : !o.owner ? ' · uncharted' : ''),
 			dist: d < 1000 ? d.toFixed(d < 10 ? 2 : 1) + ' pc' : Math.round(d).toLocaleString('en-US') + ' pc', misjump: mj > 0.005 ? Math.round(mj * 100) + '%' : null};
 	}
 	function box(ctx, x, y, w, h) { ctx.fillStyle = C.panel; ctx.fillRect(x, y, w, h); ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1) }

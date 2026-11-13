@@ -19,7 +19,8 @@ const req = (n, g) => isNode ? require('./' + n) : root[g];
 const S = req('ships.js', 'EmberShips'), F = req('factions.js', 'EmberFactions');
 
 const SIZE = {XS: 1, S: 2, M: 3, L: 4, XL: 5, Capital: 6};
-const GRADE = {C: {k: 1, price: 1}, B: {k: 1.15, price: 2.6}, A: {k: 1.3, price: 6.5}};
+/* P: Precursor, built only from the blueprints in the Rift's ruins (better than anything sold) */
+const GRADE = {C: {k: 1, price: 1}, B: {k: 1.15, price: 2.6}, A: {k: 1.3, price: 6.5}, P: {k: 1.6, price: 18}};
 /* internal slots by hull size (largest first); freighters, miners and carriers get a bigger second slot */
 const INTERNAL = {XS: [2, 1, 1], S: [3, 3, 2, 1], M: [4, 4, 3, 2, 2], L: [5, 5, 4, 3, 3, 2], XL: [7, 6, 5, 5, 4, 3], Capital: [7, 7, 7, 6, 6, 5, 5]};
 const UTILITY = {XS: 2, S: 3, M: 4, L: 5, XL: 6, Capital: 8};
@@ -50,6 +51,8 @@ const CAT = {
 	heavy: {cat: 'external', name: 'Heavy laser', grades: 'C', sizes: [3, 3], price: 30000, draw: 0.7, weapon: true, text: '9 dmg × 1.5/s, heats'},
 	torpedo: {cat: 'external', name: 'Torpedo rack', grades: 'C', sizes: [4, 4], price: 90000, draw: 0.6, weapon: true, text: '150 dmg homing, 8 torpedoes'},
 	mining: {cat: 'external', name: 'Mining laser', grades: 'C', sizes: [1, 1], price: 5000, draw: 0.4, weapon: true, text: 'Breaks ore from asteroids'},
+	needle: {cat: 'external', name: 'Precursor needle', grades: 'P', sizes: [1, 1], price: 4000, draw: 0.3, weapon: true, precursor: true, text: '3 dmg × 6/s, runs cool: Precursor work'},
+	lance: {cat: 'external', name: 'Precursor lance', grades: 'P', sizes: [3, 3], price: 30000, draw: 0.8, weapon: true, precursor: true, text: '26 dmg × 1.5/s, cuts shields and hull alike: Precursor work'},
 	tractor: {cat: 'external', name: 'Tractor beam', grades: 'C', sizes: [1, 1], price: 7000, draw: 0.3, text: 'Pulls canisters and ore to an open hatch'},
 	/* utility: one per mount, no size */
 	warrant: {cat: 'utility', name: 'Warrant scanner', kind: 'scanner', grades: 'C', price: 15000, draw: 0.2, text: 'Scan a ship for bounties in every jurisdiction'},
@@ -79,7 +82,7 @@ function shieldSize(ship) { const L = layout(ship).internal; return Math.max(1, 
 const armourOf = (ship, m) => ship.hull * 0.08 * m.size * GRADE[m.grade].k;
 const relayOf = m => m.id == 'alien' ? 1.5 * m.size : 0.35 * m.size * GRADE[m.grade].k;
 const powerOf = (ship, m) => (3 + 3.5 * m.size) * GRADE[m.grade].k * (ship.size == 'Capital' ? 3 : ship.size == 'XL' ? 1.6 : 1);
-function drawOf(m) { const d = CAT[m.id].draw; return CAT[m.id].cat == 'utility' ? d : d * (m.size || 1) * (m.grade == 'A' ? 1.2 : 1) }
+function drawOf(m) { const d = CAT[m.id].draw; return CAT[m.id].cat == 'utility' ? d : d * (m.size || 1) * (m.grade == 'A' ? 1.2 : m.grade == 'P' ? 1.1 : 1) }
 /* the price of a module, in SU */
 function price(m) {
 	const c = CAT[m.id]; if (!c) return 0;
@@ -165,7 +168,7 @@ function stocks(port) {
 /* the modules on offer for a slot: [{id, size, grade, price}] */
 function offers(ship, slot, port) {
 	const L = layout(ship), st = stocks(port), out = [];
-	const add = (id, size) => { for (const gr of CAT[id].grades) if (st.grades.includes(gr) && !CAT[id].ruins && (size || 1) <= st.maxSize + (id == 'cargo' ? 1 : 0)) out.push({id, size, grade: gr, price: price({id, size, grade: gr})}) };
+	const add = (id, size) => { for (const gr of CAT[id].grades) if (st.grades.includes(gr) && !CAT[id].ruins && !CAT[id].precursor && (size || 1) <= st.maxSize + (id == 'cargo' ? 1 : 0)) out.push({id, size, grade: gr, price: price({id, size, grade: gr})}) };
 	if (slot.cat == 'core') add(slot.key, L.coreSize);
 	else if (slot.cat == 'internal') { const cap = L.internal[slot.i]; for (const id of Object.keys(CAT).filter(k => CAT[k].cat == 'internal')) { const [a, b] = CAT[id].sizes; for (let s = a; s <= Math.min(b, cap); s++) add(id, s) } }
 	else if (slot.cat == 'external') { const cap = L.external[slot.i]; for (const id of Object.keys(CAT).filter(k => CAT[k].cat == 'external')) if (CAT[id].sizes[0] <= cap) add(id, CAT[id].sizes[0]) }
@@ -201,21 +204,43 @@ const extra = (ship, fit) => Math.max(0, modules(fit).reduce((t, m) => t + price
 /* what building one takes: goods from the hold, and the broker's fee in SU */
 const RECIPES = {
 	alien: size => ({goods: {Artefacts: 3 * size, Beryllium: 2 * size, Electronics: size}, fee: 60000 * size}),
-	phaser: () => ({goods: {Artefacts: 12, Uranium: 6, Diamond: 2, Electronics: 4}, fee: 250000})};
-const BLUEPRINT = {alien: 'Alien relay booster', phaser: 'Alien dimensional phaser'};
+	phaser: () => ({goods: {Artefacts: 12, Uranium: 6, Diamond: 2, Electronics: 4}, fee: 250000}),
+	/* Precursor work: the Rift's goods with this side's (so it takes both galaxies to build) */
+	precursor: (size, mod) => ({goods: {'Precursor Relics': 1 + Math.ceil(size / 2), Nullite: 3 * size, Voidglass: size, Titanium: 4 * size, Electronics: 2 * size, ...(mod == 'lance' || mod == 'hyperdrive' ? {Aetherium: 2 * size} : {})}, fee: 120000 * size}),
+	hull: (size, hull) => { const h = PRECURSOR_HULLS().find(x => x.id == hull), z = h ? SIZE[h.size] : 3; return {goods: {'Precursor Relics': 4 * z, Nullite: 20 * z, Voidglass: 8 * z, Aetherium: 6 * z, Titanium: 30 * z, Electronics: 12 * z, Diamond: 3 * z}, fee: Math.round((h ? h.value : 1e6) * 0.5)} }};
+const BLUEPRINT = {alien: 'Alien relay booster', phaser: 'Alien dimensional phaser', precursor: 'Precursor', hull: 'Precursor hull'};
+const PRECURSOR_HULLS = () => S.precursors ? S.precursors() : [];
+/* what a Precursor blueprint makes: a module (core ones are built at your hull's size, at the broker) */
+const PRECURSOR_MODS = ['power', 'thrusters', 'maneuver', 'hyperdrive', 'shield', 'armour', 'relay', 'needle', 'lance'];
+const bpName = bp => bp.id == 'hull' ? (PRECURSOR_HULLS().find(h => h.id == bp.hull) || {name: '?'}).name + ' (Precursor hull)' : bp.id == 'precursor' ? 'Precursor ' + CAT[bp.mod].name.toLowerCase().replace(/^precursor /, '') + (CAT[bp.mod].cat == 'internal' ? ' ' + bp.size + 'P' : '') : BLUEPRINT[bp.id] + (bp.id == 'alien' ? ' ' + bp.size + 'A' : '');
+const recipe = bp => bp.id == 'hull' ? RECIPES.hull(0, bp.hull) : bp.id == 'precursor' ? RECIPES.precursor(bp.size || 4, bp.mod) : RECIPES[bp.id](bp.size);
+/* a Precursor ruin's survey: a blueprint more often than not. A hull now and then (10%), a weapon (15%), or a
+   module (45%) */
+function precursorFrom(rnd) {
+	const r = rnd();
+	if (r < 0.1) { const H = PRECURSOR_HULLS(); return H.length ? {id: 'hull', hull: H[Math.floor(rnd() * H.length)].id, size: 0} : null }
+	if (r < 0.25) return rnd() < 0.6 ? {id: 'precursor', mod: 'needle', size: 1} : {id: 'precursor', mod: 'lance', size: 3};
+	if (r < 0.7) { const mod = PRECURSOR_MODS.slice(0, 7)[Math.floor(rnd() * 7)], c = CAT[mod]; return {id: 'precursor', mod, size: c.cat == 'core' ? 0 : c.sizes[0] + Math.floor(rnd() * (Math.min(c.sizes[1], 6) - c.sizes[0] + 1))} }
+	return null;
+}
 /* a ruin's survey turns up a blueprint now and then: a relay booster (30%) or a phaser (15%) */
 function blueprintFrom(rnd) { const r = rnd(); return r < 0.15 ? {id: 'phaser', size: 3} : r < 0.45 ? {id: 'alien', size: 2 + Math.floor(rnd() * 3)} : null }
 /* a blueprint found: it's a material, used up when the module is built (recycling the module gives it back) */
-function learn(P, bp) { (P.blueprints = P.blueprints || []).push({id: bp.id, size: bp.size}); return true }
+function learn(P, bp) { const b = {id: bp.id, size: bp.size || 0}; if (bp.mod) b.mod = bp.mod; if (bp.hull) b.hull = bp.hull; (P.blueprints = P.blueprints || []).push(b); return true }
 /* the artifact broker builds one: the blueprint and the goods come from the hold, the fee in the local coin; the
    module goes to storage. pay(feeSU) pays it (trade.js), and returns {ok, code, amount} */
-function build(P, bp, pay) {
-	const rc = RECIPES[bp.id](bp.size), short = Object.entries(rc.goods).filter(([g, t]) => (P.cargo[g] || 0) < t);
+function build(P, bp, pay, ctx) {
+	ctx = ctx || {};
+	/* a core module is made to fit the hull you're flying; a hull must take your cargo */
+	if (bp.id == 'precursor' && CAT[bp.mod].cat == 'core' && !ctx.coreSize) return {ok: false, why: 'Bring the ship it\'s for: core modules are made to its size.'};
+	if (bp.id == 'hull') { const h = PRECURSOR_HULLS().find(x => x.id == bp.hull); if (!h) return {ok: false, why: 'Unknown hull.'}; if (ctx.held != null && ctx.held - Object.values(recipe(bp).goods).reduce((t, x) => t + x, 0) > derive(h).cargo) return {ok: false, why: 'Your cargo won\'t fit the ' + h.name + '\'s hold.'} }
+	const rc = recipe(bp), short = Object.entries(rc.goods).filter(([g, t]) => (P.cargo[g] || 0) < t);
 	if (short.length) return {ok: false, why: 'Needs ' + short.map(([g, t]) => t + ' t ' + g).join(', ') + ' in the hold.'};
 	const p = pay(rc.fee); if (!p.ok) return {ok: false, why: 'The broker\'s fee is ' + rc.fee.toLocaleString('en') + ' SU in ' + p.code + '.'};
 	for (const [g, t] of Object.entries(rc.goods)) { P.cargo[g] -= t; if (!P.cargo[g]) { delete P.cargo[g]; delete P.cost[g] } }
 	const i = (P.blueprints || []).indexOf(bp); if (i >= 0) P.blueprints.splice(i, 1);
-	const m = {id: bp.id, size: bp.size, grade: 'A'};
+	if (bp.id == 'hull') return {ok: true, hull: bp.hull, paid: p};
+	const m = bp.id == 'precursor' ? {id: bp.mod, size: CAT[bp.mod].cat == 'core' ? ctx.coreSize : CAT[bp.mod].cat == 'external' ? CAT[bp.mod].sizes[0] : bp.size, grade: 'P'} : {id: bp.id, size: bp.size, grade: 'A'};
 	(P.stored = P.stored || []).push(m);
 	return {ok: true, module: m, paid: p};
 }
@@ -227,6 +252,8 @@ const RECYCLE = {perStation: 3, days: 7, share: 0.5};
 function materials(m) {
 	const c = CAT[m.id]; if (!c) return {goods: {}};
 	if (c.ruins) { const rc = RECIPES[m.id](m.size), goods = {}; for (const [g, t] of Object.entries(rc.goods)) goods[g] = Math.floor(t * RECYCLE.share); return {goods, blueprint: {id: m.id, size: m.size}} }
+	/* Precursor work gives its blueprint back too */
+	if (m.grade == 'P') { const bp = {id: 'precursor', mod: m.id, size: c.cat == 'core' ? 0 : m.size}, rc = recipe(bp), goods = {}; for (const [g, t] of Object.entries(rc.goods)) goods[g] = Math.floor(t * RECYCLE.share); return {goods, blueprint: bp} }
 	const z = m.size || 1, k = {C: 1, B: 1.5, A: 2}[m.grade] || 1, goods = {};
 	const add = (g, t) => { t = Math.floor(t); if (t > 0) goods[g] = (goods[g] || 0) + t };
 	if (c.cat == 'utility') { add('Electronics', 1 * k); add('Aluminum', 1) }
@@ -288,6 +315,6 @@ function valid(ship, fit) {
 	} catch (e) { return false }
 }
 
-const EmberOutfit = {RECYCLE, materials, recycleRoom, recycle, RECIPES, BLUEPRINT, blueprintFrom, learn, build, broker, SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
+const EmberOutfit = {PRECURSOR_MODS, precursorFrom, bpName, recipe, RECYCLE, materials, recycleRoom, recycle, RECIPES, BLUEPRINT, blueprintFrom, learn, build, broker, SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
 if (isNode) module.exports = EmberOutfit; else root.EmberOutfit = EmberOutfit;
 })(typeof window != 'undefined' ? window : this);

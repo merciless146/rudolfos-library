@@ -23,7 +23,7 @@ const YARD = {trefoil: 'S', bloom: 'S', lantern: 'M', halo: 'Capital'};
 
 /* a new player from their origin (reputation.js), with an empty hold */
 function newPlayer(originId) { const P = R.newPlayer(originId); P.cargo = {}; P.cost = {}; return P }
-const shipOf = id => S.ships().find(s => s.id == id);
+const shipOf = id => S.hull(id);
 const held = P => Object.values(P.cargo || {}).reduce((t, q) => t + q, 0);
 const free = (P, ship) => Math.max(0, ship.cargo - held(P));
 const rate = (code, day) => code == 'SU' ? 1 : E.rate(code, day);
@@ -57,7 +57,7 @@ function receive(P, amount, code, day) {
 /* ---- the market ---- */
 /* how many tonnes you could buy: the hold's free space and what you can pay */
 function canBuy(P, ship, mkt, good, day) {
-	const q = mkt.prices[good]; if (!q) return 0;
+	const q = mkt.prices[good]; if (!q || q.none) return 0;
 	const space = free(P, ship); if (space <= 0) return 0;
 	let money;
 	if (mkt.currency != 'SU') money = (P.wallet[mkt.currency] || 0) / q.price;
@@ -66,6 +66,7 @@ function canBuy(P, ship, mkt, good, day) {
 }
 function buy(P, ship, mkt, good, qty, day) {
 	const q = mkt.prices[good]; if (!q) return {ok: false, why: 'good'};
+	if (q.none) return {ok: false, why: 'none'};   /* none for sale here (the Rift's goods, this side of the Maw) */
 	qty = Math.floor(qty);
 	if (qty <= 0) return {ok: false, why: 'qty'};
 	if (qty > free(P, ship)) return {ok: false, why: 'hold', free: free(P, ship)};
@@ -115,6 +116,7 @@ function rebuyCost(P, ship, day) { const c = origin(P).currency.code; return {co
 /* ---- shipyards ---- */
 /* what a yard of this port class sells here today: never an enemy's designs */
 function yard(portCls, star, day) {
+	if (star && star.rift) return [];   /* the Rift's anchorages build nothing */
 	const max = SIZE_ORDER.indexOf(YARD[portCls] || 'S');   /* sizes it doesn't know, it doesn't sell */
 	return S.ships().filter(s => { const k = SIZE_ORDER.indexOf(s.size); return k >= 0 && k <= max }).map(s => ({ship: s, price: S.price(s.id, star, day)})).filter(x => x.price);
 }

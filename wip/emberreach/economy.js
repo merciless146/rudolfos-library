@@ -20,7 +20,10 @@ const {rng, hashStr} = G;
 /* goods: base value in SU per unit. The WOS resource set, then food, fuel and made goods */
 const GOODS = {
 	Iron: 4, Copper: 6, Coal: 3, Lead: 5, Aluminum: 7, Titanium: 14, Uranium: 30, Beryllium: 22, Jade: 40, Gold: 60, Diamond: 90,
-	Food: 8, Water: 2, Fuel: 10, Medicine: 45, Munitions: 35, Machinery: 55, Electronics: 70, Artefacts: 400};
+	Food: 8, Water: 2, Fuel: 10, Medicine: 45, Munitions: 35, Machinery: 55, Electronics: 70, Artefacts: 400,
+	/* found only in the Rift (galaxy.js): mined there, or taken from the Precursors' ruins */
+	Nullite: 180, Voidglass: 320, Aetherium: 260, 'Precursor Relics': 1500};
+const RIFT_GOODS = ['Nullite', 'Voidglass', 'Aetherium', 'Precursor Relics'];
 /* the basket that defines one SU: its cost at base values is exactly 1 */
 const BASKET = (() => { const q = {Iron: 10, Copper: 5, Food: 10, Water: 20, Fuel: 5, Machinery: 1, Electronics: 1}; let c = 0; for (const g in q) c += q[g] * GOODS[g]; for (const g in q) q[g] /= c; return q })();
 const MINED = ['Iron', 'Copper', 'Coal', 'Lead', 'Aluminum', 'Titanium', 'Uranium', 'Beryllium', 'Jade', 'Gold', 'Diamond'];
@@ -74,7 +77,7 @@ const ECON = {extraction: {makes: 'res', uses: ['Food', 'Machinery', 'Water']}, 
 	hightech: {makes: ['Electronics', 'Medicine'], uses: ['Beryllium', 'Gold']}, military: {makes: ['Munitions'], uses: ['Food', 'Fuel', 'Medicine']},
 	tourism: {makes: [], uses: ['Food', 'Medicine', 'Artefacts']}, contraband: {makes: [], uses: []}};
 function market(star, day, ctx) {
-	const sy = G.system(star), claim = F.claimAt([star.x, star.y, star.z]), r = rng(hashStr('market:' + star.id));
+	const sy = G.system(star), claim = star.rift || star.heart ? {owner: null, contested: null} : F.claimAt([star.x, star.y, star.z]), r = rng(hashStr('market:' + star.id));
 	/* a contested system trades in the currency of whichever side holds its part of the front today (the nearest key
 	   system); while that is being fought over, nobody's */
 	let holder = claim.owner;
@@ -100,11 +103,16 @@ function market(star, day, ctx) {
 		if (made[g]) f *= 1 - 0.35 * Math.min(1, made[g]);
 		if (used[g]) f *= 1 + 0.3 * Math.min(1, used[g]);
 		const su = base * f;
-		prices[g] = {su, price: code ? su * rate(code, day, ctx) : su, buy: !!have[g] || !!used[g] || r() < 0.5};
+		let buy = !!have[g] || !!used[g] || r() < 0.5, none = false;
+		/* the Rift's goods: nobody this side has any to sell, and everyone buys them at a premium; the Rift's own
+		   anchorages pay half and sell what's mined around them */
+		if (RIFT_GOODS.includes(g)) { if (star.rift) { f *= 0.5; buy = true; none = !have[g] } else { f *= 1.25; buy = true; none = true } }
+		const su2 = base * f;
+		prices[g] = {su: su2, price: code ? su2 * rate(code, day, ctx) : su2, buy, none};
 	}
 	return {star: star.id, holder, contested: claim.contested, currency: code || 'SU', prices};
 }
 
-const EmberEconomy = {ECON, registerScrip, GOODS, BASKET, basketCost, rate, crossRate, exchange, exchangeAnywhere, market};
+const EmberEconomy = {RIFT_GOODS, ECON, registerScrip, GOODS, BASKET, basketCost, rate, crossRate, exchange, exchangeAnywhere, market};
 if (isNode) module.exports = EmberEconomy; else root.EmberEconomy = EmberEconomy;
 })(typeof window != 'undefined' ? window : this);

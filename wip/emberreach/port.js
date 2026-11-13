@@ -53,7 +53,7 @@ const rel = id => !id ? 0 : id == P().origin ? 1 : F.relation(P().origin, id);
 function render() {
 	const pl = P(), ship = env.ship, cur = here(), o = holder() ? F.byId(holder()) : null;
 	const fuelCost = Tr.refuelCost(ship, env.fuel(), mkt), repCost = Tr.repairCost(ship, env.fit, mkt, env.day, hull()), stock = restockCost();
-	const top = '<header class="pt-top"><div class="pt-name"><b>' + esc(env.stationName) + '</b><span>' + esc(o ? o.name.replace(/^The /, '') : 'free traders') + (mkt.contested ? ' · contested' : '') + '</span></div><div class="pt-stats">'
+	const top = '<header class="pt-top"><div class="pt-name"><b>' + esc(env.stationName) + '</b><span>' + esc(o ? o.name.replace(/^The /, '') : env.port.anchorage ? 'Precursor anchorage · the Rift' : 'free traders') + (mkt.contested ? ' · contested' : '') + '</span></div><div class="pt-stats">'
 		+ stat('Day', Math.floor(env.day)) + (cur != 'SU' ? stat(o.currency.name.split(' ').pop(), E.rate(cur, env.day).toFixed(3) + ' ' + cur + '/SU') : stat('Trade', 'SU, via free traders'))
 		+ stat('Cargo', Tr.held(pl) + '/' + ship.cargo + ' t') + stat('Legal', pl.bounties && Object.keys(pl.bounties).length ? 'Wanted' : 'Clean')
 		+ stat('Wallet', cur != 'SU' ? money(pl.wallet[cur] || 0, cur) : fmt(Tr.walletSU(pl, env.day)) + ' SU in all', true) + '</div></header>';
@@ -99,7 +99,7 @@ function body() {
 function station() {
 	const st = env.star, sy = G.system(st), o = holder() ? F.byId(holder()) : null, me = P();
 	const rows = [['Star', (st.cls || st.kind) + ' class · ' + st.M.toFixed(2) + ' suns'], ['Port', (env.port.capital ? 'Capital · ' : '') + env.stationName], ['From the centre', fmt(G.mRad(st.x, st.y, st.z)) + ' pc'],
-		['Holder', o ? o.name.replace(/^The /, '') + (mkt.contested ? ' (contested)' : '') : 'nobody: free traders'], ['Your standing', o ? R.tier(me.rep[o.id] || 0) + ' (' + Math.round(me.rep[o.id] || 0) + ')' : '—']];
+		['Holder', o ? o.name.replace(/^The /, '') + (mkt.contested ? ' (contested)' : '') : env.port.anchorage ? 'nobody: an old Precursor dock, still working' : 'nobody: free traders'], ['Your standing', o ? R.tier(me.rep[o.id] || 0) + ' (' + Math.round(me.rep[o.id] || 0) + ')' : '—']];
 	const allies = o ? F.majors().filter(m => m.id != o.id && F.relation(o.id, m.id) > 0) : [], enemies = o ? F.majors().filter(m => F.relation(o.id, m.id) < 0) : [];
 	const rc = m => rel(m.id) < 0 ? ' class="bad"' : rel(m.id) > 0 ? ' class="good"' : '';
 	return h1('Station', o ? (env.port.capital ? 'The ' + o.name.replace(/^The /, '') + '\'s capital' : 'A port of the ' + o.name.replace(/^The /, '')) : '')
@@ -113,13 +113,13 @@ function market() {
 	const rows = goods.map(k => { const x = mkt.prices[k], h = me.cargo[k] || 0; return '<button class="pt-row' + (k == g ? ' on' : '') + '" data-good="' + k + '"><span>' + k + '</span><span class="num">' + fmt(x.price, 1) + '</span><span class="num muted">' + fmt(x.su, 1) + '</span><span class="num">' + (x.buy ? 'Yes' : 'No') + '</span><span class="num">' + (h || '') + '</span><span class="num muted">' + (h && me.cost[k] ? fmt(me.cost[k], 1) : '') + '</span></button>' }).join('');
 	const profit = have && me.cost[g] ? (q.su - me.cost[g]) * have : null;
 	const noMoney = cur != 'SU' && !(me.wallet[cur] > 0);
-	return h1('Market', cur != 'SU' ? 'Prices in ' + cur + '; SU = standard units' : 'Fought over: free traders deal in SU, taking your coin at an 8% cut')
+	return h1('Market', cur != 'SU' ? 'Prices in ' + cur + '; SU = standard units' : env.port.anchorage ? 'The anchorage trades in SU with whoever comes, taking your coin at an 8% cut; the Rift\'s goods fetch half what they do across the Maw' : 'Fought over: free traders deal in SU, taking your coin at an 8% cut')
 		+ '<div class="pt-split"><section class="pt-card pt-table" role="list"><div class="pt-thead"><span>Good</span><span class="num">Price ' + cur + '</span><span class="num">Value SU</span><span class="num">Buys</span><span class="num">Held</span><span class="num">Paid SU</span></div>' + rows + '</section>'
 		+ '<aside class="pt-card pt-side"><span class="pt-label">Selected</span><div class="pt-big">' + g + '</div><dl><dt>Price</dt><dd>' + fmt(q.price, 1) + ' ' + cur + '/t</dd><dt>Value</dt><dd>' + fmt(q.su, 1) + ' SU</dd><dt>Station buys</dt><dd>' + (q.buy ? 'Yes' : 'No') + '</dd><dt>In your hold</dt><dd>' + have + ' t</dd><dt>Free space</dt><dd>' + Tr.free(me, env.ship) + ' t</dd>'
 		+ (profit != null ? '<dt>If sold here</dt><dd class="' + (profit >= 0 ? 'good' : 'bad') + '">' + (profit >= 0 ? '+' : '') + fmt(profit) + ' SU</dd>' : '') + '</dl>'
 		+ '<div class="pt-btns"><button class="pt-primary" data-act="buy" data-n="1"' + (can < 1 ? ' disabled' : '') + '>Buy 1 t</button><button class="pt-primary" data-act="buy" data-n="max"' + (can < 1 ? ' disabled' : '') + '>' + (can > 1 ? 'Buy ' + can + ' t' : 'Buy the most') + '</button>'
 		+ '<button class="pt-ghost" data-act="sell" data-n="1"' + (!q.buy || !have ? ' disabled' : '') + '>Sell 1 t</button><button class="pt-ghost" data-act="sell" data-n="all"' + (!q.buy || !have ? ' disabled' : '') + '>Sell all</button></div>'
-		+ '<p class="muted small">' + (noMoney ? 'You hold no ' + cur + ': change money at Contacts (F7).' : !q.buy ? 'This port doesn\'t buy ' + g.toLowerCase() + '.' : Tr.free(me, env.ship) <= 0 ? 'The hold is full.' : 'Prices follow the ' + (cur == 'SU' ? 'day' : cur + ' rate') + ', local supply and the season.') + '</p></aside></div>';
+		+ '<p class="muted small">' + (noMoney ? 'You hold no ' + cur + ': change money at Contacts (F7).' : !q.buy ? 'This port doesn\'t buy ' + g.toLowerCase() + '.' : Tr.free(me, env.ship) <= 0 ? 'The hold is full.' : (q.none ? (env.star.rift ? 'None mined near here to sell. ' : 'Found only in the Rift: nobody this side has any to sell. ') : '') + 'Prices follow the ' + (cur == 'SU' ? 'day' : cur + ' rate') + ', local supply and the season.') + '</p></aside></div>';
 }
 /* the war office's contracts: take one, do it in its system within 10 days, and be paid (up to three at once) */
 const pc = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -151,9 +151,9 @@ function carto() {
 function broker() {
 	const me = P(), bps = me.blueprints || [];
 	if (!O.broker(env.port)) return '<section class="pt-card"><h2>Artifact broker</h2><p class="muted small">No broker keeps shop at a port this small: try a lantern, bloom or halo.</p></section>';
-	const rows = bps.map((bp, j) => { const rc = O.RECIPES[bp.id](bp.size), have = Object.entries(rc.goods).every(([g, t]) => (me.cargo[g] || 0) >= t);
-		return '<div class="pt-claim"><div><b>' + esc(O.BLUEPRINT[bp.id]) + (bp.id == 'alien' ? ' ' + bp.size + 'A' : '') + '</b><span class="muted small">' + Object.entries(rc.goods).map(([g, t]) => t + ' t ' + g + ((me.cargo[g] || 0) >= t ? '' : ' (have ' + (me.cargo[g] || 0) + ')')).join(', ') + '</span></div><button class="pt-primary" data-act="bpbuild" data-j="' + j + '"' + (have ? '' : ' disabled') + '>Build · ' + money(rc.fee * rateHere(), here()) + '</button></div>' }).join('');
-	return '<section class="pt-card"><h2>Artifact broker</h2>' + (rows || '<p class="muted small">Bring a blueprint from a ruin (surveying one sometimes turns one up) and the goods it calls for, and the broker builds the module.</p>') + '<p class="muted small">The blueprint goes into the build. Recycle the module (at the outfitter) to get it back with half the goods.</p></section>';
+	const rows = bps.map((bp, j) => { const rc = O.recipe(bp), have = Object.entries(rc.goods).every(([g, t]) => (me.cargo[g] || 0) >= t);
+		return '<div class="pt-claim"><div><b>' + esc(O.bpName(bp)) + '</b><span class="muted small">' + Object.entries(rc.goods).map(([g, t]) => t + ' t ' + g + ((me.cargo[g] || 0) >= t ? '' : ' (have ' + (me.cargo[g] || 0) + ')')).join(', ') + '</span></div><button class="pt-primary" data-act="bpbuild" data-j="' + j + '"' + (have ? '' : ' disabled') + '>Build · ' + money(rc.fee * rateHere(), here()) + '</button></div>' }).join('');
+	return '<section class="pt-card"><h2>Artifact broker</h2>' + (rows || '<p class="muted small">Bring a blueprint from a ruin (surveying one sometimes turns one up) and the goods it calls for, and the broker builds the module.</p>') + '<p class="muted small">The blueprint goes into the build. Recycle the module (at the outfitter) to get it back with half the goods. Precursor blueprints come from the Rift\'s ruins and call for its goods as well as this side\'s; a Precursor core module is made to your hull\'s size, and a Precursor hull takes your ship in part-exchange.</p></section>';
 }
 /* the colonial office: your colonies, haulage, and the planner */
 const STAGE = {claimed: 'Claimed: drop the beacon', building: 'Building', done: 'Built', lapsed: 'Lapsed (salvage)', lost: 'Lost'};
@@ -351,7 +351,16 @@ function click(e) {
 	if (act == 'rename') { const k = t.dataset.k, r = X.rename(me, k, naming[k] || ''); env.say(r.ok ? 'Named: ' + r.name + '. The name goes in the charts.' : r.why); env.cue(r.ok ? 'clearance' : 'refused'); if (r.ok) delete naming[k] }
 	if (act == 'claim') { const st = Co.candidates(me, {star: env.star, owner: holder()}, d, env.ship.jump || 0, 10).find(x => x.id == colSel), r = st ? Co.claim(me, {star: env.star, owner: holder()}, st, t.dataset.k, d, env.ship.jump || 0) : {ok: false, why: 'Pick a system.'}; env.say(r.ok ? 'Claim filed on ' + st.name + ': fly there by day ' + r.colony.beaconBy + ' and press N near ' + r.colony.world + ' to drop the beacon.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	if (act && act.startsWith('of')) { outfitAct(act, t, me, d); }
-	if (act == 'bpbuild') { const bp = (me.blueprints || [])[+t.dataset.j], r = bp ? O.build(me, bp, fee => Tr.pay(me, fee * rateHere(), here(), d)) : {ok: false, why: 'No such blueprint.'}; env.say(r.ok ? 'The broker built ' + O.BLUEPRINT[bp.id] + ': it\'s in storage, ready to fit at the outfitter.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
+	if (act == 'bpbuild') {
+		const bp = (me.blueprints || [])[+t.dataset.j], r = bp ? O.build(me, bp, fee => Tr.pay(me, fee * rateHere(), here(), d), {coreSize: O.layout(env.hullShip).coreSize, held: Tr.held(me)}) : {ok: false, why: 'No such blueprint.'};
+		if (r.ok && r.hull) {
+			/* a Precursor hull: your ship (and what's fitted beyond stock) goes in part-exchange */
+			const ti = Tr.tradeIn(env.hullShip, env.star, d), extra = O.extra(env.hullShip, me.ship.fit);
+			Tr.receive(me, ti.amount, ti.currency, d); if (extra > 0) Tr.receive(me, extra * 0.8 * rateHere(), here(), d);
+			me.ship.model = r.hull; env.onShip(r.hull);
+			env.say('The broker built the ' + env.ship.name + ', a Precursor hull: your old ship went in part-exchange (' + fmt(ti.amount) + ' ' + ti.currency + ').'); env.cue('docked');
+		} else { env.say(r.ok ? 'The broker built the ' + O.bpName(bp) + ': it\'s in storage, ready to fit at the outfitter.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
+	}
 	if (act == 'purge') { delete (me.refinery || {})[t.dataset.g]; env.say('Emptied the ' + t.dataset.g + ' bin'); env.cue('tick') }
 	if (act == 'claimi') { const st = Co.candidates(me, {star: env.star, owner: holder()}, d, env.ship.jump || 0, 10).find(x => x.id == colSel), r = st ? Co.claim(me, {star: env.star, owner: holder()}, st, t.dataset.k, d, env.ship.jump || 0, true) : {ok: false, why: 'Pick a system.'}; env.say(r.ok ? 'Independent claim filed on ' + st.name + ' (scrip ' + r.colony.scrip + '): drop the beacon by day ' + r.colony.beaconBy + ' near ' + r.colony.world + '.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	if (act == 'rent') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = c ? Co.rent(me, c, t.dataset.m, d, here()) : {ok: false, why: 'No such colony.'}; env.say(r.ok ? r.carrier.name + ' will park at ' + c.star.name + ' until day ' + r.carrier.until : r.why); env.cue(r.ok ? 'clearance' : 'refused') }

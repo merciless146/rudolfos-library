@@ -35,7 +35,8 @@ function charted(star, planet, port) {
 	return !!(c.owner || c.contested);
 }
 /* what a planet's survey is worth, in SU (before the first-discovery bonus) */
-function worth(p) { return (EXPLORE.value[p.type] || 100) * (1 + p.esi) + (p.alive ? EXPLORE.life : 0) + (p.ruins ? EXPLORE.ruin : 0) }
+/* (the Rift's worlds: twice as much; a Precursor ruin three times a ruin's) */
+function worth(p) { return ((EXPLORE.value[p.type] || 100) * (1 + p.esi) + (p.alive ? EXPLORE.life : 0) + (p.ruins ? EXPLORE.ruin * (p.precursor ? 3 : 1) : 0)) * (p.rift ? 2 : 1) }
 
 /* the sweep: a system charted. Returns true if it's new to you */
 function chartSystem(P, star, day) { const X = record(P); if (X.sys[star.id] != null) return false; X.sys[star.id] = Math.floor(day); return true }
@@ -68,9 +69,8 @@ const STARS = new Map();
 function starById(id) {
 	if (STARS.has(id)) return STARS.get(id);
 	/* ids are "sx,sy,sz/#n": the sector of 4 pc cubes (galaxy.js) */
-	const m = /^(-?\d+),(-?\d+),(-?\d+)\//.exec(id); if (!m) return null;
-	const S = G.SECTOR || 4, c = [+m[1], +m[2], +m[3]].map(v => (v + 0.5) * S);
-	const s = G.starsNear(c[0], c[1], c[2], S).find(x => x.id == id) || null;
+	/* (the id names the star's cell; a Rift star's is its normal self's, after "R:") */
+	const s = G.lookup(id, null);
 	STARS.set(id, s); return s;
 }
 /* sell everything to a port's cartographers: pays in its currency (SU at free traders); pleases its holder */

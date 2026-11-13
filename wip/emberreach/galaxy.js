@@ -147,7 +147,7 @@ function cellStars(leaf) {
 /* LEGACY: the galaxy as it was before the class mix and the habitability rules (the great powers, the Drake
    equation and the ruins are measured on it, so they stay where they were) */
 let LEGACY = false;
-function legacy(fn) { const was = LEGACY; LEGACY = true; try { return fn() } finally { LEGACY = was } }
+function legacy(fn) { const was = LEGACY; LEGACY = true; try { return fn() } finally { LEGACY = was } }   /* (LEGACY looks only in the normal galaxy, without the Heart) */
 let CAPS = null;
 const capitalIds = () => CAPS || (CAPS = new Set(legacy(() => civilizations()).map(c => c.star.id)));
 /* one star, from its id and place */
@@ -175,10 +175,53 @@ function star(id, x, y, z) {
 	return Object.assign({id, x, y, z, m, age: born, M0, FeH, companion: born < 1e8 ? null : companion, name: starName(hashStr('name:' + id))}, s);
 }
 function starsNear(x, y, z, R) {
-	const out = [];
-	forLeaves(x - R, y - R, z - R, x + R, y + R, z + R, leaf => { for (const s of cellStars(leaf)) { const d = Math.hypot(s.x - x, s.y - y, s.z - z); if (d <= R) { s.d = d; out.push(s) } } });
+	const out = [], rift = REALM == 'rift' && !LEGACY, zq = rift ? -z : z;
+	forLeaves(x - R, y - R, zq - R, x + R, y + R, zq + R, leaf => { for (const s0 of cellStars(leaf)) { const s = rift ? riftOf(s0) : s0, d = Math.hypot(s.x - x, s.y - y, s.z - z); if (d <= R) { s.d = d; out.push(s) } } });
+	/* the black hole at the centre: a place of its own (not in the old measures the great powers were set by) */
+	if (!LEGACY && !HEARTLESS) { const d = Math.hypot(x, y, z); if (d <= R) out.push(Object.assign({}, rift ? RIFT_HEART : HEART, {d})) }
 	return out.sort((a, b) => a.d - b.d);
 }
+
+/* ---------- the Heart, and the Rift ----------
+   The black hole at the centre (the Maw) is a wormhole like the others, but it leads to one place only: the Rift,
+   the galaxy upside down. Every star there is a star here turned over (its height above the galactic plane the
+   other way), the same in kind and age; but its worlds are its own (from a draw of their own), lifeless, and rich
+   in things found nowhere else: nullite, voidglass, aetherium, and the Precursors' relics in the ruins they left.
+   No great power reaches it. The Maw on the Rift side leads home. */
+const HEART = {id: 'heart', x: 0, y: 0, z: 0, m: 0, kind: 'black hole', cls: 'BH', M: GAL.MBH, L: 0, R: 0, T: 0, age: GAL.ageOld, M0: GAL.MBH, FeH: GAL.FeHCentre, companion: null, name: 'The Maw', heart: true};
+const RIFT_HEART = Object.assign({}, HEART, {id: 'R:heart', rift: true});
+let REALM = 'normal', HEARTLESS = false;
+/* which galaxy starsNear (and so the map, routes and everything near you) looks in */
+function realm(r) { if (r) REALM = r == 'rift' ? 'rift' : 'normal'; return REALM }
+function inRealm(r, fn) { const was = REALM; REALM = r; try { return fn() } finally { REALM = was } }
+/* the galaxy as the great powers and the small factions were laid out in: the normal one, without the Heart */
+function normal(fn) { const was = REALM, h = HEARTLESS; REALM = 'normal'; HEARTLESS = true; try { return fn() } finally { REALM = was; HEARTLESS = h } }
+/* a reversed name for the star's other self: Kaveth becomes Htevak */
+const rname = n => { const r = n.toLowerCase().split('').reverse().join(''); return r[0].toUpperCase() + r.slice(1) };
+function riftOf(s) {
+	if (s.rift) return s;
+	if (s.heart) return Object.assign({}, RIFT_HEART);
+	return Object.assign({}, s, {id: 'R:' + s.id, z: -s.z, rift: true, name: rname(s.name), companion: s.companion});
+}
+/* a star of the normal galaxy straight from its id: the id names its cell ("i,j,k/" and the octants it was split
+   into) and its place in the cell, so nothing else needs searching (the centre has millions within a few pc) */
+function byId(id) {
+	const m = /^(-?\d+),(-?\d+),(-?\d+)\/([0-7]*)#(\d+)$/.exec(id); if (!m) return null;
+	let x = +m[1] * GAL.cell, y = +m[2] * GAL.cell, z = +m[3] * GAL.cell, sz = GAL.cell;
+	for (const c of m[4]) { sz /= 2; x += (c & 1) * sz; y += (c >> 1 & 1) * sz; z += (c >> 2 & 1) * sz }
+	const leaf = {x, y, z, s: sz, lam: expectIn(x, y, z, sz), id: id.slice(0, id.indexOf('#'))};
+	return cellStars(leaf).find(s => s.id == id) || null;
+}
+/* any star from its id (and place, for ids of other shapes), in either galaxy (place: [x, y, z] as the star has it) */
+function lookup(id, p) {
+	if (id == 'heart') return Object.assign({}, HEART);
+	if (id == 'R:heart') return Object.assign({}, RIFT_HEART);
+	const rift = id.startsWith('R:'), base = rift ? id.slice(2) : id, q = p && (rift ? [p[0], p[1], -p[2]] : p);
+	const find = r => q ? inRealm('normal', () => starsNear(q[0], q[1], q[2], r).find(s => s.id == base)) : null;
+	const s = byId(base) || find(1e-3) || find(0.05);
+	return s ? (rift ? riftOf(s) : s) : null;
+}
+const RIFT = {ruins: 0.1, nullite: 0.4, voidglass: 0.15, aetherium: 0.5};
 
 /* ---------- names (made here; nothing from any other game) ---------- */
 const SY1 = ['ka', 've', 'tor', 'ish', 'ul', 'mar', 'sen', 'dra', 'oth', 'ny', 'cal', 'bre', 'ze', 'qua', 'lin', 'ro', 'fa', 'gem', 'hal', 'ix', 'jun', 'ast', 'pel', 'vor'];
@@ -233,6 +276,7 @@ function system(s) {
 	if (!skipRuins && rocky.length && r() < RUIN_CHANCE()) rocky[Math.floor(r() * rocky.length)].ruins = true;
 	if (LEGACY) return out;
 	finish(s, out.planets);
+	if (s.rift) riftWorlds(s, out.planets);
 	/* a companion star's own worlds (S-type orbits, well inside the pair's separation) */
 	const c = s.companion;
 	if (c && c.kind == 'star') {
@@ -243,6 +287,7 @@ function system(s) {
 			let aB = (0.025 + rB() * 0.05) * Math.cbrt(Math.max(B.M, 0.1));
 			for (let i = 0; i < kB && aB < 2; i++) { if (i) aB *= 1.4 + rB() * 0.9; const p = planet(B, rB, i, aB, out.hzB, quietB, Z, snowB); p.name = B.name + ' ' + 'bcd'[i]; p.host = 'B'; list.push(p) }
 			finish(B, list);
+			if (s.rift) riftWorlds(B, list);
 			out.planets.push(...list);
 		}
 	}
@@ -301,6 +346,19 @@ function finish(s, planets) {
 			p.ringDensity = q() < (p.gas ? 0.45 : 0.3) ? 'dense' : 'moderate';
 		}
 	}
+}
+/* the Rift's worlds: nothing lives there, the old ruins are the Precursors' (in about one system in ten with a rocky
+   world), and the rocks and gas hold what the normal galaxy has none of */
+function riftWorlds(s, planets) {
+	const q = rng(hashStr('rift:' + s.id)), rocky = planets.filter(p => !p.gas);
+	for (const p of planets) {
+		p.rift = true; p.ruins = false;
+		if (p.alive || p.life) { p.alive = false; p.life = 0; if (['Forest', 'Terra', 'EarthLike'].includes(p.type)) p.type = 'Ocean' }
+		if (p.gas) { if (q() < RIFT.aetherium) p.res.push('Aetherium') }
+		else { if (q() < RIFT.nullite) p.res.push('Nullite'); if (q() < RIFT.voidglass) p.res.push('Voidglass') }
+		for (const m of p.moons || []) { m.rift = true; if (q() < RIFT.nullite / 2) m.res.push('Nullite') }
+	}
+	if (rocky.length && q() < RIFT.ruins) { const p = rocky[Math.floor(q() * rocky.length)]; p.ruins = true; p.precursor = true }
 }
 /* moons: gas giants have one to five, other big worlds (5 Earths and up) up to two; small and mostly airless
    (from Earth's Moon down), and now and then (4%, where it's cold enough to keep it) a thick, hazy air like Titan's */
@@ -460,6 +518,6 @@ function civilizations0() {
 	return CIVS;
 }
 
-const EmberGalaxy = {legacy, capitalIds, KGF, MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
+const EmberGalaxy = {HEART, RIFT_HEART, RIFT, realm, inRealm, normal, riftOf, lookup, byId, legacy, capitalIds, KGF, MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
 if (typeof module != 'undefined') module.exports = EmberGalaxy; else root.EmberGalaxy = EmberGalaxy;
 })(typeof window != 'undefined' ? window : this);
