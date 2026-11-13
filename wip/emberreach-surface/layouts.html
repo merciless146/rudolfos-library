@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ember Reach: surface ports (draft layouts and models)</title>
+<style>
+html,body{margin:0;background:#05060a;color:#d8dde8;font:13px/1.45 system-ui,sans-serif}
+header{padding:16px 18px 4px}h1{margin:0 0 4px;font-size:20px}header p{margin:0;color:#9aa6bb;max-width:900px}
+.row{display:flex;flex-wrap:wrap;gap:12px;padding:12px 14px}
+figure{margin:0;background:#0b0e16;border:1px solid #232a3a;border-radius:8px;padding:10px;width:612px}
+figcaption{padding:8px 2px 0;color:#9aa6bb}figcaption b{color:#fff}
+.pair{display:flex;gap:8px}canvas{display:block;background:#07090f;border-radius:4px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;padding:6px 18px 0;color:#9aa6bb}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+button{background:#141a28;color:#d8dde8;border:1px solid #2c3550;border-radius:6px;padding:4px 10px;font:inherit;cursor:pointer}
+</style>
+</head>
+<body>
+<header><h1>Surface ports: draft layouts and models</h1>
+<p>Each kind of surface port from <code>surface.js</code>, laid out from a seed: the plan from above (pads with their approach corridors, the dashed rings nothing may stand in at height, and the buildings), and the model from an oblique camera, drawn from the same meshes the game would use. <button id="reseed">New seeds</button></p></header>
+<div class="legend" id="legend"></div>
+<div class="row" id="row"></div>
+<script src="../../apps/rudolf-emberreach/www/wos-stats.js"></script>
+<script src="../../apps/rudolf-emberreach/www/galaxy.js"></script>
+<script src="../../apps/rudolf-emberreach/www/flight.js"></script>
+<script src="../../apps/rudolf-emberreach/www/meshes.js"></script>
+<script src="surface.js"></script>
+<script>
+'use strict';
+const S = EmberSurface, COLS = {hab: '#bdbdb5', silo: '#8f97a3', plant: '#7b828c', mast: '#5a5f68', tank: '#9aa1ab', pit: '#3a3632', solar: '#3d4350', hangar: '#757b85', dome: '#f2dca0', greenhouse: '#6fc76f', tower: '#a9b0ba', bunker: '#6d737c', turret: '#4b5058'};
+const PADC = {S: '#73ccff', M: '#ffbf4d', L: '#ff734d'};
+document.getElementById('legend').innerHTML = Object.entries(COLS).map(([k, c]) => '<span><i style="background:' + c + '"></i>' + k + '</span>').join('') + Object.entries(PADC).map(([k, c]) => '<span><i style="background:' + c + '"></i>pad ' + k + '</span>').join('');
+function plan(cv, L) {
+	const x = cv.getContext('2d'), W = cv.width, k = (W / 2 - 14) / L.radius, P = c => [W / 2 + c[0] * k, W / 2 - c[1] * k];
+	x.clearRect(0, 0, W, W); x.fillStyle = '#11141c'; x.beginPath(); x.arc(W / 2, W / 2, L.radius * k, 0, 7); x.fill();
+	x.strokeStyle = '#2a3142'; x.setLineDash([2, 4]); x.stroke(); x.setLineDash([]);
+	for (const p of L.pads) {
+		const [a, b] = P(p.c);
+		/* the corridor at the height of the tallest building (70 m): r + 70 × tan 35° */
+		x.strokeStyle = PADC[p.size] + '55'; x.setLineDash([4, 4]); x.beginPath(); x.arc(a, b, (p.r + 70 * S.CONE) * k, 0, 7); x.stroke(); x.setLineDash([]);
+		x.fillStyle = '#2b2f37'; x.beginPath(); x.arc(a, b, p.r * k, 0, 7); x.fill(); x.strokeStyle = PADC[p.size]; x.lineWidth = p.hangar ? 1 : 1.6; x.stroke(); x.lineWidth = 1;
+		x.fillStyle = PADC[p.size]; x.font = '600 10px ui-monospace,monospace'; x.textAlign = 'center'; x.fillText((p.hangar ? 'H' : '') + p.n, a, b + 3);
+	}
+	for (const bd of L.blds) {
+		if (bd.type == 'hangar' && L.pads.some(p => p.hangar && p.c[0] == bd.c[0] && p.c[1] == bd.c[1])) { const [a, b] = P(bd.c); x.strokeStyle = COLS.hangar; x.strokeRect(a - bd.r * k, b - bd.r * 0.8 * k, bd.r * 2 * k, bd.r * 1.6 * k); continue }
+		const [a, b] = P(bd.c); x.fillStyle = COLS[bd.type]; x.globalAlpha = bd.type == 'pit' ? 0.8 : 0.95;
+		if (['plant', 'hangar', 'solar'].includes(bd.type)) { x.save(); x.translate(a, b); x.rotate(-bd.rot); const h = bd.type == 'solar' ? 0.45 : bd.type == 'hangar' ? 0.8 : 0.6; x.fillRect(-bd.r * k, -bd.r * h * k, bd.r * 2 * k, bd.r * 2 * h * k); x.restore() }
+		else { x.beginPath(); x.arc(a, b, Math.max(1.5, bd.r * k), 0, 7); x.fill() }
+		x.globalAlpha = 1;
+	}
+	x.fillStyle = '#9aa6bb'; x.font = '11px system-ui'; x.textAlign = 'left'; const bar = 100 * k; x.fillRect(12, W - 14, bar, 2); x.fillText('100 m', 12, W - 18);
+}
+/* an oblique view: every triangle of the model, sorted far to near, lit by a low sun */
+function view(cv, L) {
+	const m = S.meshes(L), x = cv.getContext('2d'), W = cv.width, H = cv.height, az = 0.7, el = 0.62, sun = [0.55, -0.35, 0.76];
+	const ca = Math.cos(az), sa = Math.sin(az), ce = Math.cos(el), se = Math.sin(el), D = L.radius * 2.2, f = W * 1.5;
+	const cam = v => { const a = v[0] * ca - v[1] * sa, b = v[0] * sa + v[1] * ca; return [a, b * se + v[2] * ce, -b * ce + v[2] * se] };
+	const pr = v => { const c = cam(v), z = D - c[1] * 0 + c[2] * -1 + 0; const depth = D + (-c[2]); return [W / 2 + c[0] * f / depth, H * 0.58 - c[1] * f / depth, depth] };
+	x.fillStyle = '#07090f'; x.fillRect(0, 0, W, H);
+	/* the ground: a disc a little wider than the site */
+	const g = []; for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; g.push(pr([Math.cos(a) * L.radius * 1.15, Math.sin(a) * L.radius * 1.15, 0])) }
+	x.fillStyle = '#2a2724'; x.beginPath(); g.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.fill();
+	const T = [];
+	for (let i = 0; i < m.p.length; i += 9) {
+		const a = pr(m.p.slice(i, i + 3)), b = pr(m.p.slice(i + 3, i + 6)), c = pr(m.p.slice(i + 6, i + 9));
+		const n = m.n.slice(i, i + 3), col = m.c.slice(i / 9 * 12, i / 9 * 12 + 4), lit = Math.max(0, n[0] * sun[0] + n[1] * sun[1] + n[2] * sun[2]);
+		const k = col[3] >= 1 ? 1.15 : 0.22 + 0.85 * lit;
+		T.push({a, b, c, z: (a[2] + b[2] + c[2]) / 3, col: 'rgb(' + col.slice(0, 3).map(v => Math.min(255, Math.round(v * k * 255))).join(',') + ')'});
+	}
+	T.sort((p, q) => q.z - p.z);
+	for (const t of T) { x.fillStyle = x.strokeStyle = t.col; x.beginPath(); x.moveTo(t.a[0], t.a[1]); x.lineTo(t.b[0], t.b[1]); x.lineTo(t.c[0], t.c[1]); x.closePath(); x.fill(); x.lineWidth = 0.5; x.stroke() }
+	return m.count();
+}
+function draw(seed0) {
+	const row = document.getElementById('row'); row.innerHTML = '';
+	Object.keys(S.KIND).forEach((kind, i) => {
+		const K = S.KIND[kind], seed = (seed0 + i * 7919) >>> 0, L = S.layout(kind, seed), fig = document.createElement('figure');
+		fig.innerHTML = '<div class="pair"><canvas width="300" height="300"></canvas><canvas width="300" height="300"></canvas></div><figcaption></figcaption>';
+		row.appendChild(fig); const [a, b] = fig.querySelectorAll('canvas'); plan(a, L); const tris = view(b, L);
+		const pads = Object.entries(K.pads).map(([z, n]) => n + ' ' + z).join(', '), bad = S.check(L);
+		fig.querySelector('figcaption').innerHTML = '<b>' + K.name + '</b> · like a ' + K.tier + ' in space · ' + (K.radius * 2 / 1000).toFixed(1) + ' km across · pads: ' + pads + ' · ' + L.blds.length + ' buildings · ' + tris + ' triangles' + (bad.length ? ' · <span style="color:#ff8a7f">' + bad.length + ' rule breaks</span>' : '') + '<br>' + K.text;
+	});
+}
+let seed = 20261113; draw(seed); document.getElementById('reseed').onclick = () => draw(seed = (seed * 48271) % 2147483647);
+</script>
+</body>
+</html>

@@ -1079,7 +1079,8 @@ everything through M5b, and the Maw and the Rift from M6. The release brought th
 - **A browser test** (`tests/emberreach_t.js`) plays it in the desktop's sandboxed frame: a new game, the
   starport, flight, the map, a jump, pausing, the Rift, and resuming from the save.
 
-Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer.
+Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer. Landing on airless worlds and surface ports are planned in
+`docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).
 
 ## Open questions
 
