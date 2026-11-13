@@ -8,7 +8,7 @@ name: Publish the Library
 on:
   push:
     branches: [main]
-    paths: ['apps/**', 'lib/**', 'tools/**', 'keys.txt', 'site/**', '.github/workflows/publish.yml']
+    paths: ['apps/**', 'lib/**', 'tools/**', 'keys.txt', 'site/**', 'dev/**', 'revoked.txt', '.github/workflows/publish.yml']
   workflow_dispatch:
 permissions:
   contents: read

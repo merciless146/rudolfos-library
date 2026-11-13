@@ -17,6 +17,10 @@ for a in "$TOP"/apps/*/; do
 	# the corresponding source of compiled programs, published next to the package (GPL)
 	[ -d "$a/source" ] && for s in "$a"/source/*.tar.xz; do cp "$s" "$SITE/source/$n-$v-src.tar.xz"; done
 done
+# 1.5.9: the revocations go into the signed package list; the developers' certificates are published beside it
+[ -f "$TOP/revoked.txt" ] && cp "$TOP/revoked.txt" "$SITE/revoked.txt"
 python3 "$HERE/rpk-tool.py" index "$SITE" --key "$KEY" --serial "$SERIAL"
+rm -f "$SITE/revoked.txt"
+mkdir -p "$SITE/dev"; for c in "$TOP"/dev/*.cert; do [ -f "$c" ] && cp "$c" "$c.sig" "$SITE/dev/"; done
 python3 "$HERE/catalog.py" "$TOP/apps" "$SITE"
 cp "$TOP/keys.txt" "$SITE/keys.txt"

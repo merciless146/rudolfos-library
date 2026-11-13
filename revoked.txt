@@ -1,0 +1,1 @@
+# Revocations for the Rudolf OS Library (dev/README.md): "key PUBLICKEY" or "pkg NAME VERSION|*", one per line.

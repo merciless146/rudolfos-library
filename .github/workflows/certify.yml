@@ -1,0 +1,46 @@
+# Certify a developer (Rudolf OS 1.5.9, dev/README.md): the Library's key signs a developer's certificate, and a pull
+# request adds it to dev/ for review. Merging it publishes it with the Library. Needs the secret RPK_LIBRARY_KEY.
+name: Certify a developer
+on:
+  workflow_dispatch:
+    inputs:
+      name: {description: 'The developer''s name, as people will see it', required: true}
+      github: {description: 'Their GitHub account', required: true}
+      pubkey: {description: 'Their publisher key (the 44 characters of rpk-signing.pub)', required: true}
+      prefix: {description: 'The start of their apps'' names (3 or more characters, ending in -)', required: true}
+      days: {description: 'Valid for (days)', required: false, default: '365'}
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-cryptography
+      - name: Sign the certificate
+        env:
+          RPK_LIBRARY_KEY: '${{ secrets.RPK_LIBRARY_KEY }}'
+          NAME: '${{ inputs.name }}'
+          GH_USER: '${{ inputs.github }}'
+          PUBKEY: '${{ inputs.pubkey }}'
+          PREFIX: '${{ inputs.prefix }}'
+          DAYS: '${{ inputs.days }}'
+        run: |
+          set -e
+          printf '%s' "$GH_USER" | grep -qE '^[A-Za-z0-9-]{1,39}$' || { echo "::error::not a GitHub account name"; exit 1; }
+          printf '%s' "$PREFIX" | grep -qE '^[a-z0-9][a-z0-9_-]{1,38}-$' || { echo "::error::the prefix is lower-case letters, digits, - or _, ending in -"; exit 1; }
+          case "$PREFIX" in rudolf-*) echo "::error::rudolf- is the project's own prefix"; exit 1;; esac
+          grep -l "^prefix $PREFIX\$" dev/*.cert 2>/dev/null | grep -v "dev/$GH_USER.cert" && { echo "::error::another developer has that prefix"; exit 1; } || true
+          umask 077; mkdir -p "$RUNNER_TEMP/k"; printf '%s\n' "$RPK_LIBRARY_KEY" > "$RUNNER_TEMP/k/library.key"
+          python3 tools/keycheck.py "$RUNNER_TEMP/k/library.key" keys.txt
+          python3 tools/rpk-tool.py cert "dev/$GH_USER.cert" --key "$RUNNER_TEMP/k/library.key" --name "$NAME" --github "$GH_USER" --pubkey "$PUBKEY" --prefix "$PREFIX" --days "${DAYS:-365}"
+          rm -f "$RUNNER_TEMP/k/library.key"
+      - name: A pull request with it
+        env: {GH_TOKEN: '${{ github.token }}', GH_USER: '${{ inputs.github }}', NAME: '${{ inputs.name }}'}
+        run: |
+          B="certify-$GH_USER-$(date -u +%Y%m%d%H%M)"
+          git switch -c "$B"; git add dev/; git -c user.name=rudolf-library -c user.email=library@localhost commit -qm "Certify $NAME ($GH_USER)"
+          git push -q origin "$B"
+          gh pr create --base main --head "$B" --title "Certify $NAME ($GH_USER)" --body "A developer certificate for review (dev/README.md): $(sed -n 's/^\(prefix\|expires\) /\1: /p' "dev/$GH_USER.cert" | tr '\n' ' ')"
