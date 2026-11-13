@@ -81,5 +81,12 @@ try {
 	ok('21. a system with no port: no station, no mass lock, nothing to hit but its bodies; a jump arrives clear of the star, facing on', bare.station === null && !Sc.massLocked(bare, arr.p) && !Sc.collide(bare, wa, 0)
 		&& len(sub(arr.p, bare.bodies[0].pos)) > 30 * bare.bodies[0].radius && Sc.cruiseLimit(bare, arr.p) > 1e9);
 	ok('18. the same system every time', JSON.stringify(Sc.build(home.star, {day: 200}).bodies) == JSON.stringify(sc.bodies));
+	/* years and days, as real worlds have them */
+	const Gx = require(path.join(DIR, 'galaxy.js')), earth = {i: 0, a: 1, M: 1, R: 1, locked: false, gas: false, moons: [{dist: 60.3}]}; Gx.spin({id: 'sol', M: 1}, earth);
+	ok('19. a world\'s year from Kepler\'s law, a moon\'s month from its planet\'s mass and distance: an Earth\'s year 365 days, a Moon at 60 Earth radii 27 days', Math.abs(earth.year - 365.25) < 0.5 && Math.abs(earth.moons[0].year - 27.3) < 0.5);
+	const ws = Gx.sampleGalaxy(800, 9).filter(x => x.kind == 'star').flatMap(x => Gx.system(x).planets), rocks = ws.filter(w => !w.gas && !w.locked), gas = ws.filter(w => w.gas && !w.locked);
+	ok('20. days as real worlds have them: locked worlds once a year, gas giants in 9-18 h, rocky worlds from 10 h to months (some backwards), moons locked to their months', ws.filter(w => w.locked).every(w => w.day == w.year) && gas.every(w => w.day * 24 >= 9 && w.day * 24 <= 18) && rocks.every(w => Math.abs(w.day) * 24 >= 9.99) && rocks.some(w => w.day < 0) && ws.flatMap(w => w.moons || []).every(m => m.day == m.year && m.year > 0));
+	const sc2 = Sc.build(home.star, {day: 200}), moonB = sc2.bodies.find(b => b.parent), worldB = sc2.bodies.find(b => b.kind == 'planet' && !b.parent);
+	ok('21. in the scene, each world turns once a day of its own and each moon goes round in its month, in real time', !moonB || (Math.abs(moonB.period - moonB.src.year * 86400) < 1 && Math.abs(worldB.period - worldB.src.day * 86400) < 1));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

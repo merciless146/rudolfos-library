@@ -104,21 +104,22 @@ function build(star, opts) {
 	for (const pl of sys.planets) {
 		/* a companion's worlds orbit it (their own draws, so the primary's stay put) */
 		const B = pl.host == 'B' ? bodies.find(b => b.companion) : null, rr = B ? G.rng(G.hashStr('orbitB:' + pl.name)) : r, hostM = B ? star.companion.M : star.M, o = B ? B.pos : [0, 0, 0];
-		const P = Math.sqrt(Math.pow(pl.a, 3) / Math.max(0.05, hostM)) * 365.25, th = rr() * 2 * Math.PI + 2 * Math.PI * day / P, inc = (rr() - 0.5) * 0.06;
+		const P = pl.year || Math.sqrt(Math.pow(pl.a, 3) / Math.max(0.05, hostM)) * 365.25, th = rr() * 2 * Math.PI + 2 * Math.PI * day / P, inc = (rr() - 0.5) * 0.06;
 		const a = pl.a * AU;
-		/* tilt and day: not in the galaxy model yet, so drawn per planet from its own seed (the orbits above keep
-		   theirs); a tidally locked world turns once per orbit, a gas giant fast, a rock in 0.4 to 3 days */
+		/* tilt: drawn per planet from its own seed (the orbits above keep theirs); its day (one turn, in days, from
+		   the galaxy model: negative turns backwards) */
 		const q = G.rng(G.hashStr('spin:' + pl.name)), tilt = (pl.locked ? 0.02 : 0.45) * q(), az = q() * 2 * Math.PI;
 		const axis = [Math.sin(tilt) * Math.cos(az), Math.sin(tilt) * Math.sin(az), Math.cos(tilt)];
-		const dayLen = pl.locked ? P : pl.type == 'Gas' ? 0.35 + 0.35 * q() : 0.4 + 2.6 * q();
+		q(); const dayLen = pl.day || (pl.locked ? P : 1);
 		bodies.push({kind: 'planet', name: pl.name, type: pl.type, pos: [o[0] + a * Math.cos(th), o[1] + a * Math.sin(th), o[2] + a * Math.sin(inc) * Math.sin(th)], radius: pl.R * RE, g: pl.g, Ts: pl.Ts, ring: pl.ring, ringDensity: pl.ringDensity, host: pl.host || null, life: pl.life, seed: G.hashStr(pl.name),
 			atmo: !!pl.atmo, locked: !!pl.locked, axis, period: dayLen * 86400, phase: q() * 2 * Math.PI, src: pl});
 	}
-	/* moons: around their planets, tidally locked, at their distances in planet radii (their own draws) */
+	/* moons: around their planets, tidally locked, at their distances in planet radii (their own draws), each in its
+	   real month (the galaxy model's year for a moon: Kepler's law round its planet's mass) */
 	for (const pb of bodies.filter(b => b.kind == 'planet' && b.src.moons && b.src.moons.length)) for (const mo of pb.src.moons) {
-		const q = G.rng(G.hashStr('moon:' + mo.name)), th = q() * 2 * Math.PI + 2 * Math.PI * day / (2 + mo.dist * 0.4), r0 = pb.radius * mo.dist;
+		const month = mo.year || (2 + mo.dist * 0.4), q = G.rng(G.hashStr('moon:' + mo.name)), th = q() * 2 * Math.PI + 2 * Math.PI * day / month, r0 = pb.radius * mo.dist;
 		bodies.push({kind: 'planet', name: mo.name, type: mo.type, pos: [pb.pos[0] + r0 * Math.cos(th), pb.pos[1] + r0 * Math.sin(th), pb.pos[2] + r0 * 0.05 * (q() - 0.5)], radius: mo.R * RE, g: mo.g, Ts: mo.Ts, ring: null, host: pb.host, parent: pb.name, life: 0, seed: G.hashStr(mo.name),
-			atmo: !!mo.atmo, locked: true, axis: [0, 0, 1], period: 86400 * (2 + mo.dist * 0.4), phase: q() * 2 * Math.PI, src: mo});
+			atmo: !!mo.atmo, locked: true, axis: [0, 0, 1], period: 86400 * month, phase: q() * 2 * Math.PI, src: mo});
 	}
 	const planets = bodies.filter(b => b.kind == 'planet');
 	const prim = planets.filter(b => !b.host && !b.parent);

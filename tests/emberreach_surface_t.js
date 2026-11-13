@@ -28,6 +28,8 @@ try {
 	ok('10. its model: meshes from the station parts, a starport under 6,000 triangles (fewer at low detail)', m.count() > 1000 && m.count() < 6000 && lo.count() < m.count() * 0.7 && m.p.every(Number.isFinite), [m.count(), lo.count()]);
 	const caps = F.majors().slice(0, 12).map(x => ({s: x.star, port: T.portFor(x.star, 200)})), sp = caps.map(c => S.ports(c.s, c.port && c.port.cls));
 	ok('11. a capital\'s system gets a surface starport with its heavy landing field (where it has landable ground) and more ports besides, on landable worlds under 500 K', sp.filter(l => l.length).every(l => l[0].kind == 'starport' && l[1].kind == 'field' && l[1].world == l[0].world) && sp.filter(l => l.length >= 3).length >= 6 && sp.flat().every(p => p.Ts <= 500 && p.g <= 2.5), sp.map(l => l.map(p => p.kind)));
-	ok('12. wild systems get none; the same ports every time', S.ports(st[0], null).length == 0 && JSON.stringify(S.ports(caps[0].s, 'halo')) == JSON.stringify(S.ports(caps[0].s, 'halo')));
+	const wild = st.filter(x => G.system(x).planets.some(p => [p, ...(p.moons || [])].some(q => S.landable(q).ok && q.Ts <= 500))), lone = wild.filter(x => S.ports(x, null).length);
+	ok('12. with no port in space, a lone outpost or mining camp in about one such system in twenty-five; the same every time', lone.length / wild.length > 0.02 && lone.length / wild.length < 0.07 && lone.every(x => { const l = S.ports(x, null); return l.length == 1 && l[0].lone && ['outpost', 'camp'].includes(l[0].kind) }) && JSON.stringify(S.ports(caps[0].s, 'halo')) == JSON.stringify(S.ports(caps[0].s, 'halo')), (lone.length / wild.length).toFixed(3));
+	ok('13. none in the Rift or at the Maw', wild.slice(0, 300).map(G.riftOf).every(x => !S.ports(x, null).length && !S.ports(x, 'halo').length) && !S.ports(G.HEART, 'halo').length);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
