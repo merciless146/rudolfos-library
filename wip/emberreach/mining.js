@@ -2,7 +2,7 @@
    - Fields: every ringed planet's rings (stone or ice), and asteroid belts (none, one or two a system, between the
      planets' orbits; rocky, or metallic around metal-rich stars). Each field has a mining site, a point a pilot can
      target and drop out of cruise at.
-   - At a site, sixty-odd asteroids (30 to 240 m across) lie in a flattened swarm 15 km wide, the same every visit.
+   - At a site, 64 asteroids (96 in a densely strewn ring) (30 to 240 m across) lie in a flattened swarm 15 km wide, the same every visit.
      Each holds two or three goods in proportions, and a yield of tonnes that mining runs down (kept in the save).
    - A mining laser (an external module) chips an asteroid: every few hits an ore chunk breaks off, a fraction of a
      tonne of one of its goods, drifting away. A resource scanner (a utility mount) reads an asteroid's contents.
@@ -19,6 +19,7 @@ const MINE = {site: 15000, rocks: 64, sizes: [30, 60, 120, 240], hitsPerChunk: 6
 const KINDS = {
 	Stone: {name: 'stone ring', goods: {Iron: 5, Copper: 3, Coal: 3, Lead: 2, Aluminum: 2, Titanium: 1, Jade: 0.4, Diamond: 0.15}},
 	Ice: {name: 'ice ring', goods: {Water: 8, Beryllium: 1.5, Coal: 1, Uranium: 0.4}},
+	Metal: {name: 'metallic ring', goods: {Iron: 6, Titanium: 3, Aluminum: 2, Copper: 2, Gold: 0.5, Diamond: 0.2, Uranium: 0.5}},
 	rocky: {name: 'rocky belt', goods: {Iron: 4, Copper: 3, Coal: 2, Lead: 2, Aluminum: 3, Titanium: 1.2, Uranium: 0.5, Jade: 0.3}},
 	metallic: {name: 'metallic belt', goods: {Iron: 6, Titanium: 3, Aluminum: 2, Copper: 2, Gold: 0.6, Uranium: 0.6, Diamond: 0.25}}};
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -33,7 +34,7 @@ function fields(scene, star) {
 	for (const b of planets) {
 		if (!b.ring) continue;
 		const r = G.rng(G.hashStr('ring:' + b.name)), ax = norm(b.axis || [0, 0, 1]), e1 = norm(cross(ax, Math.abs(ax[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = cross(ax, e1), th = r() * 6.283;
-		out.push({id: 'ring:' + b.name, name: b.name + ' rings', kind: b.ring, pos: add(b.pos, mul(add(mul(e1, Math.cos(th)), mul(e2, Math.sin(th))), b.radius * 1.8)), normal: ax, body: b.name});
+		out.push({id: 'ring:' + b.name, name: b.name + ' rings', kind: b.ring, density: b.ringDensity || 'moderate', pos: add(b.pos, mul(add(mul(e1, Math.cos(th)), mul(e2, Math.sin(th))), b.radius * 1.8)), normal: ax, body: b.name});
 	}
 	/* belts: in the gaps between planets' orbits, or out past the last */
 	const r = G.rng(G.hashStr('belts:' + star.id)), n = r() < 0.35 ? 0 : r() < 0.75 ? 1 : 2, orbits = planets.map(b => len(sub(b.pos, sun.pos))).sort((a, b) => a - b);
@@ -48,7 +49,9 @@ function fields(scene, star) {
 function rocks(field, mined) {
 	const r = G.rng(G.hashStr('rocks:' + field.id)), K = KINDS[field.fieldKind || field.kind] || KINDS.rocky, out = [];
 	const e1 = norm(cross(field.normal, Math.abs(field.normal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = cross(field.normal, e1);
-	for (let i = 0; i < MINE.rocks; i++) {
+	/* moderately strewn fields hold 64 at a site; dense ones 96 (still a kilometre and more apart, on average) */
+	const n = field.density == 'dense' ? 96 : MINE.rocks;
+	for (let i = 0; i < n; i++) {
 		const a = r() * 6.283, d = Math.sqrt(r()) * MINE.site / 2, h = (r() - 0.5) * MINE.site * 0.12;
 		const size = MINE.sizes[Math.min(3, Math.floor(Math.pow(r(), 1.6) * 4))], shape = Math.floor(r() * 3);
 		const comp = {}; for (let k = 0; k < 2 + (r() < 0.4 ? 1 : 0); k++) { const g = pickW(K.goods, r); comp[g] = (comp[g] || 0) + 0.3 + r() }

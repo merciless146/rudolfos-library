@@ -9,9 +9,11 @@ const {add, sub, mul, len, dot} = Sc.v, DT = 1 / 60;
 try {
 	const home = F.majors()[0], wren = S.ships().find(s => s.id == 'wren');
 	const sc = Sc.build(home.star, {day: 200, portWorld: home.home.name});
-	const pl = sc.bodies.filter(b => b.kind == 'planet');
-	ok('1. the real system: its star, every planet of the model on its orbit, sizes in metres', sc.bodies[0].kind == 'star' && pl.length == require(path.join(DIR, 'galaxy.js')).system(home.star).planets.length
-		&& pl.every(b => Math.abs(len(b.pos) / Sc.AU - require(path.join(DIR, 'galaxy.js')).system(home.star).planets.find(x => x.name == b.name).a) < 0.01 && b.radius > 1e6));
+	const pl = sc.bodies.filter(b => b.kind == 'planet'), G0 = require(path.join(DIR, 'galaxy.js'));
+	const pl0 = pl.filter(b => !b.parent), mo = pl.filter(b => b.parent);
+	ok('1. the real system: its star, every planet of the model on its orbit, sizes in metres', sc.bodies[0].kind == 'star' && pl0.length == G0.system(home.star).planets.length
+		&& pl0.every(b => { const hostPos = b.host == 'B' ? sc.bodies.find(x => x.companion).pos : [0, 0, 0]; return Math.abs(len(sub(b.pos, hostPos)) / Sc.AU - G0.system(home.star).planets.find(x => x.name == b.name).a) < 0.01 && b.radius > 1e6 }));
+	ok('1a. moons orbit their planets, at their distances', mo.every(m => { const pb = pl.find(b => b.name == m.parent); return Math.abs(len(sub(m.pos, pb.pos)) / pb.radius - m.src.dist) < 0.1 }));
 	ok('1b. orbits move with the days', len(sub(Sc.build(home.star, {day: 230}).bodies.find(b => b.kind == 'planet').pos, pl[0].pos)) > 1e9);
 	const st = sc.station;
 	ok('2. the home port is a Halo in orbit of the home world, its mouth facing open space', st.cls == 'halo' && st.world.name == home.home.name && Math.abs(len(sub(st.c, st.world.pos)) / st.world.radius - 2) < 1e-9 && dot(st.axis, Sc.v.norm(sub(st.c, st.world.pos))) > 0.99);
@@ -59,7 +61,7 @@ try {
 	ok('14. a port\'s mass lock: no cruise within 20 km', Sc.massLocked(sc, sp.p) && !Sc.massLocked(sc, Sc.toWorldPt(st, [0, 0, 30000])));
 	/* a planet whose straight course from the port stays well clear of the star */
 	const clearOf = (a, b) => { const d = sub(b, a), t0 = Math.max(0, Math.min(1, -dot(a, d) / dot(d, d))); return len(add(a, mul(d, t0))) };
-	const far = pl.filter(b => b != st.world && clearOf(st.c, b.pos) > 0.1 * Sc.AU).sort((a, b) => len(sub(b.pos, st.c)) - len(sub(a.pos, st.c)))[0], c = Fl.create(wren, {p: Sc.toWorldPt(st, [0, 0, 30000]), q: Sc.lookRotation(sub(far.pos, Sc.toWorldPt(st, [0, 0, 30000])), [0, 0, 1])}); c.radius = 4.5;
+	const far = pl.filter(b => !b.host && !b.parent && b != st.world && clearOf(st.c, b.pos) > 0.1 * Sc.AU).sort((a, b) => len(sub(b.pos, st.c)) - len(sub(a.pos, st.c)))[0], c = Fl.create(wren, {p: Sc.toWorldPt(st, [0, 0, 30000]), q: Sc.lookRotation(sub(far.pos, Sc.toWorldPt(st, [0, 0, 30000])), [0, 0, 1])}); c.radius = 4.5;
 	const cz = {v: 0}; let t = 0, top = 0, hit = false, res = null;
 	while (t < 600 && !res) { res = Sc.cruiseStep(sc, c, cz, {throttle: 1}, DT, far); t += DT; top = Math.max(top, cz.v); if (Sc.collide(sc, c, t)) hit = true }
 	const dist = len(sub(far.pos, st.c)) / Sc.AU;

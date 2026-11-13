@@ -81,7 +81,7 @@ function rock(r, seed, kind) {
 	const mid = {}, M = (a, b) => { const k = a < b ? a + ':' + b : b + ':' + a; if (mid[k] == null) { mid[k] = V.length; V.push(nrm(V[a].map((x, i) => (x + V[b][i]) / 2))) } return mid[k] };
 	F = F.flatMap(([a, b, c]) => { const ab = M(a, b), bc = M(b, c), ca = M(c, a); return [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]] });
 	const sc = [1, 0.78 + 0.1 * (seed % 3), 0.9], P = V.map(v => { const k = 1 + 0.55 * (noise(v, 1.7, seed) - 0.5) + 0.2 * (noise(v, 4.1, seed + 7) - 0.5); return v.map((x, i) => x * k * sc[i] * r) });
-	const base = kind == 'Ice' ? [0.72, 0.8, 0.86] : kind == 'metallic' ? [0.46, 0.45, 0.47] : [0.42, 0.37, 0.32], m = new Mesh();
+	const base = kind == 'Ice' ? [0.72, 0.8, 0.86] : kind == 'metallic' || kind == 'Metal' ? [0.46, 0.45, 0.47] : [0.42, 0.37, 0.32], m = new Mesh();
 	for (const [a, b, c] of F) { const sh = 0.85 + 0.3 * noise(V[a], 3, seed + 3); m.tri(P[a], P[b], P[c], base.map(x => Math.min(1, x * sh)).concat(0)) }
 	return m;
 }
@@ -126,7 +126,7 @@ function starColour(T) {
 /* a planet's rings: flat bands between 1.35 and 2.3 radii (unit radius), with gaps; both faces lit. Ice is pale,
    stone is brown and grey */
 function rings(kind, seed, quality) {
-	const m = new Mesh(), seg = quality == 'low' ? 48 : 96, bands = 14, base = kind == 'Ice' ? [0.82, 0.86, 0.9] : [0.55, 0.48, 0.4];
+	const m = new Mesh(), seg = quality == 'low' ? 48 : 96, bands = 14, base = kind == 'Ice' ? [0.82, 0.86, 0.9] : kind == 'Metal' ? [0.6, 0.6, 0.64] : [0.55, 0.48, 0.4];
 	for (let b = 0; b < bands; b++) {
 		const n = hash3(b, 3, 7, seed); if (n < 0.22) continue;   /* gaps */
 		const r0 = 1.35 + 0.95 * b / bands, r1 = 1.35 + 0.95 * (b + 1) / bands, k = 0.7 + 0.45 * n, col = [base[0] * k, base[1] * k, base[2] * k, 0];

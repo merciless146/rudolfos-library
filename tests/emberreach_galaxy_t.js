@@ -36,10 +36,24 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol * Math.abs(b);
 	const S = G.sampleGalaxy(40000, 8), C = {};
 	S.forEach(s => { const k = s.kind == 'star' ? s.cls : s.kind; C[k] = (C[k] || 0) + 1 });
 	const f = k => (C[k] || 0) / S.length;
-	ok('8. an old population: red dwarfs the most common, L dwarfs a few percent, and hot O and B stars only from the rare nurseries (under 0.3%)', f('M') > 0.6 && f('L') > 0.03 && f('L') < 0.12 && ((C.O || 0) + (C.B || 0)) / S.length < 0.003, JSON.stringify(C));
+	ok('8. the class mix: about half the stars red dwarfs, K, G and F common, L dwarfs a few percent, and hot O and B stars only from the rare nurseries (under 0.3%)', f('M') > 0.45 && f('M') < 0.55 && f('K') + f('G') + f('F') > 0.3 && f('L') > 0.03 && f('L') < 0.12 && ((C.O || 0) + (C.B || 0)) / S.length < 0.003, JSON.stringify(C));
 	/* star classes in the planets (M5 star-class pass) */
 	const byCls = k => S.filter(s => (s.kind == 'star' ? s.cls : s.kind) == k).slice(0, 400);
 	const Ls = byCls('L'), Ms = byCls('M'), Gs = byCls('G');
+	/* habitability, companions, rings and moons */
+	{
+		const hostOf = (s, p) => p.host ? s.companion : s, cls = h => h.kind == 'star' ? h.cls : h.kind, wet = {}, rings = {}, dens = {}; let wetHZ = 0, wetAll = 0, comp = 0, moons = 0, titan = 0, gas = 0, badIce = 0, moonAir = 0;
+		for (const s0 of S.slice(0, 12000)) for (const p of G.system(s0).planets) {
+			const k = cls(hostOf(s0, p)); if (p.water) { wet[k] = (wet[k] || 0) + 1; wetAll++ } if (p.host) comp++;
+			if (p.ring) { rings[p.ring] = (rings[p.ring] || 0) + 1; dens[p.ringDensity] = (dens[p.ringDensity] || 0) + 1; if (p.ring == 'Ice' && p.Teq >= 150) badIce++ }
+			if (p.gas) gas++; for (const m of p.moons || []) { moons++; if (m.atmo) { moonAir++; if (m.titan) titan++ } }
+		}
+		const kgf = (wet.K || 0) + (wet.G || 0) + (wet.F || 0);
+		ok('26a. water worlds are a K, G or F star\'s: over 90% of them; other classes only rarely', kgf / wetAll > 0.9 && (wet.M || 0) > 0, JSON.stringify(wet));
+		ok('26b. companion stars have worlds of their own', comp > 100, comp + ' companion worlds');
+		ok('26c. rings are icy, rocky or metallic, moderate or dense; never icy where it\'s too warm for ice', rings.Ice && rings.Stone && rings.Metal && dens.moderate && dens.dense && badIce == 0, JSON.stringify(rings) + ' ' + JSON.stringify(dens));
+		ok('26d. gas giants and big worlds have moons, mostly airless; a few (under 5%) have a thick, Titan-like air', moons > gas && moonAir > 0 && moonAir / moons < 0.05 && titan == moonAir, moons + ' moons, ' + moonAir + ' with air');
+	}
 	ok('26. L dwarfs: below 2,400 K, dim, and fewer of them have planets than red dwarfs', Ls.length > 50 && Ls.every(s => s.T < 2400 && s.L < 1e-3) && Ls.filter(s => G.system(s).planets.length).length / Ls.length < Ms.filter(s => G.system(s).planets.length).length / Ms.length);
 	const hzW = (arr) => arr.map(s => G.hz(s)).filter(Boolean).reduce((t, h) => t + h.inner, 0) / arr.length;
 	ok('27. the habitable zone follows the star: far closer in for M and L dwarfs than for G stars', hzW(Ls) < hzW(Ms) && hzW(Ms) < hzW(Gs) / 5);

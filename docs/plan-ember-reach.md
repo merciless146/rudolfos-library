@@ -104,15 +104,35 @@ outskirts takes under 0.1 s.
   galaxy is untouched, formed in the last 0.5–5 million years, from the top of the mass function (8–120 suns): the
   only O and B stars still burning, and the Wolf-Rayets. They're too young for companions or life.
 - **Companions:** about 20% + 25% × mass, so roughly 44% for Sun-like stars and a quarter of red dwarfs.
-- **What comes out**, over 100,000 stars: M dwarfs about 68%, L dwarfs 6.7%, K 13%, G 2.5%, F and A under 0.5%
-  (the younger population); white dwarfs 8%, giants 0.5%, neutron stars 0.5%, black holes 0.14%; O and B stars about
-  0.1% and Wolf-Rayets a few in 100,000, all from the nurseries. This is an old galaxy: hardly a blue star in it.
+- **The class mix:** about half the stars are red dwarfs. A share (27%) of the M dwarfs the mass function makes are
+  instead K, G, F and a few A stars of a later generation, young enough to still burn (their own draw; the great
+  powers' home stars are kept as they are).
+- **What comes out**, over 60,000 stars: M dwarfs 49.5%, K 22%, G 8.7%, white dwarfs 8%, L dwarfs 6.7%, F 3.2%, A
+  0.6%, giants 0.55%, neutron stars 0.5%, black holes 0.15%; O and B stars about 0.1% and Wolf-Rayets a few in
+  100,000, all from the nurseries.
+- **Legacy galaxy:** the great powers, the Drake equation and the ruins' frequency are measured on the galaxy as it
+  was before the class mix and the habitability rules, so every power, home and border stays where it was. Five
+  powers' homes orbit red dwarfs: they're the rare exceptions below.
 - **What the class does to its planets:** the luminosity and temperature set each world's heat, the habitable zone
   (Kopparapu, by temperature), the snow line, and so which types form. Tidal locking goes by the despinning time
   (a^6 / M*^2): a world locks inside about 0.45 AU × M*^(1/3) × (age / 4.5 Gyr)^(1/6), so Mercury's distance for the
   Sun and every habitable-zone world of an M or L dwarf. L dwarfs have planets half the time, and their flares strip
   the air from close worlds (60% inside 0.05 AU); Wolf-Rayets keep planets a tenth of the time, and they and pulsars
   strip every world bare. Changing these left the great powers' homes where they were.
+- **Water worlds are a K, G or F star's:** around anything else (flares and locked days for M and L dwarfs, short
+  lives and fierce light for A, B and O stars, the dead and the dying) a water world keeps its water only 3% of the
+  time; otherwise it dries to a desert or freezes to tundra. Over 90% of ocean, terra, forest and Earth-like worlds
+  orbit K, G and F stars. (The five red-dwarf homeworlds are kept.)
+- **Companion stars have worlds:** half as often as a lone star of their class, one to three, inside 2 AU of the
+  companion, with its own habitable zone; the same rules apply (so a K, G or F companion can hold a water world).
+- **Rings** (on gas giants and some rocky worlds): icy where the world's equilibrium temperature is under 150 K,
+  never warmer; closer in rocky or metallic, metallic more often around metal-rich stars and close to them. Each
+  is moderately or densely strewn (dense: 45% of gas giants' rings, 30% of others'): a dense ring's mining site holds
+  96 asteroids instead of 64, still a kilometre and more apart.
+- **Moons:** gas giants have one to five, other worlds of 5 Earths and up none to two: small (Earth's Moon's mass and
+  down), tidally locked, 5 to 60 planetary radii out, and airless, except a few (under 2% of moons, where it's cold
+  enough) with a thick, hazy air like Titan's. They're bodies in their systems: targetable and surveyable, with the
+  proximity safety at their surfaces.
 
 ### Planets
 
