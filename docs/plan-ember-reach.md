@@ -93,18 +93,31 @@ outskirts takes under 0.1 s.
 
 - **Masses:** the Kroupa initial mass function, 0.08–120 suns.
 - **Lives:** main-sequence lifetime 10 Gyr × M^−2.5. Luminosity and radius come from the usual power laws.
-  Temperature follows from both, and the spectral class from the temperature.
-- **Deaths:** older than its lifetime, a star is a giant for a short while. After that it becomes a white dwarf
-  (initial-final mass relation, then cooling), a neutron star (8–25 suns at birth) or a black hole.
+  Temperature follows from both, and the spectral class from the temperature: O, B, A, F, G, K, M, and **L** below
+  2,400 K. The lowest-mass stars cool steeply towards the hydrogen-burning limit (about 2,900 K at 0.1 suns, 1,800 K
+  at 0.08), so the last of them are L dwarfs, dim and red-brown.
+- **Deaths:** older than its lifetime, a star is a giant for a short while; the heaviest (25 suns and up) are
+  instead **Wolf-Rayet** stars, stripped by their own winds to hot (50,000–150,000 K), blinding (100,000–600,000
+  suns) cores. After that a star becomes a white dwarf (initial-final mass relation, then cooling), a neutron star
+  (8–25 suns at birth) or a black hole.
+- **Nurseries:** a sliver of stars (0.4% at the centre, fewer outward), drawn on their own so the rest of the
+  galaxy is untouched, formed in the last 0.5–5 million years, from the top of the mass function (8–120 suns): the
+  only O and B stars still burning, and the Wolf-Rayets. They're too young for companions or life.
 - **Companions:** about 20% + 25% × mass, so roughly 44% for Sun-like stars and a quarter of red dwarfs.
-- **What comes out**, over 40,000 stars: no O or B stars still burning; red dwarfs about 74%, K 13%, G 2.6%, F and A
-  under 0.5% (the younger population); white dwarfs 8%, giants 0.5%, neutron stars 0.6%, black holes 0.1%. This is an
-  old galaxy: hardly a blue star in it.
+- **What comes out**, over 100,000 stars: M dwarfs about 68%, L dwarfs 6.7%, K 13%, G 2.5%, F and A under 0.5%
+  (the younger population); white dwarfs 8%, giants 0.5%, neutron stars 0.5%, black holes 0.14%; O and B stars about
+  0.1% and Wolf-Rayets a few in 100,000, all from the nurseries. This is an old galaxy: hardly a blue star in it.
+- **What the class does to its planets:** the luminosity and temperature set each world's heat, the habitable zone
+  (Kopparapu, by temperature), the snow line, and so which types form. Tidal locking goes by the despinning time
+  (a^6 / M*^2): a world locks inside about 0.45 AU × M*^(1/3) × (age / 4.5 Gyr)^(1/6), so Mercury's distance for the
+  Sun and every habitable-zone world of an M or L dwarf. L dwarfs have planets half the time, and their flares strip
+  the air from close worlds (60% inside 0.05 AU); Wolf-Rayets keep planets a tenth of the time, and they and pulsars
+  strip every world bare. Changing these left the great powers' homes where they were.
 
 ### Planets
 
-- **How many:** most stars have planets (95% of Sun-like, 80% of red dwarfs, 15% of white dwarfs, 2% of neutron
-  stars). The *number* per system follows the WOS map (below): 1 to 13, mean 6.7. That's richer than Kepler counts
+- **How many:** most stars have planets (95% of Sun-like, 80% of red dwarfs, 50% of L dwarfs, 15% of white dwarfs,
+  10% of Wolf-Rayets, 2% of neutron stars). The *number* per system follows the WOS map (below): 1 to 13, mean 6.7. That's richer than Kepler counts
   but better for a game.
 - **Where:** the innermost at 0.025–0.075 AU × M^(1/3), each next 1.4–2.3 times further out.
 - **What:** rocky inside the snow line (2.7 AU × √L), ice worlds and giants outside it. Giant planets get commoner

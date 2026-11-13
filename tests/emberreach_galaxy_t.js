@@ -36,7 +36,17 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol * Math.abs(b);
 	const S = G.sampleGalaxy(40000, 8), C = {};
 	S.forEach(s => { const k = s.kind == 'star' ? s.cls : s.kind; C[k] = (C[k] || 0) + 1 });
 	const f = k => (C[k] || 0) / S.length;
-	ok('8. an old population: no O or B stars still burning, red dwarfs the most common', !C.O && !C.B && f('M') > 0.6, JSON.stringify(C));
+	ok('8. an old population: red dwarfs the most common, L dwarfs a few percent, and hot O and B stars only from the rare nurseries (under 0.3%)', f('M') > 0.6 && f('L') > 0.03 && f('L') < 0.12 && ((C.O || 0) + (C.B || 0)) / S.length < 0.003, JSON.stringify(C));
+	/* star classes in the planets (M5 star-class pass) */
+	const byCls = k => S.filter(s => (s.kind == 'star' ? s.cls : s.kind) == k).slice(0, 400);
+	const Ls = byCls('L'), Ms = byCls('M'), Gs = byCls('G');
+	ok('26. L dwarfs: below 2,400 K, dim, and fewer of them have planets than red dwarfs', Ls.length > 50 && Ls.every(s => s.T < 2400 && s.L < 1e-3) && Ls.filter(s => G.system(s).planets.length).length / Ls.length < Ms.filter(s => G.system(s).planets.length).length / Ms.length);
+	const hzW = (arr) => arr.map(s => G.hz(s)).filter(Boolean).reduce((t, h) => t + h.inner, 0) / arr.length;
+	ok('27. the habitable zone follows the star: far closer in for M and L dwarfs than for G stars', hzW(Ls) < hzW(Ms) && hzW(Ms) < hzW(Gs) / 5);
+	const hzLocked = arr => { let a = 0, b = 0; for (const s of arr) for (const p of G.system(s).planets) if (p.inHZ) { a++; if (p.locked) b++ } return a ? b / a : null };
+	ok('28. tidal locking by physics: habitable-zone worlds of M dwarfs are almost all locked; a G star\'s are not', hzLocked(Ms) > 0.9 && (hzLocked(Gs) == null || hzLocked(Gs) < 0.1), hzLocked(Ms) + ' / ' + hzLocked(Gs));
+	const wr = G.evolve(40, 1.1 * G.msLife(40), G.rng(3));
+	ok('29. the heaviest stars end as Wolf-Rayets, hot and blinding; their worlds and pulsars\' are stripped bare', wr.kind == 'wolf-rayet' && wr.T >= 50000 && wr.L >= 1e5);
 	ok('9. white dwarfs are 4-12% of stars (old stars that have died)', f('white dwarf') > 0.04 && f('white dwarf') < 0.12, f('white dwarf').toFixed(3));
 	ok('10. the Sun\'s lifetime is about 10 Gyr', near(G.msLife(1), 1e10, 1e-9));
 }

@@ -34,7 +34,7 @@ const GAL = {
 	rCore: 0.5,          /* pc: inside this, the black hole and its own cluster (a game zone of its own) */
 	MBH: 5e6,
 	sigma: 54,           /* km/s: velocity dispersion (sigma² ∝ M / R, so √2 below the 6e9-sun version of the same size) */
-	ageOld: 10e9, ageYoung: 3e9, youngCentre: 0.3,   /* share of young stars at the centre, falling outward */
+	ageOld: 10e9, ageYoung: 3e9, youngCentre: 0.3, nursery: 0.004,   /* share of young stars at the centre, falling outward */
 	FeHCentre: 0.15, FeHSlope: -0.35, FeHScatter: 0.15,
 	cell: 4, splitAt: 48, maxDepth: 10,
 	/* galactic north is +z, the short axis; the great powers live in the northern Middle Reach */
@@ -78,11 +78,23 @@ const TSUN = 5772;
 function msLife(M) { return 1e10 * Math.pow(M, -2.5) }
 function msLum(M) { return M < 0.43 ? 0.23 * Math.pow(M, 2.3) : M < 2 ? Math.pow(M, 4) : M < 55 ? 1.4 * Math.pow(M, 3.5) : 32000 * M }
 function msRad(M) { return M < 1 ? Math.pow(M, 0.8) : Math.pow(M, 0.57) }
-function spectral(T) { return T >= 30000 ? 'O' : T >= 10000 ? 'B' : T >= 7500 ? 'A' : T >= 6000 ? 'F' : T >= 5200 ? 'G' : T >= 3700 ? 'K' : 'M' }
+function spectral(T) { return T >= 30000 ? 'O' : T >= 10000 ? 'B' : T >= 7500 ? 'A' : T >= 6000 ? 'F' : T >= 5200 ? 'G' : T >= 3700 ? 'K' : T >= 2400 ? 'M' : 'L' }
+/* the lowest-mass stars: temperature falls steeply towards the hydrogen-burning limit (about 2,900 K at 0.1 suns,
+   1,800 K at 0.08), so the last of them are L dwarfs (below 2,400 K), dim and red-brown */
+function lowT(M) { return 1800 + (2900 - 1800) * Math.max(0, Math.min(1, (M - 0.08) / 0.02)) }
 /* M0: birth mass; age in years; r: random for the phase */
 function evolve(M0, age, r) {
 	const t = msLife(M0);
-	if (age < t) { const L = msLum(M0), R = msRad(M0), T = TSUN * Math.pow(L / (R * R), .25); return {kind: 'star', cls: spectral(T), M: M0, L, R, T} }
+	if (age < t) {
+		const R = msRad(M0);
+		if (M0 < 0.1) { const T = lowT(M0), L = R * R * Math.pow(T / TSUN, 4); return {kind: 'star', cls: spectral(T), M: M0, L, R, T} }
+		const L = msLum(M0), T = TSUN * Math.pow(L / (R * R), .25); return {kind: 'star', cls: spectral(T), M: M0, L, R, T};
+	}
+	/* Wolf-Rayet: the heaviest stars, stripped by their own winds to hot, blinding cores before they die */
+	if (M0 >= 25 && age < t * 1.3) {
+		const T = 50000 + r() * 100000, L = logU(r, 1e5, 6e5), R = Math.sqrt(L) * Math.pow(TSUN / T, 2);
+		return {kind: 'wolf-rayet', cls: 'WR', M: M0 * 0.4, L, R, T};
+	}
 	if (age < t * 1.12) {   /* giant branch, briefly */
 		const L = logU(r, 10, M0 > 2 ? 3000 : 1500), T = 3900 + r() * 1100, R = Math.sqrt(L) * Math.pow(TSUN / T, 2);
 		return {kind: 'giant', cls: spectral(T), M: M0 * 0.9, L, R, T};
@@ -136,12 +148,15 @@ function cellStars(leaf) {
 function star(id, x, y, z) {
 	const r = rng(hashStr('star:' + id)), m = mRad(x, y, z), pop = popAt(m);
 	const young = r() < pop.youngShare, age = (young ? GAL.ageYoung : GAL.ageOld) * (1 + 0.1 * gauss(r));
-	const M0 = IMF(r), s = evolve(M0, age, r);
+	let M0 = IMF(r), s = evolve(M0, age, r), born = age;
+	/* nurseries: a sliver of stars (more towards the centre) formed in the last few million years, from their own
+	   draw so the rest of the galaxy is untouched: the only hot O and B stars, and the Wolf-Rayets */
+	{ const q = rng(hashStr('nursery:' + id)); if (q() < GAL.nursery * pop.youngShare / GAL.youngCentre) { M0 = 8 * Math.pow(1 - q() * (1 - Math.pow(8 / 120, 1.3)), -1 / 1.3); born = 5e5 + q() * 4.5e6; s = evolve(M0, born, q) } }
 	const FeH = pop.FeH + GAL.FeHScatter * gauss(r) - (young ? 0 : 0.05);
 	/* companions: commoner for heavier stars (about 44% of Sun-like stars, a quarter of red dwarfs) */
 	const pBin = s.kind == 'star' ? Math.min(0.6, 0.2 + 0.25 * s.M) : 0.15;
 	const companion = r() < pBin ? evolve(M0 * (0.1 + 0.9 * r()), age, r) : null;
-	return Object.assign({id, x, y, z, m, age, M0, FeH, companion, name: starName(hashStr('name:' + id))}, s);
+	return Object.assign({id, x, y, z, m, age: born, M0, FeH, companion: born < 1e8 ? null : companion, name: starName(hashStr('name:' + id))}, s);
 }
 function starsNear(x, y, z, R) {
 	const out = [];
@@ -179,7 +194,9 @@ function quietChance(s, bAU, t) {
 
 /* ---------- planets ---------- */
 const PPS = (() => { const e = Object.entries(WOS.planetsPerSystem).map(([k, v]) => [+k, v]), T = e.reduce((a, b) => a + b[1], 0); return r => { let u = r() * T; for (const [k, v] of e) { if ((u -= v) <= 0) return k } return 6 } })();
-function chanceOfPlanets(s) { return s.kind == 'star' ? (s.M < 0.45 ? 0.8 : 0.95) : s.kind == 'giant' ? 0.6 : s.kind == 'white dwarf' ? 0.15 : s.kind == 'neutron star' ? 0.02 : 0 }
+/* planets by class: most stars have them (fewer for the smallest, whose discs were thin); giants keep theirs; few
+   survive a white dwarf or a neutron star; a Wolf-Rayet's are the scorched cores of what was there */
+function chanceOfPlanets(s) { return s.kind == 'star' ? (s.cls == 'L' ? 0.5 : s.M < 0.45 ? 0.8 : 0.95) : s.kind == 'giant' ? 0.6 : s.kind == 'white dwarf' ? 0.15 : s.kind == 'neutron star' ? 0.02 : s.kind == 'wolf-rayet' ? 0.1 : 0 }
 const ROCKY = ['Barren', 'Desert', 'Ocean', 'Tundra', 'Terra', 'Forest', 'EarthLike', 'Exotic'];
 let skipRuins = false;
 function systemNoRuins(s) { skipRuins = true; try { return system(s) } finally { skipRuins = false } }
@@ -200,11 +217,18 @@ function system(s) {
 		const gas = M > 10 && R > 2.5;
 		/* keeps an atmosphere where its escape velocity is well above what its heat would boil off (Earth 11.2 km/s, Mars 5) */
 		const vKm = ve * 11.19, need = 6 * Math.sqrt(Teq / 255);
-		const atmo = gas || r() < 1 / (1 + Math.exp(-(vKm - need) / 1.2));
+		let atmo = gas || r() < 1 / (1 + Math.exp(-(vKm - need) / 1.2));
+		/* stripped: an L dwarf's flares strip its close worlds; a Wolf-Rayet's or a pulsar's wind and radiation strip
+		   them all (a draw of its own, so other stars' worlds are as they were) */
+		if (atmo && !gas) { const strip = s.cls == 'L' && a < 0.05 ? 0.6 : s.kind == 'wolf-rayet' || s.kind == 'neutron star' ? 1 : 0; if (strip && rng(hashStr('strip:' + s.id + ':' + i))() < strip) atmo = false }
 		const thick = atmo ? (gas ? 3 : logU(r, 0.05, 90)) : 0;   /* surface pressure, bars */
 		const Ts = gas ? Teq : Teq * Math.pow(1 + 0.75 * Math.min(60, 0.84 * Math.pow(thick, 0.7)), .25);
 		const inHZ = out.hz && a >= out.hz.inner && a <= out.hz.outer;
-		const p = {i, a, M, R, rho: rhoE, ve, g, Teq, Ts, atmo, bars: thick, gas, inHZ, locked: a < 0.4 * Math.cbrt(Math.max(s.M, .1)) || r() < 0.2};
+		/* tidal locking: the despinning time goes as a^6 / M*^2, so a world locks inside about 0.45 AU x M*^(1/3) x
+		   (age / 4.5 Gyr)^(1/6): Mercury's distance for the Sun, every habitable-zone world of a red or L dwarf */
+		if (!(a < 0.4 * Math.cbrt(Math.max(s.M, .1)))) r();   /* (keeps the random stream as it was) */
+		const locked = a < 0.45 * Math.cbrt(Math.max(s.M, 0.01)) * Math.pow(Math.max(s.age, 1e6) / 4.5e9, 1 / 6);
+		const p = {i, a, M, R, rho: rhoE, ve, g, Teq, Ts, atmo, bars: thick, gas, inHZ, locked};
 		p.esi = gas ? 0 : esi(p);
 		p.water = !gas && atmo && Ts > 273 && Ts < 373 && thick > 0.1;
 		/* life: needs liquid water for long and quiet enough; its chance grows with the star's age and the quiet */
