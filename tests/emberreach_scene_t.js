@@ -2,7 +2,7 @@
      node tests/emberreach_scene_t.js */
 const path = require('path');
 const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
-const Sc = require(path.join(DIR, 'scene.js')), Fl = require(path.join(DIR, 'flight.js')), F = require(path.join(DIR, 'factions.js')), S = require(path.join(DIR, 'ships.js'));
+const M0 = require(path.join(DIR, 'modules.js')), Sc = require(path.join(DIR, 'scene.js')), Fl = require(path.join(DIR, 'flight.js')), F = require(path.join(DIR, 'factions.js')), S = require(path.join(DIR, 'ships.js'));
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };
 const {add, sub, mul, len, dot} = Sc.v, DT = 1 / 60;
@@ -83,10 +83,24 @@ try {
 	ok('18. the same system every time', JSON.stringify(Sc.build(home.star, {day: 200}).bodies) == JSON.stringify(sc.bodies));
 	/* years and days, as real worlds have them */
 	const Gx = require(path.join(DIR, 'galaxy.js')), earth = {i: 0, a: 1, M: 1, R: 1, locked: false, gas: false, moons: [{dist: 60.3}]}; Gx.spin({id: 'sol', M: 1}, earth);
-	ok('19. a world\'s year from Kepler\'s law, a moon\'s month from its planet\'s mass and distance: an Earth\'s year 365 days, a Moon at 60 Earth radii 27 days', Math.abs(earth.year - 365.25) < 0.5 && Math.abs(earth.moons[0].year - 27.3) < 0.5);
+	ok('22. a world\'s year from Kepler\'s law, a moon\'s month from its planet\'s mass and distance: an Earth\'s year 365 days, a Moon at 60 Earth radii 27 days', Math.abs(earth.year - 365.25) < 0.5 && Math.abs(earth.moons[0].year - 27.3) < 0.5);
 	const ws = Gx.sampleGalaxy(800, 9).filter(x => x.kind == 'star').flatMap(x => Gx.system(x).planets), rocks = ws.filter(w => !w.gas && !w.locked), gas = ws.filter(w => w.gas && !w.locked);
-	ok('20. days as real worlds have them: locked worlds once a year, gas giants in 9-18 h, rocky worlds from 10 h to months (some backwards), moons locked to their months', ws.filter(w => w.locked).every(w => w.day == w.year) && gas.every(w => w.day * 24 >= 9 && w.day * 24 <= 18) && rocks.every(w => Math.abs(w.day) * 24 >= 9.99) && rocks.some(w => w.day < 0) && ws.flatMap(w => w.moons || []).every(m => m.day == m.year && m.year > 0));
+	ok('23. days as real worlds have them: locked worlds once a year, gas giants in 9-18 h, rocky worlds from 10 h to months (some backwards), moons locked to their months', ws.filter(w => w.locked).every(w => w.day == w.year) && gas.every(w => w.day * 24 >= 9 && w.day * 24 <= 18) && rocks.every(w => Math.abs(w.day) * 24 >= 9.99) && rocks.some(w => w.day < 0) && ws.flatMap(w => w.moons || []).every(m => m.day == m.year && m.year > 0));
 	const sc2 = Sc.build(home.star, {day: 200}), moonB = sc2.bodies.find(b => b.parent), worldB = sc2.bodies.find(b => b.kind == 'planet' && !b.parent);
-	ok('21. in the scene, each world turns once a day of its own and each moon goes round in its month, in real time', !moonB || (Math.abs(moonB.period - moonB.src.year * 86400) < 1 && Math.abs(worldB.period - worldB.src.day * 86400) < 1));
+	ok('24. in the scene, each world turns once a day of its own and each moon goes round in its month, in real time', !moonB || (Math.abs(moonB.period - moonB.src.year * 86400) < 1 && Math.abs(worldB.period - worldB.src.day * 86400) < 1));
+	/* gravity, below the Kármán line */
+	const world = {kind: 'planet', name: 'Test', pos: [0, 0, 0], radius: 1.7e6, g: 0.16, M: 0.0123, karman: Sc.karmanOf(0.0123)}, earthK = Sc.karmanOf(1), sc3 = {bodies: [{kind: 'star', pos: [1e12, 0, 0], radius: 7e8}, world]};
+	ok('25. a world\'s Kármán line: Earth\'s 100 km up, every other world\'s in proportion to its mass (a Moon\'s 1.2 km, a 318-Earth giant\'s 31,800 km)', earthK == 1e5 && Math.abs(world.karman - 1230) < 1 && Math.abs(Sc.karmanOf(318) - 3.18e7) < 1);
+	const gAt = h => len(Sc.gravityAt(sc3, [world.radius + h, 0, 0]));
+	ok('26. below it the world pulls (its surface gravity, falling off with the square of the distance); above it, nothing', Math.abs(gAt(0) - 0.16 * 9.81) < 1e-9 && gAt(1000) > 0 && gAt(1000) < gAt(0) && gAt(1300) == 0 && Sc.gravityAt(sc3, [-world.radius - 500, 0, 0])[0] > 0);
+	ok('27. stars pull nothing here, and every scene world carries its line', gAt(1e9) == 0 && sc.bodies.filter(b => b.kind == 'planet').every(b => Math.abs(b.karman - 1e5 * b.M) < 1e-6));
+	const hov = hull => { const st = Fl.create(hull, {p: [world.radius + 800, 0, 0]}); for (let i = 0; i < 600; i++) { st.grav = Sc.gravityAt(sc3, st.p); Fl.step(st, {throttle: 0, strafe: [0, 0]}, 1 / 60) } return st };
+	const h1 = hov(S.ships().find(x => x.name == 'Dodo'));
+	ok('28. flight assist holds a ship against the pull (ten seconds hovering 800 m up, within a metre)', Math.abs(h1.p[0] - (world.radius + 800)) < 1);
+	const free = Fl.create(S.ships().find(x => x.name == 'Dodo'), {p: [world.radius + 800, 0, 0]}); Fl.setAssist(free, false); let fres;
+	for (let i = 0; i < 300; i++) { free.grav = Sc.gravityAt(sc3, free.p); fres = Fl.step(free, {thrust: 0}, 1 / 60) }
+	ok('29. without assist it falls; and what\'s felt aboard is thrust, not the fall (free fall feels like nothing)', free.p[0] < world.radius + 800 - 5 && free.v[0] < -1 && M0.gForce(M0.fit(S.ships()[0]), fres).g == 0);
+	const stn = Sc.build(home.star, {day: 200}); const sw = stn.station && stn.station.world;
+	ok('30. the port sits above its world\'s Kármán line', !sw || len(sub(stn.station.c, sw.pos)) - sw.radius > sw.karman);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

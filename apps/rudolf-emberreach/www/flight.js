@@ -108,6 +108,9 @@ function step(s, input, dt, frame) {
 		let ff = add(toBody(s.q, cross(f.w, s.v)), cross(sub(s.w, toBody(s.q, f.w)), want));
 		/* with the hatch open, FA also leans on the thrusters against its drag, so the set speed is the speed */
 		if (H) ff = add(ff, mul(toBody(s.q, sub(s.v, f.v)), 1 / H.drag));
+		/* below a world's Kármán line (scene.js), FA holds the ship against its gravity too, as far as the thrusters
+		   can: a ship that can't hold sinks */
+		if (s.grav) ff = sub(ff, toBody(s.q, s.grav));
 		const tau = [S.tauL, S.tauL, S.tauF];
 		aB = err.map((e, i) => clamp(e / Math.max(tau[i], dt) + ff[i], lim[i][0], lim[i][1]));
 		/* angular: the turn rate the stick asks for (relative to the frame's spin), reached on the ACS and held */
@@ -127,8 +130,11 @@ function step(s, input, dt, frame) {
 	}
 	/* integrate (semi-implicit Euler): a symmetric ship, so no gyroscopic coupling */
 	let aW = toWorld(s.q, aB);
+	const aThrust = aW;   /* (what's felt aboard: thrust, not gravity's free fall) */
 	/* the open hatch's drag, against the motion relative to the frame */
 	if (H) aW = add(aW, mul(sub(frameAt(frame, s.p).v, s.v), 1 / H.drag));
+	/* and the world's gravity (s.grav, set by the caller each step: scene.js gravityAt) */
+	if (s.grav) aW = add(aW, s.grav);
 	s.v = add(s.v, mul(aW, dt));
 	s.p = add(s.p, mul(s.v, dt));
 	s.w = add(s.w, mul(alpha, dt));
@@ -136,7 +142,7 @@ function step(s, input, dt, frame) {
 	s.q = qnorm(add4(s.q, qmul([0, ww[0], ww[1], ww[2]], s.q).map(c => c * dt / 2)));
 	s.t += dt;
 	const effort = aB.reduce((t, a, i) => t + Math.abs(a) / (i < 2 ? S.aRcs : a > 0 ? S.aMain : S.aRetro), 0) + alpha.reduce((t, a, i) => t + Math.abs(a) / S.alpha[i], 0);
-	return {aBody: aB, aWorld: aW, alpha, effort};
+	return {aBody: aB, aWorld: aW, aThrust, alpha, effort};
 }
 function add4(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]] }
 

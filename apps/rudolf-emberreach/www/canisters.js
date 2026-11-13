@@ -40,11 +40,13 @@ function wreck(role, ship, rnd) {
 	return out;
 }
 /* drift and tumble; old canisters break up */
-function step(list, t, dt) {
+/* (grav: optional, (p) => the gravity there (scene.js gravityAt); ground: optional, (c) => holds it at a world's surface) */
+function step(list, t, dt, grav, ground) {
 	for (let i = list.length - 1; i >= 0; i--) {
 		const c = list[i];
 		if (t - c.born > CAN.life) { list.splice(i, 1); continue }
-		c.p = add(c.p, mul(c.v, dt)); c.pos = c.p; c.angle += len(c.spin) * dt;
+		if (grav) c.v = add(c.v, mul(grav(c.p), dt));
+		c.p = add(c.p, mul(c.v, dt)); if (ground) ground(c); c.pos = c.p; c.angle += len(c.spin) * dt;
 	}
 }
 /* where the hatch is: under the belly, a third of the way back */

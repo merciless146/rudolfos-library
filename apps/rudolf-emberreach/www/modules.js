@@ -83,7 +83,7 @@ function apply(f, flightState) { const st = status(f); flightState.output = st.o
 
 /* g-forces: the thrust a step used (flight.js's result), and what the pilot feels: nothing while the canopy holds */
 function gForce(f, stepResult) {
-	const a = stepResult.aWorld, g = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) / G0;
+	const a = stepResult.aThrust || stepResult.aWorld, g = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) / G0;
 	return {g, felt: works(f, 'canopy') ? 0 : g};
 }
 
