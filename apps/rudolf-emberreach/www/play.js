@@ -457,8 +457,9 @@ function update(dt) {
 		const tgt = curTarget();
 		const res = Sc.cruiseStep(scene, s, cz, input, dt, tgt);
 		if (res == 'drop') { const d = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say('Dropped out near ' + Sc.nearest(scene, s.p).what.name + (d.emergency ? ' (emergency)' : '')); Snd.cue(d.emergency ? 'emergency' : 'drop'); if (d.emergency) damage(25) }
-		game.gFelt = null;
+		game.gFelt = null; s.grav = null; game.well = null;
 	} else {
+		s.grav = Sc.gravityAt(scene, s.p); game.well = Sc.gravityWell(scene, s.p);
 		r = Fl.step(s, input, dt, frameNear());
 		const g = M.gForce(fit, r);
 		game.gFelt = M.works(fit, 'canopy') ? null : g.felt;
@@ -574,7 +575,9 @@ function combat(dt) {
 		}
 		const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, id: f.id} : null;
 		const c = C.think(n, tgt, n.home, game.t);
+		n.s.grav = Sc.gravityAt(scene, n.s.p);
 		Fl.step(n.s, {pitch: c.pitch, yaw: c.yaw, roll: c.roll, throttle: c.throttle, strafe: [0, 0], thrust: 0}, dt);
+		holdOff(n.s);   /* (the same safety keeps them off the ground) */
 		n.pos = n.s.p;
 		if (tgt) {
 			const d = len(sub(tgt.p, n.s.p));
@@ -666,7 +669,7 @@ function destroyed(n, byMe) {
 }
 /* canisters: drifting, scooped through the open hatch, spilt through a jammed one */
 function cargo(dt, cruising) {
-	Ca.step(game.cans, game.t, dt);
+	Ca.step(game.cans, game.t, dt, p => Sc.gravityAt(scene, p), restOnGround);
 	if (!hasHatch()) return;
 	const B = R.basis(s.q), down = mul(B.u, -1), back = mul(B.f, -1);
 	if (!M.works(fit, 'hatch')) {
@@ -760,6 +763,13 @@ function scanned(n) {
 	Snd.cue('chart');
 }
 /* ---------------- proximity safety, and wormholes ---------------- */
+/* a ship or a canister below a world's surface comes to rest on it (canisters) or is held off it (NPCs: the safety) */
+function holdOff(x) {
+	for (const b of scene.bodies) { const lim = Sc.safeDist(b), d = sub(x.p, b.pos), L = len(d); if (L >= lim) continue; const n = mul(d, 1 / (L || 1)), vn = dot(x.v, n); x.p = add(b.pos, mul(n, lim)); if (vn < 0) x.v = sub(x.v, mul(n, vn)) }
+}
+function restOnGround(c) {
+	for (const b of scene.bodies) { if (b.kind != 'planet') continue; const d = sub(c.p, b.pos), L = len(d), lim = b.radius + 2; if (L >= lim) continue; const n = mul(d, 1 / (L || 1)); c.p = add(b.pos, mul(n, lim)); c.v = [0, 0, 0]; c.pos = c.p }
+}
 function safety() {
 	for (const b of scene.bodies) {
 		const lim = Sc.safeDist(b), d = sub(s.p, b.pos), L = len(d); if (L >= lim) continue;
@@ -1082,7 +1092,7 @@ function hudDraw(cam) {
 		sweep: game.sweep > 0 ? 1 - game.sweep / X.EXPLORE.sweep : 0,
 		refinery: Object.keys(game.P.refinery || {}).length ? Object.entries(game.P.refinery).map(([g, t]) => g + ' ' + t.toFixed(1)).join(' · ') : null,
 		hatch: !hasHatch() ? null : !M.works(fit, 'hatch') ? 'jammed' : game.hatch ? 'open' : null,
-		scanner: M.works(fit, 'sensors') ? {range: 8000, blips} : null, incoming: game.incoming > 0, hitAge: game.hitAt != null ? game.t - game.hitAt : null,
+		scanner: M.works(fit, 'sensors') ? {range: 8000, blips} : null, well: game.well ? {g: game.well.g, alt: game.well.alt, name: game.well.body.name} : null, incoming: game.incoming > 0, hitAge: game.hitAt != null ? game.t - game.hitAt : null,
 		combat: {shield: pc.shield / Math.max(1, pc.shieldMax), hull: pc.hull / pc.hullMax, heat: Math.min(1, pc.heat), hot: pc.hot, armed: pc.load.guns.length > 0,
 			ammo: ammoGuns.length ? ammoGuns.reduce((t, g) => t + g.ammo, 0) : null, missiles: pc.load.missiles + pc.load.guns.filter(g => g.kind == 'torpedo').reduce((t, g) => t + g.ammo, 0),
 			missileMax: full.missiles + full.guns.filter(g => g.kind == 'torpedo').length, flares: pc.load.flares}

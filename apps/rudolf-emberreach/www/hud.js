@@ -128,6 +128,8 @@ function draw(ctx, W, H, h, t) {
 		if (h.sweep) sts.push(['SWEEP ' + Math.round(h.sweep * 100) + '%', C.cyan]);
 		if (h.hatch) sts.push([h.hatch == 'jammed' ? 'HATCH JAMMED · SPILLING' : 'HATCH OPEN · SCOOPING', h.hatch == 'jammed' ? C.red : C.cyan]);
 		if (h.incoming) sts.push(['MISSILE INBOUND', C.red]);
+		/* below a world's Kármán line: its pull, and the height above its surface */
+		if (h.well) sts.push(['GRAVITY ' + h.well.g.toFixed(2) + ' g · ' + fmtDist(Math.max(0, h.well.alt)) + ' UP', C.amber]);
 		if (h.refinery) sts.push(['REFINERY ' + h.refinery, '#c9a46a']);
 		if (!k.armed && !sts.length) sts.push(['UNARMED', C.muted]);
 		let sx2 = bx + 10; for (const [t2, col] of sts) { text(ctx, t2, sx2, py + 68, {mono: true, size: 10, weight: 700, col}); ctx.font = '700 10px ' + MONO; sx2 += ctx.measureText(t2).width + 14 }

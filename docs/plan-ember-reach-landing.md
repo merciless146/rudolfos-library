@@ -60,7 +60,8 @@ this world**" before the pilot commits to a descent.
 1. **Supercruise** drops the ship near the world as it does now. With a landable world targeted, the drop
    comes in **above it** (about 1.5 radii from its centre, or 50 km up, whichever is higher) instead of at a
    station.
-2. **Descent.** Within 5 radii, gravity acts on the ship: `g × (R / r)²` toward the world's centre. Below
+2. **Descent.** Below the world's **Kármán line**, gravity acts on the ship: `g × (R / r)²` toward the world's
+   centre (in the game now: see "Gravity" below). Below
    about 30 km the frame changes:
    - The HUD switches to a **surface frame**: altitude above the ground, vertical speed, ground speed, and a
      horizon line with pitch ladder.
@@ -106,6 +107,39 @@ their reach, so there is no supercruising into the ground.
 **The safety** (`scene.js`) already holds ships 300 m off airless ground and keeps them out of atmospheres.
 With landing, the 300 m hold applies only while the gear is up. With the gear down, the touchdown rules
 take over.
+
+## Gravity: the Kármán line
+
+This is in the game now (`scene.js`: `karmanOf`, `gravityAt`, `gravityWell`; scene test checks 25–30).
+
+- **Where gravity starts.** A world's gravity takes hold of ships and loose things only below its **Kármán
+  line**. Earth's is 100 km up, and every other world's is that in proportion to its mass:
+
+  | World | Mass | Kármán line |
+  |---|---|---|
+  | Earth | 1 Earth | 100 km |
+  | A Moon-sized moon | 0.012 Earth | 1.2 km |
+  | A 0.3-Earth rock | 0.3 Earth | 30 km |
+  | A 318-Earth giant | 318 Earth | 31,800 km |
+
+- **Below the line**, the pull is the world's surface gravity, falling off with the square of the distance
+  from its centre. **Above it**, nothing pulls, as if everything up there were in orbit.
+- **What isn't pulled:**
+  - stars and black holes;
+  - ring rocks, which are in orbit;
+  - anything in cruise.
+- **What is pulled:** the player's ship, NPC ships and loose canisters.
+  - **Flight assist** holds a ship against the pull, as far as its thrusters can. A ship that can't hold
+    sinks. With assist off, it falls.
+  - NPC ships are held off the ground by the same proximity safety as the player.
+  - Canisters come to rest on the surface.
+- **What's felt aboard** (the g-meter and blackouts) is thrust, not gravity. Free fall feels like nothing, and
+  hovering on a 1 g world feels like 1 g.
+- **The HUD** shows **GRAVITY** (the pull in g, and the height above the surface) while below a line.
+- **Ports stay above it.** A space port always orbits above its world's Kármán line. A heavy giant's line can
+  reach past one radius, so its port sits higher.
+- **No trap.** Near a heavy giant, a big ship whose thrusters can't climb against the pull can still engage
+  cruise. Cruise always works outside a station's mass lock.
 
 ## The ground
 

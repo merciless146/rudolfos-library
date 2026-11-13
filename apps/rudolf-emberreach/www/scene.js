@@ -111,14 +111,14 @@ function build(star, opts) {
 		const q = G.rng(G.hashStr('spin:' + pl.name)), tilt = (pl.locked ? 0.02 : 0.45) * q(), az = q() * 2 * Math.PI;
 		const axis = [Math.sin(tilt) * Math.cos(az), Math.sin(tilt) * Math.sin(az), Math.cos(tilt)];
 		q(); const dayLen = pl.day || (pl.locked ? P : 1);
-		bodies.push({kind: 'planet', name: pl.name, type: pl.type, pos: [o[0] + a * Math.cos(th), o[1] + a * Math.sin(th), o[2] + a * Math.sin(inc) * Math.sin(th)], radius: pl.R * RE, g: pl.g, Ts: pl.Ts, ring: pl.ring, ringDensity: pl.ringDensity, host: pl.host || null, life: pl.life, seed: G.hashStr(pl.name),
+		bodies.push({kind: 'planet', name: pl.name, type: pl.type, pos: [o[0] + a * Math.cos(th), o[1] + a * Math.sin(th), o[2] + a * Math.sin(inc) * Math.sin(th)], radius: pl.R * RE, g: pl.g, M: pl.M, karman: karmanOf(pl.M), Ts: pl.Ts, ring: pl.ring, ringDensity: pl.ringDensity, host: pl.host || null, life: pl.life, seed: G.hashStr(pl.name),
 			atmo: !!pl.atmo, locked: !!pl.locked, axis, period: dayLen * 86400, phase: q() * 2 * Math.PI, src: pl});
 	}
 	/* moons: around their planets, tidally locked, at their distances in planet radii (their own draws), each in its
 	   real month (the galaxy model's year for a moon: Kepler's law round its planet's mass) */
 	for (const pb of bodies.filter(b => b.kind == 'planet' && b.src.moons && b.src.moons.length)) for (const mo of pb.src.moons) {
 		const month = mo.year || (2 + mo.dist * 0.4), q = G.rng(G.hashStr('moon:' + mo.name)), th = q() * 2 * Math.PI + 2 * Math.PI * day / month, r0 = pb.radius * mo.dist;
-		bodies.push({kind: 'planet', name: mo.name, type: mo.type, pos: [pb.pos[0] + r0 * Math.cos(th), pb.pos[1] + r0 * Math.sin(th), pb.pos[2] + r0 * 0.05 * (q() - 0.5)], radius: mo.R * RE, g: mo.g, Ts: mo.Ts, ring: null, host: pb.host, parent: pb.name, life: 0, seed: G.hashStr(mo.name),
+		bodies.push({kind: 'planet', name: mo.name, type: mo.type, pos: [pb.pos[0] + r0 * Math.cos(th), pb.pos[1] + r0 * Math.sin(th), pb.pos[2] + r0 * 0.05 * (q() - 0.5)], radius: mo.R * RE, g: mo.g, M: mo.M, karman: karmanOf(mo.M), Ts: mo.Ts, ring: null, host: pb.host, parent: pb.name, life: 0, seed: G.hashStr(mo.name),
 			atmo: !!mo.atmo, locked: true, axis: [0, 0, 1], period: 86400 * month, phase: q() * 2 * Math.PI, src: mo});
 	}
 	const planets = bodies.filter(b => b.kind == 'planet');
@@ -132,7 +132,8 @@ function build(star, opts) {
 	let c, axis;
 	if (portWorld) {
 		const toStar = norm(mul(portWorld.pos, -1)), side = norm(cross(toStar, [0, 0, 1])), u = norm(add(mul(toStar, 0.8), mul(side, 0.6)));
-		c = add(portWorld.pos, mul(u, portWorld.radius * (portWorld.ring ? 3 : 2))); axis = u;   /* clear of any rings (they reach 2.3 radii) */
+		/* (and always above the world's Kármán line, where its gravity starts: a heavy giant's reaches past one radius) */
+		c = add(portWorld.pos, mul(u, Math.max(portWorld.radius * (portWorld.ring ? 3 : 2), portWorld.radius + 1.5 * portWorld.karman))); axis = u;   /* clear of any rings (they reach 2.3 radii) */
 	} else { c = [AU, 0, 0]; axis = [-1, 0, 0] }
 	const xAx = norm(cross([0, 0, 1], axis).every(v => Math.abs(v) < 1e-9) ? [1, 0, 0] : cross([0, 0, 1], axis)), yAx = cross(axis, xAx);
 	const station = {cls, def: STATION[cls], name: (portWorld ? portWorld.name : star.name) + ' ' + STATION[cls].name, c, axis, x: xAx, y: yAx, spin: spinOf(cls), parts: partsOf(cls), world: portWorld};
@@ -219,6 +220,29 @@ function resolve(s, hit) {
 	return Math.max(0, hit.impact - 5) * 0.6;   /* hits under 5 m/s are scrapes */
 }
 
+/* ---------- gravity ----------
+   A world's gravity takes hold of ships and loose things only below its Kármán line: Earth's is 100 km up, and
+   every world's is that in proportion to its mass (a moon of a hundredth of Earth's mass: 1 km; a giant of 300
+   Earths: 30,000 km). Below it, the pull is the world's surface gravity falling off with the square of the
+   distance from its centre. Above it, none (as if everything up there were in orbit). Stars and black holes
+   pull nothing here; ring rocks are in orbit and stay put. In cruise, nothing pulls. */
+const KARMAN = 1e5;
+function karmanOf(M) { return KARMAN * Math.max(0, M || 0) }
+function gravityAt(scene, p) {
+	let a = [0, 0, 0];
+	for (const b of scene.bodies) {
+		if (b.kind != 'planet' || !b.karman) continue;
+		const d = sub(p, b.pos), r = len(d); if (r - b.radius > b.karman || r < 1) continue;
+		const g = b.g * G0 * Math.pow(b.radius / Math.max(r, b.radius), 2); a = add(a, mul(d, -g / r));
+	}
+	return a;
+}
+/* the world whose gravity holds you here, if any: {body, g (in g), alt} */
+function gravityWell(scene, p) {
+	let best = null;
+	for (const b of scene.bodies) { if (b.kind != 'planet' || !b.karman) continue; const r = len(sub(p, b.pos)), alt = r - b.radius; if (alt <= b.karman && (!best || alt < best.alt)) best = {body: b, alt, g: b.g * Math.pow(b.radius / Math.max(r, b.radius), 2)} }
+	return best;
+}
 /* ---------- cruise ---------- */
 const CRUISE = {k: 1, cap: 200 * C, min: 2000, charge: 3, lock: 20000, drop: {station: 25000, planet: 1.0, star: 5}, emergency: 3e5};
 /* the nearest surface, and how far (m) */
@@ -278,7 +302,7 @@ function spawn(scene, dist) {
 }
 
 const EmberScene = {AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
-	SAFE, bhSafe, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
+	KARMAN, karmanOf, gravityAt, gravityWell, SAFE, bhSafe, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
 	v: {add, sub, mul, dot, cross, len, norm}};
 if (isNode) module.exports = EmberScene; else root.EmberScene = EmberScene;
 })(typeof window != 'undefined' ? window : this);
