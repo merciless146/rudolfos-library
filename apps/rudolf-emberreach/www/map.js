@@ -198,8 +198,8 @@ function create() {
 	}
 	/* the info panel and buttons */
 	function panel(ctx, t) {
-		const small = W < 700, pw = small ? W - 32 : 340, px = 16, py = H - (small ? 230 : 214) - 16;
-		box(ctx, px, py, pw, small ? 230 : 214);
+		const small = W < 700, pw = small ? W - 32 : 340, px = 16, extra = M.sel && (M.info || (M.info = describe(M.sel))).surface ? 18 : 0, ph = (small ? 230 : 214) + extra, py = H - ph - 16;
+		box(ctx, px, py, pw, ph);
 		let y = py + 22;
 		if (M.sel) {
 			const s = M.sel, i = M.info || (M.info = describe(s));
@@ -207,6 +207,7 @@ function create() {
 			text(ctx, i.kind, px + 12, y, {size: 12, col: C.muted}); y += 20;
 			text(ctx, i.owner, px + 12, y, {size: 12, col: i.ownerCol}); y += 18;
 			text(ctx, i.port, px + 12, y, {size: 12}); y += 18;
+			if (i.surface) { text(ctx, i.surface, px + 12, y, {size: 12}); y += 18 }
 			text(ctx, i.planets, px + 12, y, {size: 12, col: C.muted}); y += 18;
 			text(ctx, i.dist + (i.misjump ? ' · misjump risk ' + i.misjump : ''), px + 12, y, {size: 12, mono: true}); y += 22;
 			const r = M.route;
@@ -232,6 +233,8 @@ function create() {
 			owner: o.owner ? (o.contested ? 'Contested, held by ' : '') + m.name.replace(/^The /, '') + (rel < 0 ? ' (at war with you)' : rel > 0 ? ' (allied)' : '') : (s.rift ? 'The Rift: nobody\'s' : 'Unclaimed space'), ownerCol: rel < 0 ? C.red : rel > 0 ? C.green : C.text,
 			port: port && port.maw ? 'The Interstellar Marshals\' anchorage: a no-fire zone; fuel, repairs, trade' : port && port.anchorage ? 'Precursor anchorage at ' + port.world + ': fuel, repairs, trade' : col ? 'Your colony: ' + {claimed: 'claimed, beacon by day ' + col.beaconBy, building: 'building, ' + Math.round(100 * Co.progress(col)) + '%', done: col.port + ' built'}[col.stage] : port ? 'Port: ' + {halo: 'Halo (capital)', lantern: 'Lantern', trefoil: 'Trefoil outpost', bloom: 'Bloom'}[port.cls] + ' at ' + port.world : 'No port',
 			planets: s.heart ? (s.rift ? 'The Maw: the way home, for a ship with a dimensional phaser' : 'The Maw: ' + Math.round(G.GAL.MBH).toLocaleString('en-US') + ' suns, and the way into the Rift, for a ship with a dimensional phaser') : s.kind == 'black hole' ? 'A black hole: a wormhole to ' + (s.rift ? 'anywhere in the Rift' : 'anywhere') + ', for a ship with a dimensional phaser' : sys.planets.length + (sys.planets.length == 1 ? ' planet' : ' planets') + (live ? ' · ' + live + ' living' : '') + (M.explore && M.explore.sys[s.id] != null ? ' · charted by you' : !o.owner ? ' · uncharted' : ''),
+			/* surface ports (L2.2): the lone ones once found */
+			surface: (l => l.length ? 'On the ground: ' + l.map(q => q.name).join(', ') : null)(ports.filter(q => q.surface && (!q.lone || (M.player && window.EmberExplore && window.EmberExplore.found(M.player, s.id, q.id))))),
 			dist: d < 1000 ? d.toFixed(d < 10 ? 2 : 1) + ' pc' : Math.round(d).toLocaleString('en-US') + ' pc', misjump: mj > 0.005 ? Math.round(mj * 100) + '%' : null};
 	}
 	function box(ctx, x, y, w, h) { ctx.fillStyle = C.panel; ctx.fillRect(x, y, w, h); ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1) }

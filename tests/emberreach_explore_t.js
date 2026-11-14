@@ -39,6 +39,8 @@ try {
 	/* the save */
 	const back = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(pl))));
 	ok('12. the record is kept in the save: charts, surveys, sales, names', back.explore && back.explore.names[k] == 'Hollow Crown' && back.explore.pl[k].f == 1 && back.explore.sold[cap.id] == 1);
+	const plF = JSON.parse(JSON.stringify(Sv.packPlayer(pl))); plF.explore = Object.assign({}, plF.explore || {sys: {}, pl: {}, sold: {}, names: {}}, {found: {'abc|surface:Vega b:camp': 212}});
+	ok('13a. the lone surface ports found (L2.2) are kept in the save; a damaged list drops the record', Sv.unpackPlayer(plF).explore.found['abc|surface:Vega b:camp'] == 212 && Sv.unpackPlayer(Object.assign({}, plF, {explore: Object.assign({}, plF.explore, {found: {x: 'y'}})})).explore === null);
 	ok('13. a damaged record is dropped, not trusted', Sv.unpackPlayer(Object.assign(JSON.parse(JSON.stringify(Sv.packPlayer(pl))), {explore: {sys: [], pl: {}}})).explore === null);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

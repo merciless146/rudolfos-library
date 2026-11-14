@@ -16,7 +16,7 @@ counts as done.
   `requestDock`).
 - The proximity safety holding ships 300 m off airless ground (`scene.js` `SAFE.ground`).
 
-**Drafted, outside the game** (`wip/emberreach-surface/surface.js`)
+**Drafted, outside the game** (then `wip/emberreach-surface/surface.js`; in the game from L2.2)
 - Landability and per-ship lift.
 - Touchdown rules.
 - Port kinds and placement, seeded layouts and meshes.
@@ -353,6 +353,23 @@ Tested by every existing suite unchanged, plus `tests/emberreach_save_t.js` 8b a
   - Lone outposts and camps appear in 1 system in 25.
 - **Sites are levelled.** Each port's flat (radius plus ramp) goes into `terrain.js`'s flats for its world.
 - **The map's star card** lists the surface ports. The cartographer and a ground scan reveal lone ones.
+
+**Done** (0.3.3):
+- **`surface.js`** is in the game (`www/surface.js`, with `layouts.html` beside it). `portsAt` lists its ports after
+  the space port, held by the space port's holder (or the system's; with neither, independent). A colony's system
+  gets none yet.
+- **The world scale:** a site's radius must be at most 3% of its world's (at 1/12). A world too small for a
+  starport and its 4.6 km field gets a settlement instead, and smaller kinds fall back the same way. 11 of the 12
+  capitals get a surface starport.
+- **Levelling:** on entering a system, each site is levelled into its world's terrain (`surface.js` `level`: the
+  site's radius flat, half again of ramp), once per world.
+- **The map's star card** has an "On the ground" line.
+- **Lone ports** turn up in 3.9% of systems with landable ground and no space port. They're found by a ground scan
+  on their world (which says how far away), or from the cartographer's charts on docking (those within 5 pc). The
+  record keeps them (`P.explore.found`).
+
+Tested in `tests/emberreach_surface_t.js` 14-17, `tests/emberreach_explore_t.js` 13a, and the browser test's 5b
+and 9r.
 
 ### L2.3 Port meshes on the ground
 

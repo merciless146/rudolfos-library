@@ -1267,7 +1267,7 @@ test's 9q):
   in half the time at full heat.
 
 Still to come: surface ports (L2), mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
-Surface ports are planned in `docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).
+Surface ports are planned in `docs/plan-ember-reach-landing.md`; their model is `www/surface.js`.
 
 ## Open questions
 

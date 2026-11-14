@@ -16,6 +16,7 @@
 'use strict';
 const isNode = typeof module != 'undefined';
 const G = isNode ? require('./galaxy.js') : root.EmberGalaxy, F = isNode ? require('./factions.js') : root.EmberFactions;
+const Su = () => isNode ? require('./surface.js') : root.EmberSurface;
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const at = s => s.at || [s.x, s.y, s.z];
 /* (0.2.0: hubs, lanes and relays drawn in with the great powers' smaller claims, about a third as wide) */
@@ -55,13 +56,20 @@ function ownerOf(star, day) {
 /* the port at a star, if any: {cls, world (planet name), owner, capital} */
 /* ---------- the ports at a star (landing L2.1) ----------
    A list: the space port first (if any), then the surface ports (from L2.2). Each has an id: 'orbital', or
-   'surface:<world>:<kind>'. portFor stays "the space port", for the callers that mean that. colony: the player's
-   finished colony's port at this star (colonies.js portOf), which stands in for the space port */
+   'surface:<world>:<kind>'. portFor stays "the space port", for the callers that mean that. space: a port that
+   stands in for portFor's (the player's finished colony's, colonies.js portOf, or the home capital's).
+   Surface ports (L2.2, surface.js ports): by the space port's class; with none above, now and then a lone outpost
+   or mining camp (lone: true; the map shows it once found). They're held by the space port's holder, or the
+   system's; with neither, independent (free traders). A colony's system gets none yet (its own come with L2.6) */
 const ORBITAL = 'orbital';
 const PORT_ID = /^(orbital|surface:[^:]+:[a-z]+)$/;
-function portsAt(star, day, colony) {
-	const sp = colony || portFor(star, day);
-	return sp ? [Object.assign({}, sp, {id: ORBITAL})] : [];
+function portsAt(star, day, space) {
+	const sp = space || portFor(star, day), out = sp ? [Object.assign({}, sp, {id: ORBITAL})] : [];
+	if (sp && sp.colony) return out;
+	const S = Su(); if (!S) return out;
+	const own = sp ? null : ownerOf(star, day), holder = sp ? sp.owner || null : own.contested ? null : own.owner || null;
+	for (const q of S.ports(star, sp && sp.cls)) out.push(Object.assign({}, q, {surface: true, name: q.world + ' ' + S.KIND[q.kind].name, cls: S.KIND[q.kind].tier, owner: holder, independent: !holder}));
+	return out;
 }
 /* a port in a list by its id (null if it isn't there) */
 const portById = (ports, id) => (ports || []).find(p => p.id == (id || ORBITAL)) || null;

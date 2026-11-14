@@ -7,7 +7,7 @@ surfaces of airless planets and moons, landing anywhere flat enough, and docking
 outposts** built there. Worlds with an atmosphere stay closed for now: the safety still holds ships off them,
 because nothing yet models entry heat or flying through air.
 
-The draft model is in `wip/emberreach-surface/` and is not part of the game yet:
+The model is in the game (`apps/rudolf-emberreach/www/surface.js`, from L2.2; drafted in `wip/emberreach-surface/`):
 
 - `surface.js` covers which worlds can be landed on, which ship can manage which gravity, the touchdown rules,
   the kinds of surface port, where they go, their layouts and their meshes.

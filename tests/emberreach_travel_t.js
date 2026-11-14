@@ -41,7 +41,7 @@ try {
 	ok('16. a star can be found again from its id and place (for saves)', T.starAt(near.id, T.at(near)).id == near.id);
 	/* landing L2.1: the ports at a star, by id */
 	const cap = F.majors()[0], pa = T.portsAt(cap.star, 200), bare = G.sampleGalaxy(400, 31).filter(x => x.kind == 'star').find(x => !T.portFor(x, 200));
-	ok('L2.1. the ports at a star are a list with ids: a capital\'s space port is \'orbital\' (the same as portFor); a star with no port has none; a colony\'s port stands in for the space port', pa.length == 1 && pa[0].id == 'orbital' && pa[0].cls == T.portFor(cap.star, 200).cls && T.portById(pa, 'orbital') === pa[0] && T.portById(pa, 'surface:x:camp') === null
-		&& (!bare || T.portsAt(bare, 200).length == 0) && T.portsAt(cap.star, 200, {cls: 'bloom', colony: true})[0].cls == 'bloom' && T.PORT_ID.test('surface:Vega b:outpost') && !T.PORT_ID.test('castle'));
+	ok('L2.1. the ports at a star are a list with ids: a capital\'s space port is \'orbital\' (the same as portFor); a star with no port has at most a lone surface port; a colony\'s port stands in for the space port (and has no surface ports yet)', pa[0].id == 'orbital' && pa.slice(1).every(q => q.surface) && pa[0].cls == T.portFor(cap.star, 200).cls && T.portById(pa, 'orbital') === pa[0] && T.portById(pa, 'surface:x:camp') === null
+		&& (!bare || T.portsAt(bare, 200).every(q => q.surface && q.lone)) && T.portsAt(cap.star, 200, {cls: 'bloom', colony: true}).length == 1 && T.portsAt(cap.star, 200, {cls: 'bloom', colony: true})[0].cls == 'bloom' && T.PORT_ID.test('surface:Vega b:outpost') && !T.PORT_ID.test('castle'));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
