@@ -27,7 +27,7 @@ const EN = [
 	'Missile incoming', 'Landing gear down', 'Landing gear up', 'Landing gear: down only below 100 m/s', 'Next',
 	'ALT', 'V/S', 'GND', 'LANDED', 'Spotlights', 'Night vision', 'LIGHTS', 'NV',
 	'Radial menu', 'Simple', 'Full', 'Combat / analysis mode', 'Combat and analysis', 'Control scheme', 'Assists', 'Automatic landing gear', 'Automatic spotlights', 'Landing assist', 'Automatic jumps along a route', 'COMBAT', 'ANALYSIS', 'Simple: the core keys only, flight assist always on, and the assists below on. Everything else is in the radial menu (~).', 'Full: every key, and flight assist yours to switch off.',
-	'Automatic resolution', 'Antialiasing', 'Auto', 'Automatic resolution lowers the resolution while the frame rate is under 30, and raises it again when there is room. Antialiasing changes take effect when the game next starts.'];
+	'Automatic resolution', 'Antialiasing', 'Auto', 'Automatic resolution lowers the resolution while the frame rate is under 30, and raises it again when there is room. Antialiasing changes take effect when the game next starts.', 'GROUND SCAN'];
 
 const TR = {
 es: ['Ajustes', 'Gráficos, audio y HUD', 'Controles', 'Idioma y accesibilidad', 'Gráficos', 'Calidad', 'Alta', 'Baja', 'Resolución', 'Campo de visión',
@@ -48,7 +48,7 @@ es: ['Ajustes', 'Gráficos, audio y HUD', 'Controles', 'Idioma y accesibilidad',
 	'Misil en camino', 'Tren de aterrizaje fuera', 'Tren de aterrizaje recogido', 'Tren de aterrizaje: solo por debajo de 100 m/s', 'Siguiente',
 	'ALT', 'V/V', 'SUELO', 'POSADO', 'Focos', 'Visión nocturna', 'FOCOS', 'VN',
 	'Menú radial', 'Sencillo', 'Completo', 'Modo combate / análisis', 'Combate y análisis', 'Esquema de controles', 'Asistencias', 'Tren de aterrizaje automático', 'Focos automáticos', 'Asistencia de aterrizaje', 'Saltos automáticos en una ruta', 'COMBATE', 'ANÁLISIS', 'Sencillo: solo las teclas básicas, asistencia de vuelo siempre activa y las asistencias de abajo activadas. Todo lo demás está en el menú radial (~).', 'Completo: todas las teclas, y la asistencia de vuelo la desactivas tú.',
-	'Resolución automática', 'Antialiasing', 'Automático', 'La resolución automática baja la resolución mientras la tasa de fotogramas está por debajo de 30 y la vuelve a subir cuando hay margen. Los cambios de antialiasing se aplican al volver a iniciar el juego.'],
+	'Resolución automática', 'Antialiasing', 'Automático', 'La resolución automática baja la resolución mientras la tasa de fotogramas está por debajo de 30 y la vuelve a subir cuando hay margen. Los cambios de antialiasing se aplican al volver a iniciar el juego.', 'ESCANEO DEL SUELO'],
 pt: ['Configurações', 'Gráficos, áudio e HUD', 'Controles', 'Idioma e acessibilidade', 'Gráficos', 'Qualidade', 'Alta', 'Baixa', 'Resolução', 'Campo de visão',
 	'Efeitos de brilho', 'Mostrar quadros por segundo', 'Áudio', 'Som', 'Volume geral', 'Motores e ambiente', 'Efeitos', 'Alertas e avisos', 'HUD', 'Tamanho do HUD',
 	'Opacidade do HUD', 'Mensagens exibidas', 'Duração das mensagens', 'Scanner', 'Marcador de velocidade', 'Marcador de antecipação', 'Ligado', 'Desligado', 'Teclado e controle', 'Pressione uma tecla ou um botão do controle (Esc cancela)',
@@ -67,7 +67,7 @@ pt: ['Configurações', 'Gráficos, áudio e HUD', 'Controles', 'Idioma e acessi
 	'Míssil a caminho', 'Trem de pouso baixado', 'Trem de pouso recolhido', 'Trem de pouso: só abaixo de 100 m/s', 'Próximo',
 	'ALT', 'V/V', 'SOLO', 'POUSADO', 'Holofotes', 'Visão noturna', 'HOLOFOTES', 'VN',
 	'Menu radial', 'Simples', 'Completo', 'Modo combate / análise', 'Combate e análise', 'Esquema de controles', 'Assistências', 'Trem de pouso automático', 'Holofotes automáticos', 'Assistência de pouso', 'Saltos automáticos numa rota', 'COMBATE', 'ANÁLISE', 'Simples: só as teclas básicas, assistência de voo sempre ligada e as assistências abaixo ligadas. O resto está no menu radial (~).', 'Completo: todas as teclas, e a assistência de voo você desliga se quiser.',
-	'Resolução automática', 'Antisserrilhado', 'Automático', 'A resolução automática baixa a resolução enquanto a taxa de quadros fica abaixo de 30 e volta a subi-la quando há folga. As mudanças de antisserrilhado valem na próxima vez que o jogo iniciar.'],
+	'Resolução automática', 'Antisserrilhado', 'Automático', 'A resolução automática baixa a resolução enquanto a taxa de quadros fica abaixo de 30 e volta a subi-la quando há folga. As mudanças de antisserrilhado valem na próxima vez que o jogo iniciar.', 'VARREDURA DO SOLO'],
 fr: ['Paramètres', 'Graphismes, son et HUD', 'Commandes', 'Langue et accessibilité', 'Graphismes', 'Qualité', 'Haute', 'Basse', 'Résolution', 'Champ de vision',
 	'Effets lumineux', 'Afficher les images par seconde', 'Son', 'Son', 'Volume principal', 'Moteurs et ambiance', 'Effets', 'Alertes et avertissements', 'HUD', 'Taille du HUD',
 	'Opacité du HUD', 'Messages affichés', 'Durée des messages', 'Scanner', 'Marqueur de vitesse', 'Marqueur de visée anticipée', 'Activé', 'Désactivé', 'Clavier et manette', 'Appuyez sur une touche ou un bouton de manette (Échap annule)',
@@ -86,7 +86,7 @@ fr: ['Paramètres', 'Graphismes, son et HUD', 'Commandes', 'Langue et accessibil
 	'Missile en approche', 'Train d’atterrissage sorti', 'Train d’atterrissage rentré', 'Train d’atterrissage : seulement sous 100 m/s', 'Suivant',
 	'ALT', 'V/V', 'SOL', 'POSÉ', 'Projecteurs', 'Vision nocturne', 'PROJ.', 'VN',
 	'Menu radial', 'Simple', 'Complet', 'Mode combat / analyse', 'Combat et analyse', 'Schéma de commandes', 'Assistances', 'Train d’atterrissage automatique', 'Projecteurs automatiques', 'Assistance à l’atterrissage', 'Sauts automatiques sur un itinéraire', 'COMBAT', 'ANALYSE', 'Simple : les touches essentielles seulement, l’assistance de vol toujours active et les assistances ci-dessous activées. Tout le reste est dans le menu radial (~).', 'Complet : toutes les touches, et l’assistance de vol se coupe à votre guise.',
-	'Résolution automatique', 'Anticrénelage', 'Auto', 'La résolution automatique baisse la résolution tant que la fréquence d’images est sous 30, puis la remonte quand il y a de la marge. Les changements d’anticrénelage prennent effet au prochain démarrage du jeu.'],
+	'Résolution automatique', 'Anticrénelage', 'Auto', 'La résolution automatique baisse la résolution tant que la fréquence d’images est sous 30, puis la remonte quand il y a de la marge. Les changements d’anticrénelage prennent effet au prochain démarrage du jeu.', 'SCAN DU SOL'],
 de: ['Einstellungen', 'Grafik, Ton und HUD', 'Steuerung', 'Sprache und Barrierefreiheit', 'Grafik', 'Qualität', 'Hoch', 'Niedrig', 'Auflösung', 'Sichtfeld',
 	'Leuchteffekte', 'Bildrate anzeigen', 'Ton', 'Ton', 'Gesamtlautstärke', 'Triebwerke und Umgebung', 'Effekte', 'Alarme und Warnungen', 'HUD', 'HUD-Größe',
 	'HUD-Deckkraft', 'Angezeigte Meldungen', 'Anzeigedauer der Meldungen', 'Scanner', 'Geschwindigkeitsmarke', 'Vorhaltemarke', 'Ein', 'Aus', 'Tastatur und Controller', 'Drücke eine Taste oder einen Controller-Knopf (Esc bricht ab)',
@@ -105,7 +105,7 @@ de: ['Einstellungen', 'Grafik, Ton und HUD', 'Steuerung', 'Sprache und Barrieref
 	'Rakete im Anflug', 'Fahrwerk ausgefahren', 'Fahrwerk eingefahren', 'Fahrwerk: nur unter 100 m/s', 'Weiter',
 	'HÖHE', 'V/S', 'GRUND', 'GELANDET', 'Scheinwerfer', 'Nachtsicht', 'LICHT', 'NS',
 	'Radialmenü', 'Einfach', 'Vollständig', 'Kampf- / Analysemodus', 'Kampf und Analyse', 'Steuerungsschema', 'Assistenten', 'Automatisches Fahrwerk', 'Automatische Scheinwerfer', 'Landehilfe', 'Automatische Sprünge entlang einer Route', 'KAMPF', 'ANALYSE', 'Einfach: nur die Grundtasten, Flugassistent immer an und die Assistenten unten an. Alles andere ist im Radialmenü (~).', 'Vollständig: alle Tasten, und den Flugassistenten schaltest du selbst ab.',
-	'Automatische Auflösung', 'Kantenglättung', 'Automatisch', 'Die automatische Auflösung senkt die Auflösung, solange die Bildrate unter 30 liegt, und hebt sie wieder an, wenn Luft ist. Änderungen an der Kantenglättung wirken beim nächsten Spielstart.'],
+	'Automatische Auflösung', 'Kantenglättung', 'Automatisch', 'Die automatische Auflösung senkt die Auflösung, solange die Bildrate unter 30 liegt, und hebt sie wieder an, wenn Luft ist. Änderungen an der Kantenglättung wirken beim nächsten Spielstart.', 'BODENSCAN'],
 ru: ['Настройки', 'Графика, звук и HUD', 'Управление', 'Язык и специальные возможности', 'Графика', 'Качество', 'Высокое', 'Низкое', 'Разрешение', 'Поле зрения',
 	'Эффекты свечения', 'Показывать частоту кадров', 'Звук', 'Звук', 'Общая громкость', 'Двигатели и фон', 'Эффекты', 'Тревоги и предупреждения', 'HUD', 'Размер HUD',
 	'Прозрачность HUD', 'Показывать сообщений', 'Время показа сообщений', 'Сканер', 'Метка скорости', 'Метка упреждения', 'Вкл.', 'Выкл.', 'Клавиатура и геймпад', 'Нажмите клавишу или кнопку геймпада (Esc — отмена)',
@@ -124,7 +124,7 @@ ru: ['Настройки', 'Графика, звук и HUD', 'Управлен�
 	'Ракета приближается', 'Шасси выпущено', 'Шасси убрано', 'Шасси: только ниже 100 м/с', 'Далее',
 	'ВЫС', 'В/С', 'ЗЕМЛЯ', 'ПОСАДКА', 'Прожекторы', 'Ночное видение', 'СВЕТ', 'НВ',
 	'Радиальное меню', 'Простая', 'Полная', 'Режим боя / анализа', 'Бой и анализ', 'Схема управления', 'Помощники', 'Автоматическое шасси', 'Автоматические прожекторы', 'Помощь при посадке', 'Автоматические прыжки по маршруту', 'БОЙ', 'АНАЛИЗ', 'Простая: только основные клавиши, помощь в полёте всегда включена и помощники ниже включены. Всё остальное — в радиальном меню (~).', 'Полная: все клавиши, и помощь в полёте можно выключить.',
-	'Автоматическое разрешение', 'Сглаживание', 'Авто', 'Автоматическое разрешение снижает разрешение, пока частота кадров ниже 30, и снова повышает его, когда есть запас. Изменения сглаживания вступят в силу при следующем запуске игры.'],
+	'Автоматическое разрешение', 'Сглаживание', 'Авто', 'Автоматическое разрешение снижает разрешение, пока частота кадров ниже 30, и снова повышает его, когда есть запас. Изменения сглаживания вступят в силу при следующем запуске игры.', 'СКАН ГРУНТА'],
 zh: ['设置', '图形、音频与 HUD', '控制', '语言与无障碍', '图形', '画质', '高', '低', '分辨率', '视野',
 	'光晕效果', '显示帧率', '音频', '声音', '主音量', '引擎与环境音', '音效', '警报与警告', 'HUD', 'HUD 大小',
 	'HUD 不透明度', '显示的消息数', '消息显示时长', '扫描仪', '速度标记', '提前量标记', '开', '关', '键盘与手柄', '按下一个键或手柄按钮（Esc 取消）',
@@ -143,7 +143,7 @@ zh: ['设置', '图形、音频与 HUD', '控制', '语言与无障碍', '图形
 	'导弹来袭', '起落架已放下', '起落架已收起', '起落架：仅在 100 米/秒以下放下', '下一个',
 	'高度', '垂速', '地速', '已着陆', '探照灯', '夜视', '灯光', '夜视',
 	'环形菜单', '简单', '完整', '战斗 / 分析模式', '战斗与分析', '操控方案', '辅助', '自动起落架', '自动探照灯', '着陆辅助', '沿航线自动跃迁', '战斗', '分析', '简单：只有基本按键，飞行辅助始终开启，下方的辅助全部开启。其余功能都在环形菜单（~）里。', '完整：所有按键，飞行辅助可以自行关闭。',
-	'自动分辨率', '抗锯齿', '自动', '帧率低于 30 时，自动分辨率会降低分辨率，有余量时再调回。抗锯齿的更改在下次启动游戏时生效。'],
+	'自动分辨率', '抗锯齿', '自动', '帧率低于 30 时，自动分辨率会降低分辨率，有余量时再调回。抗锯齿的更改在下次启动游戏时生效。', '地面扫描'],
 ja: ['設定', 'グラフィック・音声・HUD', '操作', '言語とアクセシビリティ', 'グラフィック', '画質', '高', '低', '解像度', '視野角',
 	'発光エフェクト', 'フレームレートを表示', '音声', 'サウンド', 'マスター音量', 'エンジンと環境音', '効果音', '警報と警告', 'HUD', 'HUD のサイズ',
 	'HUD の不透明度', '表示するメッセージ数', 'メッセージの表示時間', 'スキャナー', '速度マーカー', '偏差射撃マーカー', 'オン', 'オフ', 'キーボードとゲームパッド', 'キーかゲームパッドのボタンを押してください（Esc で取り消し）',
@@ -162,7 +162,7 @@ ja: ['設定', 'グラフィック・音声・HUD', '操作', '言語とアク�
 	'ミサイル接近中', '着陸脚を展開', '着陸脚を格納', '着陸脚：秒速 100 m 未満でのみ展開', '次へ',
 	'高度', '昇降', '対地', '着陸', 'サーチライト', '暗視', 'ライト', '暗視',
 	'ラジアルメニュー', 'シンプル', 'フル', '戦闘 / 分析モード', '戦闘と分析', '操作方式', 'アシスト', '自動着陸脚', '自動サーチライト', '着陸アシスト', '航路での自動ジャンプ', '戦闘', '分析', 'シンプル：基本キーのみ、飛行アシストは常にオン、下のアシストもオン。ほかはすべてラジアルメニュー（~）にあります。', 'フル：すべてのキー。飛行アシストは自分でオフにできます。',
-	'自動解像度', 'アンチエイリアス', '自動', 'フレームレートが 30 を下回る間は自動解像度が解像度を下げ、余裕ができると戻します。アンチエイリアスの変更は次回ゲーム起動時に反映されます。'],
+	'自動解像度', 'アンチエイリアス', '自動', 'フレームレートが 30 を下回る間は自動解像度が解像度を下げ、余裕ができると戻します。アンチエイリアスの変更は次回ゲーム起動時に反映されます。', '地表スキャン'],
 ko: ['설정', '그래픽, 오디오, HUD', '조작', '언어 및 접근성', '그래픽', '품질', '높음', '낮음', '해상도', '시야각',
 	'발광 효과', '프레임 속도 표시', '오디오', '사운드', '전체 볼륨', '엔진 및 환경음', '효과음', '경보 및 경고', 'HUD', 'HUD 크기',
 	'HUD 불투명도', '표시할 메시지 수', '메시지 표시 시간', '스캐너', '속도 표시', '예측 사격 표시', '켜기', '끄기', '키보드 및 게임패드', '키나 게임패드 버튼을 누르세요 (Esc로 취소)',
@@ -181,7 +181,7 @@ ko: ['설정', '그래픽, 오디오, HUD', '조작', '언어 및 접근성', '�
 	'미사일 접근 중', '착륙 장치 내림', '착륙 장치 올림', '착륙 장치: 초속 100m 미만에서만', '다음',
 	'고도', '수직', '대지', '착륙', '탐조등', '야간 투시', '조명', '야시',
 	'원형 메뉴', '간단', '전체', '전투 / 분석 모드', '전투와 분석', '조작 방식', '보조 기능', '자동 착륙 장치', '자동 탐조등', '착륙 보조', '항로 자동 점프', '전투', '분석', '간단: 기본 키만, 비행 보조는 항상 켜짐, 아래 보조 기능도 켜짐. 나머지는 모두 원형 메뉴(~)에 있습니다.', '전체: 모든 키, 비행 보조는 직접 끌 수 있습니다.',
-	'자동 해상도', '안티앨리어싱', '자동', '프레임 속도가 30 미만이면 자동 해상도가 해상도를 낮추고, 여유가 생기면 다시 올립니다. 안티앨리어싱 변경은 다음에 게임을 시작할 때 적용됩니다.']};
+	'자동 해상도', '안티앨리어싱', '자동', '프레임 속도가 30 미만이면 자동 해상도가 해상도를 낮추고, 여유가 생기면 다시 올립니다. 안티앨리어싱 변경은 다음에 게임을 시작할 때 적용됩니다.', '지표 스캔']};
 
 const MAP = {};
 for (const [code, list] of Object.entries(TR)) { const m = MAP[code] = {}; EN.forEach((e, i) => { if (list[i]) m[e] = list[i] }) }

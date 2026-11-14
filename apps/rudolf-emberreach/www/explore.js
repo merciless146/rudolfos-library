@@ -12,8 +12,11 @@
      Artefacts that drift up as canisters.
    - Exploration contracts from cartographers: survey a world in a nearby uncharted system, or a ruin rumoured within
      20 pc; due in 20 days.
+   - Landings (L1.4): the first landing on each world is recorded, and its data sells for half a survey (2.5 times
+     that if nobody had landed there: outside the powers' charted space). A ground scan, landed or within 2 km of the
+     ground, marks the deposits of the world's resources within 5 km (deposits()).
    The record (P.explore) is plain data, kept in the save: {sys: {starId: day}, pl: {key: {d: day, f: first, s: sold,
-   lvl}}, sold: {starId: 1}, names: {key: name}}. GPL-2.0-or-later. ===== */
+   lvl}}, sold: {starId: 1}, names: {key: name}, land: {key: {d, f, s}}}. GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
 const isNode = typeof module != 'undefined';
@@ -24,7 +27,7 @@ const EXPLORE = {sweep: 8, survey: 12, surveyRadii: 6, first: 2.5, chart: 40, da
 	value: {Gas: 120, Barren: 90, Exotic: 160, Desert: 140, Tundra: 160, Ocean: 450, EarthLike: 700, Forest: 900, Terra: 900}, life: 1500, ruin: 6000};
 const keyOf = (starId, planetName) => starId + '|' + planetName;
 const at = s => s.at || [s.x, s.y, s.z];
-const record = P => (P.explore = P.explore || {sys: {}, pl: {}, sold: {}, names: {}});
+const record = P => { P.explore = P.explore || {sys: {}, pl: {}, sold: {}, names: {}}; P.explore.land = P.explore.land || {}; return P.explore };
 
 /* has a great power already charted this? its own claimed space, and every system with a port; ruins only where a
    port is (out in the quiet systems nobody has looked closely) */
@@ -49,6 +52,36 @@ function survey(P, star, planet, port, day) {
 	if (X.sys[star.id] == null) X.sys[star.id] = Math.floor(day);
 	return {new: true, first, ruins: !!planet.ruins, alive: !!planet.alive, value: worth(planet) * (first ? EXPLORE.first : 1)};
 }
+/* a landing on a world: recorded the first time; returns {new, first, value} */
+function landed(P, star, planet, port, day) {
+	const X = record(P), k = keyOf(star.id, planet.name);
+	if (X.land[k]) return {new: false, first: !!X.land[k].f};
+	const first = !charted(star, planet, port);
+	X.land[k] = {d: Math.floor(day), f: first ? 1 : 0};
+	return {new: true, first, value: landWorth(planet) * (first ? EXPLORE.first : 1)};
+}
+/* landing data: half a survey */
+const landWorth = p => worth(p) / 2;
+const landedOn = (P, starId, name) => !!(P.explore && P.explore.land && P.explore.land[keyOf(starId, name)]);
+/* the deposits of a world's resources near a place on it (dir: in the world's own axes): seeded on a grid over the
+   world (cells about 1.5 km), most with none and a few with one or two, each one of the world's resources. Within r metres of dir */
+function deposits(world, planet, dir, r) {
+	const res = (planet && planet.res) || []; if (!res.length) return [];
+	const R = world.radius, cell = 1500 / R, out = [], nrm = v => { const l = Math.hypot(...v); return v.map(x => x / l) };
+	const span = Math.ceil(r / R / cell) + 1, base = dir.map(v => Math.round(v / cell));
+	for (let i = -span; i <= span; i++) for (let j = -span; j <= span; j++) for (let k = -span; k <= span; k++) {
+		const c = [base[0] + i, base[1] + j, base[2] + k], cc = nrm(c.map(v => v * cell));
+		/* only the cells along the surface: the one each cube cell's centre is nearest the sphere through */
+		if (Math.abs(Math.hypot(...c.map(v => v * cell)) - 1) > cell * 0.5) continue;
+		const g = G.rng(hash('dep:' + world.name + ':' + c.join(','))), n = g() < 0.91 ? 0 : g() < 0.85 ? 2 : 1;   /* (a handful within 5 km: most cells hold none) */
+		for (let q = 0; q < n; q++) {
+			const d = nrm(cc.map(v => v + (g() - 0.5) * cell)), dist = Math.acos(Math.max(-1, Math.min(1, d[0] * dir[0] + d[1] * dir[1] + d[2] * dir[2]))) * R;
+			const kind = res[Math.floor(g() * res.length)], tons = Math.round(200 + g() * 4800);
+			if (dist <= r) out.push({id: 'dep:' + world.name + ':' + c.join(',') + ':' + q, res: kind, dir: d, dist, tons});
+		}
+	}
+	return out.sort((a, b) => a.dist - b.dist);
+}
 const surveyed = (P, starId, name) => !!(P.explore && P.explore.pl[keyOf(starId, name)]);
 const charted_ = (P, starId) => !!(P.explore && P.explore.sys[starId] != null);
 
@@ -56,6 +89,11 @@ const charted_ = (P, starId) => !!(P.explore && P.explore.sys[starId] != null);
 function unsold(P) {
 	const X = record(P), out = [];
 	for (const id in X.sys) if (!X.sold[id]) out.push({key: id, kind: 'system', label: 'System chart', su: EXPLORE.chart});
+	for (const k in X.land) {
+		const e = X.land[k]; if (e.s) continue;
+		const [id, name] = k.split('|'), p = planetByKey(id, name);
+		out.push({key: k, kind: 'landing', label: (X.names[k] || name) + ' · landing data' + (e.f ? ' · first' : ''), su: (p ? landWorth(p) : 50) * (e.f ? EXPLORE.first : 1), first: !!e.f});
+	}
 	for (const k in X.pl) {
 		const e = X.pl[k]; if (e.s) continue;
 		const [id, name] = k.split('|'), p = planetByKey(id, name);
@@ -77,7 +115,7 @@ function starById(id) {
 function sell(P, holder, currency, day) {
 	const X = record(P), items = unsold(P), su = items.reduce((t, x) => t + x.su, 0);
 	if (!items.length) return {ok: false, why: 'Nothing to sell: scan systems and survey planets first.'};
-	for (const x of items) if (x.kind == 'system') X.sold[x.key] = 1; else X.pl[x.key].s = 1;
+	for (const x of items) if (x.kind == 'system') X.sold[x.key] = 1; else if (x.kind == 'landing') X.land[x.key].s = 1; else X.pl[x.key].s = 1;
 	const code = currency || 'SU', amount = code == 'SU' ? su : su * E.rate(code, day);
 	if (code == 'SU') { const o = F.byId(P.origin).currency.code; P.wallet[o] = (P.wallet[o] || 0) + su * E.rate(o, day) * 0.92 } else P.wallet[code] = (P.wallet[code] || 0) + amount;
 	if (holder) R.act(P, 'scanRuins', holder, {amount: Math.min(5, su / 2000)});
@@ -146,6 +184,6 @@ function accept(P, m, day) {
 /* a survey done: mark the contracts it completes */
 function surveyDone(P, starId, planetName) { for (const m of P.missions || []) if (m.kind == 'explore' && !m.done && m.star.id == starId && m.planet == planetName) m.surveyed = true }
 
-const EmberExplore = {EXPLORE, keyOf, charted, worth, chartSystem, survey, surveyed, isCharted: charted_, unsold, sell, nameable, rename, nameOf, offers, ruinsNear, accept, surveyDone, starById, planetByKey};
+const EmberExplore = {landed, landWorth, landedOn, deposits, EXPLORE, keyOf, charted, worth, chartSystem, survey, surveyed, isCharted: charted_, unsold, sell, nameable, rename, nameOf, offers, ruinsNear, accept, surveyDone, starById, planetByKey};
 if (isNode) module.exports = EmberExplore; else root.EmberExplore = EmberExplore;
 })(typeof window != 'undefined' ? window : this);

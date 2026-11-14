@@ -61,7 +61,7 @@ const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconom
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.6'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.7'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -184,7 +184,7 @@ function enterSystem(star) {
 	game.port = capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day) || T.portFor(star, game.day);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
 	st = scene.station;
-	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null;
+	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null; game.deposits = []; game.gscan = null;
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
 	site(); beaconAt();
@@ -261,7 +261,7 @@ function persist() {
 		.then(() => { setTimeout(() => { game.saving = false; if (game.savePending) persist() }, 1000) });
 }
 const nearRocks = () => game.rocks.filter(r => len(sub(r.pos, s.p)) < 5000).sort((a, b) => len(sub(a.pos, s.p)) - len(sub(b.pos, s.p))).slice(0, 5);
-const targets = () => [...(st ? [st] : []), ...(game.beacon ? [game.beacon] : []), ...nearRocks(), ...game.fields, ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
+const targets = () => [...(st ? [st] : []), ...(game.beacon ? [game.beacon] : []), ...(game.deposits || []), ...nearRocks(), ...game.fields, ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
 /* the target is kept by reference (ships come and go); a lost one falls back to the port, or the first body */
 function curTarget() { const L = targets(); if (!L.includes(game.tgt)) game.tgt = L[0]; return game.tgt }
 const posOf = x => x.pos || x.c;
@@ -368,6 +368,9 @@ function touch() {
 		say('Hard landing' + what + ' on ' + sf.world + ': ' + Math.abs(sf.vz).toFixed(1) + ' m/s down, hull −' + Math.round(out.damage * 100) + '%', '#f2a33a');
 	} else { Snd.cue('docked'); say('Landed on ' + sf.world + ' · ' + Math.abs(sf.vz).toFixed(1) + ' m/s down · ' + sf.lat.toFixed(2) + '°, ' + sf.lon.toFixed(2) + '°', '#7fd1a8') }
 	game.landed = Sc.landAt(scene, s, sf.body, game.t, low.d);
+	/* a first landing on this world: recorded, and its data sells to cartographers (L1.4) */
+	const L0 = X.landed(game.P, game.star, sf.body.src, game.port, game.day);
+	if (L0.new) say((L0.first ? 'First landing on ' : 'Landing recorded: ') + pname(sf.body) + ' · landing data worth ' + Math.round(L0.value).toLocaleString('en-US') + ' SU to cartographers', L0.first ? '#7fd1a8' : '#6cc9e8');
 	game.cruise = {on: false, v: 0, charge: 0}; game.jump = null; game.throttle = 0;
 	landedStep(null);
 	persist();
@@ -385,6 +388,27 @@ function liftOff(pin) {
 	const up = norm(sub(pin.p, pin.body.pos));
 	game.landed = null; s.p = add(pin.p, mul(up, 0.5)); s.q = pin.q; s.v = add(pin.v, mul(up, 3)); s.w = [0, 0, 0];
 	game.lastAlt = 0; say('Lifting off from ' + pin.body.name, '#6cc9e8'); Snd.cue('launch');
+}
+/* ---------------- the ground scan (L1.4) ----------------
+   Landed or within 2 km of the ground, the sensors scan it (6 s): the deposits of the world's resources within 5 km
+   are marked, and can be targeted (T). Again once you've moved 2.5 km on */
+const GSCAN = {alt: 2000, time: 6, range: 5000, again: 2500};
+function groundScan(dt, cruising) {
+	if (cruising || !game.well) { game.gscan = null; return }
+	const sf = Sc.surfaceState(scene, s, game.t, ship); if (!sf || !Ld.landable(sf.body.src).ok) { game.gscan = null; return }
+	if (!game.landed && sf.alt > GSCAN.alt) { game.gscan = null; return }
+	if (!M.works(fit, 'sensors')) return;
+	const here = Sc.localDir(scene, sf.body, sf.up, game.t), last = game.gscanAt;
+	if (last && last.world == sf.world && Math.acos(Math.max(-1, Math.min(1, here[0] * last.dir[0] + here[1] * last.dir[1] + here[2] * last.dir[2]))) * sf.body.radius < GSCAN.again) return;
+	const g = game.gscan = game.gscan || {t: 0};
+	g.t += dt;
+	if (g.t < GSCAN.time) return;
+	game.gscan = null; game.gscanAt = {world: sf.world, dir: here};
+	const b = sf.body, list = X.deposits(b, b.src, here, GSCAN.range);
+	game.deposits = list.map(d => ({kind: 'deposit', dep: d, world: b, radius: 30, name: d.res + ' deposit', get pos() { const bf = Sc.bodyFrame(b, Sc.turnOf(b, game.day, game.t)), w = add(add(mul(bf.x, d.dir[0]), mul(bf.y, d.dir[1])), mul(bf.z, d.dir[2])); return add(b.pos, mul(w, b.radius + Sc.heightAt(b, d.dir) + 2)) }}));
+	if (!list.length) say('Ground scan of ' + pname(b) + ': no deposits within 5 km', '#9fb0cc');
+	else { const by = {}; for (const d of list) by[d.res] = (by[d.res] || 0) + 1; say('Ground scan: ' + list.length + (list.length == 1 ? ' deposit' : ' deposits') + ' within 5 km (' + Object.entries(by).map(([r, n]) => r + (n > 1 ? ' ×' + n : '')).join(', ') + '). T to target them', '#c9a46a') }
+	Snd.cue('chart');
 }
 /* ---------------- assists (Settings › Controls; on with the Simple scheme) ---------------- */
 /* spotlights by themselves: on over the night side of a world you could land on, under 5 km; off again after, unless
@@ -523,7 +547,7 @@ function toggleCruise() {
 	if (cz.on) { const r = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say(r.emergency ? 'Emergency drop out: the drive took a knock' : 'Dropped out of cruise', r.emergency ? '#f2a33a' : undefined); Snd.cue(r.emergency ? 'emergency' : 'drop'); if (r.emergency) damage(25); return }
 	if (cz.charge > 0) { cz.charge = 0; say('Cruise cancelled'); return }
 	if (game.landed) { say('Landed: lift off first', '#f2a33a'); Snd.cue('refused'); return }
-	if (Sc.massLocked(scene, s.p)) { say('Mass locked by ' + st.name + ': cruise needs 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
+	if (Sc.massLocked(scene, s.p)) { const w = Sc.worldLock(scene, s.p); say(w ? 'Mass locked by ' + w.name + ': cruise needs ' + H.fmtDist(Sc.lockAlt(w)) + ' of height' : 'Mass locked by ' + st.name + ': cruise needs 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
 	if (shipLock()) { say('Mass locked by ' + shipLock().name + ': ships within 5 km hold you', '#f2a33a'); Snd.cue('refused'); return }
 	if (!M.status(fit).output.main) { say('Cruise needs working engines', '#e5484d'); Snd.cue('refused'); return }
 	shutHatch('cruise');
@@ -546,7 +570,7 @@ function requestJump() {
 	if (!leg) { say('No destination: open the map (G), pick a star, and plot a route (Enter)', '#f2a33a'); Snd.cue('refused'); return }
 	const st0 = M.status(fit);
 	if (!st0.jump) { say('Hyperspace drive inoperable', '#e5484d'); Snd.cue('refused'); return }
-	if (Sc.massLocked(scene, s.p)) { say('Mass locked by ' + st.name + ': jumps need 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
+	if (Sc.massLocked(scene, s.p)) { const w = Sc.worldLock(scene, s.p); say(w ? 'Mass locked by ' + w.name + ': jumps need ' + H.fmtDist(Sc.lockAlt(w)) + ' of height' : 'Mass locked by ' + st.name + ': jumps need 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
 	if (held()) { say('Held by ' + held().by.name + '\'s tractor beam: no hyperspace until you break 3 km', '#e5484d'); Snd.cue('refused'); return }
 	const can = T.canMake(leg, ship.jump, game.fuel * ship.tank);
 	if (!can.ok) { say(can.why == 'range' ? leg.star.name + ' is ' + leg.d.toFixed(1) + ' pc away; the ' + ship.name + ' jumps ' + ship.jump + ' pc. Plot a route (Enter on the map).' : 'Not enough fuel: the jump needs ' + Math.round(can.cost * 100) + '% of a tank. Dock to refuel.', '#f2a33a'); Snd.cue('refused'); return }
@@ -654,7 +678,7 @@ function update(dt) {
 	else if (cz.on) {
 		const tgt = curTarget();
 		const res = Sc.cruiseStep(scene, s, cz, input, dt, tgt);
-		if (res == 'drop') { const d = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say('Dropped out near ' + Sc.nearest(scene, s.p).what.name + (d.emergency ? ' (emergency)' : '')); Snd.cue(d.emergency ? 'emergency' : 'drop'); if (d.emergency) damage(25) }
+		if (res == 'drop' || res == 'lock') { const d = Sc.dropOut(s, cz, res == 'lock'); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say('Dropped out near ' + Sc.nearest(scene, s.p).what.name + (d.emergency ? ' (emergency)' : '')); Snd.cue(d.emergency ? 'emergency' : 'drop'); if (d.emergency) damage(25) }
 		game.gFelt = null; s.grav = null; game.well = null;
 	} else {
 		s.grav = Sc.gravityAt(scene, s.p); game.well = Sc.gravityWell(scene, s.p);
@@ -698,6 +722,7 @@ function update(dt) {
 	cargo(dt, cz.on);
 	if (!cz.on) mine(dt);
 	explore(dt, cz.on);
+	groundScan(dt, cz.on);
 	if (!cz.on) { const pc = game.pcs; combat(dt); if (game.pcs !== pc) return }
 	/* the sound follows the thrusters */
 	const Sp = s.spec, aB = r ? r.aBody : [0, 0, 0], al = r ? r.alpha : [0, 0, 0];
@@ -1354,6 +1379,7 @@ function hudDraw(cam) {
 	if (Tg.kind == 'asteroid') { const d = len(sub(s.p, Tg.pos)); target.kind = 'asteroid · ' + Tg.radius * 2 + ' m'; target.dock = Tg.prospected ? {line1: comp(Tg), line2: Tg.left > 0 ? Tg.left + ' t left · fire a mining laser within 600 m' : 'Spent', col: '#c9a46a'} : !ship.utility.prospector ? {line1: 'Composition unknown', line2: 'A resource scanner reads it', col: '#9fb0cc'} : {line1: d < Mi.MINE.scanRange ? 'Prospecting… ' + Math.round((Tg.scanT || 0) / Mi.MINE.scanTime * 100) + '%' : 'Prospect within 3 km', col: '#c9a46a'} }
 	if (Tg.kind == 'field') { target.kind = 'mining site · ' + Mi.KINDS[Tg.fieldKind].name; target.dock = {line1: 'Cruise here and drop out to mine', line2: (ship.mining ? ship.mining + ' mining laser' + (ship.mining > 1 ? 's' : '') : 'No mining laser') + ' · ' + (ship.refinery ? ship.refinery + ' refinery bins' : 'no refinery'), col: '#c9a46a'} }
 	if (Tg.bh) { const d = len(sub(s.p, Tg.pos)), pr = phaseRange(Tg), maw = game.star.heart; target.kind = maw ? 'the Maw · ' + Math.round(game.star.M).toLocaleString('en-US') + ' suns · ' + (game.star.rift ? 'the way home' : 'the way into the Rift') : 'black hole · ' + (game.star.M || 0).toFixed(1) + ' suns · a wormhole'; target.dock = !ship.phaser ? {line1: 'No dimensional phaser: the wormhole is closed to you', line2: 'Blueprints lie in ruins; an artifact broker builds them', col: '#9fb0cc'} : {line1: d < pr ? 'Press J to phase through' : 'Phase within ' + H.fmtDist(pr), line2: maw ? (game.star.rift ? 'Home: the heart of the galaxy' : 'The Rift: the galaxy upside down') : game.star.rift ? 'To a random star in the Rift' : 'To a random star, anywhere', col: d < pr ? '#c9a0ff' : '#9fb0cc'} }
+	if (Tg.kind == 'deposit') { const dd = len(sub(posOf(Tg), s.p)); target.kind = 'deposit · ' + Tg.dep.res + ' · ' + Tg.dep.tons.toLocaleString('en-US') + ' t'; target.dock = {line1: 'Marked by the ground scan', line2: 'Mining from the ground comes later (L3)', col: '#c9a46a'} }
 	if (Tg.kind == 'beacon') { target.kind = 'navigation beacon'; target.dock = {line1: 'Hyperspace arrivals come out here', line2: navWorks() ? 'Receiver working' : ship.utility.nav ? 'Receiver offline' : 'No nav beacon receiver fitted', col: '#6cc9e8'} }
 	if (Tg.kind == 'site') {
 		const c = Tg.colony, d = len(sub(s.p, Tg.pos)) - (c.stage == 'building' ? Tg.radius : 0);
@@ -1396,7 +1422,7 @@ function hudDraw(cam) {
 		fuel: game.fuel, jumpCharge: J && J.tunnel == null ? J.charge : 0, witch: J && J.tunnel != null ? 1 - J.tunnel / JUMP.tunnel : null, witchTo: J && J.leg.star.name,
 		nextLeg: leg ? tr('Next') + ': ' + leg.star.name + ' · ' + leg.d.toFixed(1) + ' pc' + (leg.kind != 'jump' ? ' (lane)' : '') + ' · J' : null,
 		touch: RG.lastInput == 'touch', touchUI: touchLayout(),
-		sweep: game.sweep > 0 ? 1 - game.sweep / X.EXPLORE.sweep : 0,
+		sweep: game.sweep > 0 ? 1 - game.sweep / X.EXPLORE.sweep : 0, gscan: game.gscan ? Math.min(1, game.gscan.t / GSCAN.time) : 0,
 		refinery: Object.keys(game.P.refinery || {}).length ? Object.entries(game.P.refinery).map(([g, t]) => g + ' ' + t.toFixed(1)).join(' · ') : null,
 		hatch: !hasHatch() ? null : !M.works(fit, 'hatch') ? 'jammed' : game.hatch ? 'open' : null,
 		surface: !cz.on && game.well ? (() => { const ss = Sc.surfaceState(scene, s, game.t, ship); return ss && ss.alt < 30000 ? {world: ss.world, alt: ss.alt, vz: ss.vz, vh: ss.vh, pitch: ss.pitch, bank: ss.bank, limit: Ld.TOUCH[Ld.padFor(ship.size)].vz, landable: ss.landable && ss.landable.ok} : null })() : null,

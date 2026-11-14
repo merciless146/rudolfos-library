@@ -222,6 +222,19 @@ frame rate holds.
 
 ### L1.4 The approach
 
+**Done** (0.2.7):
+- **The drop:** cruise drops out above a targeted landable world at its Kármán line or 50 km up, whichever is higher
+  (`scene.js` `dropRange`).
+- **The lock:** a world's surface locks cruise (and jumps) below half a radius up or its Kármán line, whichever is
+  lower (`worldLock`); cruising into it is an emergency drop.
+- **The ground scan** runs by itself, landed or within 2 km, in 6 s, and again after moving on 2.5 km. It marks the
+  world's resources within 5 km as deposits you can target (about six on average; `explore.js` `deposits`). Mining
+  them is L3.
+- **First landings** are recorded (`explore.js` `landed`); landing data sells for half a survey, 2.5 times that
+  outside the powers' charted space.
+
+Tested in `tests/emberreach_landing_t.js` (30 checks in all) and the browser test's 9n and 9o.
+
 Getting there from the rest of the system.
 
 - **Cruise drops above a targeted landable world**, at its Kármán line or 50 km up, whichever is higher,

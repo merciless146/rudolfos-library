@@ -135,7 +135,7 @@ const I18 = typeof module != 'undefined' ? require('./i18n.js') : (typeof window
 function shipFit(sh) { const hull = S0 && (S0.hull ? S0.hull(sh.model) : S0.ships().find(s => s.id == sh.model)); return hull && O && O.valid(hull, sh.fit) ? sh.fit : null }
 function exploreOk(e) {
 	return obj(e) && obj(e.sys) && obj(e.pl) && obj(e.sold) && obj(e.names) && Object.values(e.sys).every(num) && Object.values(e.pl).every(obj)
-		&& Object.values(e.names).every(n => typeof n == 'string' && n.length <= 24);
+		&& Object.values(e.names).every(n => typeof n == 'string' && n.length <= 24) && (e.land === undefined || (obj(e.land) && Object.values(e.land).every(obj)));   /* (landings: L1.4; older saves have none) */
 }
 /* put saved module health back on a fresh fit (unknown modules are ignored; health never above the pool) */
 function restoreModules(fit, saved) {

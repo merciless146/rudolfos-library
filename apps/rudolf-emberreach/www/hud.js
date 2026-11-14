@@ -171,6 +171,7 @@ function draw(ctx, W, H, h, t) {
 		/* the status line: the hatch, an incoming missile */
 		const sts = [];
 		if (h.sweep) sts.push([TT('SWEEP') + ' ' + Math.round(h.sweep * 100) + '%', C.cyan]);
+		if (h.gscan) sts.push([TT('GROUND SCAN') + ' ' + Math.round(h.gscan * 100) + '%', '#c9a46a']);
 		if (h.hatch) sts.push([TT(h.hatch == 'jammed' ? 'HATCH JAMMED · SPILLING' : 'HATCH OPEN · SCOOPING'), h.hatch == 'jammed' ? C.red : C.cyan]);
 		if (h.incoming) sts.push([TT('MISSILE INBOUND'), C.red]);
 		/* below a world's Kármán line: its pull, and the height above its surface */
