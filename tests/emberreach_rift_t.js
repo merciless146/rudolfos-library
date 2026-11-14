@@ -42,6 +42,15 @@ try {
 	let apart = 1e9; for (let i = 0; i < HV.length; i++) for (let k = i + 1; k < HV.length; k++) apart = Math.min(apart, Math.hypot(HV[i].x - HV[k].x, HV[i].y - HV[k].y, HV[i].z - HV[k].z));
 	const ms = HV.map(s => s.m).sort((a, b) => a - b), Rr = G.GAL.rMax * G.RIFT_SCALE;
 	ok('12. no power holds anything in the Rift; its only havens are about 1,600 anchorages, independent, at least 8 pc apart, spread through its whole volume (not crowded into its middle)', st.every(s => !T.ownerOf(s, 200).owner) && HV.length > 1500 && HV.length < 1700 && HV.every(s => s.rift && T.portFor(s, 200).anchorage && !T.portFor(s, 200).owner) && apart >= 8 && ms[Math.floor(ms.length / 2)] > 0.6 * Rr && st.filter(s => T.portFor(s, 200)).length <= 1, HV.length + ' havens, ' + apart.toFixed(1) + ' pc apart at least, half beyond ' + ms[Math.floor(ms.length / 2)].toFixed(0) + ' pc');
+	/* the only other havens are players' own: independent colonies, filed at a Rift anchorage */
+	{
+		const Co = req('colonies.js'), pc = Tr.newPlayer(F.majors()[0].id); pc.wallet = {SU: 1e9};
+		let office = null, cand = null; for (const h of HV) { const c = G.inRealm('rift', () => Co.candidates(pc, {star: h, owner: null}, 10, 8, 3)); if (c.length) { office = {star: h, owner: null}; cand = c[0]; break } }
+		const sponsored = office && Co.canClaim(pc, office, cand, 'outpost', 10, 8), indep = office && Co.canClaim(pc, office, cand, 'outpost', 10, 8, false, true);
+		const fromHome = Co.canClaim(pc, {star: F.majors()[0].star, owner: F.majors()[0].id}, cand, 'outpost', 10, 8, false, true), atMaw = office && Co.canClaim(pc, office, G.lookup('R:heart'), 'outpost', 10, 8, false, true);
+		const done = office && Co.claim(pc, office, cand, 'outpost', 10, 8, true);
+		ok('12c. in the Rift a pilot may build an independent colony, filed at a Rift anchorage; no power sponsors one, and nothing is built at the Maw', office && !sponsored.ok && indep.ok && indep.currency == 'SU' && !fromHome.ok && !atMaw.ok && done && done.colony && done.colony.independent, JSON.stringify({sponsored: sponsored && sponsored.why, indep: indep && indep.ok, fromHome: fromHome.why, atMaw: atMaw && atMaw.why}));
+	}
 	const mawPort = T.portFor(G.lookup('R:heart'), 200);
 	ok('12b. the Maw\'s Rift side has an anchorage too (the way home); this side it has none', mawPort && mawPort.anchorage && mawPort.maw && !mawPort.owner && !T.portFor(G.lookup('heart'), 200));
 	ok('13. no routes through the powers\' lanes in the Rift', (() => { const a = st[0], z = st[st.length - 1], r = G.inRealm('rift', () => T.route(a, z, 30)); return r.ok && r.legs.every(l => l.kind == 'jump' && l.star.rift) })());
