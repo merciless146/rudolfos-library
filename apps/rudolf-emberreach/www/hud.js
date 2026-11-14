@@ -61,6 +61,30 @@ function triangle(ctx, x, y, col) {
 }
 
 /* H: the HUD state from play.js (see draw's reads below) */
+/* the surface panel (landing L1.1), in the speed panel's place below 30 km: the altitude large, the vertical speed
+   (an arrow, red when it's past the touchdown limit for this ship's pad), an altitude tape, and a horizon with a
+   pitch ladder that banks and pitches with the ship */
+function surfacePanel(ctx, bx, by, bw, bh, sf) {
+	const down = sf.vz < 0, over = down && -sf.vz > sf.limit;
+	text(ctx, TT('ALT') + ' · ' + sf.world.toUpperCase(), bx + 12, by + 22, {col: sf.landable ? C.muted : C.amber, size: 11, mono: true});
+	text(ctx, fmtDist(Math.max(0, sf.alt)), bx + 12, by + 46, {size: 24, weight: 600, mono: true, col: C.text});
+	text(ctx, TT('V/S') + ' ' + (down ? '▼ ' : '▲ ') + Math.abs(sf.vz).toFixed(1) + ' m/s', bx + 12, by + 64, {size: 12, weight: 700, mono: true, col: over ? C.red : C.text});
+	/* the altitude tape: ticks a step apart scrolling past the line, the step a round tenth of the altitude */
+	const tx = bx + bw - 44, ty = by + 12, tH = 54, step = Math.pow(10, Math.floor(Math.log10(Math.max(10, sf.alt)))) / 2, per = tH / 4 / step;
+	ctx.save(); ctx.beginPath(); ctx.rect(tx, ty, 10, tH); ctx.clip(); ctx.fillStyle = '#0e182c'; ctx.fillRect(tx, ty, 10, tH);
+	ctx.fillStyle = C.muted; for (let k = Math.floor((sf.alt - 2 * step) / step); k * step <= sf.alt + 2 * step; k++) { const yy = ty + tH / 2 - (k * step - sf.alt) * per; if (k * step >= 0) ctx.fillRect(tx, yy, k % 2 ? 4 : 10, 1) }
+	ctx.restore(); ctx.fillStyle = C.amber; ctx.fillRect(tx - 3, ty + tH / 2, 16, 1.5);
+	/* the horizon: the ground below, the sky above, banked and pitched; ladder rungs every 10° */
+	const hx = tx - 62, hy = ty, hw = 54, hh = tH, cxh = hx + hw / 2, cyh = hy + hh / 2, k = hh / 60, b = -sf.bank * Math.PI / 180;
+	ctx.save(); ctx.beginPath(); ctx.rect(hx, hy, hw, hh); ctx.clip();
+	ctx.translate(cxh, cyh); ctx.rotate(b); ctx.translate(0, sf.pitch * k);
+	ctx.fillStyle = '#16304f'; ctx.fillRect(-hw, -hh * 3, hw * 2, hh * 3); ctx.fillStyle = '#3a2c1c'; ctx.fillRect(-hw, 0, hw * 2, hh * 3);
+	ctx.fillStyle = '#e8edf6'; ctx.fillRect(-hw, -0.5, hw * 2, 1);
+	ctx.fillStyle = 'rgba(232,237,246,0.6)'; for (const p of [-20, -10, 10, 20]) ctx.fillRect(-(p % 20 ? 7 : 12), -p * k, p % 20 ? 14 : 24, 1);
+	ctx.restore();
+	ctx.strokeStyle = C.line; ctx.strokeRect(hx + 0.5, hy + 0.5, hw, hh);
+	ctx.fillStyle = C.amber; ctx.fillRect(cxh - 12, cyh - 0.5, 8, 1.5); ctx.fillRect(cxh + 4, cyh - 0.5, 8, 1.5); ctx.fillRect(cxh - 1, cyh - 1, 2, 2);
+}
 function draw(ctx, W, H, h, t) {
 	ctx.save();
 	const cx = W / 2, cy = H / 2, small = W < 700;
@@ -155,8 +179,12 @@ function draw(ctx, W, H, h, t) {
 		if (!k.armed && !sts.length) sts.push([TT('UNARMED'), C.muted]);
 		let sx2 = bx + 10; for (const [t2, col] of sts) { text(ctx, t2, sx2, py + 68, {mono: true, size: 10, weight: 700, col}); ctx.font = '700 10px ' + MONO; sx2 += ctx.measureText(t2).width + 14 }
 	}
-	text(ctx, TT(h.cruise ? 'CRUISE' : 'SPEED'), bx + 12, by + 22, {col: C.muted, size: 11, mono: true});
-	text(ctx, fmtSpeed(h.speed), bx + 12, by + 50, {size: 26, weight: 600, mono: true, col: h.cruise ? C.cyan : C.text});
+	const sf = h.surface;
+	if (sf) surfacePanel(ctx, bx, by, bw, bh, sf);   /* below 30 km over a world: altitude, vertical and ground speed, the horizon */
+	else {
+		text(ctx, TT(h.cruise ? 'CRUISE' : 'SPEED'), bx + 12, by + 22, {col: C.muted, size: 11, mono: true});
+		text(ctx, fmtSpeed(h.speed), bx + 12, by + 50, {size: 26, weight: 600, mono: true, col: h.cruise ? C.cyan : C.text});
+	}
 	/* throttle bar: FA on, a set speed (reverse below the line); FA off, thrust */
 	const tx = bx + bw - 30, ty = by + 12, tH = bh - 24;
 	ctx.fillStyle = '#132038'; ctx.fillRect(tx, ty, 12, tH);
@@ -171,12 +199,14 @@ function draw(ctx, W, H, h, t) {
 	if (h.gFelt != null) chips.push([h.gFelt.toFixed(1) + ' g', h.gFelt > 4 ? C.amber : C.muted]);
 	let chx = bx + 12;
 	for (const [s, col] of chips) { ctx.font = '600 11px ' + MONO; const w = ctx.measureText(s).width + 12; ctx.strokeStyle = col; ctx.strokeRect(chx + 0.5, by + 72.5, w, 20); text(ctx, s, chx + 6, by + 86, {mono: true, size: 11, col, weight: 600}); chx += w + 6 }
-	if (h.nextLeg) text(ctx, h.nextLeg, bx + 12, by + 110, {size: 11, col: C.cyan, weight: 600});
+	if (sf) text(ctx, TT('GND') + ' ' + fmtSpeed(sf.vh) + (h.fa ? ' · ' + TT('Set') + ' ' + fmtSpeed(Math.max(0, thr) * h.vmax) : ''), bx + 12, by + 110, {size: 11, col: C.muted});
+	else if (h.nextLeg) text(ctx, h.nextLeg, bx + 12, by + 110, {size: 11, col: C.cyan, weight: 600});
 	else text(ctx, h.fa ? TT('Set') + ' ' + fmtSpeed(Math.max(0, thr) * h.vmax) : (h.thrustNote || TT('Thrust') + ' ' + Math.round(thr * 100) + '%'), bx + 12, by + 110, {size: 11, col: C.muted});
 	/* ---- bottom right: target ---- */
 	if (h.target) {
-		const T = h.target, w = small2 ? 210 : 280, x = W - w - 16, y = H - 118 - (h.touch ? 190 : 16);
-		box(ctx, x, y, w, 118);
+		const T = h.target, w = small2 ? 210 : 280, th = T.land ? 138 : 118, x = W - w - 16, y = H - th - (h.touch ? 190 : 16);
+		box(ctx, x, y, w, th);
+		if (T.land) text(ctx, T.land.line, x + 12, y + 128, {size: 11, col: T.land.ok ? C.green : C.muted, weight: 600});
 		text(ctx, T.kind.toUpperCase(), x + 12, y + 20, {mono: true, size: 11, col: C.muted});
 		text(ctx, T.name, x + 12, y + 42, {size: 16, weight: 600});
 		text(ctx, fmtDist(T.dist), x + 12, y + 66, {mono: true, size: 14});
