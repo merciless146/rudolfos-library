@@ -937,6 +937,44 @@ home currency.
   - **Contested systems** trade in the currency of whoever holds them that day; while they're fought over, only in
     SU, through free traders.
 
+### Settings
+
+In the game since 0.1.1's follow-up (`settings.js`, `i18n.js`; tested in `tests/emberreach_settings_t.js`, 17
+checks, and the browser test's check 9). Opened from the pause screen's **Settings** button. Three pages:
+
+- **Graphics, audio and HUD**
+  - **Graphics:** quality (high/low), resolution (50–100% of the screen's), field of view (50–100°), glow
+    effects, and a frame-rate counter.
+  - **Audio:** sound on/off, and four volumes: master, engines and ambience, effects, and alerts and warnings.
+    Alerts are the warning, critical, clearance, refused, lock, incoming and blackout cues.
+  - **HUD:** size (75–150%; the panels scale, the markers stay where they point), opacity, how many messages
+    and for how long, and the scanner, velocity marker and lead marker on or off.
+- **Controls**
+  - Every action has two keys and a gamepad button, rebound by pressing what you want. Esc cancels;
+    Backspace or Delete unbinds.
+  - A key already taken is moved, and the menu says from which action.
+  - Also: mouse sensitivity and inverted pitch, gamepad inverted pitch and dead zone, and a reset.
+  - The controls help (H) lists the bindings as they are.
+  - **Defaults:** the landing gear is on **L** and fire on **;**. The rest are unchanged.
+- **Language and accessibility**
+  - **Languages:** the nine Rudolf OS offers in its own settings, with its codes and names: English, Español,
+    Português, Français, Deutsch, Русский, 中文, 日本語, 한국어.
+    - The menus, the HUD, the controls and the sound captions are translated. The starport and the flight
+      messages are still in English.
+    - **Follow Rudolf OS** (the default, first in the list): the language Rudolf OS shares with apps (Rudolf OS 1.5.9,
+      Settings › Date, time and language › Share my language with apps, passed as the game kit's `RG.lang`). It
+      changes with Rudolf OS while the game runs. Not shared, or outside Rudolf OS, it is the browser's language if
+      it's one of these, else English. Choosing a language yourself keeps it whatever Rudolf OS says.
+  - **Accessibility:**
+    - reduce flashing: as Rudolf OS says (the default), on, or off;
+    - reduce motion: no hyperspace streaks, no blinking alerts;
+    - a colour-blind palette: red–green (blue for good, yellow and orange for warnings) or blue–yellow;
+    - a high-contrast HUD;
+    - captions for the sounds.
+
+The save keeps the settings, clamped and cleaned (`St.sanitise`), and a new game keeps them. Older saves'
+quality and sound carry over.
+
 ### Ship insurance
 
 In the game since this change (`insurance.js`; tested in `tests/emberreach_insurance_t.js`, 15 checks).
@@ -1106,6 +1144,12 @@ everything through M5b, and the Maw and the Rift from M6. The release brought th
 - **The alpha is labelled** on the origin and pause screens.
 - **A browser test** (`tests/emberreach_t.js`) plays it in the desktop's sandboxed frame: a new game, the
   starport, flight, the map, a jump, pausing, the Rift, and resuming from the save.
+
+**0.1.1** adds:
+- ship insurance and respawn ("Ship insurance");
+- real years, months and days, with worlds turning in real time;
+- gravity below each world's Kármán line;
+- docking clearance revoked after 5 minutes unused, as the traffic controller's rules have it.
 
 Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer. Landing on airless worlds and surface ports are planned in
 `docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).

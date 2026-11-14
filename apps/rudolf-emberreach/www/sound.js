@@ -13,14 +13,19 @@
 'use strict';
 const A = window.EmberSound = {on: true};
 let C = null, master, muffle, bus, noiseBuf, L = null, held = false, beatAt = 0;
+/* the mix (Settings): master, engines and ambience (the layers), effects (the cues), alerts and warnings */
+let eng, fx, alr, dest, VOL = {master: 80, engines: 80, effects: 80, alerts: 100};
+const MASTER = 0.6, ALERTS = ['warning', 'critical', 'clearance', 'refused', 'lock', 'incoming', 'blackout'];
+const mv = () => A.on ? MASTER * VOL.master / 80 : 0;
 function ctx() {
 	if (C) { if (C.state == 'suspended' && !held) C.resume().catch(() => {}); return C }
 	try { C = new (window.AudioContext || window.webkitAudioContext)() } catch (e) { return null }
-	master = C.createGain(); master.gain.value = A.on ? 0.6 : 0; master.connect(C.destination);
+	master = C.createGain(); master.gain.value = mv(); master.connect(C.destination);
 	muffle = C.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 18000; muffle.Q.value = 0.5;
 	const comp = C.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3;
 	muffle.connect(comp); comp.connect(master);
 	bus = C.createGain(); bus.gain.value = 1; bus.connect(muffle);
+	eng = C.createGain(); eng.connect(bus); fx = C.createGain(); fx.connect(bus); alr = C.createGain(); alr.connect(bus); mix(); dest = fx;
 	noiseBuf = C.createBuffer(1, C.sampleRate * 2, C.sampleRate);
 	const d = noiseBuf.getChannelData(0); let s = 7, b = 0;
 	for (let i = 0; i < d.length; i++) { s = (s * 16807) % 2147483647; const w = s / 1073741823.5 - 1; b = (b + 0.02 * w) / 1.02; d[i] = w * 0.5 + b * 3 }
@@ -34,24 +39,28 @@ function gain(v) { const g = C.createGain(); g.gain.value = v; return g }
 function layers() {
 	L = {};
 	/* main drive: filtered noise plus two detuned saws */
-	L.drive = gain(0); L.drive.connect(bus);
+	L.drive = gain(0); L.drive.connect(eng);
 	L.driveF = filt('lowpass', 220, 0.9); L.driveF.connect(L.drive);
 	const n1 = noiseSrc(); n1.connect(L.driveF); n1.start();
 	L.saw = [55, 55.7].map(f => { const o = C.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; const g = gain(0.05); o.connect(g); g.connect(L.driveF); o.start(); return o });
 	/* thrusters: band-passed hiss */
-	L.rcs = gain(0); L.rcs.connect(bus);
+	L.rcs = gain(0); L.rcs.connect(eng);
 	const rf = filt('bandpass', 1700, 1.2); rf.connect(L.rcs); const n2 = noiseSrc(); n2.playbackRate.value = 1.3; n2.connect(rf); n2.start();
 	/* cruise: a drone with a slow beat */
-	L.cruise = gain(0); L.cruise.connect(bus);
+	L.cruise = gain(0); L.cruise.connect(eng);
 	L.cz = [110, 110.6, 165].map(f => { const o = C.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.connect(L.cruise); o.start(); return o });
 	/* cockpit hum */
-	L.hum = gain(0.012); L.hum.connect(bus);
+	L.hum = gain(0.012); L.hum.connect(eng);
 	const h = C.createOscillator(); h.type = 'sine'; h.frequency.value = 60; h.connect(L.hum); h.start();
 }
 const set = (p, v, tc) => p.setTargetAtTime(v, C.currentTime, tc || 0.06);
 
 A.unlock = () => ctx();
-A.setOn = on => { A.on = on; if (C) set(master.gain, on ? 0.6 : 0, 0.05) };
+A.setOn = on => { A.on = on; if (C) set(master.gain, mv(), 0.05) };
+function mix() { if (!C) return; eng.gain.value = VOL.engines / 80; fx.gain.value = VOL.effects / 80; alr.gain.value = VOL.alerts / 100 }
+A.setVolumes = v => { for (const k in VOL) if (typeof v[k] == 'number') VOL[k] = Math.max(0, Math.min(100, v[k])); if (C) { set(master.gain, mv(), 0.05); mix() } };
+/* told of every cue (the captions) */
+A.onCue = null;
 /* pausing holds the sound */
 A.hold = on => { held = on; if (!C) return; try { on ? C.suspend() : C.resume() } catch (e) {} };
 
@@ -82,15 +91,17 @@ function thump(t, g) {
 }
 function tone(t, f, d, type, g, f2) {
 	const o = C.createOscillator(), a = C.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
-	a.gain.setValueAtTime(0.0001, t); a.gain.linearRampToValueAtTime(g, t + 0.008); a.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(a); a.connect(bus); o.start(t); o.stop(t + d + 0.02);
+	a.gain.setValueAtTime(0.0001, t); a.gain.linearRampToValueAtTime(g, t + 0.008); a.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(a); a.connect(dest || bus); o.start(t); o.stop(t + d + 0.02);
 }
 function burst(t, d, g, type, f) {
 	const s = C.createBufferSource(); s.buffer = noiseBuf; const x = filt(type || 'lowpass', f || 400); const a = C.createGain();
-	a.gain.setValueAtTime(g, t); a.gain.exponentialRampToValueAtTime(0.0001, t + d); s.connect(x); x.connect(a); a.connect(bus); s.start(t, Math.random()); s.stop(t + d + 0.02);
+	a.gain.setValueAtTime(g, t); a.gain.exponentialRampToValueAtTime(0.0001, t + d); s.connect(x); x.connect(a); a.connect(dest || bus); s.start(t, Math.random()); s.stop(t + d + 0.02);
 }
 const last = {};
 A.cue = function (k, arg) {
+	if (A.onCue) try { A.onCue(k) } catch (e) {}
 	if (!A.on || !ctx() || held) return;
+	dest = ALERTS.includes(k) ? alr : fx;
 	const t = C.currentTime, now = performance.now();
 	const gap = {collide: 250, warning: 400, critical: 400, tick: 60, pulse: 70, driver: 120, heavy: 200, shieldHit: 90, hullHit: 120, boom: 150, lock: 600, incoming: 900}[k] || 0; if (gap && now - (last[k] || 0) < gap) return; last[k] = now;
 	switch (k) {

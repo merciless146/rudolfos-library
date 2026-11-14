@@ -1,0 +1,177 @@
+/* ===== Ember Reach: languages =====
+   The languages Rudolf OS offers in its own settings (desktop/base_v24.html's LANGS), with the same codes, names and
+   locales. T(english) gives the current language's text for a string of the menus, the HUD, the controls or the
+   sound captions, or the English if there's none. The starport and the flight messages aren't translated yet.
+   GPL-2.0-or-later. ===== */
+(function (root) {
+'use strict';
+const LANGS = [['en', 'English', 'en-US'], ['es', 'Español (Spanish)', 'es-ES'], ['pt', 'Português (Portuguese)', 'pt-BR'], ['fr', 'Français (French)', 'fr-FR'], ['de', 'Deutsch (German)', 'de-DE'], ['ru', 'Русский (Russian)', 'ru-RU'], ['zh', '中文 (Chinese)', 'zh-CN'], ['ja', '日本語 (Japanese)', 'ja-JP'], ['ko', '한국어 (Korean)', 'ko-KR']];
+
+/* the strings, in English, in the order of each language's list below */
+const EN = [
+	'Settings', 'Graphics, audio and HUD', 'Controls', 'Language and accessibility', 'Graphics', 'Quality', 'High', 'Low', 'Resolution', 'Field of view',
+	'Glow effects', 'Show frame rate', 'Audio', 'Sound', 'Master volume', 'Engines and ambience', 'Effects', 'Alerts and warnings', 'HUD', 'HUD size',
+	'HUD opacity', 'Messages shown', 'Message time', 'Scanner', 'Velocity marker', 'Lead marker', 'On', 'Off', 'Keyboard and gamepad', 'Press a key or gamepad button (Esc cancels)',
+	'Unbound', 'Reset controls', 'Mouse sensitivity', 'Invert mouse pitch', 'Invert gamepad pitch', 'Gamepad dead zone', 'Language', 'Accessibility', 'Reduce flashing', 'Follow Rudolf OS',
+	'Reduce motion', 'Colour-blind palette', 'Red–green', 'Blue–yellow', 'High-contrast HUD', 'Sound captions', 'Done', 'Taken from {a}', 'The menus, the HUD and the controls are translated. The starport and flight messages are still in English.', 'Key',
+	'Gamepad', 'Flight', 'Combat', 'Navigation', 'Ship', 'Interface', 'Pitch down', 'Pitch up', 'Roll left', 'Roll right',
+	'Yaw left', 'Yaw right', 'Throttle up', 'Throttle down', 'Throttle to zero', 'Strafe left', 'Strafe right', 'Strafe up', 'Strafe down', 'Flight assist',
+	'Cruise', 'Next target', 'Request docking', 'Camera view', 'Star map', 'Jump', 'Plot route', 'Map: back to you', 'Cargo hatch', 'Fire',
+	'Missile', 'Flare', 'Nearest hostile', 'Internal systems', 'Mouse flight', 'Controls help', 'Pause', 'Landing gear', 'Paused', 'Resume',
+	'Save to a file', 'Load from a file', 'New game', 'New game: sure? (the save is lost)', 'Choose your origin', 'Mouse: the left button fires; with mouse flight on, point away from the centre to pitch and roll.', 'Gamepad sticks: the left pitches and rolls, the right yaws and sets the throttle.', 'SPEED', 'CRUISE', 'FA ON',
+	'FA OFF', 'CHARGING', 'MASS LOCKED', 'JUMP', 'FUEL', 'SHLD', 'HULL', 'HEAT', 'OVERHEAT', 'UNARMED',
+	'MISSILE INBOUND', 'GRAVITY', 'UP', 'HATCH OPEN · SCOOPING', 'HATCH JAMMED · SPILLING', 'SWEEP', 'REFINERY', 'LOCK', 'INTERNAL SYSTEMS', 'SIDE PROFILE',
+	'INOP', 'HYPERSPACE', 'PILOT UNCONSCIOUS · CONTROLS LOCKED', 'Set', 'Thrust', 'GEAR DOWN', 'Warning', 'Critical alarm', 'Clearance granted', 'Refused',
+	'Docked', 'Launched', 'Collision', 'Drive charging', 'Dropped out of cruise', 'Emergency drop', 'Flight assist on', 'Flight assist off', 'Blackout', 'Waking',
+	'Arrived', 'Ship destroyed', 'Weapons fire', 'Missile launched', 'Shield hit', 'Hull hit', 'Explosion', 'Missile lock', 'System charted', 'Canister scooped',
+	'Missile incoming', 'Landing gear down', 'Landing gear up', 'Landing gear: down only below 100 m/s', 'Next'];
+
+const TR = {
+es: ['Ajustes', 'Gráficos, audio y HUD', 'Controles', 'Idioma y accesibilidad', 'Gráficos', 'Calidad', 'Alta', 'Baja', 'Resolución', 'Campo de visión',
+	'Efectos de brillo', 'Mostrar fotogramas por segundo', 'Audio', 'Sonido', 'Volumen general', 'Motores y ambiente', 'Efectos', 'Alertas y avisos', 'HUD', 'Tamaño del HUD',
+	'Opacidad del HUD', 'Mensajes visibles', 'Duración de los mensajes', 'Escáner', 'Marcador de velocidad', 'Marcador de anticipación', 'Sí', 'No', 'Teclado y mando', 'Pulsa una tecla o un botón del mando (Esc cancela)',
+	'Sin asignar', 'Restablecer controles', 'Sensibilidad del ratón', 'Invertir cabeceo del ratón', 'Invertir cabeceo del mando', 'Zona muerta del mando', 'Idioma', 'Accesibilidad', 'Reducir destellos', 'Seguir a Rudolf OS',
+	'Reducir movimiento', 'Paleta para daltonismo', 'Rojo–verde', 'Azul–amarillo', 'HUD de alto contraste', 'Subtítulos de sonido', 'Listo', 'Quitada de {a}', 'Los menús, el HUD y los controles están traducidos. El puerto estelar y los mensajes de vuelo siguen en inglés.', 'Tecla',
+	'Mando', 'Vuelo', 'Combate', 'Navegación', 'Nave', 'Interfaz', 'Morro abajo', 'Morro arriba', 'Alabeo a la izquierda', 'Alabeo a la derecha',
+	'Guiñada a la izquierda', 'Guiñada a la derecha', 'Más empuje', 'Menos empuje', 'Empuje a cero', 'Desplazamiento a la izquierda', 'Desplazamiento a la derecha', 'Desplazamiento arriba', 'Desplazamiento abajo', 'Asistencia de vuelo',
+	'Crucero', 'Siguiente objetivo', 'Pedir atraque', 'Vista de cámara', 'Mapa estelar', 'Salto', 'Trazar ruta', 'Mapa: volver a ti', 'Escotilla de carga', 'Disparar',
+	'Misil', 'Bengala', 'Hostil más cercano', 'Sistemas internos', 'Vuelo con ratón', 'Ayuda de controles', 'Pausa', 'Tren de aterrizaje', 'En pausa', 'Continuar',
+	'Guardar en un archivo', 'Cargar de un archivo', 'Partida nueva', 'Partida nueva: ¿seguro? (se pierde la partida guardada)', 'Elige tu origen', 'Ratón: el botón izquierdo dispara; con el vuelo con ratón activo, apunta lejos del centro para cabecear y alabear.', 'Palancas del mando: la izquierda cabecea y alabea, la derecha guiña y fija el empuje.', 'VELOCIDAD', 'CRUCERO', 'AV SÍ',
+	'AV NO', 'CARGANDO', 'BLOQUEO DE MASA', 'SALTO', 'COMBUSTIBLE', 'ESCUDO', 'CASCO', 'CALOR', 'SOBRECALENTADO', 'DESARMADA',
+	'MISIL ENTRANTE', 'GRAVEDAD', 'ALTURA', 'ESCOTILLA ABIERTA · RECOGIENDO', 'ESCOTILLA ATASCADA · PERDIENDO CARGA', 'BARRIDO', 'REFINERÍA', 'FIJADO', 'SISTEMAS INTERNOS', 'PERFIL LATERAL',
+	'INOP', 'HIPERESPACIO', 'PILOTO INCONSCIENTE · CONTROLES BLOQUEADOS', 'Fijada', 'Empuje', 'TREN FUERA', 'Aviso', 'Alarma crítica', 'Permiso concedido', 'Denegado',
+	'Atracado', 'Despegue', 'Colisión', 'Motor cargando', 'Fuera de crucero', 'Salida de emergencia', 'Asistencia de vuelo activada', 'Asistencia de vuelo desactivada', 'Pérdida de conciencia', 'Recuperando la conciencia',
+	'Llegada', 'Nave destruida', 'Disparos', 'Misil lanzado', 'Impacto en el escudo', 'Impacto en el casco', 'Explosión', 'Misil fijado', 'Sistema cartografiado', 'Contenedor recogido',
+	'Misil en camino', 'Tren de aterrizaje fuera', 'Tren de aterrizaje recogido', 'Tren de aterrizaje: solo por debajo de 100 m/s', 'Siguiente'],
+pt: ['Configurações', 'Gráficos, áudio e HUD', 'Controles', 'Idioma e acessibilidade', 'Gráficos', 'Qualidade', 'Alta', 'Baixa', 'Resolução', 'Campo de visão',
+	'Efeitos de brilho', 'Mostrar quadros por segundo', 'Áudio', 'Som', 'Volume geral', 'Motores e ambiente', 'Efeitos', 'Alertas e avisos', 'HUD', 'Tamanho do HUD',
+	'Opacidade do HUD', 'Mensagens exibidas', 'Duração das mensagens', 'Scanner', 'Marcador de velocidade', 'Marcador de antecipação', 'Ligado', 'Desligado', 'Teclado e controle', 'Pressione uma tecla ou um botão do controle (Esc cancela)',
+	'Sem atribuição', 'Restaurar controles', 'Sensibilidade do mouse', 'Inverter arfagem do mouse', 'Inverter arfagem do controle', 'Zona morta do controle', 'Idioma', 'Acessibilidade', 'Reduzir clarões', 'Seguir o Rudolf OS',
+	'Reduzir movimento', 'Paleta para daltonismo', 'Vermelho–verde', 'Azul–amarelo', 'HUD de alto contraste', 'Legendas de som', 'Concluído', 'Retirada de {a}', 'Os menus, o HUD e os controles estão traduzidos. O espaçoporto e as mensagens de voo ainda estão em inglês.', 'Tecla',
+	'Controle', 'Voo', 'Combate', 'Navegação', 'Nave', 'Interface', 'Nariz para baixo', 'Nariz para cima', 'Rolar para a esquerda', 'Rolar para a direita',
+	'Guinar para a esquerda', 'Guinar para a direita', 'Mais aceleração', 'Menos aceleração', 'Aceleração a zero', 'Deslizar para a esquerda', 'Deslizar para a direita', 'Deslizar para cima', 'Deslizar para baixo', 'Assistência de voo',
+	'Cruzeiro', 'Próximo alvo', 'Pedir atracação', 'Vista da câmera', 'Mapa estelar', 'Salto', 'Traçar rota', 'Mapa: voltar a você', 'Escotilha de carga', 'Disparar',
+	'Míssil', 'Sinalizador', 'Hostil mais próximo', 'Sistemas internos', 'Voo com mouse', 'Ajuda dos controles', 'Pausa', 'Trem de pouso', 'Pausado', 'Continuar',
+	'Salvar em um arquivo', 'Carregar de um arquivo', 'Novo jogo', 'Novo jogo: tem certeza? (o jogo salvo será perdido)', 'Escolha sua origem', 'Mouse: o botão esquerdo dispara; com o voo com mouse ligado, aponte para longe do centro para arfar e rolar.', 'Alavancas do controle: a esquerda arfa e rola, a direita guina e define a aceleração.', 'VELOCIDADE', 'CRUZEIRO', 'AV LIG',
+	'AV DESL', 'CARREGANDO', 'BLOQUEIO DE MASSA', 'SALTO', 'COMBUSTÍVEL', 'ESCUDO', 'CASCO', 'CALOR', 'SUPERAQUECIDO', 'DESARMADA',
+	'MÍSSIL CHEGANDO', 'GRAVIDADE', 'ALTURA', 'ESCOTILHA ABERTA · COLETANDO', 'ESCOTILHA EMPERRADA · PERDENDO CARGA', 'VARREDURA', 'REFINARIA', 'TRAVADO', 'SISTEMAS INTERNOS', 'PERFIL LATERAL',
+	'INOP', 'HIPERESPAÇO', 'PILOTO INCONSCIENTE · CONTROLES TRAVADOS', 'Definida', 'Empuxo', 'TREM BAIXADO', 'Aviso', 'Alarme crítico', 'Autorização concedida', 'Recusado',
+	'Atracado', 'Decolagem', 'Colisão', 'Motor carregando', 'Saída do cruzeiro', 'Saída de emergência', 'Assistência de voo ligada', 'Assistência de voo desligada', 'Desmaio', 'Recobrando a consciência',
+	'Chegada', 'Nave destruída', 'Disparos', 'Míssil lançado', 'Impacto no escudo', 'Impacto no casco', 'Explosão', 'Míssil travado', 'Sistema mapeado', 'Contêiner coletado',
+	'Míssil a caminho', 'Trem de pouso baixado', 'Trem de pouso recolhido', 'Trem de pouso: só abaixo de 100 m/s', 'Próximo'],
+fr: ['Paramètres', 'Graphismes, son et HUD', 'Commandes', 'Langue et accessibilité', 'Graphismes', 'Qualité', 'Haute', 'Basse', 'Résolution', 'Champ de vision',
+	'Effets lumineux', 'Afficher les images par seconde', 'Son', 'Son', 'Volume principal', 'Moteurs et ambiance', 'Effets', 'Alertes et avertissements', 'HUD', 'Taille du HUD',
+	'Opacité du HUD', 'Messages affichés', 'Durée des messages', 'Scanner', 'Marqueur de vitesse', 'Marqueur de visée anticipée', 'Activé', 'Désactivé', 'Clavier et manette', 'Appuyez sur une touche ou un bouton de manette (Échap annule)',
+	'Non attribuée', 'Réinitialiser les commandes', 'Sensibilité de la souris', 'Inverser le tangage (souris)', 'Inverser le tangage (manette)', 'Zone morte de la manette', 'Langue', 'Accessibilité', 'Réduire les flashs', 'Suivre Rudolf OS',
+	'Réduire les mouvements', 'Palette pour daltoniens', 'Rouge–vert', 'Bleu–jaune', 'HUD à contraste élevé', 'Sous-titres des sons', 'Terminé', 'Retirée de {a}', 'Les menus, le HUD et les commandes sont traduits. Le spatioport et les messages de vol sont encore en anglais.', 'Touche',
+	'Manette', 'Vol', 'Combat', 'Navigation', 'Vaisseau', 'Interface', 'Piquer', 'Cabrer', 'Roulis à gauche', 'Roulis à droite',
+	'Lacet à gauche', 'Lacet à droite', 'Plus de poussée', 'Moins de poussée', 'Poussée à zéro', 'Translation à gauche', 'Translation à droite', 'Translation vers le haut', 'Translation vers le bas', 'Assistance de vol',
+	'Croisière', 'Cible suivante', 'Demander l’amarrage', 'Vue caméra', 'Carte stellaire', 'Saut', 'Tracer la route', 'Carte : revenir à vous', 'Trappe de soute', 'Tirer',
+	'Missile', 'Leurre', 'Hostile le plus proche', 'Systèmes internes', 'Vol à la souris', 'Aide des commandes', 'Pause', 'Train d’atterrissage', 'En pause', 'Reprendre',
+	'Enregistrer dans un fichier', 'Charger un fichier', 'Nouvelle partie', 'Nouvelle partie : sûr ? (la sauvegarde sera perdue)', 'Choisissez votre origine', 'Souris : le bouton gauche tire ; en vol à la souris, éloignez le pointeur du centre pour tanguer et rouler.', 'Sticks de la manette : le gauche tangue et roule, le droit fait le lacet et règle la poussée.', 'VITESSE', 'CROISIÈRE', 'AV ON',
+	'AV OFF', 'CHARGEMENT', 'BLOQUÉ PAR LA MASSE', 'SAUT', 'CARBURANT', 'BOUCL', 'COQUE', 'CHALEUR', 'SURCHAUFFE', 'DÉSARMÉ',
+	'MISSILE EN APPROCHE', 'GRAVITÉ', 'ALTITUDE', 'TRAPPE OUVERTE · RAMASSAGE', 'TRAPPE BLOQUÉE · PERTE DE CARGAISON', 'BALAYAGE', 'RAFFINERIE', 'VERROUILLÉ', 'SYSTÈMES INTERNES', 'PROFIL LATÉRAL',
+	'HS', 'HYPERESPACE', 'PILOTE INCONSCIENT · COMMANDES BLOQUÉES', 'Réglée', 'Poussée', 'TRAIN SORTI', 'Avertissement', 'Alarme critique', 'Autorisation accordée', 'Refusé',
+	'Amarré', 'Décollage', 'Collision', 'Moteur en charge', 'Sortie de croisière', 'Sortie d’urgence', 'Assistance de vol activée', 'Assistance de vol désactivée', 'Perte de conscience', 'Reprise de conscience',
+	'Arrivée', 'Vaisseau détruit', 'Tirs', 'Missile lancé', 'Impact sur le bouclier', 'Impact sur la coque', 'Explosion', 'Verrouillage missile', 'Système cartographié', 'Conteneur ramassé',
+	'Missile en approche', 'Train d’atterrissage sorti', 'Train d’atterrissage rentré', 'Train d’atterrissage : seulement sous 100 m/s', 'Suivant'],
+de: ['Einstellungen', 'Grafik, Ton und HUD', 'Steuerung', 'Sprache und Barrierefreiheit', 'Grafik', 'Qualität', 'Hoch', 'Niedrig', 'Auflösung', 'Sichtfeld',
+	'Leuchteffekte', 'Bildrate anzeigen', 'Ton', 'Ton', 'Gesamtlautstärke', 'Triebwerke und Umgebung', 'Effekte', 'Alarme und Warnungen', 'HUD', 'HUD-Größe',
+	'HUD-Deckkraft', 'Angezeigte Meldungen', 'Anzeigedauer der Meldungen', 'Scanner', 'Geschwindigkeitsmarke', 'Vorhaltemarke', 'Ein', 'Aus', 'Tastatur und Controller', 'Drücke eine Taste oder einen Controller-Knopf (Esc bricht ab)',
+	'Nicht belegt', 'Steuerung zurücksetzen', 'Mausempfindlichkeit', 'Maus-Nicken umkehren', 'Controller-Nicken umkehren', 'Totzone des Controllers', 'Sprache', 'Barrierefreiheit', 'Blitze reduzieren', 'Wie in Rudolf OS',
+	'Bewegung reduzieren', 'Farbpalette für Farbfehlsichtigkeit', 'Rot–Grün', 'Blau–Gelb', 'HUD mit hohem Kontrast', 'Untertitel für Geräusche', 'Fertig', 'Entfernt von {a}', 'Menüs, HUD und Steuerung sind übersetzt. Der Raumhafen und die Flugmeldungen sind noch auf Englisch.', 'Taste',
+	'Controller', 'Flug', 'Kampf', 'Navigation', 'Schiff', 'Oberfläche', 'Nase senken', 'Nase heben', 'Nach links rollen', 'Nach rechts rollen',
+	'Nach links gieren', 'Nach rechts gieren', 'Schub erhöhen', 'Schub verringern', 'Schub auf null', 'Nach links versetzen', 'Nach rechts versetzen', 'Nach oben versetzen', 'Nach unten versetzen', 'Flugassistent',
+	'Reiseflug', 'Nächstes Ziel', 'Andockerlaubnis anfordern', 'Kameraansicht', 'Sternenkarte', 'Sprung', 'Route planen', 'Karte: zurück zu dir', 'Frachtluke', 'Feuern',
+	'Rakete', 'Täuschkörper', 'Nächster Feind', 'Interne Systeme', 'Maussteuerung', 'Hilfe zur Steuerung', 'Pause', 'Fahrwerk', 'Pausiert', 'Weiter',
+	'In eine Datei speichern', 'Aus einer Datei laden', 'Neues Spiel', 'Neues Spiel: sicher? (der Spielstand geht verloren)', 'Wähle deine Herkunft', 'Maus: Die linke Taste feuert; mit Maussteuerung vom Mittelpunkt weg zeigen, um zu nicken und zu rollen.', 'Controller-Sticks: Der linke nickt und rollt, der rechte giert und stellt den Schub ein.', 'GESCHW.', 'REISEFLUG', 'FA AN',
+	'FA AUS', 'LÄDT', 'MASSENSPERRE', 'SPRUNG', 'TREIBSTOFF', 'SCHILD', 'RUMPF', 'HITZE', 'ÜBERHITZT', 'UNBEWAFFNET',
+	'RAKETE IM ANFLUG', 'SCHWERKRAFT', 'HÖHE', 'LUKE OFFEN · SAMMELT', 'LUKE KLEMMT · VERLIERT FRACHT', 'ABTASTUNG', 'RAFFINERIE', 'ERFASST', 'INTERNE SYSTEME', 'SEITENANSICHT',
+	'DEFEKT', 'HYPERRAUM', 'PILOT BEWUSSTLOS · STEUERUNG GESPERRT', 'Soll', 'Schub', 'FAHRWERK AUSGEFAHREN', 'Warnung', 'Kritischer Alarm', 'Erlaubnis erteilt', 'Abgelehnt',
+	'Angedockt', 'Gestartet', 'Kollision', 'Antrieb lädt', 'Reiseflug verlassen', 'Notausstieg aus dem Reiseflug', 'Flugassistent an', 'Flugassistent aus', 'Bewusstlosigkeit', 'Erwachen',
+	'Angekommen', 'Schiff zerstört', 'Schüsse', 'Rakete abgefeuert', 'Treffer am Schild', 'Treffer am Rumpf', 'Explosion', 'Raketenerfassung', 'System kartiert', 'Behälter aufgenommen',
+	'Rakete im Anflug', 'Fahrwerk ausgefahren', 'Fahrwerk eingefahren', 'Fahrwerk: nur unter 100 m/s', 'Weiter'],
+ru: ['Настройки', 'Графика, звук и HUD', 'Управление', 'Язык и специальные возможности', 'Графика', 'Качество', 'Высокое', 'Низкое', 'Разрешение', 'Поле зрения',
+	'Эффекты свечения', 'Показывать частоту кадров', 'Звук', 'Звук', 'Общая громкость', 'Двигатели и фон', 'Эффекты', 'Тревоги и предупреждения', 'HUD', 'Размер HUD',
+	'Прозрачность HUD', 'Показывать сообщений', 'Время показа сообщений', 'Сканер', 'Метка скорости', 'Метка упреждения', 'Вкл.', 'Выкл.', 'Клавиатура и геймпад', 'Нажмите клавишу или кнопку геймпада (Esc — отмена)',
+	'Не назначено', 'Сбросить управление', 'Чувствительность мыши', 'Инвертировать тангаж мыши', 'Инвертировать тангаж геймпада', 'Мёртвая зона геймпада', 'Язык', 'Специальные возможности', 'Уменьшить вспышки', 'Как в Rudolf OS',
+	'Уменьшить движение', 'Палитра для дальтоников', 'Красный–зелёный', 'Синий–жёлтый', 'Контрастный HUD', 'Субтитры звуков', 'Готово', 'Снято с действия «{a}»', 'Меню, HUD и управление переведены. Космопорт и полётные сообщения пока на английском.', 'Клавиша',
+	'Геймпад', 'Полёт', 'Бой', 'Навигация', 'Корабль', 'Интерфейс', 'Нос вниз', 'Нос вверх', 'Крен влево', 'Крен вправо',
+	'Рыскание влево', 'Рыскание вправо', 'Тяга больше', 'Тяга меньше', 'Тяга на ноль', 'Сдвиг влево', 'Сдвиг вправо', 'Сдвиг вверх', 'Сдвиг вниз', 'Помощь в полёте',
+	'Круиз', 'Следующая цель', 'Запросить стыковку', 'Вид камеры', 'Звёздная карта', 'Прыжок', 'Проложить маршрут', 'Карта: вернуться к себе', 'Грузовой люк', 'Огонь',
+	'Ракета', 'Ловушка', 'Ближайший враг', 'Внутренние системы', 'Управление мышью', 'Справка по управлению', 'Пауза', 'Шасси', 'Пауза', 'Продолжить',
+	'Сохранить в файл', 'Загрузить из файла', 'Новая игра', 'Новая игра: уверены? (сохранение будет потеряно)', 'Выберите происхождение', 'Мышь: левая кнопка стреляет; при управлении мышью отведите указатель от центра, чтобы менять тангаж и крен.', 'Стики геймпада: левый — тангаж и крен, правый — рыскание и тяга.', 'СКОРОСТЬ', 'КРУИЗ', 'ПП ВКЛ',
+	'ПП ВЫКЛ', 'ЗАРЯДКА', 'БЛОКИРОВКА МАССОЙ', 'ПРЫЖОК', 'ТОПЛИВО', 'ЩИТ', 'КОРПУС', 'НАГРЕВ', 'ПЕРЕГРЕВ', 'БЕЗ ОРУЖИЯ',
+	'РАКЕТА НА ПОДЛЁТЕ', 'ГРАВИТАЦИЯ', 'ВЫСОТА', 'ЛЮК ОТКРЫТ · СБОР', 'ЛЮК ЗАКЛИНИЛО · ГРУЗ ТЕРЯЕТСЯ', 'СКАНИРОВАНИЕ', 'ПЕРЕРАБОТКА', 'ЗАХВАТ', 'ВНУТРЕННИЕ СИСТЕМЫ', 'ВИД СБОКУ',
+	'НЕИСПР', 'ГИПЕРПРОСТРАНСТВО', 'ПИЛОТ БЕЗ СОЗНАНИЯ · УПРАВЛЕНИЕ ЗАБЛОКИРОВАНО', 'Задано', 'Тяга', 'ШАССИ ВЫПУЩЕНО', 'Предупреждение', 'Критическая тревога', 'Разрешение получено', 'Отказ',
+	'Стыковка', 'Взлёт', 'Столкновение', 'Зарядка двигателя', 'Выход из круиза', 'Аварийный выход', 'Помощь в полёте включена', 'Помощь в полёте выключена', 'Потеря сознания', 'Возвращение сознания',
+	'Прибытие', 'Корабль уничтожен', 'Стрельба', 'Ракета запущена', 'Попадание в щит', 'Попадание в корпус', 'Взрыв', 'Захват ракетой', 'Система нанесена на карту', 'Контейнер подобран',
+	'Ракета приближается', 'Шасси выпущено', 'Шасси убрано', 'Шасси: только ниже 100 м/с', 'Далее'],
+zh: ['设置', '图形、音频与 HUD', '控制', '语言与无障碍', '图形', '画质', '高', '低', '分辨率', '视野',
+	'光晕效果', '显示帧率', '音频', '声音', '主音量', '引擎与环境音', '音效', '警报与警告', 'HUD', 'HUD 大小',
+	'HUD 不透明度', '显示的消息数', '消息显示时长', '扫描仪', '速度标记', '提前量标记', '开', '关', '键盘与手柄', '按下一个键或手柄按钮（Esc 取消）',
+	'未绑定', '重置控制', '鼠标灵敏度', '反转鼠标俯仰', '反转手柄俯仰', '手柄死区', '语言', '无障碍', '减少闪烁', '跟随 Rudolf OS',
+	'减少动态效果', '色盲配色', '红–绿', '蓝–黄', '高对比度 HUD', '声音字幕', '完成', '已从“{a}”移除', '菜单、HUD 和控制已翻译。星港和飞行消息暂时仍为英文。', '按键',
+	'手柄', '飞行', '战斗', '导航', '飞船', '界面', '机头向下', '机头向上', '向左滚转', '向右滚转',
+	'向左偏航', '向右偏航', '加大推力', '减小推力', '推力归零', '向左平移', '向右平移', '向上平移', '向下平移', '飞行辅助',
+	'巡航', '下一个目标', '请求停靠', '镜头视角', '星图', '跃迁', '规划航线', '星图：回到你的位置', '货舱门', '开火',
+	'导弹', '诱饵弹', '最近的敌人', '内部系统', '鼠标飞行', '控制帮助', '暂停', '起落架', '已暂停', '继续',
+	'保存到文件', '从文件读取', '新游戏', '新游戏：确定吗？（存档将丢失）', '选择你的出身', '鼠标：左键开火；开启鼠标飞行时，将指针移离中心即可俯仰和滚转。', '手柄摇杆：左摇杆俯仰和滚转，右摇杆偏航并设定推力。', '速度', '巡航', '辅助 开',
+	'辅助 关', '充能中', '质量锁定', '跃迁', '燃料', '护盾', '船体', '热量', '过热', '未武装',
+	'导弹来袭', '重力', '高度', '舱门打开 · 收集中', '舱门卡住 · 货物外泄', '扫描', '精炼', '锁定', '内部系统', '侧视图',
+	'故障', '超空间', '飞行员失去意识 · 控制已锁定', '设定', '推力', '起落架放下', '警告', '严重警报', '已获准停靠', '已拒绝',
+	'已停靠', '已起飞', '碰撞', '引擎充能', '退出巡航', '紧急退出', '飞行辅助已开启', '飞行辅助已关闭', '失去意识', '恢复意识',
+	'已抵达', '飞船被摧毁', '武器开火', '导弹已发射', '护盾被击中', '船体被击中', '爆炸', '导弹锁定', '星系已测绘', '货箱已收集',
+	'导弹来袭', '起落架已放下', '起落架已收起', '起落架：仅在 100 米/秒以下放下', '下一个'],
+ja: ['設定', 'グラフィック・音声・HUD', '操作', '言語とアクセシビリティ', 'グラフィック', '画質', '高', '低', '解像度', '視野角',
+	'発光エフェクト', 'フレームレートを表示', '音声', 'サウンド', 'マスター音量', 'エンジンと環境音', '効果音', '警報と警告', 'HUD', 'HUD のサイズ',
+	'HUD の不透明度', '表示するメッセージ数', 'メッセージの表示時間', 'スキャナー', '速度マーカー', '偏差射撃マーカー', 'オン', 'オフ', 'キーボードとゲームパッド', 'キーかゲームパッドのボタンを押してください（Esc で取り消し）',
+	'未割り当て', '操作をリセット', 'マウス感度', 'マウスのピッチを反転', 'ゲームパッドのピッチを反転', 'ゲームパッドのデッドゾーン', '言語', 'アクセシビリティ', '点滅を減らす', 'Rudolf OS に従う',
+	'動きを減らす', '色覚サポート配色', '赤–緑', '青–黄', 'ハイコントラスト HUD', '効果音の字幕', '完了', '「{a}」から外しました', 'メニュー、HUD、操作は翻訳済みです。宇宙港と飛行中のメッセージはまだ英語です。', 'キー',
+	'ゲームパッド', '飛行', '戦闘', 'ナビゲーション', '船', 'インターフェース', '機首下げ', '機首上げ', '左ロール', '右ロール',
+	'左ヨー', '右ヨー', 'スロットルを上げる', 'スロットルを下げる', 'スロットルをゼロに', '左へ平行移動', '右へ平行移動', '上へ平行移動', '下へ平行移動', 'フライトアシスト',
+	'巡航', '次の目標', 'ドッキング許可を要請', 'カメラ視点', '星図', 'ジャンプ', '航路を設定', '星図：自分の位置へ戻る', '貨物ハッチ', '発射',
+	'ミサイル', 'フレア', '最寄りの敵', '内部システム', 'マウス操縦', '操作ヘルプ', '一時停止', '着陸脚', '一時停止中', '再開',
+	'ファイルに保存', 'ファイルから読み込む', '新しいゲーム', '新しいゲーム：よろしいですか？（セーブデータは失われます）', '出身を選んでください', 'マウス：左ボタンで発射。マウス操縦中は、ポインターを中央から離すとピッチとロールができます。', 'ゲームパッドのスティック：左でピッチとロール、右でヨーとスロットル。', '速度', '巡航', 'FA オン',
+	'FA オフ', 'チャージ中', '質量ロック', 'ジャンプ', '燃料', 'シールド', '船体', '熱', 'オーバーヒート', '非武装',
+	'ミサイル接近', '重力', '高度', 'ハッチ開 · 回収中', 'ハッチ故障 · 積荷流出', 'スキャン', '精製', 'ロック', '内部システム', '側面図',
+	'故障', 'ハイパースペース', 'パイロット意識喪失 · 操作ロック', '設定速度', '推力', '着陸脚展開', '警告', '重大警報', '許可されました', '拒否されました',
+	'ドッキング完了', '発進', '衝突', 'ドライブ充電中', '巡航を解除', '緊急離脱', 'フライトアシスト オン', 'フライトアシスト オフ', '意識喪失', '意識回復',
+	'到着', '船が破壊されました', '射撃', 'ミサイル発射', 'シールドに被弾', '船体に被弾', '爆発', 'ミサイルロック', '星系を測量', 'コンテナを回収',
+	'ミサイル接近中', '着陸脚を展開', '着陸脚を格納', '着陸脚：秒速 100 m 未満でのみ展開', '次へ'],
+ko: ['설정', '그래픽, 오디오, HUD', '조작', '언어 및 접근성', '그래픽', '품질', '높음', '낮음', '해상도', '시야각',
+	'발광 효과', '프레임 속도 표시', '오디오', '사운드', '전체 볼륨', '엔진 및 환경음', '효과음', '경보 및 경고', 'HUD', 'HUD 크기',
+	'HUD 불투명도', '표시할 메시지 수', '메시지 표시 시간', '스캐너', '속도 표시', '예측 사격 표시', '켜기', '끄기', '키보드 및 게임패드', '키나 게임패드 버튼을 누르세요 (Esc로 취소)',
+	'할당 안 됨', '조작 초기화', '마우스 감도', '마우스 피치 반전', '게임패드 피치 반전', '게임패드 데드존', '언어', '접근성', '깜박임 줄이기', 'Rudolf OS 설정 따르기',
+	'움직임 줄이기', '색각 이상 팔레트', '적색–녹색', '청색–황색', '고대비 HUD', '소리 자막', '완료', '"{a}"에서 해제됨', '메뉴, HUD, 조작은 번역되어 있습니다. 우주항과 비행 메시지는 아직 영어입니다.', '키',
+	'게임패드', '비행', '전투', '항법', '함선', '인터페이스', '기수 내리기', '기수 올리기', '왼쪽 롤', '오른쪽 롤',
+	'왼쪽 요', '오른쪽 요', '스로틀 올리기', '스로틀 내리기', '스로틀 0으로', '왼쪽 평행 이동', '오른쪽 평행 이동', '위쪽 평행 이동', '아래쪽 평행 이동', '비행 보조',
+	'순항', '다음 목표', '도킹 요청', '카메라 시점', '성도', '점프', '항로 설정', '성도: 내 위치로', '화물 해치', '발사',
+	'미사일', '플레어', '가장 가까운 적', '내부 시스템', '마우스 비행', '조작 도움말', '일시 정지', '착륙 장치', '일시 정지됨', '계속',
+	'파일로 저장', '파일에서 불러오기', '새 게임', '새 게임: 정말인가요? (저장 데이터가 사라집니다)', '출신을 선택하세요', '마우스: 왼쪽 버튼으로 발사합니다. 마우스 비행 중에는 포인터를 중앙에서 멀리 두면 피치와 롤을 조작합니다.', '게임패드 스틱: 왼쪽은 피치와 롤, 오른쪽은 요와 스로틀입니다.', '속도', '순항', '보조 켬',
+	'보조 끔', '충전 중', '질량 잠금', '점프', '연료', '실드', '선체', '열', '과열', '비무장',
+	'미사일 접근', '중력', '고도', '해치 열림 · 수집 중', '해치 고장 · 화물 유출', '스캔', '정제', '록온', '내부 시스템', '측면도',
+	'고장', '초공간', '조종사 의식 잃음 · 조작 잠김', '설정', '추력', '착륙 장치 내림', '경고', '심각한 경보', '허가됨', '거부됨',
+	'도킹 완료', '출항', '충돌', '드라이브 충전 중', '순항 해제', '긴급 이탈', '비행 보조 켬', '비행 보조 끔', '의식 잃음', '의식 회복',
+	'도착', '함선 파괴됨', '사격', '미사일 발사', '실드 피격', '선체 피격', '폭발', '미사일 록온', '항성계 측량 완료', '컨테이너 수집',
+	'미사일 접근 중', '착륙 장치 내림', '착륙 장치 올림', '착륙 장치: 초속 100m 미만에서만', '다음']};
+
+const MAP = {};
+for (const [code, list] of Object.entries(TR)) { const m = MAP[code] = {}; EN.forEach((e, i) => { if (list[i]) m[e] = list[i] }) }
+let LANG = 'en';
+function setLang(code) { LANG = LANGS.some(l => l[0] == code) ? code : 'en'; return LANG }
+const lang = () => LANG;
+const locale = () => (LANGS.find(l => l[0] == LANG) || LANGS[0])[2];
+/* the text in the current language; {a}-style holes filled from vars */
+function T(en, vars) { let s = LANG != 'en' && MAP[LANG] && MAP[LANG][en] || en; if (vars) for (const k in vars) s = s.replace('{' + k + '}', vars[k]); return s }
+/* the language a new pilot starts in: the browser's, if Rudolf OS offers it, else English */
+function guess(nav) { const l = String(nav || '').slice(0, 2).toLowerCase(); return LANGS.some(x => x[0] == l) ? l : 'en' }
+
+/* the language in force for a choice: 'os' follows Rudolf OS when it shares its language (RG.lang), else the browser's */
+const known = c => LANGS.some(l => l[0] == c);
+function resolve(choice, shared, nav) { return choice == 'os' ? (known(shared) ? shared : guess(nav)) : known(choice) ? choice : 'en' }
+const nameOf = c => (LANGS.find(l => l[0] == c) || LANGS[0])[1];
+
+const EmberI18n = {LANGS, EN, TR, T, setLang, lang, locale, guess, resolve, nameOf};
+if (typeof module != 'undefined') module.exports = EmberI18n; else root.EmberI18n = EmberI18n;
+})(typeof window != 'undefined' ? window : globalThis);

@@ -12,7 +12,7 @@ try {
 	const here = {id: 'abc123', x: 12.5, y: -3.25, z: 1050.125}, g = {power: 3, port: 'trefoil', ship: 'wren', day: 200, t: 1234.5678, docked: false, pad: null, s, throttle: 0.42, fit, settings: {quality: 'low', sound: false}, star: here, fuel: 0.625, lastPort: here, routeTo: null};
 	const json = JSON.stringify(Sv.pack(g)), back = Sv.unpack(JSON.parse(json), known);
 	ok('1. a save survives JSON: place, motion, heading, spin, flight assist, throttle, settings', back && back.p.every((x, i) => Math.abs(x - s.p[i]) < 1e-3) && back.v.every((x, i) => Math.abs(x - s.v[i]) < 1e-9)
-		&& back.q.every((x, i) => Math.abs(x - s.q[i]) < 1e-12) && back.fa === false && back.throttle == 0.42 && back.settings.quality == 'low' && back.settings.sound === false && back.power == 3 && back.port == 'trefoil');
+		&& back.q.every((x, i) => Math.abs(x - s.q[i]) < 1e-12) && back.fa === false && back.throttle == 0.42 && back.settings.graphics.quality == 'low' && back.settings.audio.on === false && back.power == 3 && back.port == 'trefoil');
 	const fit2 = Sv.restoreModules(M.fit(wren), back.modules);
 	ok('2. module damage comes back: the broken canopy, the dented engines', M.get(fit2, 'canopy').hp == 0 && Math.abs(M.get(fit2, 'engines').hp - (M.get(fit2, 'engines').max - 4.5)) < 1e-9 && M.alerts(fit2).length == 1);
 	ok('3. it stays small (well under gamekit\'s limit)', json.length < 1500, json.length + ' bytes');

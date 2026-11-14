@@ -29,7 +29,8 @@ function pack(g) {
 		player: g.player ? packPlayer(g.player) : null,
 		p: r(g.s.p), vel: r(g.s.v), q: r(g.s.q), w: r(g.s.w), fa: !!g.s.fa, throttle: +(+g.throttle || 0).toFixed(3),
 		modules: Object.fromEntries(g.fit.modules.map(m => [m.id, +m.hp.toFixed(2)])),
-		settings: {quality: g.settings.quality == 'low' ? 'low' : 'high', sound: g.settings.sound !== false}});
+		/* the settings (settings.js), kept clean */
+		settings: St ? St.sanitise(g.settings, null, I18 && I18.LANGS.map(l => l[0])) : g.settings});
 }
 /* gamekit keeps a save up to 256 KB. A long game's records grow past that (every system charted, every asteroid
    chipped), so a save over the budget is trimmed, the least needed first: the asteroids mined longest ago (they
@@ -55,6 +56,8 @@ function trim(out) {
 }
 /* the save checked against what this game knows: ships (ids), ports (class names), powers (how many) */
 function unpack(raw, known) {
+	/* a new game keeps the settings: the save is just them until the first real one */
+	if (raw && typeof raw == 'object' && raw.settingsOnly) return {settings: St ? St.sanitise(raw.settings, null, I18 && I18.LANGS.map(l => l[0])) : raw.settings};
 	if (!raw || typeof raw != 'object' || [1, 2, 3].indexOf(raw.v) < 0) return null;
 	const k = known || {};
 	if (!Number.isInteger(raw.power) || raw.power < 0 || (k.powers && raw.power >= k.powers)) return null;
@@ -72,7 +75,7 @@ function unpack(raw, known) {
 	return {power: raw.power, port: raw.port, ship: raw.ship, day: raw.day, t: raw.t, docked: !!raw.docked, pad: Number.isInteger(raw.pad) ? raw.pad : null,
 		star: raw.v >= 2 ? star(raw.star) : null, fuel: raw.v >= 2 ? raw.fuel : 1, lastPort: raw.v >= 2 ? star(raw.lastPort) : null, routeTo: raw.v >= 2 ? star(raw.routeTo) : null, version: raw.v, player,
 		p: raw.p, v: raw.vel, q: raw.q.map(c => c / qn), w: raw.w, fa: raw.fa !== false, throttle: num(raw.throttle) ? Math.max(-1, Math.min(1, raw.throttle)) : 0,
-		modules: raw.modules, settings: {quality: set.quality == 'low' ? 'low' : 'high', sound: set.sound !== false}};
+		modules: raw.modules, settings: St ? St.sanitise(set, null, I18 && I18.LANGS.map(l => l[0])) : set};
 }
 /* the player, compact: numbers rounded, empty entries dropped */
 function packPlayer(P) {
@@ -115,6 +118,8 @@ function unpackPlayer(x) {
 const obj = o => o && typeof o == 'object' && !Array.isArray(o);
 const O = typeof module != 'undefined' ? require('./outfit.js') : (typeof window != 'undefined' ? window.EmberOutfit : null);
 const S0 = typeof module != 'undefined' ? require('./ships.js') : (typeof window != 'undefined' ? window.EmberShips : null);
+const St = typeof module != 'undefined' ? require('./settings.js') : (typeof window != 'undefined' ? window.EmberSettings : null);
+const I18 = typeof module != 'undefined' ? require('./i18n.js') : (typeof window != 'undefined' ? window.EmberI18n : null);
 /* the ship's fit, if it's a valid fit for that hull (else the stock fit is used on load) */
 function shipFit(sh) { const hull = S0 && (S0.hull ? S0.hull(sh.model) : S0.ships().find(s => s.id == sh.model)); return hull && O && O.valid(hull, sh.fit) ? sh.fit : null }
 function exploreOk(e) {
