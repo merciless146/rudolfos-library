@@ -53,6 +53,8 @@ async function frame(pg, test) {
 		await pg.screenshot({path: path.join(W, 'flight.png')});
 		const saved = await pg.evaluate(() => SAVES['ember-reach']);
 		ok('5. the desktop keeps the save (launching saves)', saved && saved.v == 4 && saved.player && saved.docked === false, saved && Object.keys(saved));
+		const sp = await f.evaluate(() => { const g = EmberDebug.game, q = (g.ports || []).filter(x => x.surface), b = q.length && EmberDebug.scene.bodies.find(x => x.name == q[0].world); return {n: q.length, want: EmberSurface.ports(g.star, g.port && g.port.cls).length, star: g.star.name, kinds: q.map(x => x.kind), ids: q.every(x => EmberTravel.PORT_ID.test(x.id)), flats: b ? EmberTerrain.params(b).flats.length : 0, orbital: !!g.port && g.port.id == 'orbital'} });
+		ok('5b. L2.2: the home system lists its surface ports (if its worlds can take any) after its space port, and their sites are levelled into their worlds', sp.n == sp.want && sp.ids && (sp.n == 0 || sp.flats >= 1) && sp.orbital, sp);
 		await pg.keyboard.press('KeyG'); await sleep(1200); const mapOn = await f.evaluate(() => EmberDebug.game.mapOpen); await pg.screenshot({path: path.join(W, 'map.png')}); await pg.keyboard.press('KeyG'); await sleep(300); const mapOff = await f.evaluate(() => !EmberDebug.game.mapOpen);
 		ok('6. the star map opens and closes (G)', mapOn && mapOff && errs.length == 0, {mapOn, mapOff, errs});
 		/* a jump: straight to a near star with worlds (the debug hook skips the drive's charge) */
@@ -223,6 +225,10 @@ async function frame(pg, test) {
 		ok('9f. coming down at 60 m/s is a crash: the ship is lost and the insurer takes over', cr.lost && !cr.landed, cr);
 		await f.evaluate(() => { const g = EmberDebug.game; g.npcs = []; g.gear = false });
 		/* the Maw and the Rift */
+		/* L2.2: a capital with a surface starport: its ports, and its site levelled */
+		const cp = await f.evaluate(async () => { const m = EmberFactions.majors()[0]; EmberDebug.go(m.star); EmberDebug.game.npcs = []; await new Promise(r => setTimeout(r, 300)); const g = EmberDebug.game, q = g.ports.filter(x => x.surface), spt = q.find(x => x.kind == 'starport'), b = spt && EmberDebug.scene.bodies.find(x => x.name == spt.world);
+			return {star: g.star.name, kinds: q.map(x => x.kind), flats: b ? EmberTerrain.params(b).flats.length : 0, owner: q.every(x => x.owner == g.port.owner)} });
+		ok('9r. L2.2: at the first capital, a surface starport and its landing field among its surface ports, held by the capital\'s power, the starport\'s site levelled', cp.kinds.includes('starport') && cp.kinds.includes('field') && cp.flats >= 1 && cp.owner, cp);
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
 		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(15000);

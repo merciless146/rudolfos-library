@@ -61,7 +61,7 @@ const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconom
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.2'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.3'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -182,9 +182,11 @@ function enterSystem(star) {
 	G.realm(star.rift ? 'rift' : 'normal');   /* the map, routes and everything near you: in the Rift, or this side */
 	const capHome = star.id == game.home.star.id;
 	/* the ports here (L2.1: a list, by id); game.port is the space port, the one the scene builds */
-	game.ports = capHome ? [{id: T.ORBITAL, cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true}] : T.portsAt(star, game.day, Co.portOf(game.P, star, game.day));
+	game.ports = T.portsAt(star, game.day, capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day));
 	game.port = T.portById(game.ports, T.ORBITAL);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
+	/* the surface ports' sites, levelled into their worlds' ground (L2.2) */
+	if (window.EmberSurface) window.EmberSurface.level(scene.bodies, game.ports);
 	st = scene.station;
 	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null; game.deposits = []; game.gscan = null;
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
@@ -420,6 +422,12 @@ function groundScan(dt, cruising) {
 	game.deposits = list.map(d => ({kind: 'deposit', dep: d, world: b, radius: 30, name: d.res + ' deposit', get pos() { const bf = Sc.bodyFrame(b, Sc.turnOf(b, game.day, game.t)), w = add(add(mul(bf.x, d.dir[0]), mul(bf.y, d.dir[1])), mul(bf.z, d.dir[2])); return add(b.pos, mul(w, b.radius + Sc.heightAt(b, d.dir) + 2)) }}));
 	if (!list.length) say('Ground scan of ' + pname(b) + ': no deposits within 5 km', '#9fb0cc');
 	else { const by = {}; for (const d of list) by[d.res] = (by[d.res] || 0) + 1; say('Ground scan: ' + list.length + (list.length == 1 ? ' deposit' : ' deposits') + ' within 5 km (' + Object.entries(by).map(([r, n]) => r + (n > 1 ? ' ×' + n : '')).join(', ') + '). T to target them', '#c9a46a') }
+	/* a lone surface port on this world, found (L2.2) */
+	const Su = window.EmberSurface;
+	for (const q of game.ports || []) if (q.lone && q.world == b.name && Su && X.find(game.P, game.star.id, q.id, game.day)) {
+		const d = Su.siteDir(q), km = Math.acos(Math.max(-1, Math.min(1, d[0] * here[0] + d[1] * here[1] + d[2] * here[2]))) * b.radius / 1000;
+		say('Ground scan: ' + q.name + ' stands on this world, ' + (km < 10 ? km.toFixed(1) : Math.round(km).toLocaleString('en-US')) + ' km from here (the star map shows it)', '#f2a33a');
+	}
 	Snd.cue('chart');
 }
 /* ---------------- assists (Settings › Controls; on with the Simple scheme) ---------------- */
@@ -1219,10 +1227,19 @@ function lost(how) {
 	say((c.starter ? 'A starter ' : 'A new ') + ship.name + ' waits at ' + (st ? st.name : game.star.name) + (c.why == 'exchange' ? ' (the nearest port whose exchange takes ' + c.code + ')' : c.why == 'currency' ? ' (the nearest port trading in ' + c.code + ')' : ''));
 	persist();
 }
+/* the cartographer's charts (L2.2): docking marks the lone surface ports (no port above them) within 5 pc */
+const CHARTS = {pc: 5, max: 3000};
+function chartsNear() {
+	const S0 = game.star, Su = window.EmberSurface; if (!S0 || S0.rift || !Su) return;
+	const near = G.inRealm('normal', () => G.starsNear(S0.x, S0.y, S0.z, CHARTS.pc)).filter(x => x.kind == 'star' && !x.rift && !x.heart).slice(0, CHARTS.max);
+	let n = 0;
+	for (const x of near) { const q = Su.ports(x, null); if (!q.length || T.portFor(x, game.day)) continue; for (const p of q) if (X.find(game.P, x.id, p.id, game.day)) n++ }
+	if (n) say('The cartographer\'s charts mark ' + n + (n == 1 ? ' surface outpost' : ' surface outposts') + ' within ' + CHARTS.pc + ' pc, with no port above (the star map shows them)', '#9fb0cc');
+}
 function docked() {
 	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.lastPort = game.star; game.portId = game.lastPortId = game.port ? game.port.id : T.ORBITAL;
 	game.P.combat = C.keep(game.pcs); game.npcs = []; game.shots = []; game.booms = [];
-	En.tick(game.P, game.star.id, 0, true); settle();
+	En.tick(game.P, game.star.id, 0, true); settle(); chartsNear();
 	Snd.cue('docked'); Snd.update({main: 0, rcs: 0, speed: 0, cruise: 0, strain: 0, conscious: true, docked: true});
 	persist();
 	openPort();

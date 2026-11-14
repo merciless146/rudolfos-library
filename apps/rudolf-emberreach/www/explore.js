@@ -41,6 +41,10 @@ function charted(star, planet, port) {
 /* (the Rift's worlds: twice as much; a Precursor ruin three times a ruin's) */
 function worth(p) { return ((EXPLORE.value[p.type] || 100) * (1 + p.esi) + (p.alive ? EXPLORE.life : 0) + (p.ruins ? EXPLORE.ruin * (p.precursor ? 3 : 1) : 0)) * (p.rift ? 2 : 1) }
 
+/* lone surface ports (landing L2.2: surface.js), which no beacon shows: found by a ground scan on their world, or
+   from a cartographer's charts. Kept by star and port id, with the day found */
+function found(P, starId, portId) { const X = record(P); return !!(X.found && X.found[starId + '|' + portId] != null) }
+function find(P, starId, portId, day) { const X = record(P); X.found = X.found || {}; const k = starId + '|' + portId; if (X.found[k] != null) return false; X.found[k] = Math.floor(day); return true }
 /* the sweep: a system charted. Returns true if it's new to you */
 function chartSystem(P, star, day) { const X = record(P); if (X.sys[star.id] != null) return false; X.sys[star.id] = Math.floor(day); return true }
 /* a planet surveyed: returns {new, first, ruins, alive, value} (value in SU, as it will sell) */
@@ -184,6 +188,6 @@ function accept(P, m, day) {
 /* a survey done: mark the contracts it completes */
 function surveyDone(P, starId, planetName) { for (const m of P.missions || []) if (m.kind == 'explore' && !m.done && m.star.id == starId && m.planet == planetName) m.surveyed = true }
 
-const EmberExplore = {landed, landWorth, landedOn, deposits, EXPLORE, keyOf, charted, worth, chartSystem, survey, surveyed, isCharted: charted_, unsold, sell, nameable, rename, nameOf, offers, ruinsNear, accept, surveyDone, starById, planetByKey};
+const EmberExplore = {found, find, landed, landWorth, landedOn, deposits, EXPLORE, keyOf, charted, worth, chartSystem, survey, surveyed, isCharted: charted_, unsold, sell, nameable, rename, nameOf, offers, ruinsNear, accept, surveyDone, starById, planetByKey};
 if (isNode) module.exports = EmberExplore; else root.EmberExplore = EmberExplore;
 })(typeof window != 'undefined' ? window : this);

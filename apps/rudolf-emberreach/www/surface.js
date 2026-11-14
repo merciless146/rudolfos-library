@@ -1,5 +1,6 @@
-/* ===== Ember Reach: surface ports and landing, a draft model (not in the game yet) =====
-   What the plan in docs/plan-ember-reach-landing.md describes, as data and functions the game can take in later:
+/* ===== Ember Reach: surface ports (landing L2) =====
+   What the plan in docs/plan-ember-reach-landing.md describes (in the game from L2.2: travel.js's portsAt lists
+   these ports, and their sites are levelled into terrain.js's ground):
    - which worlds can be landed on (airless, solid, not molten) and which ship can manage a world's gravity;
    - the kinds of surface port (mining camp, outpost, settlement, starport, forward base), and which worlds in a
      system get which;
@@ -11,8 +12,9 @@
    GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
-const req = n => typeof module != 'undefined' ? require('../../apps/rudolf-emberreach/www/' + n) : root[{'galaxy.js': 'EmberGalaxy', 'flight.js': 'EmberFlight', 'meshes.js': 'EmberMeshes', 'landing.js': 'EmberLanding'}[n]];
+const req = n => typeof module != 'undefined' ? require('./' + n) : root[{'galaxy.js': 'EmberGalaxy', 'flight.js': 'EmberFlight', 'meshes.js': 'EmberMeshes', 'landing.js': 'EmberLanding', 'terrain.js': 'EmberTerrain'}[n]];
 const G = req('galaxy.js'), Fl = req('flight.js'), Me = req('meshes.js'), L = req('landing.js');
+const Te = () => req('terrain.js');
 const G0 = 9.81;
 
 /* ---------- which worlds can be landed on ----------
@@ -58,6 +60,13 @@ const BLD = {
 const PLACE = {trefoil: {n: 1, kinds: ['outpost', 'camp']}, bloom: {n: 1, kinds: ['settlement', 'outpost', 'camp']},
 	lantern: {n: 2, kinds: ['settlement', 'outpost', 'camp', 'base']}, halo: {n: 3, kinds: ['starport', 'settlement', 'outpost', 'camp', 'base']}};
 const PORT_TS = 500;
+/* a site must be small beside its world, at the world scale (galaxy.js WORLD_SCALE, 1/12): at most 3% of the world's
+   radius across its own radius (a starport, 1.9 km, and its 4.6 km field need a world 150 km in radius or more:
+   one that can't take it gets a settlement instead) */
+const SITE_SHARE = 0.03;
+const worldR = p => p.R * 6.371e6 * (G.WORLD_SCALE || 1);
+const fits = (kind, p) => KIND[kind].radius <= SITE_SHARE * worldR(p) && (kind != 'starport' || KIND.field.radius <= SITE_SHARE * worldR(p));
+const sized = (kind, p) => fits(kind, p) ? kind : ['settlement', 'outpost', 'camp'].find(k => KIND[k].radius < KIND[kind].radius && fits(k, p)) || null;
 const METALS = ['Iron', 'Titanium', 'Copper', 'Aluminum', 'Gold', 'Uranium', 'Beryllium'];
 /* surface ports with no port in space above: in about one system in twenty-five with landable ground (never in
    the Rift or at the Maw), a lone outpost or mining camp, found by whoever comes. In a power's space it's the
@@ -74,13 +83,13 @@ function ports(star, cls) {
 	const ranked = worlds.map(p => ({p, s: score(p)})).sort((a, b) => b.s - a.s);
 	for (let i = 0; i < Math.min(P.n, ranked.length); i++) {
 		const p = ranked[i].p, rich = (p.res || []).filter(x => METALS.includes(x)).length >= 3;
-		const kind = i == 0 ? P.kinds[0] : rich && r() < 0.6 ? 'camp' : P.kinds[1 + Math.floor(r() * (P.kinds.length - 1))];
+		const kind = sized(i == 0 ? P.kinds[0] : rich && r() < 0.6 ? 'camp' : P.kinds[1 + Math.floor(r() * (P.kinds.length - 1))], p); if (!kind) continue;
 		/* where on the world: tidally locked worlds near the terminator (light, and not baking); others anywhere
 		   between 60° north and south */
 		const lat = (r() * 2 - 1) * (p.locked ? 25 : 60), lon = p.locked ? 90 + (r() * 2 - 1) * 15 : r() * 360 - 180;
 		out.push({id: 'surface:' + p.name + ':' + kind, kind, world: p.name, moon: !!p.moon, lat, lon, g: p.g, Ts: p.Ts, seed: G.hashStr(star.id + ':' + p.name + ':' + kind)});
 		/* a starport's heavy landing field, 8 km off (about 0.3° of a 1,500 km world) */
-		if (kind == 'starport') out.push({id: 'surface:' + p.name + ':field', kind: 'field', world: p.name, moon: !!p.moon, lat: lat + 8e3 / (p.R * 6.371e6) * 180 / Math.PI, lon, g: p.g, Ts: p.Ts, seed: G.hashStr(star.id + ':' + p.name + ':field'), of: 'surface:' + p.name + ':starport'});
+		if (kind == 'starport') out.push({id: 'surface:' + p.name + ':field', kind: 'field', world: p.name, moon: !!p.moon, lat: lat + 8e3 / worldR(p) * 180 / Math.PI, lon, g: p.g, Ts: p.Ts, seed: G.hashStr(star.id + ':' + p.name + ':field'), of: 'surface:' + p.name + ':starport'});
 	}
 	return out;
 }
@@ -88,9 +97,25 @@ function ports(star, cls) {
 function lone(star) {
 	const r = G.rng(G.hashStr('lone:' + star.id)); if (r() >= LONE) return [];
 	const worlds = G.system(star).planets.flatMap(p => [p, ...(p.moons || [])]).filter(p => landable(p).ok && p.Ts <= PORT_TS); if (!worlds.length) return [];
-	const p = worlds[Math.floor(r() * worlds.length)], rich = (p.res || []).filter(x => METALS.includes(x)).length >= 2, kind = rich && r() < 0.7 ? 'camp' : 'outpost';
+	const p = worlds[Math.floor(r() * worlds.length)], rich = (p.res || []).filter(x => METALS.includes(x)).length >= 2, kind = sized(rich && r() < 0.7 ? 'camp' : 'outpost', p); if (!kind) return [];
 	const lat = (r() * 2 - 1) * (p.locked ? 25 : 60), lon = p.locked ? 90 + (r() * 2 - 1) * 15 : r() * 360 - 180;
 	return [{id: 'surface:' + p.name + ':' + kind, kind, world: p.name, moon: !!p.moon, lat, lon, g: p.g, Ts: p.Ts, seed: G.hashStr(star.id + ':' + p.name + ':' + kind), lone: true}];
+}
+/* ---------- where a port stands ----------
+   its direction from the world's centre, in the world's own turning axes (scene.js localDir's: z its axis, x where
+   longitude 0 is) */
+function siteDir(q) { const la = q.lat * Math.PI / 180, lo = q.lon * Math.PI / 180; return [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)] }
+/* level every surface port's site into its world's ground (terrain.js flats): the site's radius flat, a ramp of half
+   that again down to the ground around; once a world, so coming back doesn't add them twice. bodies: the scene's */
+const levelled = new Set();
+function level(bodies, ports) {
+	let n = 0;
+	for (const q of ports || []) {
+		if (!q.surface || levelled.has(q.world + '|' + q.id)) continue;
+		const b = bodies.find(x => x.name == q.world); if (!b || !Te()) continue;
+		Te().addFlat(b, siteDir(q), KIND[q.kind].radius, KIND[q.kind].radius * 0.5); levelled.add(q.world + '|' + q.id); n++;
+	}
+	return n;
 }
 /* ---------- the layout ----------
    Pads first, around the centre (the large ones nearest, so their wide corridors face open ground), then buildings
@@ -197,6 +222,6 @@ function meshes(L, detail) {
 	return m;
 }
 
-const EmberSurface = {LONE, lift, padFor, LAND, TOUCH, PAD, CONE, KIND, BLD, PLACE, landable, canLand, maxG, touchdown, ports, layout, check, parts, meshes, dome};
+const EmberSurface = {SITE_SHARE, fits, siteDir, level, LONE, lift, padFor, LAND, TOUCH, PAD, CONE, KIND, BLD, PLACE, landable, canLand, maxG, touchdown, ports, layout, check, parts, meshes, dome};
 if (typeof module != 'undefined') module.exports = EmberSurface; else root.EmberSurface = EmberSurface;
 })(typeof window != 'undefined' ? window : globalThis);
