@@ -101,7 +101,7 @@ const CAPTION = {warning: 'Warning', critical: 'Critical alarm', clearance: 'Cle
 /* apply what changed (or everything) */
 function applySettings(what) {
 	const S = game.settings, all = !what;
-	if (all || what == 'lang') I18.setLang(S.lang);
+	if (all || what == 'lang') I18.setLang(I18.resolve(S.lang, RG.lang, navigator.language));
 	if (all || what == 'controls') RG.bind(St.bindings(KEYS, S));
 	if (all || what == 'audio') { Snd.setOn(S.audio.on); Snd.setVolumes && Snd.setVolumes(S.audio) }
 	if (all || what == 'graphics') { if (S.graphics.quality != quality) { quality = S.graphics.quality; if (R && scene) meshes() } if (game.lastView) RG.emit ? RG.emit('resize', game.lastView) : view && view.refit() }
@@ -111,7 +111,7 @@ function applySettings(what) {
 /* the settings, on the pause screen's card */
 function openSettings(back) {
 	const body = $('ovBody'), btns = $('ovBtns'); btns.textContent = '';
-	St.open(body, game.settings, {defaults: KEYS, apply: w => { applySettings(w); persist(); if (w == 'lang') { done.textContent = tr('Done') } }});
+	St.open(body, game.settings, {defaults: KEYS, osLang: () => RG.lang, nav: navigator.language, apply: w => { applySettings(w); persist(); if (w == 'lang') { done.textContent = tr('Done') } }});
 	const done = document.createElement('button'); done.className = 'primary'; done.textContent = tr('Done'); done.onclick = () => { body.onclick = body.oninput = body.onchange = null; back() }; btns.appendChild(done); done.focus();
 }
 /* ---------------- start ---------------- */
@@ -123,11 +123,12 @@ async function start() {
 	let sv = null;
 	try { sv = Sv.unpack(await RG.load(), {powers: majors.length, ports: Object.keys(Sc.STATION), ships: [...S.ships(), ...S.precursors()].map(x => x.id)}) } catch (e) { sv = null }
 	const fresh = ['power', 'port', 'ship', 'day'].some(k => Q.has(k));
-	/* the settings: the save's, or (a first game) the browser's language if Rudolf OS offers it */
+	/* the settings: the save's (a first game follows Rudolf OS's language, or the browser's) */
 	game.settings = St.sanitise(sv && sv.settings, Object.keys(KEYS), I18.LANGS.map(l => l[0]));
-	if (!sv || !sv.settings || !sv.settings.lang) game.settings.lang = I18.guess(navigator.language);
 	if (Q.get('quality')) game.settings.graphics.quality = Q.get('quality') == 'low' ? 'low' : 'high';
 	applySettings();
+	/* Rudolf OS's language changed, or stopped being shared: follow it if that's the choice */
+	RG.on('settings', () => { if (game.settings.lang == 'os') applySettings('lang') });
 	if (fresh) sv = sv && {settings: sv.settings};
 	const ok = sv && sv.ship;
 	/* the player: from the save; or, for a new game, the origin from the URL or chosen here */

@@ -72,6 +72,18 @@ async function frame(pg, test) {
 		await f.click('#ovBtns button.primary'); await sleep(300);
 		const kept = await pg.evaluate(() => SAVES['ember-reach'] && SAVES['ember-reach'].settings && SAVES['ember-reach'].settings.controls.keys.flare);
 		ok('9. Settings (from the pause screen): the language changes the menus, a key rebinds (taken from the landing gear), and the save keeps it', es == 'Ajustes' && bound.flare.includes('KeyL') && !bound.gear.includes('KeyL') && kept && kept.includes('KeyL'), {es, bound, kept});
+		/* Follow Rudolf OS: the language Rudolf OS shares (in its settings messages), else the browser's */
+		await f.click('#ovBtns button:nth-child(2)'); await sleep(300); await f.click('button[data-tab="2"]');
+		const opt0 = await f.evaluate(() => document.querySelector('select[data-set="lang"] option[value="os"]').textContent);
+		await f.selectOption('select[data-set="lang"]', 'os'); await sleep(200);
+		await pg.evaluate(() => send({op: 'settings', dark: true, reduceFlash: false, lang: 'fr', locale: 'fr-FR'})); await sleep(300);
+		const fr1 = await f.evaluate(() => ({lang: EmberI18n.lang(), rg: RG.lang, loc: RG.locale, t: EmberI18n.T('Settings')}));
+		await pg.evaluate(() => send({op: 'settings', dark: true, reduceFlash: false})); await sleep(300);
+		const en1 = await f.evaluate(() => ({lang: EmberI18n.lang(), rg: RG.lang}));
+		await f.click('#ovBtns button.primary'); await sleep(300);
+		const osKept = await pg.evaluate(() => SAVES['ember-reach'].settings.lang);
+		ok('9b. "Follow Rudolf OS" takes the language Rudolf OS shares, and the browser\'s once it stops sharing; the save keeps the choice',
+			/Follow Rudolf OS · English/.test(opt0) && fr1.lang == 'fr' && fr1.rg == 'fr' && fr1.loc == 'fr-FR' && fr1.t == 'Paramètres' && en1.lang == 'en' && en1.rg === null && osKept == 'os', {opt0, fr1, en1, osKept});
 		await pg.evaluate(() => send({op: 'resume'})); await f.click('#ovBtns button.primary').catch(() => {}); await sleep(1200);
 		/* the Maw and the Rift */
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);

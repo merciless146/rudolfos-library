@@ -167,6 +167,11 @@ function T(en, vars) { let s = LANG != 'en' && MAP[LANG] && MAP[LANG][en] || en;
 /* the language a new pilot starts in: the browser's, if Rudolf OS offers it, else English */
 function guess(nav) { const l = String(nav || '').slice(0, 2).toLowerCase(); return LANGS.some(x => x[0] == l) ? l : 'en' }
 
-const EmberI18n = {LANGS, EN, TR, T, setLang, lang, locale, guess};
+/* the language in force for a choice: 'os' follows Rudolf OS when it shares its language (RG.lang), else the browser's */
+const known = c => LANGS.some(l => l[0] == c);
+function resolve(choice, shared, nav) { return choice == 'os' ? (known(shared) ? shared : guess(nav)) : known(choice) ? choice : 'en' }
+const nameOf = c => (LANGS.find(l => l[0] == c) || LANGS[0])[1];
+
+const EmberI18n = {LANGS, EN, TR, T, setLang, lang, locale, guess, resolve, nameOf};
 if (typeof module != 'undefined') module.exports = EmberI18n; else root.EmberI18n = EmberI18n;
 })(typeof window != 'undefined' ? window : globalThis);

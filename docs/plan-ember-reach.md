@@ -961,7 +961,10 @@ checks, and the browser test's check 9). Opened from the pause screen's **Settin
     Português, Français, Deutsch, Русский, 中文, 日本語, 한국어.
     - The menus, the HUD, the controls and the sound captions are translated. The starport and the flight
       messages are still in English.
-    - A new pilot starts in the browser's language if it's one of these.
+    - **Follow Rudolf OS** (the default, first in the list): the language Rudolf OS shares with apps (Rudolf OS 1.5.9,
+      Settings › Date, time and language › Share my language with apps, passed as the game kit's `RG.lang`). It
+      changes with Rudolf OS while the game runs. Not shared, or outside Rudolf OS, it is the browser's language if
+      it's one of these, else English. Choosing a language yourself keeps it whatever Rudolf OS says.
   - **Accessibility:**
     - reduce flashing: as Rudolf OS says (the default), on, or off;
     - reduce motion: no hyperspace streaks, no blinking alerts;

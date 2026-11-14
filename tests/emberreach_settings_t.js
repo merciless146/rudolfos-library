@@ -30,7 +30,7 @@ try {
 	ok('7. defaults: high quality, full resolution, 70° view, sound on, HUD at 100%, three messages for 8 s, flashing as Rudolf OS says', D.graphics.quality == 'high' && D.graphics.res == 100 && D.graphics.fov == 70 && D.audio.on && D.hud.size == 100 && D.hud.messages == 3 && D.hud.msgTime == 8 && D.a11y.flash == 'os');
 	const bad = St.sanitise({graphics: {quality: 'ultra', res: 5, fov: 400, glow: 'yes'}, audio: {master: -3, effects: 250}, hud: {size: 900, messages: 50}, controls: {keys: {fire: ['KeyF', 42, '<script>'], bogus: ['KeyA']}, deadzone: 99}, lang: 'tlh', a11y: {palette: 'neon', flash: 'maybe'}}, acts, I.LANGS.map(l => l[0]));
 	ok('8. anything out of range or unknown is clamped or dropped (a hand-edited save can\'t break it)', bad.graphics.quality == 'high' && bad.graphics.res == 50 && bad.graphics.fov == 100 && bad.graphics.glow === true && bad.audio.master == 0 && bad.audio.effects == 100 && bad.hud.size == 150 && bad.hud.messages == 8
-		&& JSON.stringify(bad.controls.keys) == '{"fire":["KeyF"]}' && bad.controls.deadzone == 40 && bad.lang == 'en' && bad.a11y.palette == 'off' && bad.a11y.flash == 'os', bad);
+		&& JSON.stringify(bad.controls.keys) == '{"fire":["KeyF"]}' && bad.controls.deadzone == 40 && bad.lang == 'os' && bad.a11y.palette == 'off' && bad.a11y.flash == 'os', bad);
 	const old = St.sanitise({quality: 'low', sound: false});
 	ok('9. older saves\' settings carry over (quality, sound)', old.graphics.quality == 'low' && old.audio.on === false);
 	/* keys */
@@ -51,5 +51,12 @@ try {
 	ok('16. the save keeps the settings: keys, language, everything', round && round.settings.lang == 'ko' && round.settings.controls.keys.fire.join() == 'Semicolon,KeyL' && round.settings.controls.keys.missile.join() == 'KeyK,pad:7');
 	const keep = Sv.unpack({settingsOnly: true, settings: {lang: 'ja', hud: {size: 125}}}, {});
 	ok('17. a new game keeps them (the save holds only the settings until the first real one)', keep && !keep.ship && keep.settings.lang == 'ja' && keep.settings.hud.size == 125);
+	/* following Rudolf OS's language (shared by Rudolf OS 1.5.9's Settings › Date, time and language) */
+	ok('18. a new pilot follows Rudolf OS\'s language; a chosen one, or "os", survives the save', D.lang == 'os' && St.sanitise({lang: 'os'}).lang == 'os' && St.sanitise({lang: 'de'}, null, I.LANGS.map(l => l[0])).lang == 'de' && St.sanitise({lang: 'xx'}).lang == 'os');
+	ok('19. "os": Rudolf OS\'s shared language; not shared (or not one the game has), the browser\'s; a chosen one stays',
+		I.resolve('os', 'ja', 'fr-FR') == 'ja' && I.resolve('os', null, 'fr-FR') == 'fr' && I.resolve('os', 'it', 'it-IT') == 'en' && I.resolve('de', 'ja', 'fr') == 'de' && I.resolve('xx', 'ja') == 'en');
+	const KIT = fs.readFileSync(path.join(DIR, '../../../lib/gamekit/gamekit.js'), 'utf8');
+	ok('20. the game kit keeps the shared language from the hello and the settings messages, null when it isn\'t sent', /takeLang\(r\)/.test(KIT) && /takeLang\(m\)/.test(KIT) && /RG\.lang = typeof m\.lang == 'string'/.test(KIT)
+		&& /osLang: \(\) => RG\.lang/.test(PLAY) && /I18\.resolve\(S\.lang, RG\.lang, navigator\.language\)/.test(PLAY) && /RG\.on\('settings', \(\) => \{ if \(game\.settings\.lang == 'os'\)/.test(PLAY));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

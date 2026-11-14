@@ -18,7 +18,7 @@ const DEFAULTS = () => ({
 	audio: {on: true, master: 80, engines: 80, effects: 80, alerts: 100},
 	hud: {size: 100, opacity: 100, messages: 3, msgTime: 8, scanner: true, prograde: true, lead: true},
 	controls: {keys: {}, mouseSens: 100, invertMouse: false, invertPad: false, deadzone: 12},
-	lang: 'en',
+	lang: 'os',   /* follow Rudolf OS (or the browser) */
 	a11y: {flash: 'os', motion: false, palette: 'off', contrast: false, captions: false}});
 
 /* the actions on the Controls page, in groups (the debug keys aren't listed) */
@@ -63,7 +63,7 @@ function sanitise(x, actions, langs) {
 		audio: {on: bool(a.on, x.sound === undefined ? true : x.sound !== false), master: num(a.master, 0, 100, 80), engines: num(a.engines, 0, 100, 80), effects: num(a.effects, 0, 100, 80), alerts: num(a.alerts, 0, 100, 100)},
 		hud: {size: num(h.size, 75, 150, 100), opacity: num(h.opacity, 30, 100, 100), messages: num(h.messages, 0, 8, 3), msgTime: num(h.msgTime, 3, 20, 8), scanner: bool(h.scanner, true), prograde: bool(h.prograde, true), lead: bool(h.lead, true)},
 		controls: {keys, mouseSens: num(c.mouseSens, 25, 300, 100), invertMouse: bool(c.invertMouse, false), invertPad: bool(c.invertPad, false), deadzone: num(c.deadzone, 0, 40, 12)},
-		lang: (langs || ['en']).includes(x.lang) ? x.lang : D.lang,
+		lang: x.lang == 'os' || (langs || ['en']).includes(x.lang) ? x.lang : D.lang,
 		a11y: {flash: one(y.flash, ['os', 'on', 'off'], 'os'), motion: bool(y.motion, false), palette: one(y.palette, ['off', 'rg', 'by'], 'off'), contrast: bool(y.contrast, false), captions: bool(y.captions, false)}};
 }
 /* the bindings in force: the defaults, with the player's changes over them */
@@ -80,7 +80,7 @@ function rebind(defaults, S, action, slot, code) {
 
 /* ---------- the menu ----------
    open(el, S, env): draws the settings into el (the pause screen's card). env: {defaults (the key map), apply(what),
-   close(), langs}. apply is told what changed ('graphics', 'audio', 'hud', 'controls', 'lang', 'a11y'). */
+   close(), langs, osLang() (Rudolf OS's shared language or null), nav (the browser's language)}. apply is told what changed ('graphics', 'audio', 'hud', 'controls', 'lang', 'a11y'). */
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 function open(el, S, env) {
 	let tab = 0, wait = null, note = '';
@@ -118,7 +118,7 @@ function open(el, S, env) {
 	}
 	function page2() {
 		const y = S.a11y;
-		return head('Language') + row('Language', pick('lang', S.lang, (I ? I.LANGS : [['en', 'English']]).map(l => [l[0], l[1]]))) + '<p class="st-note">' + esc(T('The menus, the HUD and the controls are translated. The starport and flight messages are still in English.')) + '</p>'
+		return head('Language') + row('Language', pick('lang', S.lang, [['os', T('Follow Rudolf OS') + (I ? ' · ' + I.nameOf(I.resolve('os', env.osLang && env.osLang(), env.nav)) : '')]].concat((I ? I.LANGS : [['en', 'English']]).map(l => [l[0], l[1]])))) + '<p class="st-note">' + esc(T('The menus, the HUD and the controls are translated. The starport and flight messages are still in English.')) + '</p>'
 			+ head('Accessibility') + row('Reduce flashing', pick('a11y.flash', y.flash, [['os', T('Follow Rudolf OS')], ['on', T('On')], ['off', T('Off')]])) + row('Reduce motion', onOff('a11y.motion', y.motion))
 			+ row('Colour-blind palette', pick('a11y.palette', y.palette, [['off', T('Off')], ['rg', T('Red–green')], ['by', T('Blue–yellow')]])) + row('High-contrast HUD', onOff('a11y.contrast', y.contrast)) + row('Sound captions', onOff('a11y.captions', y.captions));
 	}
