@@ -61,7 +61,7 @@ const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconom
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.8'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.9'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -72,7 +72,7 @@ const KEYS = {
 	pitchDown: ['ArrowUp', 'KeyW'], pitchUp: ['ArrowDown', 'KeyS'], rollLeft: ['ArrowLeft'], rollRight: ['ArrowRight'],
 	yawLeft: ['KeyA', 'pad:4'], yawRight: ['KeyD', 'pad:5'], faster: ['KeyR', 'Equal', 'NumpadAdd'], slower: ['KeyF', 'Minus', 'NumpadSubtract'], stop: ['KeyX', 'Backspace'],
 	strafeL: ['KeyQ', 'pad:14'], strafeR: ['KeyE', 'pad:15'], strafeU: ['Space', 'pad:12'], strafeD: ['ShiftLeft', 'pad:13'],
-	fa: ['KeyZ', 'pad:1'], cruise: ['KeyC', 'pad:3'], target: ['KeyT', 'Tab', 'pad:2'], dock: ['KeyN', 'pad:0'], view: ['KeyV', 'pad:11'],
+	fa: ['KeyZ', 'pad:1'], cruise: ['KeyC', 'pad:3'], target: ['KeyT', 'Tab', 'pad:2'], dock: ['KeyN'], view: ['KeyV', 'pad:11'],
 	map: ['KeyG', 'pad:8'], jump: ['KeyJ', 'pad:10'], route: ['Enter', 'NumpadEnter'], home: ['Home', 'KeyY'],
 	hatch: ['KeyI'], fire: ['Semicolon', 'pad:7'], gear: ['KeyL'], missile: ['KeyK', 'pad:6'], flare: ['KeyB'], hostile: ['KeyU'],
 	systems: ['KeyO'], lights: ['Digit1'], nightVision: ['Digit2'], mode: ['KeyM'], radial: ['Backquote'], mouse: [], help: ['KeyH', 'F1'], pause: ['KeyP', 'Escape', 'pad:9'],
@@ -291,6 +291,7 @@ function controls(dt) {
 	if (game.mouseFly && game.ptr && !game.ptr.touch) { const mx = (game.ptr.x - W / 2) / (W / 2), my = (game.ptr.y - Hh / 2) / (Hh / 2), dz = v => Math.abs(v) < 0.06 ? 0 : v; const k = 1.4 * game.settings.controls.mouseSens / 100; roll -= dz(mx) * k; pitch += dz(my) * k * (game.settings.controls.invertMouse ? -1 : 1) }
 	const Tt = game.touch;
 	if (Tt.stick) { pitch += Tt.dy; roll -= Tt.dx }
+	if (Tt.vert) sy += Tt.vert;
 	thr += d('faster') - d('slower');
 	if (s.fa || game.cruise.on) {
 		game.throttle = Math.max(game.cruise.on ? 0 : -0.3, Math.min(1, game.throttle + thr * 0.6 * dt));
@@ -303,6 +304,14 @@ function controls(dt) {
 	} else game.throttle = Math.max(-1, Math.min(1, Tt.thr != null ? Tt.thr * 2 - 1 : thr));
 	const c = v => Math.max(-1, Math.min(1, v));
 	return {pitch: c(pitch), roll: c(roll), yaw: c(yaw), strafe: [c(sx), c(sy)], throttle: game.throttle, thrust: s.fa ? 0 : game.throttle};
+}
+/* the gamepad's A (landing L1.5): a short press asks for docking, held half a second it moves the landing gear */
+function padA(dt) {
+	let g = null; try { g = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(Boolean) } catch (e) {}
+	const on = !!(g && g.buttons[0] && (g.buttons[0].pressed || g.buttons[0].value > 0.5));
+	if (on) { game.padA = (game.padA || 0) + dt; if (game.padA >= 0.5 && !game.padAGear) { game.padAGear = true; toggleGear() } return }
+	if (game.padA && !game.padAGear) requestDock();
+	game.padA = 0; game.padAGear = false;
 }
 function actions(dt) {
 	if (Port.isOpen()) return;   /* the starport takes the keys while docked */
@@ -322,6 +331,7 @@ function actions(dt) {
 	if (RG.pressed('hostile')) game.mode == 'analysis' ? nearestInterest() : nearestHostile();
 	if (RG.pressed('hatch')) toggleHatch();
 	if (RG.pressed('gear')) toggleGear();
+	padA(dt);
 	if (RG.pressed('lights')) toggleLights();
 	if (RG.pressed('nightVision')) toggleNightVision();
 	if (RG.pressed('dock')) requestDock();
@@ -816,8 +826,11 @@ function combat(dt) {
 		}
 		const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, id: f.id} : null;
 		const c = C.think(n, tgt, n.home, game.t);
+		/* below a world's line: its gravity, its turning frame (as the player's), and 450 m kept off the ground */
 		n.s.grav = Sc.gravityAt(scene, n.s.p);
-		Fl.step(n.s, {pitch: c.pitch, yaw: c.yaw, roll: c.roll, throttle: c.throttle, strafe: [0, 0], thrust: 0}, dt);
+		const nw = n.s.grav ? Sc.gravityWell(scene, n.s.p) : null, solid = nw && !nw.body.atmo && !(nw.body.src && nw.body.src.gas);
+		const gk = solid ? (gr => C.groundKeep(n.s, gr.up, gr.alt, c))(Sc.groundAt(scene, nw.body, n.s.p, game.t)) : {strafe: [0, 0], throttle: c.throttle};
+		Fl.step(n.s, {pitch: gk.pitch != null ? gk.pitch : c.pitch, yaw: gk.yaw != null ? gk.yaw : c.yaw, roll: c.roll, throttle: gk.throttle, strafe: gk.strafe, thrust: 0}, dt, nw ? Sc.worldFrame(nw.body) : null);
 		holdOff(n.s);   /* (the same safety keeps them off the ground) */
 		n.pos = n.s.p;
 		if (tgt) {
@@ -887,7 +900,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -1446,15 +1459,17 @@ function dockCues(rel) {
 /* ---------------- touch and mouse ---------------- */
 function touchLayout() {
 	const Tt = game.touch, r = Math.min(80, W * 0.12);
-	const list = [['FIRE', 'fire', Tt.fire != null], ['MSL', 'missile', game.locked], ['FLARE', 'flare'], ['HOSTILE', 'hostile'], ['HATCH', 'hatch', game.hatch], ['FA', 'fa', s && s.fa], ['CRUISE', 'cruise', game.cruise.on], ['TARGET', 'target'], ['DOCK', 'dock'], ['MAP', 'map'], ['JUMP', 'jump', !!game.jump], ['VIEW', 'view'], ['II', 'pause']];
+	const list = [['FIRE', 'fire', Tt.fire != null], ['MSL', 'missile', game.locked], ['FLARE', 'flare'], ['HOSTILE', 'hostile'], ['HATCH', 'hatch', game.hatch], ['FA', 'fa', s && s.fa], ['CRUISE', 'cruise', game.cruise.on], ['TARGET', 'target'], ['DOCK', 'dock'], ['MAP', 'map'], ['JUMP', 'jump', !!game.jump], ['VIEW', 'view'], ['GEAR', 'gear', game.gear], ['II', 'pause']];
 	return {stick: {x: r + 30, y: Hh - r - 30, r, dx: Tt.dx, dy: Tt.dy},
 		thr: {x: W - 70, y: Hh - 200, w: 48, h: 170},
+		/* the vertical thrusters: up and down from the middle, back to the middle when let go */
+		vert: {x: W - 136, y: Hh - 200, w: 40, h: 170, v: Tt.vert || 0},
 		buttons: list.map(([label, act, onFlag], i) => ({label, act, on: !!onFlag, x: W - 140 - (i % 4) * 72 - 80, y: Hh - 90 - Math.floor(i / 4) * 56, w: 64, h: 46}))};
 }
 function pointers() {
 	const pt = e => { const p = view.toGame(e.clientX, e.clientY); return {x: p.x, y: p.y, touch: e.pointerType == 'touch', id: e.pointerId} };
 	const Tt = game.touch;
-	hud.addEventListener('pointermove', e => { game.ptr = pt(e); if (game.mapOpen) { map.move(game.ptr); return } if (Tt.stick && Tt.stick.id == e.pointerId) stickMove(game.ptr); if (Tt.thrId == e.pointerId) thrMove(game.ptr) });
+	hud.addEventListener('pointermove', e => { game.ptr = pt(e); if (game.mapOpen) { map.move(game.ptr); return } if (Tt.stick && Tt.stick.id == e.pointerId) stickMove(game.ptr); if (Tt.vertId == e.pointerId) vertMove(game.ptr); if (Tt.thrId == e.pointerId) thrMove(game.ptr) });
 	hud.addEventListener('pointerdown', e => {
 		const p = pt(e); game.ptr = p; hud.focus();
 		RG.lastInput = e.pointerType == 'touch' ? 'touch' : 'mouse';
@@ -1464,13 +1479,15 @@ function pointers() {
 		const u = touchLayout();
 		const b = u.buttons.find(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
 		if (b && b.act == 'fire') { Tt.fire = e.pointerId; return }
-		if (b) { ({missile: () => { Tt.msl = true }, flare: () => { Tt.flare = true }, hostile: nearestHostile, hatch: toggleHatch, fa: toggleFA, cruise: toggleCruise, target: nextTarget, dock: requestDock, map: openMap, jump: requestJump, view: () => { game.chase = !game.chase }, pause: () => RG.pause()})[b.act](); return }
+		if (b) { ({missile: () => { Tt.msl = true }, flare: () => { Tt.flare = true }, hostile: nearestHostile, hatch: toggleHatch, fa: toggleFA, cruise: toggleCruise, target: nextTarget, dock: requestDock, map: openMap, jump: requestJump, view: () => { game.chase = !game.chase }, gear: toggleGear, pause: () => RG.pause()})[b.act](); return }
 		if (Math.hypot(p.x - u.stick.x, p.y - u.stick.y) < u.stick.r * 1.6) { Tt.stick = {id: e.pointerId}; stickMove(p); return }
+		if (p.x >= u.vert.x - 8 && p.x <= u.vert.x + u.vert.w + 8 && p.y >= u.vert.y - 20 && p.y <= u.vert.y + u.vert.h + 20) { Tt.vertId = e.pointerId; vertMove(p); return }
 		if (p.x >= u.thr.x - 20 && p.x <= u.thr.x + u.thr.w + 20 && p.y >= u.thr.y - 20 && p.y <= u.thr.y + u.thr.h + 20) { Tt.thrId = e.pointerId; thrMove(p) }
 	});
-	const up = e => { if (e.pointerType != 'touch' && e.button == 0) game.mouseFire = false; if (Tt.fire == e.pointerId) Tt.fire = null; if (game.mapOpen) { map.up(pt(e)); return } if (Tt.stick && Tt.stick.id == e.pointerId) { Tt.stick = null; Tt.dx = Tt.dy = 0 } if (Tt.thrId == e.pointerId) Tt.thrId = null };
+	const up = e => { if (e.pointerType != 'touch' && e.button == 0) game.mouseFire = false; if (Tt.fire == e.pointerId) Tt.fire = null; if (game.mapOpen) { map.up(pt(e)); return } if (Tt.stick && Tt.stick.id == e.pointerId) { Tt.stick = null; Tt.dx = Tt.dy = 0 } if (Tt.vertId == e.pointerId) { Tt.vertId = null; Tt.vert = 0 } if (Tt.thrId == e.pointerId) Tt.thrId = null };
 	hud.addEventListener('pointerup', up); hud.addEventListener('pointercancel', up);
 	function stickMove(p) { const u = touchLayout().stick; let dx = (p.x - u.x) / u.r, dy = (p.y - u.y) / u.r; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l } Tt.dx = dx; Tt.dy = dy }
+	function vertMove(p) { const u = touchLayout().vert; Tt.vert = Math.max(-1, Math.min(1, 1 - 2 * (p.y - u.y) / u.h)) }
 	function thrMove(p) { const u = touchLayout().thr; Tt.thr = Math.max(0, Math.min(1, 1 - (p.y - u.y) / u.h)) }
 }
 
@@ -1484,7 +1501,7 @@ function overlay(kind) {
 	const o = owner(), where = game.star.name + (o ? ' · ' + o.name.replace(/^The /, '') : ' · unclaimed space');
 	if (kind == 'help' || kind == 'pause') {
 		RG.pause();
-		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr(kind == 'pause' ? 'Paused' : 'Controls')) + '</h1><p>' + esc(ship.name) + ' · ' + esc(where) + ' · day ' + Math.floor(game.day) + ' · fuel ' + Math.round(game.fuel * 100) + '%. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + helpRows().map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table><p class="small">' + esc(tr('Mouse: the left button fires; with mouse flight on, point away from the centre to pitch and roll.')) + ' ' + esc(tr('Gamepad sticks: the left pitches and rolls, the right yaws and sets the throttle.')) + '</p>';
+		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr(kind == 'pause' ? 'Paused' : 'Controls')) + '</h1><p>' + esc(ship.name) + ' · ' + esc(where) + ' · day ' + Math.floor(game.day) + ' · fuel ' + Math.round(game.fuel * 100) + '%. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + helpRows().map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table><p class="small">' + esc(tr('Mouse: the left button fires; with mouse flight on, point away from the centre to pitch and roll.')) + ' ' + esc(tr('Gamepad sticks: the left pitches and rolls, the right yaws and sets the throttle.')) + ' ' + esc(tr('Gamepad: the d-pad strafes (up and down are the vertical thrusters). A asks for docking; held half a second, it moves the landing gear.')) + ' ' + esc(tr('Touch: the VERT slider beside the throttle works the vertical thrusters, and GEAR moves the landing gear.')) + '</p><p class="small">' + esc(tr('Landing: target a world you can land on and cruise to it, and you drop out above it. Below its Kármán line its gravity pulls, and flight assist holds you up. Lower the gear, let down on the vertical thrusters (strafe up and down), and touch down slowly on level ground.')) + '</p>';
 		button(tr('Resume'), close, true).focus();
 		button(tr('Settings'), () => openSettings(() => overlay(kind)));
 		button(tr('Save to a file'), () => { persist(); setTimeout(() => RG.exportSave(), 300) });

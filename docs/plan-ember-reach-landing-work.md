@@ -44,8 +44,9 @@ counts as done.
 - **Controls.** Every letter key is taken, and every key can be rebound in Settings (since the settings menu).
   - **Space / Left Shift** are already strafe up / down. They become the vertical thrusters.
   - **R / F** stay the throttle.
-  - The **gear** is on **L** (decided), and on the gamepad's **A held for half a second**. A short press of A
-    still docks. Fire moves from L to **;** by default.
+  - The **gear** is on **L**, and on the gamepad's **A held for half a second**. A short press of A still asks
+    for docking (A is no longer a rebindable docking key: `play.js` `padA`). Fire is on **;** by default.
+  - The gamepad's **d-pad** strafes; its up and down are the vertical thrusters.
 
 ## L1: landing anywhere
 
@@ -272,6 +273,18 @@ Getting there from the rest of the system.
 - **Tests:** drop points; the mass lock; a first landing recorded and paid.
 
 ### L1.5 NPCs, controls and polish
+
+**Done** (0.2.9):
+- **NPCs:** below a world's Kármán line, AI ships fly in the world's turning frame with its gravity, as the player
+  does. They keep 450 m off the ground (`combat.js` `groundKeep`), lifting on their vertical thrusters, and pull up
+  and ease off the throttle when diving, by where they could stop. Pirates chase a landed pilot down to there but
+  don't land. The 300 m safety still holds every ship; capital ships can't hover in 1 g and lean on it.
+- **Touch:** a VERT slider beside the throttle (vertical thrust, back to the middle when let go), and a GEAR button.
+- **Gamepad:** A held half a second moves the gear; a short press asks for docking. The d-pad strafes as before.
+- **Help** (H) has paragraphs on landing, touch and the gamepad, in every language.
+
+Tested in `tests/emberreach_landing_t.js` (checks 31 and 32: an AI pilot holding 450 m in 1 g, and pulling out of
+a dive) and the browser test's 9p.
 
 - **NPCs** (`combat.js` `think`, `encounters.js`):
   - Ships below a Kármán line fly with their vertical thrusters against gravity, as the player's flight

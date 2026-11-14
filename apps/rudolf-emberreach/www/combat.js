@@ -175,6 +175,23 @@ function steer(s, point, ease) {
 }
 /* one AI decision. me: {s, cs, ship, ai: {mode, jink, ...}}, target: {p, v, id} or null; home: a point to patrol
    or head for. Returns the controls, and whether to fire / launch */
+/* below a world's Kármán line (landing L1.5): flight assist already holds a ship against the world's gravity; an AI
+   pilot also keeps 450 m off the ground (the safety in play.js holds every ship at 300 m), lifting on its vertical
+   thrusters, harder the lower, easing off the throttle and pulling up while its nose points down; falling, it
+   reckons by where it could stop. Pirates chase a landed pilot
+   down to there, but don't land. up: the world's up at the ship; alt: its height over the ground */
+const GROUND = {keep: 450, ramp: 150};
+function groundKeep(s, up, alt, c) {
+	/* (falling, it looks ahead by its stopping distance on the thrusters it has, less the pull, and half a second more) */
+	const vz = s.v[0] * up[0] + s.v[1] * up[1] + s.v[2] * up[2], g = s.grav ? Math.hypot(...s.grav) : 0, brake = Math.max(1, Math.max(s.spec.aRcs, s.spec.aRetro) - g);
+	const ahead = alt - (vz < 0 ? vz * vz / (2 * brake) - vz * 0.5 : 0);
+	if (!(ahead < GROUND.keep)) return {strafe: [0, 0], throttle: c.throttle};
+	const ub = Fl.toBody(s.q, up), k = Math.min(1, (GROUND.keep - ahead) / GROUND.ramp);
+	const out = {strafe: [ub[0] * k, ub[1] * k], throttle: ub[2] < 0 ? c.throttle * Math.max(0, 1 + 2 * ub[2]) : c.throttle};
+	/* nose down, it pulls up toward the horizon (its retros alone may not hold it): pitch, and yaw, the nose toward up */
+	if (ub[2] < 0.2) { const cl = v => Math.max(-1, Math.min(1, v)); out.pitch = -cl(Math.abs(ub[1]) < 0.05 && Math.abs(ub[0]) < 0.05 ? 1 : ub[1] * 3); out.yaw = cl(ub[0] * 3) }
+	return out;
+}
 function think(me, target, home, t, rnd) {
 	const s = me.s, A = me.ai, hp = me.cs.hull / me.cs.hullMax;
 	const r = rnd || Math.random;
@@ -225,6 +242,6 @@ function missing(ship, k) {
 }
 function refill(ship, k) { const full = loadout(ship); return {hull: k && typeof k.hull == 'number' ? k.hull : 1, ammo: full.guns.map(g => g.ammo), missiles: full.missiles, flares: full.flares} }
 
-const EmberCombat = {keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
+const EmberCombat = {GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
 if (isNode) module.exports = EmberCombat; else root.EmberCombat = EmberCombat;
 })(typeof window != 'undefined' ? window : this);

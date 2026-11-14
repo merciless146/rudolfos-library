@@ -109,5 +109,13 @@ try {
 	const wd = {name: 'Dep world', radius: 1.7e6}, wsrc = {res: ['Iron', 'Titanium', 'Gold']}, here = [0.6, 0.64, 0.48].map(v => v / Math.hypot(0.6, 0.64, 0.48));
 	const dA = X.deposits(wd, wsrc, here, 5000), dB = X.deposits(wd, wsrc, here, 5000);
 	ok('30. a ground scan marks the world\'s own resources within 5 km, the same every time, nearest first', dA.length > 0 && JSON.stringify(dA) == JSON.stringify(dB) && dA.every(d => d.dist <= 5000 && wsrc.res.includes(d.res)) && dA.every((d, i, a) => !i || a[i - 1].dist <= d.dist) && X.deposits(wd, {res: []}, here, 5000).length == 0, dA.length + ' deposits');
+	/* L1.5: AI pilots below a world's line keep 450 m off the ground on their vertical thrusters */
+	const Cb = req('combat.js'), Rw = 2e5, gw = 1.0, npcFly = (alt0, fwd, throttle) => {
+		const n = Fl.create(S.ships().find(x => x.id == 'wren'), {p: [Rw + alt0, 0, 0], q: look(fwd, Math.abs(fwd[0]) > 0.9 ? [0, 0, 1] : [1, 0, 0])}); let lo = Infinity, hi = -Infinity;
+		for (let i = 0; i < 60 * 20; i++) { const r = len(n.p), up = mul(n.p, 1 / r), alt = r - Rw; n.grav = mul(up, -gw * 9.81); const k = Cb.groundKeep(n, up, alt, {throttle}); Fl.step(n, {pitch: k.pitch || 0, yaw: k.yaw || 0, roll: 0, throttle: k.throttle, strafe: k.strafe}, 1 / 60); if (i > 60 * 5) { lo = Math.min(lo, alt); hi = Math.max(hi, alt) } else lo = Math.min(lo, alt) }
+		return {lo: Math.round(lo), hi: Math.round(hi), end: Math.round(len(n.p) - Rw)} };
+	const hv = npcFly(380, [0, 1, 0], 0), dv = npcFly(1500, [-1, 0, 0], 1);
+	ok('31. an AI pilot below a line in 1 g holds its height: from 380 m it lifts to about 450 m and stays (no safety needed)', hv.lo > 300 && hv.end > 400 && hv.end < 520 && hv.hi < 560, hv);
+	ok('32. ...and diving at the ground at full throttle, it eases off and pulls out above the 300 m safety', dv.lo > 300 && dv.end > 380, dv);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
