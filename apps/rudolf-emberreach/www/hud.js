@@ -285,6 +285,8 @@ function draw(ctx, W, H, h, t) {
 		ctx.fillStyle = 'rgba(108,201,232,0.45)'; ctx.beginPath(); ctx.arc(u.stick.x + u.stick.dx * u.stick.r, u.stick.y + u.stick.dy * u.stick.r, 26, 0, 7); ctx.fill();
 		ctx.strokeStyle = 'rgba(232,237,246,0.35)'; ctx.strokeRect(u.thr.x, u.thr.y, u.thr.w, u.thr.h);
 		ctx.fillStyle = 'rgba(242,163,58,0.5)'; const tv = Math.max(0, h.throttle); ctx.fillRect(u.thr.x, u.thr.y + u.thr.h * (1 - tv), u.thr.w, u.thr.h * tv);
+		if (u.vert) { const V = u.vert, mid = V.y + V.h / 2; ctx.strokeStyle = 'rgba(232,237,246,0.35)'; ctx.strokeRect(V.x, V.y, V.w, V.h); ctx.beginPath(); ctx.moveTo(V.x, mid); ctx.lineTo(V.x + V.w, mid); ctx.stroke();
+			ctx.fillStyle = 'rgba(108,201,232,0.5)'; ctx.fillRect(V.x, Math.min(mid, mid - V.v * V.h / 2), V.w, Math.abs(V.v) * V.h / 2); text(ctx, 'VERT', V.x + V.w / 2, V.y - 6, {align: 'center', size: 10, weight: 600, col: C.muted}) }
 		for (const b of u.buttons) { ctx.fillStyle = 'rgba(8,14,26,0.7)'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = b.on ? C.cyan : 'rgba(232,237,246,0.35)'; ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1); text(ctx, b.label, b.x + b.w / 2, b.y + b.h / 2 + 4, {align: 'center', size: 12, weight: 600, col: b.on ? C.cyan : C.text}) }
 	}
 	ctx.restore();

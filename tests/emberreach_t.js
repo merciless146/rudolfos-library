@@ -181,6 +181,22 @@ async function frame(pg, test) {
 			s.q = EmberScene.lookRotation(U.map(v => -v), Math.abs(U[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); g.tgt = b; g.gear = false; g.cruise = {on: true, v: 3000, charge: 0}; g.throttle = 1 });
 		let cd = null; for (let i = 0; i < 60 && !cd; i++) { await sleep(500); cd = await f.evaluate(() => { const g = EmberDebug.game; if (g.cruise.on) return null; const st = EmberScene.surfaceState(EmberDebug.scene, EmberDebug.s, g.t, EmberDebug.ship); const b = EmberDebug.scene.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0]; return {alt: EmberScene.groundAt(EmberDebug.scene, b, EmberDebug.s.p, g.t).alt, drop: EmberScene.dropRange(b), said: g.msgs.slice(-3).map(m => m.text)} }) }
 		ok('9o. cruising at a targeted world you can land on drops you out above it, at its line or 4.2 km up', cd && cd.alt > 0.4 * cd.drop && cd.alt < 1.2 * cd.drop, cd);
+		/* L1.5: touch has a GEAR button and a VERT slider (vertical thrust, back to the middle when let go); help has the landing controls */
+		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s; g.cruise = {on: false, v: 0, charge: 0}; g.throttle = 0; g.gear = false; g.landed = null; s.v = g.well ? EmberFlight.frameAt(EmberScene.worldFrame(g.well.body), s.p).v : [0, 0, 0] });
+		const tp = await f.evaluate(async () => {
+			const hud = document.getElementById('hud'), u = EmberDebug.touchLayout(), g = EmberDebug.game, ev = (type, x, y, id) => { const c = EmberDebug.toClient(x, y); hud.dispatchEvent(new PointerEvent(type, {pointerType: 'touch', pointerId: id, clientX: c.x, clientY: c.y, bubbles: true})) };
+			const gb = u.buttons.find(b => b.act == 'gear'); if (!gb) return {gearButton: false};
+			ev('pointerdown', gb.x + gb.w / 2, gb.y + gb.h / 2, 7); ev('pointerup', gb.x + gb.w / 2, gb.y + gb.h / 2, 7); const gear = g.gear;
+			ev('pointerdown', u.vert.x + u.vert.w / 2, u.vert.y + 4, 8); const vUp = g.touch.vert; await new Promise(r => setTimeout(r, 1200));
+			const s = EmberDebug.s, up = EmberFlight.toWorld(s.q, [0, 1, 0]), n = 1, rel = EmberFlight.relative(s, g.well ? EmberScene.worldFrame(g.well.body) : null).v, vz = rel.reduce((t, v, i) => t + v * up[i] / n, 0);
+			ev('pointerup', u.vert.x + u.vert.w / 2, u.vert.y + 4, 8);
+			return {gearButton: true, gear, vUp, vz, vAfter: g.touch.vert};
+		});
+		await pg.keyboard.press('KeyH'); await sleep(400);
+		const hp = await f.evaluate(() => { const t = document.getElementById('ovBody').textContent; return {landing: /Landing: target a world/.test(t), touch: /VERT slider/.test(t), pad: /held half a second/.test(t), gearKey: /Landing gear/.test(t)} });
+		await pg.keyboard.press('Escape'); await sleep(300); await f.evaluate(() => { const o = document.getElementById('ov'); if (!o.hidden) { const b = document.querySelector('#ovBtns button.primary'); b && b.click() } });
+		ok('9p. touch: GEAR lowers the gear, the VERT slider fires the vertical thrusters (the ship moves along its own up) and springs back; help (H) has the landing, touch and gamepad controls', tp.gearButton && tp.gear && tp.vUp > 0.9 && tp.vz > 3 && tp.vAfter == 0 && hp.landing && hp.touch && hp.pad && hp.gearKey, {tp, hp});
+		await f.evaluate(() => { EmberDebug.game.gear = false });
 		await setDown(2, -60); await sleep(1500);
 		const cr = await f.evaluate(() => { const g = EmberDebug.game; return {lost: g.msgs.some(m => /Ship destroyed: a crash on/.test(m.text)), landed: !!g.landed} });
 		ok('9f. coming down at 60 m/s is a crash: the ship is lost and the insurer takes over', cr.lost && !cr.landed, cr);
