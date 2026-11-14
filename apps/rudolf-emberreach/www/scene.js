@@ -248,15 +248,21 @@ function gravityWell(scene, p) {
    centre is the world's, its spin the world's axis times 2π a day (negative days turn backwards). A ship hovering
    with flight assist then stays over the same spot of ground. */
 function worldFrame(b) { return {c: b.pos, v: [0, 0, 0], w: b.period ? mul(b.axis || [0, 0, 1], 2 * Math.PI / b.period) : [0, 0, 0], world: b.name} }
-/* the terrain's height above the world's radius at a direction (m): the smooth sphere until L1.3 brings terrain */
-const heightAt = (b, dir) => 0;
+/* the terrain's height above the world's radius (m) at a direction in the world's own turning axes (terrain.js; the
+   smooth sphere for stars and gas giants) */
+const Te = () => isNode ? require('./terrain.js') : root.EmberTerrain;
+const heightAt = (b, dir) => b.kind == 'planet' && !(b.src && b.src.gas) && Te() ? Te().height(b, dir) : 0;
+/* a direction from a world's centre in its own turning axes, now */
+function localDir(scene, b, d, t) { const bf = bodyFrame(b, turnOf(b, scene.day || 0, t || 0)); return [dot(d, bf.x), dot(d, bf.y), dot(d, bf.z)] }
+/* height above the ground at p over world b: {alt, up (world), h} */
+function groundAt(scene, b, p, t) { const d = sub(p, b.pos), r = len(d), up = mul(d, 1 / (r || 1)), h = heightAt(b, localDir(scene, b, up, t)); return {alt: r - b.radius - h, up, h} }
 /* the readout below a world's line: altitude above the terrain, vertical and ground speed (relative to the turning
    ground), pitch and bank against the local horizon (degrees), latitude and longitude on the turning world (degrees),
    and whether it can be landed on (and by this ship, if one is given). null above every line */
 function surfaceState(scene, s, t, ship) {
 	const W = gravityWell(scene, s.p); if (!W) return null;
 	const b = W.body, d = sub(s.p, b.pos), r = len(d), up = mul(d, 1 / (r || 1));
-	const alt = r - b.radius - heightAt(b, up), F = worldFrame(b), vr = sub(s.v, cross(F.w, d)), vz = dot(vr, up), vh = len(sub(vr, mul(up, vz)));
+	const alt = r - b.radius - heightAt(b, localDir(scene, b, up, t)), F = worldFrame(b), vr = sub(s.v, cross(F.w, d)), vz = dot(vr, up), vh = len(sub(vr, mul(up, vz)));
 	const fwd = Fl.toWorld(s.q, [0, 0, 1]), right = Fl.toWorld(s.q, [1, 0, 0]), deg = 180 / Math.PI;
 	const pitch = Math.asin(Math.max(-1, Math.min(1, dot(fwd, up)))) * deg, bank = Math.asin(Math.max(-1, Math.min(1, -dot(right, up)))) * deg;
 	const tilt = Math.acos(Math.max(-1, Math.min(1, dot(Fl.toWorld(s.q, [0, 1, 0]), up)))) * deg;   /* how far the ship's top leans off the local up */
@@ -278,7 +284,7 @@ function landAt(scene, s, b, t, height) {
 function pinLanded(scene, landed, t) {
 	const b = scene.bodies.find(x => x.name == landed.world); if (!b) return null;
 	const bf = bodyFrame(b, turnOf(b, scene.day || 0, t || 0)), w = v => add(add(mul(bf.x, v[0]), mul(bf.y, v[1])), mul(bf.z, v[2]));
-	const up = norm(w(landed.dir)), p = add(b.pos, mul(up, b.radius + heightAt(b, up) + landed.h));
+	const up = norm(w(landed.dir)), p = add(b.pos, mul(up, b.radius + heightAt(b, norm(landed.dir)) + landed.h));
 	return {p, q: lookRotation(norm(w(landed.f)), norm(w(landed.u))), v: cross(worldFrame(b).w, sub(p, b.pos)), body: b};
 }
 
@@ -340,7 +346,7 @@ function spawn(scene, dist) {
 	return {p, q: lookRotation(mul(st.axis, -1), st.y)};
 }
 
-const EmberScene = {landAt, pinLanded, worldFrame, heightAt, surfaceState, AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
+const EmberScene = {localDir, groundAt, landAt, pinLanded, worldFrame, heightAt, surfaceState, AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
 	KARMAN, karmanOf, gravityAt, gravityWell, SAFE, bhSafe, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
 	v: {add, sub, mul, dot, cross, len, norm}};
 if (isNode) module.exports = EmberScene; else root.EmberScene = EmberScene;

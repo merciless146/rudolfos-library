@@ -148,6 +148,25 @@ insurance, and take off again, all on smooth worlds.
 
 ### L1.3 Terrain
 
+**Done** (0.2.4): `terrain.js` (the height function, craters in thirteen sizes from a few hundred km across down to
+tens of metres, plains on large worlds, flats for L2, and the cube-sphere tiles), collisions, the safety, NPCs and the
+readout on terrain, tiles drawn in place of the sphere under 200 km (built from 400 km, about 2 ms a frame). Tested in
+`tests/emberreach_terrain_t.js` (16 checks) and the browser test's 9g. Differences from the plan:
+- **Tiles are 17 × 17 points**, not 33 × 33: at 33 × 33 the budget ran out tens of km up, before the finest tiles.
+- **No fade band:** the tiles replace the sphere at 200 km once those in view are built; they're coloured from the
+  sphere's own function, so the switch is slight.
+- **Not yet:** smooth night sides on tidally locked worlds (the night side isn't known from the world alone), and the
+  pixel check along tile seams.
+- **Frame rate on the software renderer:** about 10 fps with a world filling the screen, against 37 in space. The
+  plain sphere filling the screen is no faster (10.5 fps), so terrain isn't the cost: it's full-screen fill on the
+  software renderer (a logarithmic depth written per pixel). A follow-up should look at the depth write and the
+  resolution setting before the plan's 30 fps can be met.
+
+Added alongside, at the pilot's request: **forward spotlights** (1) and **night vision** (2), separate functions.
+Spotlights need power and light a 20° cone ahead (`render.js`'s mesh shader); night vision needs the sensors, and
+amplifies the image to an intensifier's green (every shader). The night side's ambient light now comes from the sky
+opposite the sun, so slopes still read there.
+
 The worlds get ground worth landing on.
 
 - **`terrain.js`** holds the height function `h(world, dir)`. It is pure, seeded from the world's name, and
