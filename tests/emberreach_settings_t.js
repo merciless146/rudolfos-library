@@ -58,5 +58,12 @@ try {
 	const KIT = fs.readFileSync(path.join(DIR, '../../../lib/gamekit/gamekit.js'), 'utf8');
 	ok('20. the game kit keeps the shared language from the hello and the settings messages, null when it isn\'t sent', /takeLang\(r\)/.test(KIT) && /takeLang\(m\)/.test(KIT) && /RG\.lang = typeof m\.lang == 'string'/.test(KIT)
 		&& /osLang: \(\) => RG\.lang/.test(PLAY) && /I18\.resolve\(S\.lang, RG\.lang, navigator\.language\)/.test(PLAY) && /RG\.on\('settings', \(\) => \{ if \(game\.settings\.lang == 'os'\)/.test(PLAY));
+	/* control schemes and assists */
+	const fresh = St.sanitise(undefined), prior = St.sanitise({controls: {keys: {}}, lang: 'en'});
+	ok('21. a new pilot starts on Simple controls with every assist on; one from before the schemes keeps Full, the keys they know, with the assists off but the gear', fresh.controls.scheme == 'simple' && fresh.controls.autoLights && fresh.controls.landAssist && fresh.controls.autoRoute && prior.controls.scheme == 'full' && prior.controls.autoGear && !prior.controls.autoLights && !prior.controls.landAssist && !prior.controls.autoRoute);
+	const S2 = St.sanitise(undefined); St.applyScheme(S2, 'full'); const f1 = Object.assign({}, S2.controls); St.applyScheme(S2, 'simple');
+	ok('22. picking a scheme sets the assists to its defaults; each can be changed after', !f1.autoLights && !f1.autoRoute && S2.controls.autoLights && S2.controls.autoRoute && St.sanitise(Object.assign({}, S2, {controls: Object.assign({}, S2.controls, {autoRoute: false})})).controls.autoRoute === false);
+	ok('23. Simple lists the core keys (with M for the mode and ~ for the radial menu); the rest live in the radial menu', ['mode', 'radial', 'fire', 'jump', 'dock'].every(a => St.SIMPLE.includes(a)) && ['fa', 'gear', 'hatch', 'lights', 'nightVision', 'systems', 'mouse', 'flare'].every(a => !St.SIMPLE.includes(a))
+		&& /mode: \['KeyM'\]/.test(PLAY) && /radial: \['Backquote'\]/.test(PLAY) && /mouse: \[\]/.test(PLAY));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

@@ -950,6 +950,33 @@ home currency.
 
 ### Settings
 
+**Controls, 0.2.5.**
+- **Two control schemes** (Settings › Controls):
+  - **Simple** (a new pilot's default) lists only the core keys, keeps flight assist on, and turns the assists on.
+  - **Full** (kept by anyone from before) lists every key and leaves flight assist to the pilot.
+  - Any key can be rebound in either.
+- **The radial menu (hold ~):** landing gear, cargo hatch, spotlights, night vision, internal systems, flare, mouse
+  flight and flight assist. Point at one, or step round with ← → (or A D); let go to switch it. Steering waits while
+  it's open.
+- **M switches Combat and Analysis mode.** Steering, thrust and navigation stay the same; five keys change:
+
+  | Key | Combat | Analysis |
+  |---|---|---|
+  | ; | weapons | mining lasers only (weapons safe) |
+  | K | missile | scan the target now |
+  | B | flare | pulse scanner (the scanner reaches 25 km for 10 s, every 15 s) |
+  | T | next target | next target that isn't a ship |
+  | U | nearest hostile | nearest point of interest |
+
+- **The assists,** each on or off whatever the scheme:
+  - **automatic landing gear;**
+  - **automatic spotlights** over a world's night side under 5 km;
+  - **landing assist:** under 300 m with the gear down and flight assist on, the descent is held to three quarters of
+    the touchdown limit, or a tenth of the height;
+  - **automatic jumps along a route,** 4 s after each arrival (J stops it).
+- Mouse flight moved from M into the radial menu (it can still be bound to a key).
+
+
 In the game since 0.1.1 (`settings.js`, `i18n.js`; tested in `tests/emberreach_settings_t.js`, 20
 checks, and the browser test's checks 9 and 9b). Opened from the pause screen's **Settings** button. Three pages:
 
