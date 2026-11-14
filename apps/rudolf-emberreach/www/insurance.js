@@ -68,7 +68,7 @@ function candidates(at, ctx, day) {
 		const d = Math.hypot(star.x - at[0], star.y - at[1], star.z - at[2]); if (d > reachPc()) return;
 		const port = T.portFor(star, day); if (!port) return;
 		const own = T.ownerOf(star, day), holder = own.contested ? null : own.owner, m = holder && F.byId(holder);
-		out.push({star, port, d, holder: m && m.kind == 'major' ? holder : null, code: m && m.kind == 'major' ? m.currency.code : null});
+		out.push({star, port, portId: port.id || 'orbital', d, holder: m && m.kind == 'major' ? holder : null, code: m && m.kind == 'major' ? m.currency.code : null});
 	};
 	for (const n of T.lanes().nodes) add(n.star);
 	for (const s of (ctx && ctx.stars) || []) add(s);
@@ -83,8 +83,8 @@ function respawnAt(P, at, ctx, day) {
 	const I = P.insurance, start = ctx.start;
 	if (!I) return {star: start, why: 'start', uninsured: true, holder: ctx.startHolder};
 	const list = candidates(at, ctx, day);
-	const own = list.find(c => c.code == I.code); if (own) return {star: own.star, why: 'currency', d: own.d, holder: own.holder};
-	const ex = list.find(c => exchangeTakes(c.holder, I.code)); if (ex) return {star: ex.star, why: 'exchange', d: ex.d, holder: ex.holder};
+	const own = list.find(c => c.code == I.code); if (own) return {star: own.star, portId: own.portId, why: 'currency', d: own.d, holder: own.holder};
+	const ex = list.find(c => exchangeTakes(c.holder, I.code)); if (ex) return {star: ex.star, portId: ex.portId, why: 'exchange', d: ex.d, holder: ex.holder};
 	return {star: start, why: 'start', holder: ctx.startHolder};
 }
 
@@ -107,11 +107,11 @@ function settle(P, holder, day) {
 function claim(P, hull, fit, at, ctx, day) {
 	ensure(P, day);
 	const where = respawnAt(P, at, ctx, day), I = P.insurance;
-	const starter = () => { const model = R.newPlayer(P.origin).ship.model; P.ship.model = model; P.ship.fit = null; P.insurance = starterCover(P, day); return {star: ctx.start, model, starter: true} };
+	const starter = () => { const model = R.newPlayer(P.origin).ship.model; P.ship.model = model; P.ship.fit = null; P.insurance = starterCover(P, day); return {star: ctx.start, portId: 'orbital', model, starter: true} };
 	if (!I) return Object.assign(starter(), {why: 'uninsured'});
 	const st = settle(P, where.holder, day);
 	if (!st.ok) return Object.assign(starter(), {why: 'unpaid', short: st.short, code: I.code});
-	return {star: where.star, model: hull.id, starter: false, why: where.why, paid: st.paid, changed: st.changed, code: I.code};
+	return {star: where.star, portId: where.portId || 'orbital', model: hull.id, starter: false, why: where.why, paid: st.paid, changed: st.changed, code: I.code};
 }
 
 const EmberInsurance = {INSURE, shipValue, premium, starterCover, ensure, insure, cancel, tick, candidates, exchangeTakes, respawnAt, settle, claim};

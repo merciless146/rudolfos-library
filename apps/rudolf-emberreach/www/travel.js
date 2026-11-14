@@ -53,6 +53,18 @@ function ownerOf(star, day) {
 	return {owner: null, contested: false};
 }
 /* the port at a star, if any: {cls, world (planet name), owner, capital} */
+/* ---------- the ports at a star (landing L2.1) ----------
+   A list: the space port first (if any), then the surface ports (from L2.2). Each has an id: 'orbital', or
+   'surface:<world>:<kind>'. portFor stays "the space port", for the callers that mean that. colony: the player's
+   finished colony's port at this star (colonies.js portOf), which stands in for the space port */
+const ORBITAL = 'orbital';
+const PORT_ID = /^(orbital|surface:[^:]+:[a-z]+)$/;
+function portsAt(star, day, colony) {
+	const sp = colony || portFor(star, day);
+	return sp ? [Object.assign({}, sp, {id: ORBITAL})] : [];
+}
+/* a port in a list by its id (null if it isn't there) */
+const portById = (ports, id) => (ports || []).find(p => p.id == (id || ORBITAL)) || null;
 function portFor(star, day) {
 	/* a capital needs no look at the claims (which are slow to set up the first time) */
 	if (star.rift) return anchorage(star);
@@ -233,6 +245,6 @@ function canMake(leg, range, fuel) {
 	return {ok: true, cost};
 }
 
-const EmberTravel = {HAVENS, havens, ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
+const EmberTravel = {ORBITAL, PORT_ID, portsAt, portById, HAVENS, havens, ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
 if (isNode) module.exports = EmberTravel; else root.EmberTravel = EmberTravel;
 })(typeof window != 'undefined' ? window : this);

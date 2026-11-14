@@ -52,7 +52,7 @@ async function frame(pg, test) {
 		ok('4. it launches, and the throttle flies the ship', !fly.docked && (fly2.v > fly.v || fly2.thr > 0), [fly, fly2]);
 		await pg.screenshot({path: path.join(W, 'flight.png')});
 		const saved = await pg.evaluate(() => SAVES['ember-reach']);
-		ok('5. the desktop keeps the save (launching saves)', saved && saved.v == 3 && saved.player && saved.docked === false, saved && Object.keys(saved));
+		ok('5. the desktop keeps the save (launching saves)', saved && saved.v == 4 && saved.player && saved.docked === false, saved && Object.keys(saved));
 		await pg.keyboard.press('KeyG'); await sleep(1200); const mapOn = await f.evaluate(() => EmberDebug.game.mapOpen); await pg.screenshot({path: path.join(W, 'map.png')}); await pg.keyboard.press('KeyG'); await sleep(300); const mapOff = await f.evaluate(() => !EmberDebug.game.mapOpen);
 		ok('6. the star map opens and closes (G)', mapOn && mapOff && errs.length == 0, {mapOn, mapOff, errs});
 		/* a jump: straight to a near star with worlds (the debug hook skips the drive's charge) */

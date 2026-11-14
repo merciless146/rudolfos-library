@@ -244,7 +244,7 @@ function turn(P, day) {
 function portOf(P, star, day) {
 	const c = colonyAt(P, star.id);
 	if (!c || c.stage != 'done' || day < c.opens) return null;
-	return {cls: PORTS[c.port].cls, world: c.world, owner: c.sponsor, capital: false, contested: false, colony: true, independent: !!c.independent, base: !!PORTS[c.port].base};
+	return {id: 'orbital', cls: PORTS[c.port].cls, world: c.world, owner: c.sponsor, capital: false, contested: false, colony: true, independent: !!c.independent, base: !!PORTS[c.port].base};
 }
 
 /* ---------------- part 2: building out ---------------- */

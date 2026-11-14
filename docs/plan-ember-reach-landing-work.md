@@ -317,6 +317,20 @@ clearance, and docked at like any other port.
 
 The refactor everything else waits on. It doesn't change the game's behaviour.
 
+**Done** (0.3.2):
+- **`travel.js`:** `portsAt(star, day, colony)` gives the list, with `ORBITAL`, `PORT_ID` (the id pattern) and
+  `portById`.
+- **`play.js`:** it keeps `game.ports`; `game.port` is still the space port that the scene builds. Docking sets
+  `game.portId` and `game.lastPortId`.
+- **Insurer:** its respawn candidates and claims carry a `portId`. A colony's port has the id `orbital`.
+- **Missions:** war missions carry `port: null`, meaning any port at the star (as munitions deliveries are).
+- **Map:** the star card reads from `portsAt`.
+- **Saves:** version 4 saves the port docked at (`at`) and the last port's id (`lastPort.port`). A version 3 save
+  reads both as `orbital`, and so does a malformed id.
+- **Not changed:** haulage jobs go to a colony, not to a port, so they don't carry a port id.
+
+Tested by every existing suite unchanged, plus `tests/emberreach_save_t.js` 8b and the travel test's L2.1 check.
+
 - **`travel.js` `portsAt(star, day)`** returns a list: the space port (if any), then the surface ports.
   - Each has an **id**: `orbital`, or `surface:<world>:<kind>`.
   - `portFor` stays as "the space port", for the callers that mean that.
