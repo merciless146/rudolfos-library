@@ -195,7 +195,7 @@ Getting there from the rest of the system.
   - Pirates may chase a landed player down but don't land themselves in L1.
 - **Touch:** a vertical-thrust slider beside the throttle, and a gear button. These are ready for the phone
   layout (Rudolf OS 1.6.0).
-- **Gamepad:** vertical thrust on the bumpers (already strafe up/down), and gear on A held.
+- **Gamepad:** vertical thrust on the d-pad's up and down (already strafe up and down), and gear on A held.
 - **Help** (H) gets the landing controls, and the plan's control note is corrected.
 - **Tests:** the browser test's controls check covers the new keys; an NPC hovering below a line holds
   altitude.

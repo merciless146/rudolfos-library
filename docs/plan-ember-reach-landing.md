@@ -311,7 +311,7 @@ beacons, windows) use the emissive channel the stations already use.
   - The game's own records are still trimmed under the 256 KB budget the 0.1.0 save brought in.
 - **Controls.**
   - Vertical thrust uses the existing strafe up and down keys (Space and Left Shift), with the gear on 1.
-  - On a controller, vertical is the bumpers.
+  - On a controller, vertical is the d-pad's up and down (already strafe up and down).
   - On touch, a vertical slider beside the throttle, ready for phones (1.6.0).
 - **Sound:** gear motors, touchdown thuds scaled by impact, the hiss of the vertical thrusters, and a pad
   beacon's ping when cleared.
