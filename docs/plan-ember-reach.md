@@ -1,7 +1,7 @@
 # Ember Reach: plan
 
 A 3D open-world spaceflight game about **combat, trade and exploration**, set inside a scale model of a compact
-elliptical galaxy. Every one of its ~8 billion stars exists and can be visited. Each star, its planets and their
+elliptical galaxy. Every one of its 4 million stars (0.2.0; there were ~8 billion before) exists and can be visited. Each star, its planets and their
 habitability come from the astrophysics below, not from hand-placed content. "Ember Reach" is a working title.
 
 - **Package:** `rudolf-emberreach` (a Library game), in `apps/rudolf-emberreach/` since the **Single-Player Alpha
@@ -192,9 +192,9 @@ stars.
 | **N, alive now** | **≈ 43** | |
 | Earlier civilisations | ≈ 2.4 million | N × T / L |
 
-- **Factions:** the civilisations alive now are the game's great powers: 46 of them, in six clusters of six to
-  eight (see "The great powers"). L, the lifetime, was set at 180,000 years to give about that many (90,000 when the galaxy had twice
-  the stars). The number of
+- **Factions:** the civilisations alive now are the game's great powers: 12 of them, in two clusters of six (see
+  "The great powers"). L, the lifetime, is set at 110 million years to give about that many among 4 million stars
+  (0.2.0; 180,000 years gave 46 among 8 billion). The number of
   earlier civilisations (N × T / L) doesn't depend on L, so the ruins are unchanged.
 - **Ruins:** the earlier civilisations left ruins. Each one is counted in about ten systems, giving a ruin in about
   1 star system in 330.
@@ -520,7 +520,8 @@ ports and outposts come later. (Before this, flying into a planet or star lost t
 
 Tested in `tests/emberreach_rift_t.js` (35 checks). End-game play, beyond the Maw.
 
-- **The Maw** is the black hole at the galaxy's centre: five million suns, its horizon 0.1 AU across. It's on the
+- **The Maw** is the black hole at the galaxy's centre: about 2,500 suns (0.2.0, scaled with the galaxy; five million
+  before), its horizon about 7,400 km across. It's on the
   map and the route planner like any star (id `heart`), though no power holds it and it has no port or worlds.
   The ship's safety holds three horizon radii off it (any black hole: 2,000 km, or three radii if that's more), and
   a phaser works within 1.25 times that. Riftborn slip through to this side now and then (half of visits).
@@ -541,9 +542,11 @@ Tested in `tests/emberreach_rift_t.js` (35 checks). End-game play, beyond the Ma
   | Aetherium | 260 |
   | Precursor relics | 1,500 |
   This side of the Maw, every market buys them at a premium (+25%) and none sells them.
-- **No powers, no lanes.** Nobody holds anything there, there are no lanes, and no colonies can be claimed. The only
-  ports are **Precursor anchorages**: old automated docks in about one system in twenty-five. They offer fuel,
-  repairs and trade in SU, pay half for the Rift's goods, and build nothing (no shipyard).
+- **No powers, no lanes.** Nobody holds anything there and there are no lanes. The only ports are **Precursor
+  anchorages**, independent of every power (0.2.0): one at the Maw, the way home, and about 1,600 more spread
+  loosely and far apart through the Rift. They offer fuel, repairs and trade in SU, pay half for the Rift's goods,
+  and build nothing (no shipyard). Any other haven is a player's own: an **independent colony**, filed at a Rift
+  anchorage (no power sponsors anything there; nothing can be built at the Maw).
 - **The Riftborn** crew every ship there. They fly copies of the living's warships and pirate hulls (up to L; up
   to XL at the Maw) with three times the hull and shields, 2.2 times the damage and 15% more speed and agility.
   They attack everyone, never flee, and their wrecks drop the Rift's goods (8% chance of a relic).
@@ -666,9 +669,17 @@ The model is in `apps/rudolf-emberreach/www/factions.js`, `economy.js`, `reputat
 `tests/emberreach_factions_t.js`, 15 in `tests/emberreach_ships_t.js`). The viewer's first panel shows each
 cluster in 3D.
 
-### The great powers: six clusters
+### The great powers: two clusters
 
-- **How many:** 46 great powers in **six clusters** of six to eight (at least six per cluster, `MIN_CIVS`). That
+**0.2.0:** 12 great powers in **two clusters** of six, the North and the Hearth, each holding **250–400 systems**.
+Counted by sampling they hold about 3,000 systems and contest about 1,000 more, about 0.1% of the galaxy. The North
+is 119 pc out (stars there about 1.4 pc apart), the Hearth 5.6 pc from the centre; they are 82 pc apart, with one
+long lane between them. Claims are about 9–14 pc across in the North and 0.6 pc in the Hearth. Six per cluster is
+the fewest the alliance rules allow: every power needs at least two allies and two enemies in its own cluster. The
+rest of this section describes the 0.1 galaxy (46 powers, six clusters, 8,000–14,000 systems each); the rules are
+the same, the numbers are smaller.
+
+- **How many (0.1):** 46 great powers in **six clusters** of six to eight (at least six per cluster, `MIN_CIVS`). That
   agrees with the Drake equation's ≈ 43. All are interstellar.
 - **Why clusters:** in the lore, each cluster is a shared cradle. Its peoples arose within a few dozen parsecs of
   each other, which is why they met, traded and went to war. Between the clusters lie hundreds of parsecs of space
@@ -1091,7 +1102,7 @@ In the game since this change (`insurance.js`; tested in `tests/emberreach_insur
      M1 saves still load).
 4. **M3:** trade: markets, cargo, prices, currencies and exchanges, the factions' stations; choosing an origin.
    **Playable** in `index.html`:
-   - **Choosing an origin:** a new game opens on the 46 great powers, by cluster, with each one's species, currency,
+   - **Choosing an origin:** a new game opens on the 12 great powers (46 before 0.2.0), by cluster, with each one's species, currency,
      capital, allies, enemies and starter ship. You start docked at its capital with 20,000 SU in its currency.
    - **The starport** (`port.js`), the design canvas's layout working for real:
      - the status strip, the services row (refuelling and repairs, paid at the market's prices; restocking waits
@@ -1161,6 +1172,21 @@ everything through M5b, and the Maw and the Rift from M6. The release brought th
 - **Memory grew with every jump.** Each system's planet, star and station meshes were kept after leaving it:
   about 10 MB of memory and 8 MB of graphics memory a jump (over 300 MB after 30 jumps). They are now freed on
   arrival, so memory stays level however far you travel.
+
+**0.2.0** makes the galaxy smaller, so every system and its data could fit within a free cloud server:
+- **4 million stars** (from 7.95 billion), with M32's crowding kept: every length times 0.0796, the masses times
+  0.0005. Stars are as far apart as before, so jump ranges, travel and the sky are unchanged; the galaxy is 239 pc
+  out (regions: the Core to 2.4 pc, the Glow to 36, the Inner Reach to 80, the Middle Reach to 159, the Outer
+  Clouds to 239). The speed spread used for close passes stays at 54 km/s, so the crowded middle is still sterile
+  (a galaxy this small would have about 4 km/s).
+- **12 great powers** in two clusters of six (the North and the Hearth), each holding 250–400 systems; small
+  factions cut to match (12, from 44); lanes drawn in (hubs 8 pc apart, lanes up to 16 pc, relays every 30 pc).
+- **The Rift: 2 million stars**, 75% as wide as the galaxy: each Rift star is a star here turned over and drawn in
+  to 75% of its distance, for one star in two. It is the endgame: only the Riftborn live there. Its only havens
+  are the Precursors' anchorages, independent of every power: one at the Maw (the way home) and about 1,600 more
+  (1,603) spread loosely through its whole volume, at least 8 pc apart, one per 20-pc cube by a seeded draw, found
+  as you go. Any other haven there is a player's own: independent colonies can be filed at a Rift anchorage.
+- **Saves** from the old galaxy keep only their settings: a new game starts, and the origin screen says why.
 
 Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer. Landing on airless worlds and surface ports are planned in
 `docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).

@@ -12,18 +12,19 @@ const seeded = s => () => { s = (s * 16807) % 2147483647; return s / 2147483647 
 try {
 	/* the Maw */
 	const maw = G.starsNear(0.01, 0, 0, 0.05).find(s => s.heart);
-	ok('1. the Maw, a black hole of five million suns, sits at the centre and turns up near it', maw && maw.kind == 'black hole' && maw.M == 5e6 && maw.id == 'heart' && maw.name == 'The Maw');
+	ok('1. the Maw, a black hole of about 2,500 suns (0.2.0), sits at the centre and turns up near it', maw && maw.kind == 'black hole' && maw.M == G.GAL.MBH && maw.M > 2400 && maw.M < 2600 && maw.id == 'heart' && maw.name == 'The Maw');
 	/* (the capitals and home worlds as they were before the Rift: a fixed list) */
-	const CAPS = ['1,-3,264/#0|Seniabrears f', '0,-1,254/#2|Gemuzeiavin g', '-11,1,261/#0|Nyejunaera g', '-8,-9,259/#5|Ishimos e', '8,3,269/#0|Isho f'];
+	const CAPS = ['0,0,20/#1|Halaeastotis g', '1,-3,21/#3|Ulozeorlon e', '-3,0,18/#4|Breevin f', '-3,0,23/#0|Ulu g', '-1,-2,16/#5|Draaetis f'];   /* (0.2.0's galaxy) */
 	ok('2. the great powers were laid out without it: their capitals are where they were', CAPS.every((c, i) => F.majors()[i].star.id + '|' + F.majors()[i].home.name == c));
 	const sc = Sc.build(maw, {day: 200, port: null}), b = sc.bodies[0];
-	ok('3. its system: no worlds; the horizon 0.1 AU across, and the safety keeps three radii off (cruise drops short of that)', !G.system(maw).planets.length && b.bh && Math.abs(b.radius - 2953 * 5e6) < 10 && Sc.safeDist(b) == 3 * b.radius && Sc.dropRange(b) > Sc.safeDist(b));
+	ok('3. its system: no worlds; the horizon about 7,400 km across, and the safety keeps three radii off (cruise drops short of that)', !G.system(maw).planets.length && b.bh && Math.abs(b.radius - 2953 * G.GAL.MBH) < 10 && Sc.safeDist(b) == 3 * b.radius && Sc.dropRange(b) > Sc.safeDist(b));
 	ok('4. nobody holds the Maw, and it has no port', !T.ownerOf(maw, 200).owner && !T.portFor(maw, 200));
 	/* the Rift */
-	const home = F.majors()[0].star, near = G.starsNear(home.x, home.y, home.z, 3).filter(s => s.kind == 'star').slice(0, 30);
-	const rift = G.inRealm('rift', () => G.starsNear(home.x, home.y, -home.z, 3)).filter(s => s.kind == 'star');
-	ok('5. the Rift is the galaxy upside down: the same stars, turned over (z the other way), with ids "R:" and their names reversed', near.every(s => { const r = rift.find(x => x.id == 'R:' + s.id); return r && r.z == -s.z && r.x == s.x && r.cls == s.cls && r.M == s.M && r.name.toLowerCase() == s.name.toLowerCase().split('').reverse().join('') }));
-	ok('6. outside inRealm, the galaxy is the normal one', G.realm() == 'normal' && G.starsNear(home.x, home.y, -home.z, 1).every(s => !s.rift));
+	const home = F.majors()[0].star, near = G.starsNear(home.x, home.y, home.z, 6).filter(s => s.kind == 'star').slice(0, 40);
+	const hR = G.toRift([home.x, home.y, home.z]), rift = G.inRealm('rift', () => G.starsNear(hR[0], hR[1], hR[2], 6 * G.RIFT_SCALE)).filter(s => s.kind == 'star'), kept = near.filter(G.inRift);
+	ok('5. the Rift is the galaxy upside down, 75% as wide, with half its stars: each turned over (z the other way) and drawn in to 75%, with ids "R:" and their names reversed', kept.length > 5 && kept.length < near.length && kept.every(s => { const r = rift.find(x => x.id == 'R:' + s.id); return r && Math.abs(r.z + s.z * 0.75) < 1e-9 && Math.abs(r.x - s.x * 0.75) < 1e-9 && r.cls == s.cls && r.M == s.M && r.name.toLowerCase() == s.name.toLowerCase().split('').reverse().join('') }) && near.filter(s => !G.inRift(s)).every(s => !rift.some(x => x.id == 'R:' + s.id)), kept.length + ' of ' + near.length);
+	ok('5b. 2 million stars in the Rift, 4 million in the galaxy', G.RIFT_STARS == 2e6 && Math.abs(G.STARS_TOTAL - 4e6) < 1);
+	ok('6. outside inRealm, the galaxy is the normal one', G.realm() == 'normal' && G.starsNear(hR[0], hR[1], hR[2], 1).every(s => !s.rift));
 	const mawR = G.inRealm('rift', () => G.starsNear(0, 0, 0, 0.01)).find(s => s.heart);
 	ok('7. the Maw is there on the Rift side too, its way home', mawR && mawR.id == 'R:heart' && mawR.rift);
 	/* the Rift's worlds */
@@ -35,9 +36,14 @@ try {
 	const has = g => pl.filter(p => p.res.includes(g)).length;
 	ok('10. its rocks hold nullite and voidglass, its gas giants aetherium; none of them anywhere this side', has('Nullite') > 100 && has('Voidglass') > 30 && has('Aetherium') > 30 && norm.flatMap(x => x.planets).every(p => !p.res.some(r => E.RIFT_GOODS.includes(r))));
 	ok('11. a Rift star is found again by its id and place (saves, routes)', (() => { const r = rift[3]; const a = T.starAt(r.id, [r.x, r.y, r.z]), b = X.starById(r.id); return a && b && a.id == r.id && b.id == r.id && a.rift && b.rift })());
-	/* ports: the Precursors' anchorages */
-	const st = G.inRealm('rift', () => G.starsNear(0, 0, 30, 3)).filter(s => s.kind == 'star'), anch = st.filter(s => T.portFor(s, 200));
-	ok('12. no power holds anything in the Rift; its ports are anchorages, in about one system in twenty-five', st.every(s => !T.ownerOf(s, 200).owner) && anch.length / st.length > 0.015 && anch.length / st.length < 0.05 && anch.every(s => T.portFor(s, 200).anchorage && !T.portFor(s, 200).owner), anch.length + ' of ' + st.length);
+	/* ports: the Precursors' anchorages, its only havens (0.2.0): one at the Maw, about 1,600 more spread far apart */
+	const st = G.inRealm('rift', () => G.starsNear(0, 0, 30 * G.SCALE, 3)).filter(s => s.kind == 'star');
+	const HV = [...T.havens()].map(id => G.lookup(id)), anch = HV.slice(0, 5);
+	let apart = 1e9; for (let i = 0; i < HV.length; i++) for (let k = i + 1; k < HV.length; k++) apart = Math.min(apart, Math.hypot(HV[i].x - HV[k].x, HV[i].y - HV[k].y, HV[i].z - HV[k].z));
+	const ms = HV.map(s => s.m).sort((a, b) => a - b), Rr = G.GAL.rMax * G.RIFT_SCALE;
+	ok('12. no power holds anything in the Rift; its only havens are about 1,600 anchorages, independent, at least 8 pc apart, spread through its whole volume (not crowded into its middle)', st.every(s => !T.ownerOf(s, 200).owner) && HV.length > 1500 && HV.length < 1700 && HV.every(s => s.rift && T.portFor(s, 200).anchorage && !T.portFor(s, 200).owner) && apart >= 8 && ms[Math.floor(ms.length / 2)] > 0.6 * Rr && st.filter(s => T.portFor(s, 200)).length <= 1, HV.length + ' havens, ' + apart.toFixed(1) + ' pc apart at least, half beyond ' + ms[Math.floor(ms.length / 2)].toFixed(0) + ' pc');
+	const mawPort = T.portFor(G.lookup('R:heart'), 200);
+	ok('12b. the Maw\'s Rift side has an anchorage too (the way home); this side it has none', mawPort && mawPort.anchorage && mawPort.maw && !mawPort.owner && !T.portFor(G.lookup('heart'), 200));
 	ok('13. no routes through the powers\' lanes in the Rift', (() => { const a = st[0], z = st[st.length - 1], r = G.inRealm('rift', () => T.route(a, z, 30)); return r.ok && r.legs.every(l => l.kind == 'jump' && l.star.rift) })());
 	/* goods */
 	const mN = E.market(home, 200), mR = E.market(anch[0], 200);

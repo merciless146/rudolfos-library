@@ -49,7 +49,7 @@
      a random star anywhere in the galaxy. Phasers and alien relay boosters are built from blueprints found in
      ruins, by an artifact broker (a station contact).
    - The Maw, the black hole at the centre, leads into the Rift (galaxy.js): the galaxy upside down, lifeless, with
-     no powers, only Precursor anchorages and the Riftborn (encounters.js), its own ores and the Precursors' ruins,
+     no powers, only about 1,600 Precursor anchorages (one at the Maw) and the Riftborn (encounters.js), its own ores and the Precursors' ruins,
      whose blueprints a broker builds into Precursor modules and hulls (outfit.js, ships.js). The Maw there leads home.
    GPL-2.0-or-later. ===== */
 (function () {
@@ -61,7 +61,7 @@ const E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions,
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.1.2'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.0'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -133,7 +133,7 @@ async function start() {
 	const ok = sv && sv.ship;
 	/* the player: from the save; or, for a new game, the origin from the URL or chosen here */
 	let originIdx = ok ? sv.power : Q.has('power') ? Math.max(0, Math.min(majors.length - 1, +Q.get('power'))) : null;
-	if (originIdx == null) { $('load').style.display = 'none'; originIdx = await chooseOrigin(); $('load').style.display = '' }
+	if (originIdx == null) { $('load').style.display = 'none'; originIdx = await chooseOrigin(sv && sv.oldGalaxy); $('load').style.display = '' }
 	game.power = originIdx;
 	game.home = majors[game.power];
 	game.P = ok && sv.player ? sv.player : Tr.newPlayer(game.home.id);
@@ -206,7 +206,7 @@ function meshes() {
 /* the sky: real neighbours by their light, out to 30 pc (closer where stars crowd: at most a few thousand); and
    the glow of the galaxy's core */
 function sky(home) {
-	const out = [], n = G.numberDensity(home.x, home.y, home.z) + 1e-9, Rr = Math.min(30, Math.cbrt(7000 / (n * 4.19)));
+	const out = [], n = G.densityHere(home.x, home.y, home.z) + 1e-9, Rr = Math.min(30, Math.cbrt(7000 / (n * 4.19)));
 	for (const x of G.starsNear(home.x, home.y, home.z, Rr)) {
 		if (x.id == home.id || x.d < 1e-6) continue;
 		const flux = Math.max(1e-9, (x.L || 0.001) / (x.d * x.d)), lg = Math.log10(flux);
@@ -557,7 +557,7 @@ function populate() {
 	const c = Co.colonyAt(game.P, game.star.id);
 	if (c) {
 		const building = c.stage == 'building' || (c.builds || []).some(b => !b.done), guarded = (c.builds || []).some(b => b.done && b.fac == 'military') || Co.PORTS[c.port].base;
-		if (building && !guarded && Math.random() < (F.claimAt(c.star.at).owner ? 0.25 : 0.5)) {
+		if (building && !guarded && Math.random() < (!/^R:/.test(c.id) && F.claimAt(c.star.at).owner ? 0.25 : 0.5)) {
 			const gang = F.minors().filter(m => m.type == 'criminal')[Math.floor(Math.random() * 16)], hulls = S.ships().filter(x => x.who.includes('pirate') && ['XS', 'S', 'M'].includes(x.size));
 			place([0, 1].map(i => ({role: 'pirate', faction: gang.id, ship: hulls[Math.floor(Math.random() * hulls.length)], where: 'arrival', range: 5000 + i * 600, ai: 'attack', wing: 'raid'})));
 			say('Raiders are circling your construction at ' + c.star.name, '#e5484d');
@@ -833,7 +833,7 @@ function requestPhase(b) {
 }
 /* out of the wormhole: a random star, anywhere the galaxy has stars (by its own density) */
 function phaseOut() {
-	const r = Math.random, cross = !!game.star.heart, sample = G.sampleGalaxy(1, Math.floor(r() * 1e9))[0];
+	const r = Math.random, cross = !!game.star.heart, s0 = G.sampleGalaxy(1, Math.floor(r() * 1e9))[0], sample = game.star.rift ? (([x, y, z]) => ({x, y, z}))(G.toRift([s0.x, s0.y, s0.z])) : s0;   /* (in the Rift, a place in the Rift) */
 	/* the Maw: through to its other side (the Rift, or home); any other black hole: a random star, in whichever
 	   galaxy you're in */
 	let to = null;
@@ -848,7 +848,7 @@ function phaseOut() {
 	if (cross && to.rift) {
 		const R0 = game.P.rift = game.P.rift || {first: null, crossings: 0}; R0.crossings++;
 		if (R0.first == null) { R0.first = Math.floor(game.day); say('The Rift. The galaxy, turned over: every star you know, upside down, and nothing alive on any world. What crews the ships here attacks everything.', '#c9a0ff') }
-		say('Through the Maw, into the Rift. Precursor anchorages (one system in twenty-five) give fuel and repairs. The Maw this side leads home.', '#c9a0ff'); Snd.cue('arrive');
+		say('Through the Maw, into the Rift. The anchorage here at the Maw is a haven: fuel, repairs and trade. Out there, about 1,600 more lie scattered, far apart; nothing else is safe but what you build. The Maw leads home.', '#c9a0ff'); Snd.cue('arrive');
 	} else if (cross) { say('Through the Maw: home, at the heart of the galaxy', '#c9a0ff'); Snd.cue('arrive') }
 	else say('Through the wormhole: ' + to.name + (to.rift ? ' (the Rift)' : '') + ', ' + Math.round(Math.hypot(to.x, to.y, to.z)) + ' pc from the galaxy\'s centre' + (to.rift ? '' : ', ' + Math.round(home) + ' pc from home'), '#c9a0ff'); if (!cross) Snd.cue('arrive');
 	persist();
@@ -987,12 +987,12 @@ function openPort() {
 /* after buying a ship, reopen with the new one (same screen) */
 function openPortAgain() { const scr = document.querySelector('#port [aria-current="page"]'), k = scr && scr.dataset.screen; openPort(); if (k) { const b = document.querySelector('#port [data-screen="' + k + '"]'); if (b) b.click() } }
 /* a new game: choose your origin among the great powers */
-function chooseOrigin() {
+function chooseOrigin(oldGalaxy) {
 	return new Promise(res => {
 		const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns'), majors = F.majors();
 		btns.textContent = '';
 		const K = G.clusters();
-		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr('Choose your origin')) + '</h1><p class="small">An alpha: the galaxy, flight, trade, combat, exploration, mining, colonies and the Rift are in; landing on planets, the Core\'s story and multiplayer are still to come. Your save carries over to later builds where it can.</p><p>You start at your power\'s capital, with 20,000 SU in its currency and a ship from its yards. Its allies welcome you; its enemies won\'t let you dock.</p>'
+		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr('Choose your origin')) + '</h1><p class="small">An alpha: the galaxy, flight, trade, combat, exploration, mining, colonies and the Rift are in; landing on planets, the Core\'s story and multiplayer are still to come. Your save carries over to later builds where it can.</p>' + (oldGalaxy ? '<p class="small"><b>0.2.0 has a new galaxy</b> (4 million stars, twelve great powers): your earlier game\'s stars and powers are no longer there, so it can\'t continue. Your settings are kept.</p>' : '') + '<p>You start at your power\'s capital, with 20,000 SU in its currency and a ship from its yards. Its allies welcome you; its enemies won\'t let you dock.</p>'
 			+ K.map(cl => '<h2 class="org-h">' + esc(cl.name) + '</h2><div class="org">' + majors.map((m, i) => [m, i]).filter(([m]) => m.cluster == cl.id).map(([m, i]) => {
 				const al = majors.filter(x => x.id != m.id && F.relation(m.id, x.id) > 0).length, en = majors.filter(x => F.relation(m.id, x.id) < 0).length, sh = S.ships().find(x => x.id == Tr.newPlayer(m.id).ship.model);
 				return '<button data-i="' + i + '"><b>' + esc(m.name.replace(/^The /, '')) + '</b><span>' + esc(m.species.name) + ' · ' + esc(m.species.build) + ' build, ' + esc(m.species.sight) + ' sight</span><span>' + esc(m.currency.name) + ' (' + m.currency.code + ') · ' + esc(m.home.name) + '</span><span>' + al + ' allies, ' + en + ' enemies · starts in a ' + esc(sh.name) + '</span></button>' }).join('') + '</div>').join('');
@@ -1089,7 +1089,7 @@ function hudDraw(cam) {
 	if (Tg == st) target.dock = dockCues(rel);
 	if (Tg.kind == 'asteroid') { const d = len(sub(s.p, Tg.pos)); target.kind = 'asteroid · ' + Tg.radius * 2 + ' m'; target.dock = Tg.prospected ? {line1: comp(Tg), line2: Tg.left > 0 ? Tg.left + ' t left · fire a mining laser within 600 m' : 'Spent', col: '#c9a46a'} : !ship.utility.prospector ? {line1: 'Composition unknown', line2: 'A resource scanner reads it', col: '#9fb0cc'} : {line1: d < Mi.MINE.scanRange ? 'Prospecting… ' + Math.round((Tg.scanT || 0) / Mi.MINE.scanTime * 100) + '%' : 'Prospect within 3 km', col: '#c9a46a'} }
 	if (Tg.kind == 'field') { target.kind = 'mining site · ' + Mi.KINDS[Tg.fieldKind].name; target.dock = {line1: 'Cruise here and drop out to mine', line2: (ship.mining ? ship.mining + ' mining laser' + (ship.mining > 1 ? 's' : '') : 'No mining laser') + ' · ' + (ship.refinery ? ship.refinery + ' refinery bins' : 'no refinery'), col: '#c9a46a'} }
-	if (Tg.bh) { const d = len(sub(s.p, Tg.pos)), pr = phaseRange(Tg), maw = game.star.heart; target.kind = maw ? 'the Maw · ' + (game.star.M / 1e6).toFixed(0) + ' million suns · ' + (game.star.rift ? 'the way home' : 'the way into the Rift') : 'black hole · ' + (game.star.M || 0).toFixed(1) + ' suns · a wormhole'; target.dock = !ship.phaser ? {line1: 'No dimensional phaser: the wormhole is closed to you', line2: 'Blueprints lie in ruins; an artifact broker builds them', col: '#9fb0cc'} : {line1: d < pr ? 'Press J to phase through' : 'Phase within ' + H.fmtDist(pr), line2: maw ? (game.star.rift ? 'Home: the heart of the galaxy' : 'The Rift: the galaxy upside down') : game.star.rift ? 'To a random star in the Rift' : 'To a random star, anywhere', col: d < pr ? '#c9a0ff' : '#9fb0cc'} }
+	if (Tg.bh) { const d = len(sub(s.p, Tg.pos)), pr = phaseRange(Tg), maw = game.star.heart; target.kind = maw ? 'the Maw · ' + Math.round(game.star.M).toLocaleString('en-US') + ' suns · ' + (game.star.rift ? 'the way home' : 'the way into the Rift') : 'black hole · ' + (game.star.M || 0).toFixed(1) + ' suns · a wormhole'; target.dock = !ship.phaser ? {line1: 'No dimensional phaser: the wormhole is closed to you', line2: 'Blueprints lie in ruins; an artifact broker builds them', col: '#9fb0cc'} : {line1: d < pr ? 'Press J to phase through' : 'Phase within ' + H.fmtDist(pr), line2: maw ? (game.star.rift ? 'Home: the heart of the galaxy' : 'The Rift: the galaxy upside down') : game.star.rift ? 'To a random star in the Rift' : 'To a random star, anywhere', col: d < pr ? '#c9a0ff' : '#9fb0cc'} }
 	if (Tg.kind == 'beacon') { target.kind = 'navigation beacon'; target.dock = {line1: 'Hyperspace arrivals come out here', line2: navWorks() ? 'Receiver working' : ship.utility.nav ? 'Receiver offline' : 'No nav beacon receiver fitted', col: '#6cc9e8'} }
 	if (Tg.kind == 'site') {
 		const c = Tg.colony, d = len(sub(s.p, Tg.pos)) - (c.stage == 'building' ? Tg.radius : 0);

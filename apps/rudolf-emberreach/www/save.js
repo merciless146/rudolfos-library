@@ -16,6 +16,9 @@
 (function (root) {
 'use strict';
 const VERSION = 3;
+/* the galaxy a save was made in: 2 is 0.2.0's (4 million stars, twelve powers). A save from an older galaxy names
+   stars and powers that are no longer there, so it keeps only its settings and a new game starts */
+const GALAXY = 2;
 const star = x => x && typeof x == 'object' && typeof x.id == 'string' && vec(x.p, 3) ? {id: x.id, p: x.p} : null;
 const num = x => typeof x == 'number' && isFinite(x);
 const vec = (x, n) => Array.isArray(x) && x.length == n && x.every(num);
@@ -24,7 +27,7 @@ const vec = (x, n) => Array.isArray(x) && x.length == n && x.every(num);
 function pack(g) {
 	const r = v => v.map(x => +x.toPrecision(15));
 	const ref = x => x ? {id: x.id, p: [x.x, x.y, x.z]} : null;
-	return trim({v: VERSION, power: g.power, port: g.port || null, ship: g.ship, day: g.day, t: +g.t.toFixed(3), docked: !!g.docked, pad: g.pad || null,
+	return trim({v: VERSION, galaxy: GALAXY, power: g.power, port: g.port || null, ship: g.ship, day: g.day, t: +g.t.toFixed(3), docked: !!g.docked, pad: g.pad || null,
 		star: ref(g.star), fuel: +(g.fuel == null ? 1 : g.fuel).toFixed(4), lastPort: ref(g.lastPort), routeTo: ref(g.routeTo),
 		player: g.player ? packPlayer(g.player) : null,
 		p: r(g.s.p), vel: r(g.s.v), q: r(g.s.q), w: r(g.s.w), fa: !!g.s.fa, throttle: +(+g.throttle || 0).toFixed(3),
@@ -59,6 +62,7 @@ function unpack(raw, known) {
 	/* a new game keeps the settings: the save is just them until the first real one */
 	if (raw && typeof raw == 'object' && raw.settingsOnly) return {settings: St ? St.sanitise(raw.settings, null, I18 && I18.LANGS.map(l => l[0])) : raw.settings};
 	if (!raw || typeof raw != 'object' || [1, 2, 3].indexOf(raw.v) < 0) return null;
+	if (raw.galaxy !== GALAXY) return {settings: St ? St.sanitise(raw.settings, null, I18 && I18.LANGS.map(l => l[0])) : raw.settings, oldGalaxy: true};
 	const k = known || {};
 	if (!Number.isInteger(raw.power) || raw.power < 0 || (k.powers && raw.power >= k.powers)) return null;
 	if (raw.v == 1 ? typeof raw.port != 'string' : raw.port !== null && typeof raw.port != 'string') return null;
@@ -132,6 +136,6 @@ function restoreModules(fit, saved) {
 	return fit;
 }
 
-const EmberSave = {BUDGET, trim, VERSION, pack, unpack, restoreModules, packPlayer, unpackPlayer};
+const EmberSave = {BUDGET, trim, VERSION, GALAXY, pack, unpack, restoreModules, packPlayer, unpackPlayer};
 if (typeof module != 'undefined') module.exports = EmberSave; else root.EmberSave = EmberSave;
 })(typeof window != 'undefined' ? window : this);

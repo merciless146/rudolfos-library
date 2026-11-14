@@ -23,8 +23,9 @@ try {
 	const ctx = {start: home.star, startHolder: home.id};
 	const near = [home.star.x + 30, home.star.y, home.star.z], r1 = I.respawnAt(pl, near, ctx, day);
 	ok('6. lost near home: the nearest port trading in the policy\'s currency, within 1,000 ly', r1.why == 'currency' && r1.d <= 1000 / 3.26156 && F.byId(T.ownerOf(r1.star, day).owner).currency.code == code, r1.why);
-	const other = F.majors().find(m => F.relation(home.id, m.id) >= 0 && m.id != home.id && Math.hypot(m.star.x - home.star.x, m.star.y - home.star.y, m.star.z - home.star.z) > 700 / 3.26 * 2);
-	const r2 = other && I.respawnAt(pl, [other.star.x, other.star.y, other.star.z], ctx, day);
+	/* (0.2.0: the whole galaxy is within 1,000 ly of its middle, so the reach is narrowed to 60 ly for this one) */
+	const other = F.majors().find(m => F.relation(home.id, m.id) >= 0 && m.cluster != home.cluster), reach0 = I.INSURE.reachLy; I.INSURE.reachLy = 60;
+	const r2 = other && I.respawnAt(pl, [other.star.x, other.star.y, other.star.z], ctx, day); I.INSURE.reachLy = reach0;
 	ok('7. lost far from any port in that currency: the nearest port whose exchange takes it', r2 && (r2.why == 'exchange' || r2.why == 'currency') && (r2.why != 'exchange' || I.exchangeTakes(r2.holder, code)), r2 && r2.why);
 	const r3 = I.respawnAt(pl, [0, 0, 2000], ctx, day);
 	ok('8. nothing within 1,000 ly: the starting station', r3.why == 'start' && r3.star.id == home.star.id);

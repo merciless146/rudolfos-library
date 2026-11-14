@@ -376,10 +376,11 @@ function warMissions(powerId, day, events) {
 
 /* ---------- smaller factions ---------- */
 const MINOR_KINDS = {
-	nomad: {n: 8, carrier: 'fleet carrier', pattern: 'nomadic', words: ['Wanderers', 'Drift', 'Caravan', 'Flotilla', 'Exodus', 'Migration']},
-	criminal: {n: 16, carrier: 'dreadnought', pattern: 'rotating', words: ['Syndicate', 'Cartel', 'Reavers', 'Knives', 'Black Fleet', 'Brotherhood', 'Corsairs', 'Ring']},
-	prospector: {n: 8, carrier: 'fleet carrier', pattern: 'semi-permanent', words: ['Guild', 'Combine', 'Claimholders', 'Diggers', 'Consortium']},
-	freeport: {n: 12, carrier: null, pattern: 'fixed', words: ['Free Port', 'Haven', 'Exchange', 'Freehold', 'Crossing']}};
+/* (0.2.0: about a quarter as many as before, with the great powers down from 46 to 12) */
+	nomad: {n: 2, carrier: 'fleet carrier', pattern: 'nomadic', words: ['Wanderers', 'Drift', 'Caravan', 'Flotilla', 'Exodus', 'Migration']},
+	criminal: {n: 4, carrier: 'dreadnought', pattern: 'rotating', words: ['Syndicate', 'Cartel', 'Reavers', 'Knives', 'Black Fleet', 'Brotherhood', 'Corsairs', 'Ring']},
+	prospector: {n: 2, carrier: 'fleet carrier', pattern: 'semi-permanent', words: ['Guild', 'Combine', 'Claimholders', 'Diggers', 'Consortium']},
+	freeport: {n: 4, carrier: null, pattern: 'fixed', words: ['Free Port', 'Haven', 'Exchange', 'Freehold', 'Crossing']}};
 const SERVICES = {'fleet carrier': ['market', 'refinery', 'repairs', 'fuel', 'hangar', 'shipyard'], dreadnought: ['repairs', 'fuel', 'hangar', 'black market', 'armoury']};
 let MINORS = null;
 function minors() {
@@ -392,9 +393,10 @@ function minors() {
 		/* where it works: criminals near the fronts and in the Glow; prospectors in metal-rich inner space; nomads
 		   anywhere in the Middle Reach and the Outer Clouds; free ports between the great powers */
 		const site = () => {
-			if (kind == 'criminal') return r() < 0.6 ? jitter(fronts[Math.floor(r() * fronts.length)], 25, r) : onShell(40 + r() * 400, r);
-			if (kind == 'prospector') return onShell(150 + r() * 700, r);
-			if (kind == 'nomad') return onShell(1000 + r() * 1900, r);
+			const k = G.SCALE;   /* (the galaxy's lengths, 0.2.0) */
+			if (kind == 'criminal') return r() < 0.6 ? jitter(fronts[Math.floor(r() * fronts.length)], 8, r) : onShell((40 + r() * 400) * k, r);
+			if (kind == 'prospector') return onShell((150 + r() * 700) * k, r);
+			if (kind == 'nomad') return onShell((1000 + r() * 1900) * k, r);
 			/* two per cluster, between two of its powers */
 			const cl = G.clusters()[i % G.clusters().length].id, CM = M.filter(m => m.cluster == cl), a = CM[Math.floor(r() * CM.length)], b = CM[Math.floor(r() * CM.length)];
 			return jitter(a.at.map((v, k) => (v + b.at[k]) / 2), Math.min(a.claim, b.claim) * 0.3, r);

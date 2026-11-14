@@ -5,8 +5,8 @@
      near the target (the core is hard to navigate; the outskirts never misjump).
    - Ports: a power's capital has a Halo; its other systems with a living world a Lantern; most others with planets
      a Trefoil; contested systems a Trefoil (a forward base) under today's holder; unclaimed space has none.
-   - Lanes: each power keeps relay beacons through its own space (its capital and hubs about 25 pc apart, never in
-     contested space, so fronts cut them); a lane jump links two beacons up to 50 pc apart, the power's own or an
+   - Lanes: each power keeps relay beacons through its own space (its capital and hubs about 8 pc apart, never in
+     contested space, so fronts cut them); a lane jump links two beacons up to 16 pc apart, the power's own or an
      ally's. Enemies' lanes are closed to you. Between the six clusters, old relay chains (the long lanes) make
      jumps of about 100 pc, open to all.
    - Routes: plotted by hops of best progress (fast even where stars crowd), and through the lanes when that takes
@@ -18,7 +18,8 @@ const isNode = typeof module != 'undefined';
 const G = isNode ? require('./galaxy.js') : root.EmberGalaxy, F = isNode ? require('./factions.js') : root.EmberFactions;
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const at = s => s.at || [s.x, s.y, s.z];
-const TRAVEL = {fullJump: 0.25, laneCost: 0.08, laneMax: 50, hubSpacing: 25, longStep: 100, misjumpK: 0.1, misjumpR: 0.05, jumpDays: 1, laneDays: 0.5};
+/* (0.2.0: hubs, lanes and relays drawn in with the great powers' smaller claims, about a third as wide) */
+const TRAVEL = {fullJump: 0.25, laneCost: 0.08, laneMax: 16, hubSpacing: 8, longStep: 30, misjumpK: 0.1, misjumpR: 0.05, jumpDays: 1, laneDays: 0.5};
 
 /* ---------- fuel ---------- */
 const jumpCost = (d, range) => TRAVEL.fullJump * Math.pow(Math.min(1, d / Math.max(1e-6, range)), 2);
@@ -69,18 +70,51 @@ function portFor(star, day) {
 	return null;
 }
 
-/* the Rift has no powers' ports: only the Precursors' anchorages, old automated docks in about one system in
-   twenty-five that still give fuel and repairs, and trade (in standard units) with whoever comes */
-const ANCHORAGE = 0.04;
+/* the Rift has no powers' ports. Its only havens (0.2.0) are the Precursors' anchorages, old automated docks that
+   still give fuel and repairs and trade (in standard units) with whoever comes, independent of every power: one at
+   the Maw, the way home, and about 1,600 more spread loosely through the Rift's whole volume (not drawn by its
+   stars, which crowd the middle). The Rift is cut into 20-pc cubes; a cube inside it holds a haven by a seeded draw
+   (sized for 1,600 in all), on the star with planets nearest a seeded point in the cube's middle 60% (so two are
+   always 8 pc or more apart). A cube's haven is found only when a star in it is asked about. Any other haven there
+   is a player's own (an independent colony, colonies.js). */
+const HAVENS = {count: 1600, cube: 20, inner: 0.6};
+const CUBES = (() => {   /* the cubes whose middle is inside the Rift */
+	const Rm = G.GAL.rMax * G.RIFT_SCALE, ax = G.GAL.axes, L = HAVENS.cube, n = Math.ceil(Rm / L) + 1, out = [];
+	for (let i = -n; i < n; i++) for (let j = -n; j < n; j++) for (let k = -n; k < n; k++) {
+		const c = [(i + 0.5) * L, (j + 0.5) * L, (k + 0.5) * L];
+		if ((c[0] / ax[0]) ** 2 + (c[1] / ax[1]) ** 2 + (c[2] / ax[2]) ** 2 <= Rm * Rm) out.push([i, j, k]);
+	}
+	return out;
+})();
+const HAVEN_P = Math.min(1, HAVENS.count / CUBES.length), CUBE_HAVEN = new Map();
+function cubeHaven(i, j, k) {
+	const key = i + ',' + j + ',' + k; if (CUBE_HAVEN.has(key)) return CUBE_HAVEN.get(key);
+	const L = HAVENS.cube, ax = G.GAL.axes, Rm = G.GAL.rMax * G.RIFT_SCALE, r = G.rng(G.hashStr('rift haven:' + key)), c = [(i + 0.5) * L, (j + 0.5) * L, (k + 0.5) * L];
+	let id = null;
+	if ((c[0] / ax[0]) ** 2 + (c[1] / ax[1]) ** 2 + (c[2] / ax[2]) ** 2 <= Rm * Rm && r() < HAVEN_P) {
+		const p = c.map(v => v + (r() - 0.5) * HAVENS.inner * L), lo = c.map(v => v - HAVENS.inner * L / 2), hi = c.map(v => v + HAVENS.inner * L / 2);
+		const inside = x => at(x).every((v, q) => v >= lo[q] && v <= hi[q]);
+		const s = G.inRealm('rift', () => starNear(p, x => x.kind == 'star' && !x.heart && inside(x) && hasPlanets(x)));
+		if (s && !s.heart && inside(s) && hasPlanets(s)) id = s.id;
+	}
+	CUBE_HAVEN.set(key, id);
+	return id;
+}
+const cubeOf = p => p.map(v => Math.floor(v / HAVENS.cube));
+/* every haven but the Maw's (all 1,600: slow, for maps and tests) */
+function havens() { const out = new Set(); for (const [i, j, k] of CUBES) { const id = cubeHaven(i, j, k); if (id) out.add(id) } return out }
+/* (kept for older callers: the share of Rift systems with an anchorage) */
+const ANCHORAGE = HAVENS.count / 2e6;
 function anchorage(star) {
-	if (star.heart) return null;
+	if (star.heart) return star.rift ? {cls: 'trefoil', world: null, owner: null, capital: false, contested: false, anchorage: true, maw: true} : null;
+	if (!star.rift) return null;
+	const [i, j, k] = cubeOf(at(star)); if (cubeHaven(i, j, k) != star.id) return null;
 	const pl = G.system(star).planets; if (!pl.length) return null;
-	if (G.rng(G.hashStr('anchorage:' + star.id))() >= ANCHORAGE) return null;
 	return {cls: 'trefoil', world: pl[pl.length - 1].name, owner: null, capital: false, contested: false, anchorage: true};
 }
 /* ---------- lanes ---------- */
 let LANES = null;
-/* every power's beacons (capital, then hubs on shells 25 pc apart through its own space), and the long lanes */
+/* every power's beacons (capital, then hubs on shells 8 pc apart through its own space), and the long lanes */
 function lanes() { return LANES || G.normal(lanes0) }
 function lanes0() {
 	const nodes = [], edges = [], M = F.majors();
@@ -99,7 +133,7 @@ function lanes0() {
 			}
 		}
 	}
-	/* power lanes: beacons up to 50 pc apart, of one power or of two allies */
+	/* power lanes: beacons up to 16 pc apart, of one power or of two allies */
 	for (const a of nodes) for (const b of nodes) {
 		if (b.i <= a.i) continue;
 		const d = dist(a.at, b.at); if (d > TRAVEL.laneMax) continue;
@@ -199,6 +233,6 @@ function canMake(leg, range, fuel) {
 	return {ok: true, cost};
 }
 
-const EmberTravel = {ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
+const EmberTravel = {HAVENS, havens, ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
 if (isNode) module.exports = EmberTravel; else root.EmberTravel = EmberTravel;
 })(typeof window != 'undefined' ? window : this);

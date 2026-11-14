@@ -20,15 +20,15 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol * Math.abs(b);
 	const S = G.sampleGalaxy(30000, 5).map(s => s.m).sort((a, b) => a - b), med = S[S.length >> 1];
 	const fmax = G.massInside(G.GAL.rMax) / G.GAL.Mstar, u = fmax / 2, wantMed = G.A * Math.sqrt(u) / (1 - Math.sqrt(u));
 	ok('3. stars drawn across the galaxy follow it (median ellipsoidal radius)', near(med, wantMed, 0.04), med.toFixed(0) + ' vs ' + wantMed.toFixed(0));
-	ok('4. about ' + (G.STARS_TOTAL / 1e9).toFixed(0) + ' billion stars and remnants (a compact elliptical: 10^9-10^10.5)', G.STARS_TOTAL > 3e9 && G.STARS_TOTAL < 3e10);
+	ok('4. 4 million stars and remnants (0.2.0: M32\'s crowding, 2,000 times fewer stars), out to ' + G.GAL.rMax.toFixed(0) + ' pc', Math.abs(G.STARS_TOTAL - 4e6) < 1 && G.GAL.rMax > 230 && G.GAL.rMax < 245, G.STARS_TOTAL);
 }
 /* the same place gives the same stars; the cells hold what the density says */
 {
-	const a = G.starsNear(820, 40, -30, 4), b = G.starsNear(820, 40, -30, 4);
+	const k = G.SCALE, a = G.starsNear(820 * k, 40 * k, -30 * k, 4), b = G.starsNear(820 * k, 40 * k, -30 * k, 4);
 	ok('5. the same place always gives the same stars', a.length > 10 && a.length == b.length && a.every((s, i) => s.id == b[i].id && s.M0 == b[i].M0 && s.x == b[i].x), a.length);
-	let lam = 0, n = 0; G.forLeaves(800, 0, 0, 820, 20, 20, l => { lam += l.lam; n += G.cellStars(l).length });
+	let lam = 0, n = 0; G.forLeaves(800 * k, 0, 0, 800 * k + 20, 20, 20, l => { lam += l.lam; n += G.cellStars(l).length });
 	ok('6. a 20-pc box holds the expected number of stars (Poisson)', Math.abs(n - lam) < 4 * Math.sqrt(lam), n + ' vs ' + lam.toFixed(0));
-	let depth = 0; G.forLeaves(5, 0, 0, 5.5, 0.5, 0.5, l => { depth = Math.max(depth, l.id.split('/')[1].length) });
+	let depth = 0; G.forLeaves(5 * k, 0, 0, 5 * k + 0.5, 0.5, 0.5, l => { depth = Math.max(depth, l.id.split('/')[1].length) });
 	ok('7. dense middles are split into smaller cells', depth >= 4, 'depth ' + depth);
 }
 /* stars */
@@ -72,7 +72,8 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol * Math.abs(b);
 	ok('12. ESI: Earth 1, Mars about 0.70 (Planetary Habitability Laboratory)', e == 1 && m > 0.66 && m < 0.73, m.toFixed(3));
 	ok('13. radii: Earth 1, Jupiter (318 Earth masses) about 11.2 (Chen & Kipping 2017)', near(G.radiusOf(1), 1, 1e-9) && near(G.radiusOf(318), 11.2, 0.02));
 	const q = r => G.quietChance({x: r, y: 0, z: 0, m: r, M: 1, L: 1}, 20, 4e9);
-	ok('14. the galactic habitable zone: the middle is sterile, the outskirts quiet', q(30) < 0.01 && q(1000) > 0.95, q(30).toExponential(1) + ' / ' + q(1000).toFixed(3));
+	const k14 = G.SCALE;
+	ok('14. the galactic habitable zone: the middle is sterile, the outskirts quiet', q(30 * k14) < 0.01 && q(1000 * k14) > 0.95, q(30 * k14).toExponential(1) + ' / ' + q(1000 * k14).toFixed(3));
 }
 /* planets against the WOS statistics */
 {
@@ -88,12 +89,13 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol * Math.abs(b);
 /* the Drake equation and the civilisations */
 {
 	const D = G.drake(G.sampleGalaxy(3000, 99), true), C = G.civilizations(), K = G.clusters();
-	ok('19. the Drake equation: about forty civilisations alive now, in six clusters of six to eight great powers', D.N >= 30 && D.N <= 60 && K.length == 6 && K.every(k => { const n = C.filter(c => c.cluster == k.id).length; return n >= G.MIN_CIVS && n <= 8 }), D.N.toFixed(1) + ', ' + K.map(k => C.filter(c => c.cluster == k.id).length).join('/'));
+	ok('19. the Drake equation: about twelve civilisations alive now, in two clusters of six great powers', D.N >= 9 && D.N <= 16 && K.length == 2 && C.length == 12 && K.every(k => C.filter(c => c.cluster == k.id).length == 6), D.N.toFixed(1) + ', ' + K.map(k => C.filter(c => c.cluster == k.id).length).join('/'));
 	const N = G.GAL.north, north = C.filter(c => c.cluster == K[0].id);
-	ok('20. the North is around the North Point: 1,000-2,000 pc out, 30° north or more', K[0].name == 'North' && north.every(c => c.star.m >= N.mLo && c.star.m <= N.mHi && G.latitude(c.star.x, c.star.y, c.star.z) >= N.latMin));
-	ok('20b. the Hearth is close to the Core but not in it (45-90 pc); the Rim near the edge (2,150-2,350 pc), where neighbouring stars are still under 2.5 pc apart', K[1].m >= 45 && K[1].m <= 90 && C.filter(c => c.cluster == K[1].id).every(c => c.star.m > 30) && K[2].m >= 2150 && K[2].m <= 2350 && 0.554 * Math.pow(G.numberDensity(...K[2].at), -1 / 3) < 2.5, K[1].m.toFixed(0) + ' / ' + K[2].m.toFixed(0));
+	ok('20. the North is around the North Point: ' + N.mLo.toFixed(0) + '-' + N.mHi.toFixed(0) + ' pc out, 30° north or more', K[0].name == 'North' && north.every(c => c.star.m >= N.mLo && c.star.m <= N.mHi && G.latitude(c.star.x, c.star.y, c.star.z) >= N.latMin));
+	const kk = G.SCALE;
+	ok('20b. the Hearth is close to the Core but not in it (3.6-7.2 pc out)', K[1].name == 'Hearth' && K[1].m >= 45 * kk && K[1].m <= 90 * kk && C.filter(c => c.cluster == K[1].id).every(c => c.star.m > G.REGIONS[0][2]), K[1].m.toFixed(1));
 	const ds = []; for (let i = 0; i < K.length; i++) for (let k = i + 1; k < K.length; k++) ds.push(Math.hypot(...K[i].at.map((v, j) => v - K[k].at[j])));
-	ok('20c. the clusters are fairly evenly spaced (distances vary by under 30%)', K.cv < 0.3 && Math.min(...ds) > 400, Math.round(Math.min(...ds)) + '-' + Math.round(Math.max(...ds)) + ' pc');
+	ok('20c. the two clusters are far apart (over 80 pc)', Math.min(...ds) > 80, Math.round(Math.min(...ds)) + '-' + Math.round(Math.max(...ds)) + ' pc');
 	ok('20d. homes are real stars (found again where they are) on worlds with ESI 0.6 or more', C.every(c => c.home.esi >= 0.6 && G.starsNear(c.star.x, c.star.y, c.star.z, 0.001).some(s => s.id == c.star.id)));
 	const q = c => G.quietChance(c.star, 20, 4e9);
 	/* ruins go on a rocky world, so stars with one get them at the Drake rate */

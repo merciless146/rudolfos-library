@@ -53,7 +53,7 @@ const PORTS = {
 	station: {name: 'Station', cls: 'lantern', fee: 300000, goods: {Iron: 2000, Aluminum: 1600, Titanium: 900, Machinery: 1200, Electronics: 700, Food: 700, Water: 600, Fuel: 300}},
 	great: {name: 'Great port', cls: 'halo', fee: 750000, goods: {Iron: 6000, Aluminum: 5000, Titanium: 3000, Machinery: 4000, Electronics: 2500, Food: 2000, Water: 1800, Fuel: 700}},
 	base: {name: 'Forward base', cls: 'trefoil', fee: 200000, goods: {Iron: 625, Titanium: 500, Machinery: 375, Electronics: 375, Munitions: 625}, base: true}};
-const COL = {claimDays: 2, seasonDays: 30, salvage: 1 / 3, core: 30, beaconRadii: 30, deliverRange: 3000, charter: 100, neutral: -100, perRep: 100, finishRep: 150,
+const COL = {claimDays: 2, seasonDays: 30, salvage: 1 / 3, core: G.REGIONS[0][2], beaconRadii: 30, deliverRange: 3000, charter: 100, neutral: -100, perRep: 100, finishRep: 150,
 	raid: {unclaimed: 0.10, claimed: 0.05}, baseEffort: 5, rent: {fee: 40000, cut: 0.3}, scrip: {drift: 0.15}, takeover: 2, indep: {share: [0.10, 0.15], security: -0.15},
 	haul: {over: [0.10, 0.25], perPc: 0.004, fleet: [{ship: 'Aurochs', t: 600, jump: 5}, {ship: 'Woolly-Rhino', t: 3000, jump: 6}, {ship: 'Brontosaur', t: 30000, jump: 6}]}};
 const at = s => s.at || [s.x, s.y, s.z];
@@ -65,6 +65,8 @@ const short = id => F.byId(id).name.replace(/^The /, '');
 /* the world a primary port orbits: the most Earth-like, or the biggest */
 function portWorld(star) { const pl = G.system(star).planets.slice().sort((a, b) => b.esi - a.esi || b.R - a.R); return pl[0] ? pl[0].name : null }
 const open = P => list(P).find(c => c.stage == 'claimed' || c.stage == 'building');
+/* who claims a star's space: nobody, in the Rift (whose coordinates are its own, not the powers') */
+const claimOf = s => (s.rift || /^R:/.test(s.id || '')) ? {owner: null, contested: null} : F.claimAt(at(s));
 const budget = (P, sponsor) => 1 + Math.floor(Math.max(0, (P.rep[sponsor] || 0) - COL.charter) / COL.perRep);
 const gone = c => c.stage == 'lapsed' || c.stage == 'lost';
 const held = P => list(P).filter(c => !gone(c)).length;
@@ -72,7 +74,16 @@ const colonyAt = (P, starId) => list(P).find(c => c.star.id == starId && !gone(c
 
 /* can this office's sponsor claim this system for you? {ok, why, fee (sponsor's coin), salvage} */
 function canClaim(P, office, star, kind, day, jumpRange, plan, independent) {
-	if (star.rift || star.heart) return {ok: false, why: 'No power files claims in the Rift, or at the Maw.'};
+	if (star.heart) return {ok: false, why: 'Nothing can be built at the Maw.'};
+	/* the Rift (0.2.0): no power files claims there, but a pilot may build an independent colony, filed at one of
+	   its anchorages */
+	if (star.rift) {
+		if (!office.star || !office.star.rift) return {ok: false, why: 'Claims in the Rift are filed at a Rift anchorage.'};
+		if (!independent) return {ok: false, why: 'No power files claims in the Rift: only independent colonies.'};
+		if (!PORTS[kind]) return {ok: false, why: 'No such port.'};
+		return indepClaim(P, office, star, kind, day, jumpRange, plan);
+	}
+	if (office.star && office.star.rift) return {ok: false, why: 'From a Rift anchorage, claims go only in the Rift.'};
 	const sp = F.byId(office.owner), K = PORTS[kind];
 	if (!sp || sp.kind != 'major') return {ok: false, why: 'Claims are filed at a great power\'s colonial office.'};
 	if (!K) return {ok: false, why: 'No such port.'};
@@ -123,7 +134,7 @@ function baseClaim(P, office, star, day, jumpRange, plan) {
 function indepClaim(P, office, star, kind, day, jumpRange, plan) {
 	if (PORTS[kind].base) return {ok: false, why: 'Forward bases are a power\'s.'};
 	const why = common(P, office, star, day, jumpRange); if (why) return {ok: false, why};
-	const c = F.claimAt(at(star));
+	const c = claimOf(star);
 	if (c.owner || c.contested) return {ok: false, why: 'Independent colonies go only in unclaimed space.'};
 	const best = Math.max(...F.majors().map(m => P.rep[m.id] || 0)), lim = limits(P, plan, 1 + Math.floor(Math.max(0, best - COL.charter) / COL.perRep)); if (lim) return {ok: false, why: lim};
 	const f = salvageFee(P, star, PORTS[kind].fee);
@@ -135,7 +146,7 @@ function candidates(P, office, day, jumpRange, n) {
 	const p = at(office.star), out = [];
 	for (const s of G.starsNear(p[0], p[1], p[2], jumpRange)) {
 		if (s.kind != 'star' || s.id == office.star.id) continue;
-		if (canClaim(P, office, s, 'outpost', day, jumpRange, true).ok || (P.commission == office.owner && canClaim(P, office, s, 'base', day, jumpRange, true).ok)) out.push(s);
+		if (canClaim(P, office, s, 'outpost', day, jumpRange, true, !!(office.star && office.star.rift)).ok || (P.commission == office.owner && canClaim(P, office, s, 'base', day, jumpRange, true).ok)) out.push(s);
 		if (out.length >= (n || 12)) break;
 	}
 	return out.sort((a, b) => a.d - b.d);
@@ -349,7 +360,7 @@ function popCap(c, star) {
 /* haulers raided on the way: by the space the colony is in; none past a military outpost there */
 function raided(c, h) {
 	if ((c.builds || []).some(b => b.done && b.fac == 'military') || PORTS[c.port].base) return false;
-	const cl = F.claimAt(c.star.at), p = cl.owner ? COL.raid.claimed : COL.raid.unclaimed;
+	const cl = claimOf(c.star), p = cl.owner ? COL.raid.claimed : COL.raid.unclaimed;
 	return G.rng(G.hashStr('raid:' + c.id + ':' + h.good + ':' + h.eta + ':' + h.tons))() < p;
 }
 /* a colony's scrip: a code from its star, and a rate pegged to the SU at first, floating with its wealth */

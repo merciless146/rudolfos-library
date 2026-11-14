@@ -10,7 +10,7 @@ try {
 	/* ---------- the great powers ---------- */
 	const M = F.majors(); F.relations();
 	const K = G.clusters();
-	ok('1. six clusters of at least six great powers, each power a species of its own with a currency', K.length == 6 && K.every(k => M.filter(m => m.cluster == k.id).length >= 6) && new Set(M.map(m => m.species.name)).size == M.length && new Set(M.map(m => m.currency.code)).size == M.length);
+	ok('1. two clusters of six great powers (twelve), each power a species of its own with a currency, holding 250-400 systems', K.length == 2 && M.length == 12 && K.every(k => M.filter(m => m.cluster == k.id).length == 6) && M.every(m => m.held >= 250 && m.held <= 400) && new Set(M.map(m => m.species.name)).size == M.length && new Set(M.map(m => m.currency.code)).size == M.length);
 	const N = G.GAL.north;
 	ok('2. the North\'s powers are in the northern sector, midway between the Core and the Outer Clouds', M.filter(m => m.cluster == K[0].id).every(m => m.star.m >= N.mLo && m.star.m <= N.mHi && G.latitude(...m.at) >= N.latMin));
 	ok('2b. allies and enemies are within a cluster; powers in different clusters are neutral', M.every(a => [...a.allies, ...a.enemies].every(b => F.byId(b).cluster == a.cluster)));
@@ -49,7 +49,7 @@ try {
 	ok('17. effort for side a raises its score, for side b lowers it', sa.score > sn.score && sb.score < sn.score, [sb.score, sn.score, sa.score].map(v => v.toFixed(2)).join(' < '));
 	const ms = F.warMissions(M[0].id, 300);
 	ok('18. great powers offer missions about their wars: attacks on enemy systems they can reach, defence of their own; paid in their own currency', ms.length > 0 && ms.every(m => M[0].enemies.includes(m.against) && m.currency == M[0].currency.code && m.reward > 0 && m.effort > 0 && F.wars().find(x => x.id == m.war).systems.some(x => x.id == m.system)));
-	ok('19. borders never overlap: every point has one owner or is contested between two enemies', (() => { const r = G.rng(5); for (let k = 0; k < 6000; k++) { const cl = K[k % 6], sp = M.find(m => m.cluster == cl.id).claim * 5, p = cl.at.map(v => v + (r() - .5) * sp), c = F.claimAt(p); if (c.owner && c.contested) return false; if (c.contested && F.relation(...c.contested) >= 0) return false; if (c.shared) return false } return true })());
+	ok('19. borders never overlap: every point has one owner or is contested between two enemies', (() => { const r = G.rng(5); for (let k = 0; k < 6000; k++) { const cl = K[k % K.length], sp = M.find(m => m.cluster == cl.id).claim * 5, p = cl.at.map(v => v + (r() - .5) * sp), c = F.claimAt(p); if (c.owner && c.contested) return false; if (c.contested && F.relation(...c.contested) >= 0) return false; if (c.shared) return false } return true })());
 	/* how much the great powers hold: several hundred thousand systems in all (counted by sampling each cluster) */
 	{
 		let held = 0, cont = 0;
@@ -58,7 +58,7 @@ try {
 			const V = (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]), r = G.rng(7), n = 60000;
 			for (let k = 0; k < n; k++) { const p = lo.map((v, i) => v + r() * (hi[i] - v)), q = F.claimAt(p); if (q.owner) held += G.numberDensity(...p) * V / n; else if (q.contested) cont += G.numberDensity(...p) * V / n }
 		}
-		ok('19b. the great powers hold and contest several hundred thousand systems in all (of ~8 billion)', held + cont > 2e5 && held + cont < 1.5e6 && cont > 0.05 * held, Math.round(held).toLocaleString() + ' held, ' + Math.round(cont).toLocaleString() + ' contested');
+		ok('19b. the great powers hold and contest about 4,000 systems in all (of 4 million: about 0.1%)', held + cont > 2500 && held + cont < 7000 && cont > 0.05 * held, Math.round(held).toLocaleString() + ' held, ' + Math.round(cont).toLocaleString() + ' contested');
 	}
 	/* a quarter of each power's systems contested, counted afresh (another sample than the calibration's) */
 	{
@@ -75,14 +75,14 @@ try {
 		const share = M.map(m => (cont[m.id] || 0) / ((held[m.id] || 0) + (cont[m.id] || 0)));
 		ok('19c. a quarter of every great power\'s systems are contested (each within 21-29%)', share.every(f => f > 0.21 && f < 0.29), share.map(f => (f * 100).toFixed(0)).join(' '));
 		ok('19d. no contested zone holds more systems than either power fighting over it holds outright', Object.entries(zone).every(([k, z]) => { const [a, b] = k.split(':'); return z <= 1.08 * Math.min(held[a], held[b]) }));
-		ok('19e. contested space lies only between enemies, along their shared border (the point is in one power\'s space and its strongest rival is the enemy)', (() => { const r = G.rng(9); for (let k = 0; k < 4000; k++) { const cl = K[k % 6], C = M.filter(m => m.cluster == cl.id), m0 = C[k % C.length], p = m0.at.map(v => v + (r() - .5) * m0.claim * 2), q = F.claimAt(p); if (!q.contested) continue; const [x, y] = q.contested, other = q.side == x ? y : x; if (F.relation(x, y) >= 0 || F.strength(F.byId(q.side), p) <= 0) return false; const riv = C.filter(c => c.id != q.side).sort((u, v) => F.pull(v, p) - F.pull(u, p))[0]; if (riv.id != other) return false } return true })());
+		ok('19e. contested space lies only between enemies, along their shared border (the point is in one power\'s space and its strongest rival is the enemy)', (() => { const r = G.rng(9); for (let k = 0; k < 4000; k++) { const cl = K[k % K.length], C = M.filter(m => m.cluster == cl.id), m0 = C[k % C.length], p = m0.at.map(v => v + (r() - .5) * m0.claim * 2), q = F.claimAt(p); if (!q.contested) continue; const [x, y] = q.contested, other = q.side == x ? y : x; if (F.relation(x, y) >= 0 || F.strength(F.byId(q.side), p) <= 0) return false; const riv = C.filter(c => c.id != q.side).sort((u, v) => F.pull(v, p) - F.pull(u, p))[0]; if (riv.id != other) return false } return true })());
 		const w0 = W[0], st = F.warState(w0, 300), key = w0.systems[5], ch = F.contestedHolder(key.at, 300);
 		ok('19f. every contested system has a holder: the side holding its nearest key system on the front', ch.contested && ch.key == key.id && ch.holder == st.systems[5].holder);
 	}
 	/* ---------- small factions ---------- */
 	const S = F.minors(), kinds = new Set(S.map(m => m.type));
 	ok('20. small factions: nomads, criminals, prospectors and free ports', ['nomad', 'criminal', 'prospector', 'freeport'].every(k => kinds.has(k)));
-	ok('21. many keep a fleet carrier or a dreadnought that sustains them (market or black market, repairs, fuel, a hangar)', S.filter(m => m.carrier).length >= 15 && S.filter(m => m.carrier).every(m => m.carrier.selfSufficient && m.carrier.services.includes('fuel') && m.carrier.services.includes('repairs') && m.carrier.services.includes('hangar')));
+	ok('21. most that move keep a fleet carrier or a dreadnought that sustains them (market or black market, repairs, fuel, a hangar)', S.filter(m => m.carrier).length >= 6 && S.filter(m => m.carrier).every(m => m.carrier.selfSufficient && m.carrier.services.includes('fuel') && m.carrier.services.includes('repairs') && m.carrier.services.includes('hangar')));
 	const crim = S.find(m => m.type == 'criminal' && m.sites.length > 1), seasons = [0, 30, 60, 90, 120].map(d => F.whereIs(crim, d).site.id);
 	ok('22. criminals rotate their hideouts with the seasons, and stay put within one', new Set(seasons).size > 1 && F.whereIs(crim, 31).site.id == F.whereIs(crim, 59).site.id);
 	const pro = S.find(m => m.type == 'prospector' && m.sites.length > 1), sp = [...Array(24)].map((_, k) => F.whereIs(pro, k * 30).site.id);
