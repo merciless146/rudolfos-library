@@ -1,5 +1,7 @@
 # Ember Reach: landing on airless worlds, and surface ports
 
+(How it's built, step by step: `plan-ember-reach-landing-work.md`.)
+
 A plan for the next big piece of Ember Reach after the Single-Player Alpha Build (0.1.0): flying down to the
 surfaces of airless planets and moons, landing anywhere flat enough, and docking at **surface ports and
 outposts** built there. Worlds with an atmosphere stay closed for now: the safety still holds ships off them,
@@ -77,7 +79,7 @@ this world**" before the pilot commits to a descent.
      heavy field) and lights its ring. The clearance lapses after ten minutes, as in space.
    - **Without clearance, no landing on a pad:** its clamps stay locked and its ring shows red, and setting
      down on it is refused like docking without clearance. Open ground needs no one's permission.
-4. **Gear.** The landing gear goes down by itself under 300 m, or with a key (L). With the gear down, top
+4. **Gear.** The landing gear goes down by itself under 300 m, or with a key (1, or A held on a gamepad). With the gear down, top
    speed is capped at 100 m/s.
 5. **Touchdown** (in `surface.js`). Every limit is checked together:
 
@@ -308,7 +310,7 @@ beacons, windows) use the emissive channel the stations already use.
   - New player records: `P.landings` (first landings) and port ids.
   - The game's own records are still trimmed under the 256 KB budget the 0.1.0 save brought in.
 - **Controls.**
-  - Vertical thrust uses the existing strafe keys (R/F), with gear on L.
+  - Vertical thrust uses the existing strafe up and down keys (Space and Left Shift), with the gear on 1.
   - On a controller, vertical is the bumpers.
   - On touch, a vertical slider beside the throttle, ready for phones (1.6.0).
 - **Sound:** gear motors, touchdown thuds scaled by impact, the hiss of the vertical thrusters, and a pad
