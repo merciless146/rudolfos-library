@@ -939,8 +939,8 @@ home currency.
 
 ### Settings
 
-In the game since 0.1.1's follow-up (`settings.js`, `i18n.js`; tested in `tests/emberreach_settings_t.js`, 17
-checks, and the browser test's check 9). Opened from the pause screen's **Settings** button. Three pages:
+In the game since 0.1.1 (`settings.js`, `i18n.js`; tested in `tests/emberreach_settings_t.js`, 20
+checks, and the browser test's checks 9 and 9b). Opened from the pause screen's **Settings** button. Three pages:
 
 - **Graphics, audio and HUD**
   - **Graphics:** quality (high/low), resolution (50–100% of the screen's), field of view (50–100°), glow
@@ -1150,6 +1150,12 @@ everything through M5b, and the Maw and the Rift from M6. The release brought th
 - real years, months and days, with worlds turning in real time;
 - gravity below each world's Kármán line;
 - docking clearance revoked after 5 minutes unused, as the traffic controller's rules have it.
+- the landing gear on L (down only below 100 m/s; landing itself comes later);
+- a settings menu on the pause screen: graphics, audio and HUD; controls, with every key and gamepad button
+  rebindable; languages (the nine Rudolf OS offers) and accessibility (reduced flashing and motion, colour-blind
+  palettes, a high-contrast HUD, sound captions) ("Settings");
+- **Follow Rudolf OS**, the new default language: the language Rudolf OS shares with apps (from Rudolf OS 1.5.9),
+  else the browser's.
 
 Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer. Landing on airless worlds and surface ports are planned in
 `docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).
