@@ -197,6 +197,27 @@ async function frame(pg, test) {
 		await pg.keyboard.press('Escape'); await sleep(300); await f.evaluate(() => { const o = document.getElementById('ov'); if (!o.hidden) { const b = document.querySelector('#ovBtns button.primary'); b && b.click() } });
 		ok('9p. touch: GEAR lowers the gear, the VERT slider fires the vertical thrusters (the ship moves along its own up) and springs back; help (H) has the landing, touch and gamepad controls', tp.gearButton && tp.gear && tp.vUp > 0.9 && tp.vz > 3 && tp.vAfter == 0 && hp.landing && hp.touch && hp.pad && hp.gearKey, {tp, hp});
 		await f.evaluate(() => { EmberDebug.game.gear = false });
+		/* the weapons rework (0.3.1): a gimballed gatling tracks a pirate inside its circle; the mass driver charges while
+		   the trigger is held and fires when it's let go; lasers draw beams */
+		await f.evaluate(async () => {
+			const g = EmberDebug.game, s = EmberDebug.s, F = EmberFlight, sl = ms => new Promise(r => setTimeout(r, ms));
+			g.landed = null; g.gear = false; g.mode = 'combat'; g.npcs = []; g.shots = [];
+			g.pcs.hot = false; g.pcs.heat = 0;
+			g.pcs.load.guns = [{kind: 'gatling', mount: 'gimbal', cool: 0, ammo: 1500}, {kind: 'driver', mount: 'fixed', cool: 0, ammo: 150}, {kind: 'pulse', mount: 'fixed', cool: 0, ammo: null}];
+			EmberDebug.pirates(1); const n = g.npcs[g.npcs.length - 1], fw = F.forward(s), up = F.toWorld(s.q, [0, 1, 0]), k = Math.PI / 180 * 8;
+			const place = () => { n.s.p = s.p.map((v, i) => v + (fw[i] * Math.cos(k) + up[i] * Math.sin(k)) * 1200); n.s.v = s.v.slice() };
+			place(); g.tgt = n; await sl(300); place();
+			const hd = g.hudData, out = {circle: hd.gimbal && hd.gimbal.r, track: !!(hd.target && hd.target.track), leads: hd.target && hd.target.leads ? hd.target.leads.length : -1};
+			let charge = 0, beams = 0; g.mouseFire = true;
+			for (let i = 0; i < 8; i++) { await sl(60); place(); charge = Math.max(charge, (g.hudData.gimbal || {}).charge || 0); beams = Math.max(beams, g.beams.length) }
+			window.__wp = {out, charge, beams}; return null });
+		await pg.screenshot({path: path.join(W, 'weapons.png')});
+		const wp = await f.evaluate(async () => { const g = EmberDebug.game, sl = ms => new Promise(r => setTimeout(r, ms)), {out, charge, beams} = window.__wp;
+			out.ammoHeld = g.pcs.load.guns[1].ammo; g.mouseFire = false; await sl(150);
+			out.ammoAfter = g.pcs.load.guns[1].ammo; out.charge = charge; out.beams = beams; out.gatling = g.pcs.load.guns[0].ammo < 1500;
+			g.npcs = []; g.shots = []; g.mouseFire = false; return out;
+		});
+		ok('9q. weapons: the gimballed gatling\'s circle shows and tracks a pirate 8° off the nose; the fixed mass driver has its point of aim, charges while the trigger is held and fires on letting go; lasers draw beams', wp.circle > 50 && wp.track && wp.leads == 1 && wp.charge > 0.3 && wp.ammoHeld == 150 && wp.ammoAfter == 149 && wp.beams > 0 && wp.gatling, wp);
 		await setDown(2, -60); await sleep(1500);
 		const cr = await f.evaluate(() => { const g = EmberDebug.game; return {lost: g.msgs.some(m => /Ship destroyed: a crash on/.test(m.text)), landed: !!g.landed} });
 		ok('9f. coming down at 60 m/s is a crash: the ship is lost and the insurer takes over', cr.lost && !cr.landed, cr);

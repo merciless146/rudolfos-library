@@ -1,8 +1,17 @@
 /* ===== Ember Reach: combat (docs/plan-ember-reach.md, "Combat", M4).
-   Ships fight with what their hardpoints carry, guns fixed forward with a little gimbal (Oolite's way):
-   - small: pulse lasers (fast bolts, heat, better against shields);
-   - medium: mass drivers (slower slugs, ammunition, better against hulls), and a missile pylon each;
-   - large: heavy lasers; huge: torpedo racks (slow, homing, devastating). Flagships' guns are turrets.
+   Ships fight with what their hardpoints carry (the weapons rework, 0.3.1):
+   - lasers (pulse, heavy, Precursor needle and lance, mining) are hitscan: a beam that lands the instant it fires,
+     out to its range, on the first thing in its way. Better against shields, and they make heat;
+   - gatlings (small, medium, large): a stream of rounds, better against hulls, on ammunition;
+   - the mass driver (medium): equal against shields and hulls. Holding the trigger charges it,
+     letting go fires; a shot let go early is weaker, and one held past full charge heats the ship;
+   - missile racks (medium) and torpedo racks (huge): homing, on a lock.
+   Mounts: lasers, gatlings and needles come fixed or gimballed. Fixed guns fire along the nose: the HUD shows the
+   point to aim at. Gimballed guns track a target by themselves within a circle about 40% of the screen across
+   (an angle from the field of view), for 15% less damage and half again the price. Projectile guns aim where the
+   target will be: its course, speed and turn (its acceleration) against the shot's flight time; lasers just aim at
+   it. The mass driver, lance, missiles and torpedoes have one mount. Flagships' guns are turrets.
+   Heat: a hot ship is easier to lock: missile and torpedo locks reach further and come sooner the hotter it runs.
    Damage meets the shields first; what gets through hits the hull, and the hull's damage lands on the modules
    (modules.js), so a hit can take out the engines, the canopy or the power plant. Shields come back a few seconds
    after the last hit, if the shield generator and the power plant work. Lasers make heat: past full, the guns lock
@@ -25,30 +34,44 @@ const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 /* tuned so a fighter duel lasts about a minute: a Thylacine's two lasers strip a Thylacine's shields in ~6 s of hits and
    its hull in ~12 s more; a missile takes a third of a fighter's hull */
 const WEAPONS = {
-	pulse: {name: 'Pulse laser', size: 0, dmg: 1.2, rate: 6, speed: 4000, range: 2500, heat: 0.022, vsShield: 1.2, vsHull: 0.7, ammo: null, col: [1, 0.45, 0.25]},
-	driver: {name: 'Mass driver', size: 1, dmg: 4.5, rate: 2, speed: 1500, range: 3000, heat: 0.01, vsShield: 0.6, vsHull: 1.3, ammo: 150, col: [1, 0.85, 0.4]},
-	heavy: {name: 'Heavy laser', size: 2, dmg: 9, rate: 1.5, speed: 3500, range: 4000, heat: 0.08, vsShield: 1.2, vsHull: 0.8, ammo: null, col: [0.5, 0.8, 1]},
-	torpedo: {name: 'Torpedo rack', size: 3, dmg: 150, rate: 0.2, speed: 400, range: 9000, heat: 0, vsShield: 0.8, vsHull: 1.6, ammo: 8, homing: 1.2, col: [1, 1, 0.9]},
-	mining: {name: 'Mining laser', size: 0, dmg: 0.4, rate: 4, speed: 3000, range: 600, heat: 0.008, vsShield: 0.5, vsHull: 0.5, ammo: null, col: [0.45, 1, 0.55]},
+	pulse: {name: 'Pulse laser', size: 0, dmg: 1.2, rate: 6, hitscan: true, range: 2500, heat: 0.022, vsShield: 1.2, vsHull: 0.7, ammo: null, col: [1, 0.45, 0.25], beam: 0.07},
+	/* the mass driver: dmg at full charge (charge s); a shot let go
+	   early hits for its share of the charge (at least minCharge); held past full, holdHeat a second; recover s between */
+	driver: {name: 'Mass driver', size: 1, dmg: 9, rate: 4, charge: 0.6, minCharge: 0.15, holdHeat: 0.3, speed: 6000, range: 4000, heat: 0.02, vsShield: 1, vsHull: 1, ammo: 150, perTon: 150, col: [0.55, 0.85, 1]},
+	heavy: {name: 'Heavy laser', size: 2, dmg: 9, rate: 1.5, hitscan: true, range: 4000, heat: 0.08, vsShield: 1.2, vsHull: 0.8, ammo: null, col: [0.5, 0.8, 1], beam: 0.12},
+	/* gatlings: a stream of rounds, better against hulls */
+	gatling: {name: 'Light gatling', size: 0, dmg: 0.5, rate: 14, speed: 2200, range: 2200, heat: 0.004, vsShield: 0.6, vsHull: 1.4, ammo: 1500, perTon: 1500, col: [1, 0.8, 0.45]},
+	gatlingM: {name: 'Gatling', size: 1, dmg: 0.9, rate: 12, speed: 2200, range: 2600, heat: 0.005, vsShield: 0.6, vsHull: 1.4, ammo: 2000, perTon: 1000, col: [1, 0.8, 0.45]},
+	gatlingL: {name: 'Heavy gatling', size: 2, dmg: 1.6, rate: 10, speed: 2400, range: 3000, heat: 0.007, vsShield: 0.6, vsHull: 1.4, ammo: 2500, perTon: 800, col: [1, 0.8, 0.45]},
+	torpedo: {name: 'Torpedo rack', size: 3, dmg: 150, rate: 0.2, speed: 400, range: 9000, heat: 0, vsShield: 0.8, vsHull: 1.6, ammo: 8, perTon: 1, homing: 1.2, col: [1, 1, 0.9]},
+	mining: {name: 'Mining laser', size: 0, dmg: 0.4, rate: 4, hitscan: true, beam: 0.05, range: 600, heat: 0.008, vsShield: 0.5, vsHull: 0.5, ammo: null, col: [0.45, 1, 0.55]},
 	/* Precursor work (outfit.js): hits like the next size up, and runs cool */
-	needle: {name: 'Precursor needle', size: 0, dmg: 3, rate: 6, speed: 5000, range: 3000, heat: 0.012, vsShield: 1.2, vsHull: 1.1, ammo: null, col: [0.75, 0.55, 1]},
-	lance: {name: 'Precursor lance', size: 2, dmg: 26, rate: 1.5, speed: 6000, range: 5000, heat: 0.05, vsShield: 1.2, vsHull: 1.2, ammo: null, col: [0.85, 0.6, 1]},
+	needle: {name: 'Precursor needle', size: 0, dmg: 3, rate: 6, hitscan: true, beam: 0.05, range: 3000, heat: 0.012, vsShield: 1.2, vsHull: 1.1, ammo: null, col: [0.75, 0.55, 1]},
+	lance: {name: 'Precursor lance', size: 2, dmg: 26, rate: 1.5, hitscan: true, beam: 0.12, range: 5000, heat: 0.05, vsShield: 1.2, vsHull: 1.2, ammo: null, col: [0.85, 0.6, 1]},
 	/* the Interstellar Marshals' (encounters.js): each hit also cuts into the shield generator itself, shields up or
 	   not, a twenty-fifth of it, so a wing's disruptors put shields out in seconds */
 	disruptor: {name: 'Marshal disruptor', size: 1, dmg: 5, rate: 2, speed: 3500, range: 3500, heat: 0.01, vsShield: 1, vsHull: 1, ammo: null, col: [0.4, 0.9, 1], module: 'shields', moduleShare: 0.04},
 	missile: {name: 'Missile', size: -1, dmg: 30, rate: 1, speed: 600, range: 7000, heat: 0, vsShield: 1, vsHull: 1.5, ammo: 4, homing: 2.2, col: [1, 1, 1]}};
 const BY_SIZE = ['pulse', 'driver', 'heavy', 'torpedo'];
-const COMBAT = {gimbal: 5, lockCone: 15, lockTime: 2, flares: 6, flareChance: 0.7, regenDelay: 2.5, regenTime: 15, coolRate: 0.12, overheat: 1, cooled: 0.6, cookRate: 4, moduleShare: 0.6};
+/* gimballed mounts: their module ids (outfit.js), the gun each carries */
+const GIMBALLED = {pulseG: 'pulse', heavyG: 'heavy', needleG: 'needle', gatlingG: 'gatling', gatlingMG: 'gatlingM', gatlingLG: 'gatlingL'};
+const gunOf = id => GIMBALLED[id] ? {kind: GIMBALLED[id], mount: 'gimbal'} : {kind: id, mount: 'fixed'};
+/* the gimbal's reach: a circle 40% of the screen's height across, as an angle (degrees) at a field of view */
+const gimbalFor = fov => Math.atan(0.4 * Math.tan((fov || 70) / 2 * Math.PI / 180)) * 180 / Math.PI;
+/* gimbalDmg: a gimballed gun's damage; heatLock: how much further and sooner a hot target is locked (at full heat:
+   twice as far, in half the time) */
+const COMBAT = {gimbalDmg: 0.85, gimbalDeg: gimbalFor(70), heatLock: 1, lockCone: 15, lockTime: 2, flares: 6, flareChance: 0.7, regenDelay: 2.5, regenTime: 15, coolRate: 0.12, overheat: 1, cooled: 0.6, cookRate: 4, moduleShare: 0.6};
 
 /* a ship's guns from its hardpoints [S, M, L, H]; each medium mount also carries a missile pylon */
 function loadout(ship) {
 	/* a fitted ship (outfit.js) carries what its external modules are; missile racks hold four missiles each */
 	if (ship.guns) {
-		const guns = ship.guns.filter(k => k != 'missile').map(k => ({kind: k, cool: 0, ammo: WEAPONS[k].ammo}));
+		const guns = ship.guns.filter(k => k != 'missile').map(k => { const g = gunOf(k); return {kind: g.kind, mount: g.mount, cool: 0, ammo: WEAPONS[g.kind].ammo} });
 		return {guns, missiles: ship.guns.filter(k => k == 'missile').length * WEAPONS.missile.ammo, flares: COMBAT.flares, turrets: ship.size == 'Capital'};
 	}
 	const guns = [], h = ship.hard || [0, 0, 0, 0];
-	h.forEach((n, size) => { for (let k = 0; k < n; k++) guns.push({kind: BY_SIZE[size], cool: 0, ammo: WEAPONS[BY_SIZE[size]].ammo}) });
+	/* (unfitted AI ships: by hardpoint size, every other small and large one a gatling; their guns gimballed) */
+	h.forEach((n, size) => { for (let k = 0; k < n; k++) { const kind = k % 2 && size == 0 ? 'gatling' : k % 2 && size == 2 ? 'gatlingL' : BY_SIZE[size]; guns.push({kind, mount: WEAPONS[kind].charge || kind == 'torpedo' ? 'fixed' : 'gimbal', cool: 0, ammo: WEAPONS[kind].ammo}) } });
 	return {guns, missiles: h[1] * WEAPONS.missile.ammo, flares: COMBAT.flares, turrets: ship.size == 'Capital'};
 }
 /* a ship's fighting state: shields, hull, heat, guns, modules */
@@ -86,12 +109,41 @@ function tick(cs, t, dt) {
 	for (const g of cs.load.guns) g.cool = Math.max(0, g.cool - dt);
 	return [];
 }
-/* where to aim: the point the target will be when a bolt of this speed gets there */
-function lead(from, fromV, to, toV, speed) {
+/* where to aim: the point to send a shot of this speed at (it carries the shooter's own velocity) so it meets the
+   target. From the distance and the relative velocity (a straight course), then, if the target's acceleration is
+   known (toA: its turn and thrust, from track), along its curving path: t again from where it will be, a few times.
+   No speed (a laser): the target itself */
+function lead(from, fromV, to, toV, speed, toA) {
+	if (!speed) return to;
 	const r = sub(to, from), v = sub(toV, fromV), a = dot(v, v) - speed * speed, b = 2 * dot(r, v), c = dot(r, r);
 	let t;
 	if (Math.abs(a) < 1e-9) t = -c / b; else { const d = b * b - 4 * a * c; if (d < 0) return to; const s = Math.sqrt(d), t1 = (-b - s) / (2 * a), t2 = (-b + s) / (2 * a); t = Math.min(t1, t2) > 0 ? Math.min(t1, t2) : Math.max(t1, t2) }
-	return t > 0 ? add(to, mul(toV, t)) : to;
+	if (!(t > 0)) return to;
+	const at = tt => add(add(r, mul(v, tt)), toA ? mul(toA, 0.5 * tt * tt) : [0, 0, 0]);
+	if (toA && dot(toA, toA) > 1e-6) for (let k = 0; k < 4; k++) t = len(at(t)) / speed;
+	return add(from, at(t));
+}
+/* a ship's acceleration, for others' aim: smoothed from its velocity a step at a time (capped at 30 g) */
+function track(s, dt) {
+	if (!s.vLast) { s.vLast = s.v.slice(); s.acc = [0, 0, 0]; return }
+	let a = mul(sub(s.v, s.vLast), 1 / Math.max(dt, 1e-3)); const la = len(a); if (la > 300) a = mul(a, 300 / la);
+	const k = Math.min(1, dt * 6); s.acc = add(mul(s.acc, 1 - k), mul(a, k)); s.vLast = s.v.slice();
+}
+/* where one gun points: along the nose (fixed), at the target's lead within the gimbal (gimballed), anywhere
+   (turrets). gimbalDeg: the reach (the player's from the field of view) */
+function aimOf(cs, s, g, target) {
+	const nose = Fl.forward(s), W = WEAPONS[g.kind];
+	if (!target || (g.mount != 'gimbal' && !cs.load.turrets)) return {dir: nose, tracking: false};
+	const L = norm(sub(lead(s.p, s.v, target.p, target.v, W.hitscan ? 0 : W.speed, target.a), s.p));
+	if (cs.load.turrets || Math.acos(clamp(dot(L, nose), -1, 1)) * 180 / Math.PI < (cs.gimbalDeg || COMBAT.gimbalDeg)) return {dir: L, tracking: true};
+	return {dir: nose, tracking: false};
+}
+function shoot(cs, s, g, W, dir, out, k) {
+	const origin = add(s.p, mul(dir, s.radius * 1.2)), dmg = W.dmg * (cs.dmgK || 1) * (g.mount == 'gimbal' ? COMBAT.gimbalDmg : 1) * (k == null ? 1 : k);
+	/* a laser: a ray, settled in the next step (stepProjectiles); anything else flies */
+	if (W.hitscan) out.push({kind: g.kind, p: origin, dir, range: W.range, ray: true, ttl: 1, dmg, owner: cs.id, target: null});
+	else out.push({kind: g.kind, p: origin, v: add(s.v, mul(dir, W.speed)), ttl: W.range / W.speed, dmg, owner: cs.id, target: null});
+	if (g.ammo != null) g.ammo--;
 }
 /* fire the guns that are ready, as projectiles from a ship (s: flight state, radius), towards a target (or straight
    ahead). Guns aim along the nose, or at the target's lead within the gimbal; turrets aim anywhere */
@@ -102,24 +154,38 @@ function fire(cs, s, t, target, out, only) {
 	for (const g of cs.load.guns) {
 		if (only && !only.includes(g.kind)) continue;
 		const W = WEAPONS[g.kind];
-		if (g.cool > 0 || W.homing || (g.ammo != null && g.ammo <= 0)) continue;
-		let dir = nose;
-		if (target) {
-			const L = norm(sub(lead(s.p, s.v, target.p, target.v, W.speed), s.p));
-			if (cs.load.turrets || Math.acos(clamp(dot(L, nose), -1, 1)) * 180 / Math.PI < COMBAT.gimbal) dir = L;
-			else if (cs.load.turrets === false && !target.forceAhead) {}
-		}
-		const origin = add(s.p, mul(dir, s.radius * 1.2));
-		out.push({kind: g.kind, p: origin, v: add(s.v, mul(dir, W.speed)), ttl: W.range / W.speed, dmg: W.dmg * (cs.dmgK || 1), owner: cs.id, target: null});
-		g.cool = 1 / W.rate; if (g.ammo != null) g.ammo--; cs.heat += W.heat; n++;
+		if (g.cool > 0 || W.homing || W.charge || (g.ammo != null && g.ammo <= 0)) continue;
+		shoot(cs, s, g, W, aimOf(cs, s, g, target).dir, out);
+		g.cool = 1 / W.rate; cs.heat += W.heat; n++;
 	}
 	return n;
 }
+/* mass drivers, every step: holding the trigger charges them; letting go fires each charged one (its share of the
+   charge, if at least minCharge); held past full, they heat the ship. A hot ship, or broken weapons, lose the charge */
+function railStep(cs, s, t, target, out, holding, dt) {
+	let n = 0;
+	const able = !cs.hot && M.works(cs.fit, 'weapons') && M.works(cs.fit, 'power');
+	for (const g of cs.load.guns) {
+		const W = WEAPONS[g.kind]; if (!W.charge) continue;
+		if (!able || (g.ammo != null && g.ammo <= 0)) { g.charge = 0; continue }
+		if (holding && g.cool <= 0) { g.charge = (g.charge || 0) + dt; if (g.charge > W.charge) cs.heat += W.holdHeat * dt; continue }
+		if (!g.charge) continue;
+		const k = Math.min(1, g.charge / W.charge); g.charge = 0;
+		if (k < W.minCharge) continue;
+		shoot(cs, s, g, W, aimOf(cs, s, g, target).dir, out, k);
+		g.cool = 1 / W.rate; cs.heat += W.heat; n++;
+	}
+	return n;
+}
+/* whether the mass drivers are at full charge (AI pilots let go then) */
+const railReady = cs => cs.load.guns.some(g => WEAPONS[g.kind].charge && g.charge >= WEAPONS[g.kind].charge);
+/* the heat a target runs at stretches a lock: range and speed times (1 + heat) */
+const heatK = target => 1 + COMBAT.heatLock * clamp(target.heat || 0, 0, 1);
 /* missiles: once locked (target in the 15° cone for 2 s), one per press; torpedo racks fire with them */
 function updateLock(cs, s, target, dt) {
 	if (!target) { cs.lock = {id: null, t: 0}; return false }
 	const ang = Math.acos(clamp(dot(norm(sub(target.p, s.p)), Fl.forward(s)), -1, 1)) * 180 / Math.PI, dist = len(sub(target.p, s.p));
-	if (ang < COMBAT.lockCone && dist < WEAPONS.missile.range) { if (cs.lock.id != target.id) cs.lock = {id: target.id, t: 0}; cs.lock.t += dt } else cs.lock = {id: null, t: 0};
+	if (ang < COMBAT.lockCone && dist < WEAPONS.missile.range * heatK(target)) { if (cs.lock.id != target.id) cs.lock = {id: target.id, t: 0}; cs.lock.t += dt * heatK(target) } else cs.lock = {id: null, t: 0};
 	return cs.lock.t >= COMBAT.lockTime;
 }
 function launch(cs, s, target, out) {
@@ -143,10 +209,26 @@ function flare(cs, projectiles, rnd) {
 	return n;
 }
 /* move every projectile; missiles home; returns the hits [{proj, ship}] (ships: [{id, s (p, v, radius), cs}]) */
-function stepProjectiles(list, ships, dt) {
+/* beams: where lasers' rays went this step, for drawing ([{a, b, kind}]) */
+function stepProjectiles(list, ships, dt, beams) {
 	const hits = [];
 	for (let i = list.length - 1; i >= 0; i--) {
 		const m = list[i], W = WEAPONS[m.kind];
+		/* a laser's ray: the nearest ship along it, out to its range */
+		if (m.ray) {
+			let hit = null, best = m.range;
+			for (const x of ships) {
+				if (x.id == m.owner || x.cs.dead) continue;
+				const r = x.s.radius * 0.85, d = sub(x.s.p, m.p), along = dot(d, m.dir); if (along < 0 || along - r > best) continue;
+				const q = sub(d, mul(m.dir, along)), q2 = dot(q, q); if (q2 >= r * r) continue;
+				const at = Math.max(0, along - Math.sqrt(r * r - q2)); if (at < best) { best = at; hit = x }
+			}
+			const end = add(m.p, mul(m.dir, best));
+			if (beams) beams.push({a: m.p, b: end, kind: m.kind});
+			list.splice(i, 1);
+			if (hit) { m.p = end; hits.push({proj: m, ship: hit}) }
+			continue;
+		}
 		m.ttl -= dt; if (m.ttl <= 0) { list.splice(i, 1); continue }
 		if (W.homing && m.target != null) {
 			const tg = ships.find(x => x.id == m.target && !x.cs.dead);
@@ -202,7 +284,7 @@ function think(me, target, home, t, rnd) {
 		return {pitch: c.pitch, yaw: c.yaw, roll: c.roll, throttle: 1, fire: false};
 	}
 	if (A.mode == 'attack' && target) {
-		const W = WEAPONS[(me.cs.load.guns[0] || {kind: 'pulse'}).kind], aim = lead(s.p, s.v, target.p, target.v, W.speed), dist = len(sub(target.p, s.p));
+		const g0 = me.cs.load.guns.find(g => !WEAPONS[g.kind].homing) || {kind: 'pulse', mount: 'fixed'}, W = WEAPONS[g0.kind], aim = lead(s.p, s.v, target.p, target.v, W.hitscan ? 0 : W.speed, target.a), dist = len(sub(target.p, s.p));
 		let c = steer(s, aim);
 		/* too close: break off past them, then come round */
 		if (dist < 350) { A.breakUntil = t + 2.5 }
@@ -212,7 +294,8 @@ function think(me, target, home, t, rnd) {
 		   circle stays tight enough to keep the nose on it */
 		const vmax = (s.spec && s.spec.vmax) || 300, want = len(target.v) + (dist - 600) * 0.25;
 		const throttle = dist > 2500 ? 1 : clamp(want / vmax, 0.08, 1);
-		const fire = c.off < (COMBAT.gimbal + 2) * Math.PI / 180 && dist < W.range && t >= (A.breakUntil || 0);
+		/* (a gimballed gun fires once the target is inside its circle; a fixed one once the nose is within 2°) */
+		const fire = c.off < (g0.mount == 'gimbal' ? COMBAT.gimbalDeg : 2) * Math.PI / 180 && dist < W.range && t >= (A.breakUntil || 0);
 		return {pitch: c.pitch, yaw: c.yaw, roll: c.roll, throttle, fire, missile: dist < WEAPONS.missile.range && dist > 800};
 	}
 	if (A.mode == 'hold') return {pitch: 0, yaw: 0, roll: 0.05, throttle: 0, fire: !!target && me.cs.load.turrets};
@@ -232,16 +315,17 @@ function restore(cs, k) {
 	if (typeof k.flares == 'number') cs.load.flares = Math.max(0, Math.min(COMBAT.flares, k.flares));
 	return cs;
 }
-/* munitions to fill up, in tonnes: 150 mass-driver rounds a tonne, a torpedo a tonne, a missile a quarter, a flare 1/20 */
+/* munitions to fill up, in tonnes: 150 mass-driver slugs a tonne, gatling rounds 1,500 (light) to 800 (heavy) a tonne, a
+   torpedo a tonne, a missile a quarter, a flare 1/20 */
 function missing(ship, k) {
 	const full = loadout(ship), cur = k || {};
 	let t = 0;
-	full.guns.forEach((g, i) => { if (g.ammo != null) { const have = cur.ammo && typeof cur.ammo[i] == 'number' ? cur.ammo[i] : g.ammo; t += (g.ammo - have) * (g.kind == 'torpedo' ? 1 : 1 / 150) } });
+	full.guns.forEach((g, i) => { if (g.ammo != null) { const have = cur.ammo && typeof cur.ammo[i] == 'number' ? cur.ammo[i] : g.ammo; t += (g.ammo - have) / (WEAPONS[g.kind].perTon || 150) } });
 	t += (full.missiles - (cur.missiles != null ? cur.missiles : full.missiles)) * 0.25 + (full.flares - (cur.flares != null ? cur.flares : full.flares)) * 0.05;
 	return Math.max(0, t);
 }
 function refill(ship, k) { const full = loadout(ship); return {hull: k && typeof k.hull == 'number' ? k.hull : 1, ammo: full.guns.map(g => g.ammo), missiles: full.missiles, flares: full.flares} }
 
-const EmberCombat = {GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
+const EmberCombat = {GIMBALLED, gunOf, gimbalFor, track, aimOf, railStep, railReady, heatK, GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
 if (isNode) module.exports = EmberCombat; else root.EmberCombat = EmberCombat;
 })(typeof window != 'undefined' ? window : this);

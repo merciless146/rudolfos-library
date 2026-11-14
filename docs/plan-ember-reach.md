@@ -1247,6 +1247,25 @@ and the browser test's 9c and 10b):
 
 **Released: 0.3.0, landing on airless worlds** (L1), with all of the above.
 
+**0.3.1** reworks the weapons (`combat.js`, tested in `tests/emberreach_combat_t.js` checks 16-26 and the browser
+test's 9q):
+- **Lasers are hitscan** (pulse, heavy, the Precursor needle and lance, mining): the beam lands the instant it fires,
+  on the first thing in its way out to its range. Still better against shields, still heat.
+- **Gatlings**, small, medium and large (light, standard and heavy): streams of rounds on ammunition, better against
+  hulls (×1.4, ×0.6 against shields).
+- **The mass driver** is now equal against shields and hulls, and charges: hold the trigger to charge it (0.6 s), let
+  go to fire. A shot let go early hits for its share of the charge (nothing under 15%); held past full, it heats the
+  ship (0.3 of its heat capacity a second), which can lock the guns and, past that, cook the modules.
+- **Mounts:** lasers, gatlings and needles come fixed or gimballed. Fixed guns fire along the nose, and the HUD shows
+  where to aim (one point for each shot speed fitted; a laser's is the target itself). Gimballed guns track a target
+  by themselves within a dashed circle 40% of the screen's height across (15.6° at a 70° field of view), marked when
+  they have it, for 15% less damage and half again the price. The mass driver, lance, missiles and torpedoes have one
+  mount each. Ships' existing guns are fixed; AI ships' guns are gimballed.
+- **Aim prediction:** projectile guns aim from the target's distance, relative velocity and its acceleration
+  (tracked from its velocity, so a turning target is led along its curve).
+- **Heat gives you away:** missile and torpedo locks on a hot ship reach further and come sooner, up to twice as far
+  in half the time at full heat.
+
 Still to come: surface ports (L2), mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
 Surface ports are planned in `docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).
 
