@@ -61,7 +61,7 @@ const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconom
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.9'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.0'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};

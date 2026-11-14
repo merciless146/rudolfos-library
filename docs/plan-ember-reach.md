@@ -1231,8 +1231,24 @@ and the browser test's 9c and 10b):
 - **Surviving them:** they can be beaten, but hardly without Precursor work. The best chance is to jump soon after
   they appear, before they close to 3 km. Destroying one counts as a police ship.
 
-Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer. Landing on airless worlds and surface ports are planned in
-`docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).
+**0.2.2 to 0.2.9** built landing (L1, in `docs/plan-ember-reach-landing-work.md`) and the controls:
+- **0.2.2 to 0.2.4:** the surface readout below a world's line, the gear, touchdown, crashes and lift-off, terrain
+  (relief and craters on a cube-sphere of tiles), and spotlights (1) and night vision (2).
+- **0.2.5:** Simple and Full control schemes, a radial menu on ~, Combat and Analysis modes on M, and the assists
+  (automatic gear, spotlights, landing assist, jumps along a route).
+- **0.2.6:** performance: antialiasing off by default on software renderers, no drawing while docked, and automatic
+  resolution and terrain detail.
+- **0.2.7:** the approach: cruise drops out above a targeted world, the world's lock, the ground scan and first
+  landings.
+- **0.2.8:** systems at 1/12 scale, as Kerbal Space Program does it (the same surface gravity, times by the square
+  root).
+- **0.2.9:** AI ships below a line, touch's VERT slider and GEAR button, the gamepad's A held for the gear, and the
+  landing help.
+
+**Released: 0.3.0, landing on airless worlds** (L1), with all of the above.
+
+Still to come: surface ports (L2), mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
+Surface ports are planned in `docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).
 
 ## Open questions
 
