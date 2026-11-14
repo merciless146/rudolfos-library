@@ -65,5 +65,7 @@ try {
 	ok('22. picking a scheme sets the assists to its defaults; each can be changed after', !f1.autoLights && !f1.autoRoute && S2.controls.autoLights && S2.controls.autoRoute && St.sanitise(Object.assign({}, S2, {controls: Object.assign({}, S2.controls, {autoRoute: false})})).controls.autoRoute === false);
 	ok('23. Simple lists the core keys (with M for the mode and ~ for the radial menu); the rest live in the radial menu', ['mode', 'radial', 'fire', 'jump', 'dock'].every(a => St.SIMPLE.includes(a)) && ['fa', 'gear', 'hatch', 'lights', 'nightVision', 'systems', 'mouse', 'flare'].every(a => !St.SIMPLE.includes(a))
 		&& /mode: \['KeyM'\]/.test(PLAY) && /radial: \['Backquote'\]/.test(PLAY) && /mouse: \[\]/.test(PLAY));
+	const gfx = St.sanitise(undefined).graphics, gfx2 = St.sanitise({graphics: {aa: 'bogus', autoRes: 'x'}}).graphics;
+	ok('24. antialiasing on Auto and automatic resolution on by default; nonsense falls back to them', gfx.aa == 'auto' && gfx.autoRes === true && gfx2.aa == 'auto' && gfx2.autoRes === true && St.sanitise({graphics: {aa: 'off', autoRes: false}}).graphics.aa == 'off');
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

@@ -19,11 +19,18 @@ function basis(q) {
 }
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
+/* opts.antialias: 'on', 'off' or 'auto' (the default): off on a software renderer, where multisampling costs about as much
+   as everything else together (measured: 60% more frames without it), on with a graphics card, where it's nearly free */
+function software() {
+	try { const g = document.createElement('canvas').getContext('webgl2'), x = g && g.getExtension('WEBGL_debug_renderer_info'); const r = g ? String(g.getParameter(x ? x.UNMASKED_RENDERER_WEBGL : g.RENDERER)) : ''; return {software: /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(r), renderer: r} } catch (e) { return {software: false, renderer: ''} }
+}
 function create(canvas, opts) {
 	opts = opts || {};
 	let gl = null;
-	if (!opts.canvas2d) try { gl = canvas.getContext('webgl2', {antialias: true, alpha: false}) } catch (e) { gl = null }
-	return gl ? webgl(canvas, gl) : canvas2d(canvas);
+	const sw = opts.canvas2d ? {software: false, renderer: ''} : software(), aa = opts.antialias == 'on' || (opts.antialias != 'off' && !sw.software);
+	if (!opts.canvas2d) try { gl = canvas.getContext('webgl2', {antialias: aa, alpha: false}) } catch (e) { gl = null }
+	const R = gl ? webgl(canvas, gl) : canvas2d(canvas);
+	return Object.assign(R, {antialias: !!gl && aa, software: sw.software, renderer: sw.renderer});
 }
 
 /* ---------------- WebGL 2 ---------------- */

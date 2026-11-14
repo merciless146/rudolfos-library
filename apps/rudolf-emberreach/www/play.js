@@ -61,7 +61,7 @@ const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconom
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.5'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.6'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -148,11 +148,11 @@ async function start() {
 	const here = ok && sv.star ? T.starAt(sv.star.id, sv.star.p) : null;
 	game.lastPort = ok && sv.lastPort ? T.starAt(sv.lastPort.id, sv.lastPort.p) : null;
 	/* renderer, then the system */
-	R = Re.create(gl, {canvas2d: Q.has('canvas')});
+	R = Re.create(gl, {canvas2d: Q.has('canvas'), antialias: game.settings.graphics.aa});
 	enterSystem(here || game.home.star);
 	view = RG.fit(hud, (w, h) => ({w, h}));
 	/* (the 3D view's resolution: the screen's, times the Resolution setting) */
-	RG.on('resize', v => { game.lastView = v; W = v.w; Hh = v.h; const d = v.dpr * game.settings.graphics.res / 100; gl.width = Math.round(v.cw * d); gl.height = Math.round(v.ch * d) });
+	RG.on('resize', v => { game.lastView = v; W = v.w; Hh = v.h; sizeCanvas() });
 	view.refit();
 	map = Map.create();
 	pointers();
@@ -862,7 +862,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -1215,7 +1215,7 @@ function terrainItems(b, items, bf, sun) {
 	if (R.kind != 'webgl' || b.kind != 'planet' || b.atmo || (b.src && b.src.gas)) return false;
 	const camD = sub(game.camP || s.p, b.pos), alt = len(camD) - b.radius;
 	if (alt > Te.TER.prebuild) return false;
-	const low = quality == 'low', res = low ? Te.TER.lowRes : Te.TER.res, budget = low ? Te.TER.lowBudget : Te.TER.budget;
+	const low = quality == 'low', res = low ? Te.TER.lowRes : Te.TER.res, budget = (low ? Te.TER.lowBudget : Te.TER.budget) * (game.dynTer || 1);
 	if (TILES.world != b.name || TILES.res != res) { for (const k of TILES.built.keys()) R.drop(k); TILES.built.clear(); TILES.used.clear(); TILES.world = b.name; TILES.res = res }
 	const id = t => 'ter:' + res + ':' + Te.key(t), camL = [dot(camD, bf.x), dot(camD, bf.y), dot(camD, bf.z)];
 	const sel = Te.select(b, camL, {res, budget, built: k => TILES.built.has('ter:' + res + ':' + k)});
@@ -1239,8 +1239,34 @@ function terrainItems(b, items, bf, sun) {
 	return true;
 }
 const mat3 = (x, y, z) => [x[0], x[1], x[2], y[0], y[1], y[2], z[0], z[1], z[2]];
+/* the 3D view's resolution: the screen's, times the Resolution setting, times the automatic resolution's scale */
+function sizeCanvas() {
+	const v = game.lastView; if (!v) return;
+	const gl = $('gl'), d = v.dpr * game.settings.graphics.res / 100 * (game.dynRes || 1);
+	gl.width = Math.max(64, Math.round(v.cw * d)); gl.height = Math.max(48, Math.round(v.ch * d));
+}
+/* automatic resolution: every 2 s, under 28 fps the scale steps down (to half the screen's resolution at most), and
+   then, still under, the terrain's triangle budget (to a quarter at most: with antialiasing off, triangles cost as much
+   as pixels on a software renderer). Above 52 the terrain comes back first, then the resolution (at most every 4 s,
+   so it settles rather than swings) */
+const DYN = {low: 28, high: 52, down: 0.85, up: 1.1, floor: 50, terFloor: 0.25, every: 2, upEvery: 4};
+function adaptRes() {
+	const now = performance.now(), D = game.dyn || (game.dyn = {t0: now, n: 0, upAt: 0});
+	D.n++; if (now - D.t0 < DYN.every * 1000) return;
+	const fps = D.n / ((now - D.t0) / 1000), set = game.settings.graphics.res; D.t0 = now; D.n = 0;
+	if (!game.settings.graphics.autoRes) { game.dynTer = 1; if (game.dynRes != 1) { game.dynRes = 1; sizeCanvas() } return }
+	const k = game.dynRes || 1, min = Math.min(1, DYN.floor / set), t = game.dynTer || 1, terrain = !!game.lod.terrain;
+	let next = k;
+	if (fps < DYN.low && k > min) next = Math.max(min, k * DYN.down);
+	else if (fps < DYN.low && terrain && t > DYN.terFloor) game.dynTer = Math.max(DYN.terFloor, t * DYN.down);
+	else if (fps > DYN.high && now - D.upAt > DYN.upEvery * 1000 && (t < 1 || k < 1)) { D.upAt = now; if (t < 1) game.dynTer = Math.min(1, t * DYN.up); else next = Math.min(1, k * DYN.up) }
+	if (Math.abs(next - k) > 1e-3) { game.dynRes = next; sizeCanvas() }
+}
 function draw() {
 	if (!s) return;
+	/* docked, the port's screens cover the view: nothing to draw behind them */
+	if (game.docked && Port.isOpen()) return;
+	adaptRes();
 	const B = R.basis(s.q), cam = game.chase ? {p: add(add(s.p, mul(B.f, -ship.length * 3.2)), mul(B.u, ship.length * 0.9)), q: s.q} : {p: add(s.p, mul(B.f, ship.length * 0.3)), q: s.q};
 	const sun = scene.bodies[0], items = [], glows = [], CB = R.basis(cam.q), kpx = Hh / 2 / Math.tan(fovNow() / 2 * Math.PI / 180);
 	/* how many pixels across a thing of radius r at p looks */
