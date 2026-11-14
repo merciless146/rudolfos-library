@@ -243,6 +243,28 @@ function gravityWell(scene, p) {
 	for (const b of scene.bodies) { if (b.kind != 'planet' || !b.karman) continue; const r = len(sub(p, b.pos)), alt = r - b.radius; if (alt <= b.karman && (!best || alt < best.alt)) best = {body: b, alt, g: b.g * Math.pow(b.radius / Math.max(r, b.radius), 2)} }
 	return best;
 }
+/* ---------- a world's frame, and the surface (landing L1.1) ----------
+   Below a world's Kármán line, flight runs relative to the world as it turns, like a station's spinning frame: its
+   centre is the world's, its spin the world's axis times 2π a day (negative days turn backwards). A ship hovering
+   with flight assist then stays over the same spot of ground. */
+function worldFrame(b) { return {c: b.pos, v: [0, 0, 0], w: b.period ? mul(b.axis || [0, 0, 1], 2 * Math.PI / b.period) : [0, 0, 0], world: b.name} }
+/* the terrain's height above the world's radius at a direction (m): the smooth sphere until L1.3 brings terrain */
+const heightAt = (b, dir) => 0;
+/* the readout below a world's line: altitude above the terrain, vertical and ground speed (relative to the turning
+   ground), pitch and bank against the local horizon (degrees), latitude and longitude on the turning world (degrees),
+   and whether it can be landed on (and by this ship, if one is given). null above every line */
+function surfaceState(scene, s, t, ship) {
+	const W = gravityWell(scene, s.p); if (!W) return null;
+	const b = W.body, d = sub(s.p, b.pos), r = len(d), up = mul(d, 1 / (r || 1));
+	const alt = r - b.radius - heightAt(b, up), F = worldFrame(b), vr = sub(s.v, cross(F.w, d)), vz = dot(vr, up), vh = len(sub(vr, mul(up, vz)));
+	const fwd = Fl.toWorld(s.q, [0, 0, 1]), right = Fl.toWorld(s.q, [1, 0, 0]), deg = 180 / Math.PI;
+	const pitch = Math.asin(Math.max(-1, Math.min(1, dot(fwd, up)))) * deg, bank = Math.asin(Math.max(-1, Math.min(1, -dot(right, up)))) * deg;
+	const bf = bodyFrame(b, turnOf(b, scene.day || 0, t || 0)), lat = Math.asin(Math.max(-1, Math.min(1, dot(up, bf.z)))) * deg, lon = Math.atan2(dot(up, bf.y), dot(up, bf.x)) * deg;
+	const L = Ld(), land = L ? (ship ? L.canLand(ship, b.src || b) : L.landable(b.src || b)) : null;
+	return {world: b.name, body: b, g: W.g, alt, vz, vh, pitch, bank, lat, lon, up, landable: land, frame: F};
+}
+const Ld = () => isNode ? require('./landing.js') : root.EmberLanding;
+
 /* ---------- cruise ---------- */
 const CRUISE = {k: 1, cap: 200 * C, min: 2000, charge: 3, lock: 20000, drop: {station: 25000, planet: 1.0, star: 5}, emergency: 3e5};
 /* the nearest surface, and how far (m) */
@@ -301,7 +323,7 @@ function spawn(scene, dist) {
 	return {p, q: lookRotation(mul(st.axis, -1), st.y)};
 }
 
-const EmberScene = {AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
+const EmberScene = {worldFrame, heightAt, surfaceState, AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
 	KARMAN, karmanOf, gravityAt, gravityWell, SAFE, bhSafe, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
 	v: {add, sub, mul, dot, cross, len, norm}};
 if (isNode) module.exports = EmberScene; else root.EmberScene = EmberScene;

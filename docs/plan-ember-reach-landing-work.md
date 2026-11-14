@@ -54,6 +54,10 @@ take off again, in any ship.
 
 ### L1.1 The world's frame and the surface readout
 
+**Done** (0.2.2): `landing.js` (the rules, which the draft now takes from the game), `scene.js` `worldFrame`,
+`heightAt` (0 until L1.3) and `surfaceState`, flight in the world's frame below its line, the HUD's surface panel and
+the target card's landability. Tested in `tests/emberreach_landing_t.js` (14 checks) and the browser test's 9d.
+
 The groundwork: knowing where the ground is and moving with it.
 
 - **Bring the rules into the game.** Move `landable`, `canLand`, `lift`, `maxG`, `padFor` and `touchdown`
@@ -200,9 +204,9 @@ Getting there from the rest of the system.
 - **Tests:** the browser test's controls check covers the new keys; an NPC hovering below a line holds
   altitude.
 
-### L1.6 Release 0.2.0
+### L1.6 Release 0.3.0
 
-- Bump `PKGINFO` to **0.2.0**.
+- Bump `PKGINFO` to **0.3.0** (0.2.0 went to the smaller galaxy).
 - Update the store description: landing on airless worlds, gravity, rotation and insurance.
 - Update the plan's "Released" note.
 - Run the full suite and the browser test, and do a playthrough on the release test machine.
@@ -311,7 +315,7 @@ The refactor everything else waits on. It doesn't change the game's behaviour.
   makes the queue matter.
 - **Forward bases** have turrets that fight for their holder (`combat.js`, as fixed guns).
 
-### L2.7 Release 0.3.0
+### L2.7 Release 0.4.0
 
 - Bump the version, update the store description, run the full suite and the playthrough.
 
@@ -350,14 +354,14 @@ They're planned in detail once L2 is in and played.
 | L1.3 terrain | L1.2 | large |
 | L1.4 the approach | L1.1 | small |
 | L1.5 NPCs, controls, polish | L1.2 | small |
-| L1.6 release 0.2.0 | L1.1–L1.5 | small |
+| L1.6 release 0.3.0 | L1.1–L1.5 | small |
 | L2.1 many ports | | medium (touches much, changes nothing) |
 | L2.2 ports placed | L2.1, L1.3 | small |
 | L2.3 port meshes | L2.2 | medium |
 | L2.4 traffic controller and pad docking | L2.3 | large |
 | L2.5 what they trade | L2.4 | medium |
 | L2.6 traffic | L2.4 | medium |
-| L2.7 release 0.3.0 | L2.1–L2.6 | small |
+| L2.7 release 0.4.0 | L2.1–L2.6 | small |
 
 Some steps can run in parallel:
 - L1.4 can go alongside L1.2 or L1.3.
@@ -367,6 +371,8 @@ Some steps can run in parallel:
 
 Settled:
 1. **The gear key** is **L** (fire moves to **;**), and every key is rebindable in Settings.
-2. **Version numbers:** 0.1.1 now, shipping insurance, rotation and gravity; 0.2.0 after L1; 0.3.0 after L2.
+2. **Version numbers:** 0.1.1 shipped insurance, rotation and gravity; 0.2.0 the smaller galaxy and 0.2.1 the
+   Interstellar Marshals. Each L1 step merged is a 0.2.x (the Library publishes every merge), **0.3.0 after L1**,
+   **0.4.0 after L2**.
 3. **NPC traffic on pads** (L2.6) flies by the same **Autopilot Computer** a player can buy, under the same
    traffic controller, queue and 5-minute rule as the player.

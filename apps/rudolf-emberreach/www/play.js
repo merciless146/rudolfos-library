@@ -54,14 +54,14 @@
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
-const E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
+const Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
 	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.1'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.2'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -263,7 +263,9 @@ const targets = () => [...(st ? [st] : []), ...(game.beacon ? [game.beacon] : []
 function curTarget() { const L = targets(); if (!L.includes(game.tgt)) game.tgt = L[0]; return game.tgt }
 const posOf = x => x.pos || x.c;
 const radiusOf = x => x.radius || x.def.radius;
-const frameNear = () => st && len(sub(s.p, st.c)) < 8000 ? Sc.frame(st) : null;
+/* the frame flight runs in: a station's near it, a world's below its Kármán line (so a hover holds its spot over the
+   turning ground), space's otherwise */
+const frameNear = () => st && len(sub(s.p, st.c)) < 8000 ? Sc.frame(st) : game.well ? Sc.worldFrame(game.well.body) : null;
 
 /* ---------------- input ---------------- */
 function readPad() {
@@ -1128,6 +1130,7 @@ function hudDraw(cam) {
 	}
 	if (Tg.kind == 'planet') {
 		const done = X.surveyed(game.P, game.star.id, Tg.name), p = Tg.src, near = len(sub(s.p, Tg.pos)) < Tg.radius * X.EXPLORE.surveyRadii;
+		target.land = Ld.card(ship, p);   /* landing: can this ship set down there? */
 		target.dock = done ? {line1: 'Surveyed · ' + p.g.toFixed(2) + ' g · ' + Math.round(p.Ts) + ' K · ESI ' + p.esi.toFixed(2), line2: [p.alive ? 'life' : p.life ? 'traces of life' : null, p.ruins ? 'ruins' : null, p.atmo ? 'air ' + Math.round(p.bars * 10) / 10 + ' bar' : 'no air'].filter(Boolean).join(' · '), col: p.ruins || p.alive ? '#f2d36a' : '#7fd1a8'}
 			: !M.works(fit, 'sensors') ? {line1: 'Sensors down: no survey', col: '#e5484d'}
 			: !ship.utility.carto ? {line1: 'No cartographic sensor: no survey', col: '#f2a33a'}
@@ -1162,6 +1165,7 @@ function hudDraw(cam) {
 		sweep: game.sweep > 0 ? 1 - game.sweep / X.EXPLORE.sweep : 0,
 		refinery: Object.keys(game.P.refinery || {}).length ? Object.entries(game.P.refinery).map(([g, t]) => g + ' ' + t.toFixed(1)).join(' · ') : null,
 		hatch: !hasHatch() ? null : !M.works(fit, 'hatch') ? 'jammed' : game.hatch ? 'open' : null,
+		surface: !cz.on && game.well ? (() => { const ss = Sc.surfaceState(scene, s, game.t, ship); return ss && ss.alt < 30000 ? {world: ss.world, alt: ss.alt, vz: ss.vz, vh: ss.vh, pitch: ss.pitch, bank: ss.bank, limit: Ld.TOUCH[Ld.padFor(ship.size)].vz, landable: ss.landable && ss.landable.ok} : null })() : null,
 		scanner: M.works(fit, 'sensors') && game.settings.hud.scanner ? {range: 8000, blips} : null, well: game.well ? {g: game.well.g, alt: game.well.alt, name: game.well.body.name} : null, incoming: game.incoming > 0, hitAge: game.hitAt != null ? game.t - game.hitAt : null,
 		combat: {shield: pc.shield / Math.max(1, pc.shieldMax), hull: pc.hull / pc.hullMax, heat: Math.min(1, pc.heat), hot: pc.hot, armed: pc.load.guns.length > 0,
 			ammo: ammoGuns.length ? ammoGuns.reduce((t, g) => t + g.ammo, 0) : null, missiles: pc.load.missiles + pc.load.guns.filter(g => g.kind == 'torpedo').reduce((t, g) => t + g.ammo, 0),

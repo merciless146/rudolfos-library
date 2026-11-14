@@ -97,6 +97,12 @@ async function frame(pg, test) {
 		const held = await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s; return {held: !!(g.held && g.t < g.held.until), jump: !!g.jump, v: Math.hypot(...s.v), vmax: s.spec.vmax, said: g.msgs.slice(-6).some(x => /tractor beam/i.test(x.text))} });
 		ok('9c. wanted, the Interstellar Marshals arrive; within 3 km their tractor beam holds you: no hyperspace, a quarter of your speed', mz.n >= 2 && mz.said && mz.hostile && held.held && !held.jump && held.v <= held.vmax * 0.26 && held.said, {mz, held});
 		await f.evaluate(() => { const g = EmberDebug.game; g.npcs = []; g.P.bounties = {}; g.held = null; g.marshalsAt = null; g.shots = [] });
+		/* landing L1.1: below a world's Kármán line the HUD reads the surface, and a hover holds its spot over the turning ground */
+		const wld = await f.evaluate(() => { const sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok) || sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000); if (!b) return null; EmberDebug.near(b, 1 + 2000 / b.radius); const g = EmberDebug.game; g.cruise = {on: false, v: 0, charge: 0}; g.throttle = 0; const s = EmberDebug.s, F = EmberScene.worldFrame(b); s.v = EmberFlight.frameAt(F, s.p).v; s.fa = true; return b.name });
+		await sleep(3000);
+		const sfc = await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberScene.surfaceState(EmberDebug.scene, s, g.t, EmberDebug.ship); return st && {alt: st.alt, vh: st.vh, vz: st.vz, world: st.world, land: EmberLanding.card(EmberDebug.ship, st.body.src).line} });
+		await pg.screenshot({path: path.join(W, 'surface.png')});
+		ok('9d. 2 km over a world, the surface readout holds: the hover keeps its height and its spot as the world turns', wld && sfc && Math.abs(sfc.alt - 2000) < 60 && sfc.vh < 3 && Math.abs(sfc.vz) < 3, {wld, sfc});
 		/* the Maw and the Rift */
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
