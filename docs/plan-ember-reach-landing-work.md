@@ -12,7 +12,8 @@ counts as done.
   `gravityWell`, `flight.js` `s.grav`).
 - A GRAVITY readout on the HUD.
 - Ship insurance, so a crash has somewhere to go (`insurance.js`).
-- Docking clearance at space ports: N to request, a pad number, a ten-minute lapse (`play.js` `requestDock`).
+- Docking clearance at space ports: N to request, a pad number, revoked after 5 minutes unused (`play.js`
+  `requestDock`).
 - The proximity safety holding ships 300 m off airless ground (`scene.js` `SAFE.ground`).
 
 **Drafted, outside the game** (`wip/emberreach-surface/surface.js`)
@@ -40,12 +41,11 @@ counts as done.
   - Terrain: at most 60,000 triangles on screen (30,000 on low quality), and at most 2 ms of building per
     frame.
   - The release's test machine, a software-rendered Chromium, has to hold 30 fps while landed.
-- **Controls stay put.** Every letter key is already taken. Landing reuses what's there:
+- **Controls.** Every letter key is taken, and every key can be rebound in Settings (since the settings menu).
   - **Space / Left Shift** are already strafe up / down. They become the vertical thrusters.
   - **R / F** stay the throttle.
-  - The **gear** goes on **1** and on the gamepad's **A held for half a second**. A short press of A still
-    docks.
-  - The landing plan's "R/F and L" note is corrected to match.
+  - The **gear** is on **L** (decided), and on the gamepad's **A held for half a second**. A short press of A
+    still docks. Fire moves from L to **;** by default.
 
 ## L1: landing anywhere
 
@@ -99,7 +99,7 @@ flight assist holds its spot over the turning ground.
 The ground becomes solid.
 
 - **Gear** (`play.js`, state `game.gear`):
-  - It goes down by itself under 300 m above the terrain and comes up above 500 m. Key 1 (or A held)
+  - It goes down by itself under 300 m above the terrain and comes up above 500 m. L (or A held)
     toggles it.
   - With the gear down, top speed is capped at 100 m/s.
   - The gear has a damage state like other modules (`modules.js`). If it's broken, every touchdown counts
@@ -258,9 +258,16 @@ The refactor everything else waits on. It doesn't change the game's behaviour.
     - at war with the holder;
     - no free pad for this size;
     - a language the port's controller doesn't speak (the existing language lock).
-  - **Acceptance:** a pad assigned by size (XS uses S; capital ships go to the heavy field's berth). The
-    pad's ring turns from red to its size colour. The clearance lapses after ten minutes.
-  - **Queueing:** with every fitting pad taken by NPC traffic, "Hold: pad in 40 s" instead of a refusal.
+  - **Acceptance:** a pad of the ship's own class (XS uses S; capital ships go to the heavy field's berth),
+    or failing that a larger one; never a smaller one. The pad's ring turns from red to its size colour.
+  - **Five minutes** to dock once the pad is given, or the clearance is revoked and must be asked for again.
+  - **The queue:** with every pad the ship could use occupied, it joins a first-come, first-served queue that
+    players and NPCs share. The controller gives its place, then the pad when one frees.
+  - **The Autopilot Computer** (a new small internal module, size 1, for any ship; NPCs always carry one):
+    once accepted, it talks to the controller and flies the ship in along the pad's corridor (or the
+    station's axis) and down. It hands back control when the pilot touches the stick, and N engages it
+    again. `outfit.js` gets the module; `autopilot.js` the flying.
+  - (The rules in full: "The traffic controller's rules" in `plan-ember-reach-landing.md`.)
 - **Docking on the ground** means a clean touchdown inside the assigned pad's circle, with its clamps
   locked on. That opens the port's screens, as docking does in space.
   - A hard landing on the pad docks too, but damage is damage.
@@ -271,7 +278,9 @@ The refactor everything else waits on. It doesn't change the game's behaviour.
 - **Heavy fields** take XL ships on their XL pads and capital ships on the berth, with the same rules at
   the gentler limits.
 - **Tests:**
-  - **Node:** every refusal reason; pad assignment by size; queueing; a lapse.
+  - **Node:** every refusal reason; pad assignment by size, larger for smaller but never smaller for larger;
+    the first-come, first-served queue across players and NPCs; the 5-minute revocation; the autopilot
+    reaching a pad within its time on a station and on the ground.
   - **Browser:** request, land and dock at an outpost; the port's screens open; launch and lift-off.
 
 ### L2.5 What surface ports trade
@@ -297,8 +306,9 @@ The refactor everything else waits on. It doesn't change the game's behaviour.
 
 ### L2.6 Traffic
 
-- **NPC ships** come and go from pads: scripted descents and ascents along pad corridors, at the pad
-  sizes they fit. That's enough to make ports look alive and to fill pads, which makes the queue matter.
+- **NPC ships** come and go from pads under the traffic controller, flown by their Autopilot Computers
+  along pad corridors, in the same queue as the player. That makes ports look alive and fills pads, which
+  makes the queue matter.
 - **Forward bases** have turrets that fight for their holder (`combat.js`, as fixed guns).
 
 ### L2.7 Release 0.3.0
@@ -353,12 +363,10 @@ Some steps can run in parallel:
 - L1.4 can go alongside L1.2 or L1.3.
 - L2.1 can start any time, even during L1, since it changes nothing a player sees.
 
-## Decisions to confirm before starting
+## Decisions
 
-Defaults are given; each is easy to change.
-
-1. **The gear key:** 1, and A held on the gamepad, since every letter is taken.
-2. **Version numbers:** 0.2.0 after L1 and 0.3.0 after L2. A 0.1.1 now would ship insurance, rotation and
-   gravity to existing players before L1.
-3. **NPC traffic on pads** (L2.6) is scripted, not flown by the full AI: cheaper, and it looks the same from
-   the cockpit.
+Settled:
+1. **The gear key** is **L** (fire moves to **;**), and every key is rebindable in Settings.
+2. **Version numbers:** 0.1.1 now, shipping insurance, rotation and gravity; 0.2.0 after L1; 0.3.0 after L2.
+3. **NPC traffic on pads** (L2.6) flies by the same **Autopilot Computer** a player can buy, under the same
+   traffic controller, queue and 5-minute rule as the player.

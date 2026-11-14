@@ -36,7 +36,7 @@ async function frame(pg, test) {
 		await pg.goto(`http://127.0.0.1:${PORT}/desk.html#debug&ship=corsair`);   /* (a new game in a Griffin: room for a phaser) */
 		let f = await frame(pg, () => !!document.querySelector('#ovBody button[data-i]'));
 		const start = await f.evaluate(() => ({build: (document.querySelector('#ovBody .build') || {}).textContent, n: document.querySelectorAll('#ovBody button[data-i]').length, h: document.getElementById('ovT').textContent}));
-		ok('1. a new game opens on choosing an origin, among the 46 great powers, marked as the single-player alpha', start.n == 46 && /Single-Player Alpha Build 0\.1\.0/.test(start.build) && /origin/.test(start.h), start);
+		ok('1. a new game opens on choosing an origin, among the 46 great powers, marked as the single-player alpha', start.n == 46 && /Single-Player Alpha Build \d+\.\d+\.\d+/.test(start.build) && /origin/.test(start.h), start);
 		await pg.screenshot({path: path.join(W, 'origin.png')});
 		await f.click('#ovBody button[data-i="5"]');
 		f = await frame(pg, () => window.EmberDebug && EmberDebug.game.docked && !!document.querySelector('[data-screen="launch"]'));

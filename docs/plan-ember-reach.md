@@ -1107,6 +1107,12 @@ everything through M5b, and the Maw and the Rift from M6. The release brought th
 - **A browser test** (`tests/emberreach_t.js`) plays it in the desktop's sandboxed frame: a new game, the
   starport, flight, the map, a jump, pausing, the Rift, and resuming from the save.
 
+**0.1.1** adds:
+- ship insurance and respawn ("Ship insurance");
+- real years, months and days, with worlds turning in real time;
+- gravity below each world's Kármán line;
+- docking clearance revoked after 5 minutes unused, as the traffic controller's rules have it.
+
 Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer. Landing on airless worlds and surface ports are planned in
 `docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).
 

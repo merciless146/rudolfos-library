@@ -76,10 +76,12 @@ this world**" before the pilot commits to a descent.
    - **Refused.** The controller may refuse when the pilot is wanted there, their side is at war with the
      port's holder, or no free pad fits the ship.
    - **Accepted.** The controller gives a pad number sized to the ship (S to XL, or a capital berth at a
-     heavy field) and lights its ring. The clearance lapses after ten minutes, as in space.
+     heavy field) and lights its ring. The ship has **5 minutes** to dock, or the clearance is revoked, as in
+     space. The full rules (the Autopilot Computer, larger pads for smaller ships, the queue) are in "The
+     traffic controller's rules" below.
    - **Without clearance, no landing on a pad:** its clamps stay locked and its ring shows red, and setting
      down on it is refused like docking without clearance. Open ground needs no one's permission.
-4. **Gear.** The landing gear goes down by itself under 300 m, or with a key (1, or A held on a gamepad). With the gear down, top
+4. **Gear.** The landing gear goes down by itself under 300 m, or with a key (**L**, or A held on a gamepad). With the gear down, top
    speed is capped at 100 m/s.
 5. **Touchdown** (in `surface.js`). Every limit is checked together:
 
@@ -175,6 +177,33 @@ This is in the game now (`scene.js`: `karmanOf`, `gravityAt`, `gravityWell`; sce
   move, so ports there sit near the terminator: within 25° of latitude, at 75°–105° of longitude.
 - **Heat.** On a hot world's day side (above 450 K), the heat gauge (`modules.js`) climbs while landed and
   while flying low. Below 80 K, the thrusters' fuel use rises by 10%.
+
+### The traffic controller's rules
+
+Settled with the user, for every port, space or surface, and for every ship, the player's and NPCs' alike:
+
+- **Request.** A docking or landing request goes to the port's **traffic controller** (ATC). The controller
+  accepts or refuses it.
+- **The Autopilot Computer.** Once a request is accepted, a ship with an **Autopilot Computer** talks to the
+  controller and flies itself in to its pad.
+  - It is a small internal module that fits any ship (size 1, a light power draw).
+  - NPC ships always carry one. Players can buy one at any outfitter, or fly in by hand.
+  - The autopilot hands back control if the pilot touches the stick, and can be engaged again (N).
+- **Pads by size.**
+  - A ship is given a pad of its own class first.
+  - If none of its class is free, a **smaller ship may be given a larger pad**.
+  - A **larger ship is never given a smaller pad**.
+  - XS ships use S pads. Capital ships use capital berths, so they can only be queued, never sent to anything
+    smaller.
+- **The queue.** If every pad the ship could use is occupied, it joins a **first-come, first-served queue**,
+  shared by players and NPCs. The controller says where it is in the queue, and gives it a pad as one frees
+  up.
+- **Five minutes.** Once a pad is assigned, the ship has **5 minutes** to dock. Miss that, and the clearance
+  is **revoked**: the pad goes to the next in the queue, and the ship must request again (and join the back
+  of the queue if there is one).
+- **In the game now.** Space ports already give a pad on request and revoke it unused after **5 minutes**
+  (this change; it was ten). The queue, pad classes and the Autopilot Computer come in L2.4, with the
+  surface ports.
 
 ## Surface ports and outposts
 
@@ -310,7 +339,8 @@ beacons, windows) use the emissive channel the stations already use.
   - New player records: `P.landings` (first landings) and port ids.
   - The game's own records are still trimmed under the 256 KB budget the 0.1.0 save brought in.
 - **Controls.**
-  - Vertical thrust uses the existing strafe up and down keys (Space and Left Shift), with the gear on 1.
+  - Vertical thrust uses the existing strafe up and down keys (Space and Left Shift), with the gear on **L**.
+    Fire moves from L to **;** (beside it), and every key can be rebound in Settings.
   - On a controller, vertical is the d-pad's up and down (already strafe up and down).
   - On touch, a vertical slider beside the throttle, ready for phones (1.6.0).
 - **Sound:** gear motors, touchdown thuds scaled by impact, the hiss of the vertical thrusters, and a pad

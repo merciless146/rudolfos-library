@@ -61,7 +61,7 @@ const E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions,
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.1.0'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.1.1'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -323,7 +323,8 @@ function requestDock() {
 	const o = owner();
 	if (o && game.P.bounties[o.currency.code] > 0 && game.npcs.some(n => n.role == 'patrol' && !n.cs.dead && n.faction == o.id)) { talk(o.id, st.name + ': docking denied. You are wanted here: ' + Math.round(game.P.bounties[o.currency.code]).toLocaleString('en-US') + ' ' + o.currency.code + '.', '#e5484d'); Snd.cue('refused'); return }
 	if (o && o.id != game.home.id && F.relation(game.home.id, o.id) < 0) { talk(o.id, st.name + ': docking denied. ' + o.name.replace(/^The /, '') + ' is at war with you.', '#e5484d'); Snd.cue('refused'); return }
-	game.clearance = {pad: 1 + Math.floor(Math.random() * 24), until: game.t + 600};
+	/* the traffic controller's rule: five minutes to dock, or the clearance is revoked (ask again) */
+	game.clearance = {pad: 1 + Math.floor(Math.random() * 24), until: game.t + 300};
 	game.tgt = st;
 	const D = st.def.dock;
 	talk(owner() && owner().id, st.name + ': clearance granted, pad ' + game.clearance.pad + '. Approach along the axis' + (D.spins ? ', and match our spin.' : '.'), '#7fd1a8'); Snd.cue('clearance');
@@ -434,7 +435,7 @@ function update(dt) {
 	actions(dt);
 	if (game.docked) return;
 	game.t += dt;
-	if (game.clearance && game.t > game.clearance.until) { game.clearance = null; say('Docking clearance expired') }
+	if (game.clearance && game.t > game.clearance.until) { game.clearance = null; say('Docking clearance revoked: not docked within 5 minutes. Request again (N).', '#f2a33a') }
 	M.apply(fit, s);
 	s.hatch = hatchOpen();
 	/* a jump: charging (flying on), then the tunnel (the ship out of normal space) */
