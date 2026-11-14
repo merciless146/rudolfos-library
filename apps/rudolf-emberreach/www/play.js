@@ -54,14 +54,14 @@
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
-const Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
+const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
 	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.3'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.4'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -75,7 +75,7 @@ const KEYS = {
 	fa: ['KeyZ', 'pad:1'], cruise: ['KeyC', 'pad:3'], target: ['KeyT', 'Tab', 'pad:2'], dock: ['KeyN', 'pad:0'], view: ['KeyV', 'pad:11'],
 	map: ['KeyG', 'pad:8'], jump: ['KeyJ', 'pad:10'], route: ['Enter', 'NumpadEnter'], home: ['Home', 'KeyY'],
 	hatch: ['KeyI'], fire: ['Semicolon', 'pad:7'], gear: ['KeyL'], missile: ['KeyK', 'pad:6'], flare: ['KeyB'], hostile: ['KeyU'],
-	systems: ['KeyO'], mouse: ['KeyM'], help: ['KeyH', 'F1'], pause: ['KeyP', 'Escape', 'pad:9'],
+	systems: ['KeyO'], lights: ['Digit1'], nightVision: ['Digit2'], mouse: ['KeyM'], help: ['KeyH', 'F1'], pause: ['KeyP', 'Escape', 'pad:9'],
 	dbgPirates: ['Digit6'], dbgBreak: ['Digit9'], dbgCanopy: ['Digit0'], dbgNear: ['Digit7'], dbgRoute: ['Digit8']};
 /* the controls help: every action with its keys as bound now (Settings rebinds them), in the chosen language */
 const tr = (t, v) => I18.T(t, v);
@@ -194,6 +194,7 @@ function enterSystem(star) {
 /* every mesh, at the graphics setting */
 function meshes() {
 	R.clear();   /* (the last system's meshes, from the GPU too) */
+	TILES.world = null; TILES.built.clear(); TILES.used.clear();
 	for (const b of scene.bodies) { R.upload(b.name, b.kind == 'star' ? Me.star(b.T, quality) : Me.planet(b, quality)); if (b.ring) R.upload(b.name + ':rings', Me.rings(b.ring, b.seed, quality)) }
 	if (st) for (const det of ['hi', 'lo']) Me.station(st.def, st.parts, det).forEach(g => R.upload('station:' + det + ':' + g.spin, g.mesh));
 	R.upload('ship', Me.ship(ship.length, quality));
@@ -319,6 +320,8 @@ function actions(dt) {
 	if (RG.pressed('hostile')) nearestHostile();
 	if (RG.pressed('hatch')) toggleHatch();
 	if (RG.pressed('gear')) toggleGear();
+	if (RG.pressed('lights')) toggleLights();
+	if (RG.pressed('nightVision')) toggleNightVision();
 	if (RG.pressed('dock')) requestDock();
 	if (RG.pressed('cruise')) toggleCruise();
 	if (RG.pressed('jump')) requestJump();
@@ -379,6 +382,18 @@ function liftOff(pin) {
 	const up = norm(sub(pin.p, pin.body.pos));
 	game.landed = null; s.p = add(pin.p, mul(up, 0.5)); s.q = pin.q; s.v = add(pin.v, mul(up, 3)); s.w = [0, 0, 0];
 	game.lastAlt = 0; say('Lifting off from ' + pin.body.name, '#6cc9e8'); Snd.cue('launch');
+}
+/* ---------------- lights ---------------- */
+/* forward spotlights: a cone of light ahead of the ship (the night side of a world is otherwise dark); they need power */
+const SPOT = {strength: 0.85, angle: 20, range: 300};
+function toggleLights() {
+	if (!game.lights && !M.works(fit, 'power')) { say('Spotlights: no power', '#e5484d'); Snd.cue('refused'); return }
+	game.lights = !game.lights; say('Spotlights ' + (game.lights ? 'on' : 'off'), '#9fb0cc'); Snd.cue('hatch');
+}
+/* night vision, a separate function: the view through the sensors, amplified and shown green; it needs working sensors */
+function toggleNightVision() {
+	if (!game.nv && !M.works(fit, 'sensors')) { say('Night vision: the sensors are down', '#e5484d'); Snd.cue('refused'); return }
+	game.nv = !game.nv; say('Night vision ' + (game.nv ? 'on' : 'off'), '#9fb0cc'); Snd.cue(game.nv ? 'faOn' : 'faOff');
 }
 function toggleFA() { Fl.setAssist(s, !s.fa); game.throttle = s.fa ? Math.min(1, len(s.v) / s.spec.vmax) : 0; say('Flight assist ' + (s.fa ? 'on' : 'off'), s.fa ? '#6cc9e8' : '#f2a33a'); Snd.cue(s.fa ? 'faOn' : 'faOff') }
 function nextTarget() { const L = targets(), i = L.indexOf(curTarget()); game.tgt = L[(i + 1) % L.length]; say('Target: ' + game.tgt.name); Snd.cue('tick') }
@@ -524,6 +539,7 @@ function update(dt) {
 	actions(dt);
 	if (game.docked) return;
 	game.t += dt;
+	game.nvK = Math.max(0, Math.min(1, (game.nvK || 0) + (game.nv ? 1 : -1) * dt * 4));   /* (night vision fades in and out over a quarter of a second) */
 	if (game.clearance && game.t > game.clearance.until) { game.clearance = null; say('Docking clearance revoked: not docked within 5 minutes. Request again (N).', '#f2a33a') }
 	M.apply(fit, s);
 	s.hatch = hatchOpen();
@@ -885,7 +901,10 @@ function scanned(n) {
 /* ---------------- proximity safety, and wormholes ---------------- */
 /* a ship or a canister below a world's surface comes to rest on it (canisters) or is held off it (NPCs: the safety) */
 function holdOff(x) {
-	for (const b of scene.bodies) { const lim = Sc.safeDist(b), d = sub(x.p, b.pos), L = len(d); if (L >= lim) continue; const n = mul(d, 1 / (L || 1)), vn = dot(x.v, n); x.p = add(b.pos, mul(n, lim)); if (vn < 0) x.v = sub(x.v, mul(n, vn)) }
+	for (const b of scene.bodies) {
+		const ground = b.kind == 'planet' && !b.atmo && len(sub(x.p, b.pos)) < b.radius + Te.bound(b) + 400 ? Sc.groundAt(scene, b, x.p, game.t) : null;   /* (over the terrain) */
+		const lim = ground ? b.radius + ground.h + Sc.SAFE.ground : Sc.safeDist(b), d = sub(x.p, b.pos), L = len(d); if (L >= lim) continue; const n = mul(d, 1 / (L || 1)), vn = dot(x.v, n); x.p = add(b.pos, mul(n, lim)); if (vn < 0) x.v = sub(x.v, mul(n, vn))
+	}
 }
 function restOnGround(c) {
 	for (const b of scene.bodies) { if (b.kind != 'planet') continue; const d = sub(c.p, b.pos), L = len(d), lim = b.radius + 2; if (L >= lim) continue; const n = mul(d, 1 / (L || 1)); c.p = add(b.pos, mul(n, lim)); c.v = [0, 0, 0]; c.pos = c.p }
@@ -894,7 +913,9 @@ function safety() {
 	for (const b of scene.bodies) {
 		/* with the gear down over ground that can be landed on, the safety lets go: contact decides (touch) */
 		if (game.gear && b.kind == 'planet' && !b.atmo && Ld.landable(b.src).ok) continue;
-		const lim = Sc.safeDist(b), d = sub(s.p, b.pos), L = len(d); if (L >= lim) continue;
+		/* airless ground: held 300 m over the terrain itself (terrain.js), not the world's radius */
+		const ground = b.kind == 'planet' && !b.atmo && len(sub(s.p, b.pos)) < b.radius + Te.bound(b) + 400 ? Sc.groundAt(scene, b, s.p, game.t) : null;
+		const lim = ground ? b.radius + ground.h + Sc.SAFE.ground : Sc.safeDist(b), d = sub(s.p, b.pos), L = len(d); if (L >= lim) continue;
 		const n = mul(d, 1 / (L || 1)), vn = dot(s.v, n);
 		s.p = add(b.pos, mul(n, lim));
 		if (vn < 0) s.v = sub(s.v, mul(n, vn));
@@ -1092,6 +1113,38 @@ function avgColour(b) {
 	for (let k = 0; k < 200; k++) { const z = r() * 2 - 1, a = r() * 6.283, q = Math.sqrt(1 - z * z), v = f([q * Math.cos(a), q * Math.sin(a), z]); c[0] += v[0]; c[1] += v[1]; c[2] += v[2]; n++ }
 	return c.map(x => x / n);
 }
+/* ---------------- terrain (landing L1.3) ----------------
+   Within 400 km of an airless world the tiles of its terrain (terrain.js) are built, a few milliseconds a frame,
+   nearest first; under 200 km, once the tiles in view are ready, they're drawn in place of the world's sphere. Tiles
+   unused for 10 s are let go. On low quality the tiles are half as fine and the budget half as big. */
+const TILES = {world: null, res: 0, built: new globalThis.Map(), used: new globalThis.Map(), sweep: 0};   /* (Map here is the star map) */
+function terrainItems(b, items, bf, sun) {
+	if (R.kind != 'webgl' || b.kind != 'planet' || b.atmo || (b.src && b.src.gas)) return false;
+	const camD = sub(game.camP || s.p, b.pos), alt = len(camD) - b.radius;
+	if (alt > Te.TER.prebuild) return false;
+	const low = quality == 'low', res = low ? Te.TER.lowRes : Te.TER.res, budget = low ? Te.TER.lowBudget : Te.TER.budget;
+	if (TILES.world != b.name || TILES.res != res) { for (const k of TILES.built.keys()) R.drop(k); TILES.built.clear(); TILES.used.clear(); TILES.world = b.name; TILES.res = res }
+	const id = t => 'ter:' + res + ':' + Te.key(t), camL = [dot(camD, bf.x), dot(camD, bf.y), dot(camD, bf.z)];
+	const sel = Te.select(b, camL, {res, budget, built: k => TILES.built.has('ter:' + res + ':' + k)});
+	/* build: what's drawn first (the six faces to start with), then the children wanted, nearest first, in about 2 ms */
+	const need = sel.draw.filter(t => !TILES.built.has(id(t))).concat(sel.want), t0 = performance.now();
+	for (const t of need) {
+		if (TILES.built.has(id(t))) continue;
+		if (performance.now() - t0 > 2) break;
+		const m = Te.build(b, t, res); R.upload(id(t), m.mesh); TILES.built.set(id(t), {centre: m.centre, tris: m.tris});
+	}
+	/* let go of tiles unused for 10 s (once a second) */
+	if (game.t - TILES.sweep > 1) { TILES.sweep = game.t; for (const [k, at] of TILES.used) if (game.t - at > 10) { R.drop(k); TILES.built.delete(k); TILES.used.delete(k) } }
+	if (alt > Te.TER.near || !sel.draw.every(t => TILES.built.has(id(t)))) return false;
+	const rot = mat3(bf.x, bf.y, bf.z);
+	let tris = 0;
+	for (const t of sel.draw) {
+		const k = id(t), T = TILES.built.get(k), c = T.centre, pos = add(b.pos, add(add(mul(bf.x, c[0]), mul(bf.y, c[1])), mul(bf.z, c[2])));
+		items.push({id: k, pos, rot, light: norm(sub(sun.pos, pos)), amb: 0.03}); TILES.used.set(k, game.t); tris += T.tris;
+	}
+	game.lod.terrain = {world: b.name, tiles: sel.draw.length, tris, built: TILES.built.size, deepest: Math.max(...sel.draw.map(t => t.L))};
+	return true;
+}
 const mat3 = (x, y, z) => [x[0], x[1], x[2], y[0], y[1], y[2], z[0], z[1], z[2]];
 function draw() {
 	if (!s) return;
@@ -1099,7 +1152,10 @@ function draw() {
 	const sun = scene.bodies[0], items = [], glows = [], CB = R.basis(cam.q), kpx = Hh / 2 / Math.tan(fovNow() / 2 * Math.PI / 180);
 	/* how many pixels across a thing of radius r at p looks */
 	const px = (p, r) => { const z = dot(sub(p, cam.p), CB.f); return z > 0 ? r / z * kpx : Infinity };
-	game.lod = {sprites: 0, meshes: 0, station: ''};
+	game.lod = {sprites: 0, meshes: 0, station: '', terrain: null};
+	game.camP = cam.p;
+	/* the airless world nearest the camera, within reach of its terrain */
+	let ground = null, gd = Infinity; for (const b of scene.bodies) { if (b.kind != 'planet' || b.atmo) continue; const a = len(sub(cam.p, b.pos)) - b.radius; if (a < Te.TER.prebuild && a < gd) { gd = a; ground = b } }
 	for (const b of scene.bodies) {
 		const lightDir = norm(sub(sun.pos, b.pos)), bf = Sc.bodyFrame(b, Sc.turnOf(b, game.day, game.t)), rot = mat3(mul(bf.x, b.radius), mul(bf.y, b.radius), mul(bf.z, b.radius));
 		const far = px(b.pos, b.radius * (b.ring ? 2.3 : 1)) < LOD.spritePx, atmo = b.atmo ? Me.atmosphere(b.type) : null;
@@ -1116,6 +1172,8 @@ function draw() {
 			glows.push({pos: b.pos, radius: b.radius, col: c, alpha: b.companion ? 0.5 : 0.9, scale: 7, min: b.companion ? 0.015 : 0.05});
 		} else {
 			const pal = b.pal || (b.pal = avgColour(b));
+			/* close to an airless world, its terrain's tiles stand in for the sphere */
+			if (b == ground && terrainItems(b, items, bf, sun)) { if (b.ring) items.push({id: b.name + ':rings', pos: b.pos, rot, light: lightDir, amb: 0.45}); game.lod.meshes++; continue }
 			items.push({id: b.name, pos: b.pos, rot, light: lightDir, atmo, disc: {radius: b.radius, col: pal}, sprite: far ? {radius: b.radius, col: pal} : null});
 			if (b.ring && !far) items.push({id: b.name + ':rings', pos: b.pos, rot, light: lightDir, amb: 0.45});   /* rings scatter light: lit even edge-on */
 		}
@@ -1150,7 +1208,11 @@ function draw() {
 	for (const m of game.shots) { const W = C.WEAPONS[m.kind], big = m.kind == 'missile' || m.kind == 'torpedo'; glows.push({pos: m.p, radius: big ? 6 : 2.5, col: W.col, alpha: 1, scale: 4, min: big ? 0.012 : 0.007}) }
 	for (const b of game.booms) { const k = (game.t - b.t) / b.life; glows.push({pos: b.pos, radius: b.r * (0.4 + k), col: b.col, alpha: Math.max(0, 1 - k), scale: 3, min: 0.01}) }
 	glows.push({pos: add(cam.p, mul(game.coreDir, 1e18)), radius: 1e16, col: [1, 0.85, 0.6], alpha: 0.22, scale: 1, min: 0.6});
-	R.frame({cam, fov: fovNow(), items, glows: game.settings.graphics.glow ? glows : []});
+	/* the spotlights shine from the nose along it; night vision fades in and out over a quarter of a second */
+	if (game.lights && !M.works(fit, 'power')) game.lights = false;
+	if (game.nv && !M.works(fit, 'sensors')) game.nv = false;
+	const fw = Fl.forward(s), spot = game.lights && !game.docked ? {pos: add(s.p, mul(fw, ship.length * 0.5)), dir: fw, strength: SPOT.strength, cos: Math.cos(SPOT.angle * Math.PI / 180), range: SPOT.range} : null;
+	R.frame({cam, fov: fovNow(), items, glows: game.settings.graphics.glow ? glows : [], spot, nightVision: game.nvK});
 	gl.style.filter = game.vision && game.vision.blur > 0.01 && pilot.conscious ? 'blur(' + (game.vision.blur * 5).toFixed(1) + 'px)' : '';
 	if (game.mapOpen) { const ctx = view.begin(); map.day = game.day; map.fuel = game.fuel; map.draw(ctx, W, Hh, game.t); return }
 	hudDraw(cam);
@@ -1210,7 +1272,7 @@ function hudDraw(cam) {
 		speed, vmax: s.spec.vmax, throttle: game.throttle, fa: s.fa, cruise: cz.on, charging: cz.charge > 0 ? cz.charge : 0, massLocked: !cz.on && Sc.massLocked(scene, s.p),
 		target, prograde: vm && game.settings.hud.prograde ? {x: vm.x, y: vm.y, on: vm.z > 0} : null, alerts: M.alerts(fit), modules: fit.modules, showSystems: game.systems, shipName: ship.name,
 		messages: game.msgs, vision: game.vision, gFelt: game.gFelt, reduceFlash: reduceFlash(), reduceMotion: game.settings.a11y.motion, thrustNote: s.fa ? null : tr('Thrust') + ' ' + Math.round(game.throttle * 100) + '%',
-		gear: game.gear, landed: !!game.landed, fps: game.settings.graphics.fps ? game.fps : null, captions: game.settings.a11y.captions ? game.captions.filter(c => game.t - c.t < 3) : null,
+		gear: game.gear, landed: !!game.landed, lights: !!game.lights, nv: !!game.nv, fps: game.settings.graphics.fps ? game.fps : null, captions: game.settings.a11y.captions ? game.captions.filter(c => game.t - c.t < 3) : null,
 		fuel: game.fuel, jumpCharge: J && J.tunnel == null ? J.charge : 0, witch: J && J.tunnel != null ? 1 - J.tunnel / JUMP.tunnel : null, witchTo: J && J.leg.star.name,
 		nextLeg: leg ? tr('Next') + ': ' + leg.star.name + ' · ' + leg.d.toFixed(1) + ' pc' + (leg.kind != 'jump' ? ' (lane)' : '') + ' · J' : null,
 		touch: RG.lastInput == 'touch', touchUI: touchLayout(),

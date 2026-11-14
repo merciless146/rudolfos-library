@@ -100,13 +100,37 @@ async function frame(pg, test) {
 		/* landing L1.1: below a world's Kármán line the HUD reads the surface, and a hover holds its spot over the turning ground */
 		const wld = await f.evaluate(() => { const sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok) || sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000); if (!b) return null; EmberDebug.near(b, 1 + 2000 / b.radius); const g = EmberDebug.game; g.cruise = {on: false, v: 0, charge: 0}; g.throttle = 0; const s = EmberDebug.s, F = EmberScene.worldFrame(b); s.v = EmberFlight.frameAt(F, s.p).v; s.fa = true; return b.name });
 		await sleep(3000);
-		const sfc = await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberScene.surfaceState(EmberDebug.scene, s, g.t, EmberDebug.ship); return st && {alt: st.alt, vh: st.vh, vz: st.vz, world: st.world, land: EmberLanding.card(EmberDebug.ship, st.body.src).line} });
+		const sfc = await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberScene.surfaceState(EmberDebug.scene, s, g.t, EmberDebug.ship); return st && {alt: st.alt, hill: EmberScene.groundAt(EmberDebug.scene, st.body, s.p, g.t).h, vh: st.vh, vz: st.vz, world: st.world, land: EmberLanding.card(EmberDebug.ship, st.body.src).line} });
 		await pg.screenshot({path: path.join(W, 'surface.png')});
-		ok('9d. 2 km over a world, the surface readout holds: the hover keeps its height and its spot as the world turns', wld && sfc && Math.abs(sfc.alt - 2000) < 60 && sfc.vh < 3 && Math.abs(sfc.vz) < 3, {wld, sfc});
+		ok('9d. 2 km over a world (over its terrain\'s hills and craters), the surface readout holds: the hover keeps its height and its spot as the world turns', wld && sfc && Math.abs(sfc.alt + sfc.hill - 2000) < 60 && sfc.vh < 3 && Math.abs(sfc.vz) < 3, {wld, sfc});
+		/* terrain L1.3: from 100 km down to 1 km, the tiles stand in for the sphere, finer the lower, within budget */
+		const terr = [];
+		for (const km of [100, 10, 1]) {
+			await f.evaluate(km => { const sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok); const s = EmberDebug.s, u = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...u);
+				s.p = b.pos.map((v, i) => v + u[i] / n * (b.radius + km * 1000)); s.v = EmberFlight.frameAt(EmberScene.worldFrame(b), s.p).v; s.q = EmberScene.lookRotation(u.map(v => -v / n), [0, 0, 1]); EmberDebug.game.gear = false }, km);
+			await sleep(km == 100 ? 6000 : 4000);
+			terr.push(await f.evaluate(() => Object.assign({}, EmberDebug.game.lod.terrain, {fps: EmberDebug.game.fps})));
+		}
+		await pg.screenshot({path: path.join(W, 'terrain.png')});
+		ok('9g. terrain: drawn as tiles from 100 km down, under 60,000 triangles, finer the lower', terr.every(t => t.tiles > 0 && t.tris <= 60000) && terr[2].deepest > terr[0].deepest, terr);
+		/* spotlights and night vision, on the night side 150 m up */
+		await f.evaluate(() => { const sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok), sun = sc.bodies[0], g = EmberDebug.game, s = EmberDebug.s;
+			const away = b.pos.map((v, i) => v - sun.pos[i]), n = Math.hypot(...away), U = away.map(v => v / n), h = EmberScene.groundAt(sc, b, b.pos.map((v, i) => v + U[i] * b.radius), g.t).h;
+			s.p = b.pos.map((v, i) => v + U[i] * (b.radius + h + 150)); s.v = EmberFlight.frameAt(EmberScene.worldFrame(b), s.p).v; g.gear = false; g.lights = false; g.nv = false;
+			const side = [-U[1], U[0], 0], sl = Math.hypot(...side), fwd = U.map((v, i) => -v * 0.6 + side[i] / sl * 0.4), fl = Math.hypot(...fwd); s.q = EmberScene.lookRotation(fwd.map(v => v / fl), [0, 0, 1]) });
+		await sleep(3000); await pg.screenshot({path: path.join(W, 'night.png')});
+		await f.focus('#hud'); await pg.keyboard.press('Digit1'); await sleep(1500); await pg.screenshot({path: path.join(W, 'night-lights.png')});
+		const li = await f.evaluate(() => EmberDebug.game.lights);
+		await pg.keyboard.press('Digit1'); await pg.keyboard.press('Digit2'); await sleep(1500); await pg.screenshot({path: path.join(W, 'night-vision.png')});
+		const nv = await f.evaluate(() => ({nv: EmberDebug.game.nv, k: EmberDebug.game.nvK, lights: EmberDebug.game.lights}));
+		await pg.keyboard.press('Digit2'); await sleep(600);
+		const off = await f.evaluate(() => ({nv: EmberDebug.game.nv, k: EmberDebug.game.nvK}));
+		ok('9h. 1 turns the forward spotlights on and off; 2, separately, night vision', li === true && nv.nv === true && nv.k > 0.9 && nv.lights === false && off.nv === false && off.k < 0.1, {li, nv, off});
 		/* landing L1.2: set down on the gear, sit there as the world turns, lift off; then come down far too fast */
 		const setDown = (h, vz) => f.evaluate(([h, vz]) => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok); if (!b) return null;
 			const sh = EmberDebug.ship, low = EmberLanding.lowest(sh, true, 0), s = EmberDebug.s, up = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...up), u = up.map(v => v / n);
-			s.p = b.pos.map((v, i) => v + u[i] * (b.radius + low.d + h)); const side = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], fw = [u[1] * side[2] - u[2] * side[1], u[2] * side[0] - u[0] * side[2], u[0] * side[1] - u[1] * side[0]];
+			const gh = EmberScene.groundAt(sc, b, b.pos.map((v, i) => v + u[i] * b.radius), g.t).h;   /* (the terrain's own height there) */
+			s.p = b.pos.map((v, i) => v + u[i] * (b.radius + gh + low.d + h)); const side = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], fw = [u[1] * side[2] - u[2] * side[1], u[2] * side[0] - u[0] * side[2], u[0] * side[1] - u[1] * side[0]];
 			s.q = EmberScene.lookRotation(fw, u); const gv = EmberFlight.frameAt(EmberScene.worldFrame(b), s.p).v; s.v = gv.map((v, i) => v + u[i] * vz); s.w = [0, 0, 0]; s.fa = false;
 			g.gear = true; g.throttle = 0; g.landed = null; g.lastAlt = null; g.cruise = {on: false, v: 0, charge: 0}; g.npcs = []; return b.name }, [h, vz]);
 		const lw = await setDown(0.6, -1.5); await sleep(1500);

@@ -193,6 +193,8 @@ function draw(ctx, W, H, h, t) {
 	ctx.fillStyle = C.muted; ctx.fillRect(tx - 4, zero, 20, 1);
 	const chips = [[TT(h.fa ? 'FA ON' : 'FA OFF'), h.fa ? C.cyan : C.amber]];
 	if (h.landed) chips.push([TT('LANDED'), C.green]); else if (h.gear) chips.push([TT('GEAR DOWN'), C.amber]);
+	if (h.lights) chips.push([TT('LIGHTS'), C.text]);
+	if (h.nv) chips.push([TT('NV'), C.green]);
 	if (h.cruise) chips.push([TT('CRUISE'), C.cyan]); else if (h.charging) chips.push([TT('CHARGING') + ' ' + Math.ceil(h.charging), C.cyan]); else if (h.massLocked) chips.push([TT('MASS LOCKED'), C.muted]);
 	if (h.jumpCharge) chips.push([TT('JUMP') + ' ' + Math.ceil(h.jumpCharge), C.cyan]);
 	if (h.fuel != null) chips.push([TT('FUEL') + ' ' + Math.round(h.fuel * 100) + '%', h.fuel < 0.25 ? C.amber : C.muted]);

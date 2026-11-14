@@ -2,7 +2,9 @@
    WebGL 2 where there is one; otherwise Canvas 2D (flat polygons sorted back to front, planets and stars as shaded
    discs). Positions are kept in doubles and made relative to the camera before they reach the graphics card, and
    depth is logarithmic, so a ship a few metres away and a planet an AU away draw in one pass.
-   frame({cam: {p, q}, fov, items: [{id, pos, rot (3×3, column-major, with scale), light, sprite}], glows})
+   frame({cam: {p, q}, fov, items: [{id, pos, rot (3×3, column-major, with scale), light, sprite}], glows, spot, nightVision})
+   spot: the ship's forward spotlights, {pos, dir, strength, cos (of the cone's edge), range}; nightVision: 0..1 (the
+   image intensified and shown green).
    An item with a sprite ({radius, col, glow}) is drawn as one lit quad, not its mesh: the caller decides when
    (play.js: celestial bodies under 48 pixels across, stations beyond 500 km). The Canvas fallback draws planets
    and stars as shaded discs always.
@@ -29,6 +31,9 @@ function webgl(cv, gl) {
 	const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s };
 	const prog = (vs, fs) => { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p };
 	const head = '#version 300 es\nprecision highp float;\n';
+	/* night vision: the light amplified many times over (what's dark comes up, what's bright saturates) and shown as
+	   the green of an image intensifier, with a faint floor so the darkest ground still reads */
+	const NV = `uniform float uNV; vec3 nightVision(vec3 c) { if (uNV <= 0.0) return c; float l = dot(c, vec3(0.3, 0.59, 0.11)); float g = 1.0 - exp(-l * 14.0) + 0.035; return mix(c, vec3(0.32, 1.0, 0.42) * g, uNV); }\n`;
 	/* camera space: x right, y up, w = distance along the view; clip z puts the near plane at w = NEAR */
 	const proj = `uniform vec3 uR, uU, uF; uniform vec2 uK;
 vec4 project(vec3 c) { float w = dot(c, uF); return vec4(dot(c, uR) * uK.x, dot(c, uU) * uK.y, min(w - 2.0 * ${NEAR.toFixed(2)}, w * 0.999), w); }`;   /* (far off, w - 1 rounds to w in floats: keep z inside, the depth is written apart) */
@@ -36,24 +41,31 @@ vec4 project(vec3 c) { float w = dot(c, uF); return vec4(dot(c, uR) * uK.x, dot(
 		mesh: prog(head + proj + `
 in vec3 aP, aN; in vec4 aC; uniform vec3 uOff; uniform mat3 uRot; out vec3 vN; out vec4 vC; out float vW; out vec3 vPos;
 void main() { vec3 c = uOff + uRot * aP; gl_Position = project(c); vW = gl_Position.w; vN = normalize(uRot * aN); vC = aC; vPos = c; }`,
-		head + `in vec3 vN; in vec4 vC; in float vW; in vec3 vPos; uniform vec3 uL; uniform float uAmb; uniform vec4 uAtmo; out vec4 o;
-void main() { vec3 n = normalize(vN); float d = max(dot(n, uL), 0.0); vec3 lit = vC.rgb * (uAmb + (1.0 - uAmb) * d); o = vec4(mix(lit, vC.rgb * 1.15, vC.a), 1.0);
+		head + NV + `in vec3 vN; in vec4 vC; in float vW; in vec3 vPos; uniform vec3 uL; uniform float uAmb; uniform vec4 uAtmo; uniform vec3 uSpotP, uSpotD; uniform vec4 uSpot; out vec4 o;
+void main() { vec3 n = normalize(vN); float d = max(dot(n, uL), 0.0);
+ /* the ambient isn't flat: starlight from the sky opposite the sun, so a night side's slopes still read (in night vision above all) */
+ vec3 lit = vC.rgb * (uAmb * (0.35 + 0.65 * max(dot(n, -uL), 0.0)) + (1.0 - uAmb) * d);
+ /* the ship's spotlights: a cone ahead of it, falling off with distance (uSpot: strength, cos of the cone's edge, range) */
+ if (uSpot.x > 0.0) { vec3 L = uSpotP - vPos; float dl = length(L); vec3 l = L / max(dl, 0.001); float cone = smoothstep(uSpot.y, mix(uSpot.y, 1.0, 0.35), dot(-l, uSpotD));
+  lit += vC.rgb * vec3(1.0, 0.95, 0.85) * uSpot.x * cone * max(dot(n, l), 0.0) / (1.0 + (dl / uSpot.z) * (dl / uSpot.z)); }
+ o = vec4(mix(lit, vC.rgb * 1.15, vC.a), 1.0);
  /* a world's air: a rim of haze on its lit side */
  if (uAtmo.a > 0.0) { float rim = pow(1.0 - max(dot(n, -normalize(vPos)), 0.0), 3.0); o.rgb += uAtmo.rgb * uAtmo.a * rim * (0.15 + 0.85 * smoothstep(-0.2, 0.4, dot(n, uL))); }
+ o.rgb = nightVision(o.rgb);
  gl_FragDepth = log2(1.0 + max(vW, 0.0)) / log2(1.0 + ${FAR.toExponential()}); }`),
 		pts: prog(head + proj + `
 in vec3 aP; in vec4 aC; out vec4 vC; uniform float uPx;
 void main() { vec4 p = project(aP * 1e9); p.z = p.w * 0.99999; gl_Position = p; vC = aC; gl_PointSize = max(1.0, uPx * aC.a); }`,
-		head + `in vec4 vC; out vec4 o; void main() { vec2 d = gl_PointCoord - 0.5; float a = smoothstep(0.5, 0.15, length(d)); o = vec4(vC.rgb * a, 1.0); }`),
+		head + NV + `in vec4 vC; out vec4 o; void main() { vec2 d = gl_PointCoord - 0.5; float a = smoothstep(0.5, 0.15, length(d)); o = vec4(nightVision(vC.rgb * a), 1.0); }`),
 		/* a body from afar: one quad, shaded as a lit sphere (or flat bright for a star) */
 		sprite: prog(head + proj + `
 in vec2 aP; uniform vec3 uOff; uniform float uRad; out vec2 vQ; out float vW;
 void main() { vec3 c = uOff + (uR * aP.x + uU * aP.y) * uRad; vec4 p = project(c); gl_Position = p / p.w; vW = dot(uOff, uF); vQ = aP; }`,   /* (the quad faces the camera, all at one distance: divided through here, so huge far-off ones clip cleanly) */
-		head + `in vec2 vQ; in float vW; uniform vec3 uCol, uLv; uniform float uGlow, uMinA; uniform vec4 uAtmo; out vec4 o;
+		head + NV + `in vec2 vQ; in float vW; uniform vec3 uCol, uLv; uniform float uGlow, uMinA; uniform vec4 uAtmo; out vec4 o;
 void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ.y, -sqrt(max(0.0, 1.0 - r * r)));
  float d = max(dot(n, uLv), 0.0); vec3 c = mix(uCol * (0.05 + 0.95 * d), uCol * 1.1, uGlow);
  c += uAtmo.rgb * uAtmo.a * pow(r, 6.0) * (0.15 + 0.85 * smoothstep(-0.2, 0.4, d));
- o = vec4(c, 1.0); gl_FragDepth = log2(1.0 + max(vW, 0.0)) / log2(1.0 + ${FAR.toExponential()}); }`),
+ o = vec4(nightVision(c), 1.0); gl_FragDepth = log2(1.0 + max(vW, 0.0)) / log2(1.0 + ${FAR.toExponential()}); }`),
 		glow: prog(head + `in vec2 aP; uniform vec3 uC; uniform vec2 uS; out vec2 vQ; void main() { vQ = aP; gl_Position = vec4(uC.xy + aP * uS, 0.0, 1.0); }`,
 		head + `in vec2 vQ; uniform vec3 uCol; uniform float uA; out vec4 o; void main() { float r = length(vQ); float a = uA * pow(max(0.0, 1.0 - r), 2.6); o = vec4(uCol * a, 1.0); }`)
 	};
@@ -96,7 +108,8 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 		const B = basis(F.cam.q), fy = 1 / Math.tan((F.fov || 70) * Math.PI / 360), K = [fy * h / w, fy];
 		/* the sky: stars at infinity */
 		gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
-		if (sky) { gl.useProgram(P.pts); camUniforms('pts', B, K); gl.uniform1f(U.pts.uPx, Math.max(1, h / 900)); gl.bindVertexArray(sky.vao); gl.drawArrays(gl.POINTS, 0, sky.n) }
+		const nv = F.nightVision || 0;
+		if (sky) { gl.useProgram(P.pts); camUniforms('pts', B, K); gl.uniform1f(U.pts.uNV, nv); gl.uniform1f(U.pts.uPx, Math.max(1, h / 900)); gl.bindVertexArray(sky.vao); gl.drawArrays(gl.POINTS, 0, sky.n) }
 		/* glows (stars' coronae), behind the solid things */
 		gl.useProgram(P.glow); gl.bindVertexArray(quad);
 		for (const g of F.glows || []) {
@@ -107,7 +120,7 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 		}
 		gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.disable(gl.CULL_FACE);
 		/* bodies from afar, as sprites */
-		gl.useProgram(P.sprite); camUniforms('sprite', B, K); gl.bindVertexArray(squad);
+		gl.useProgram(P.sprite); camUniforms('sprite', B, K); gl.uniform1f(U.sprite.uNV, nv); gl.bindVertexArray(squad);
 		for (const it of F.items) {
 			if (!it.sprite) continue;
 			const off = [it.pos[0] - F.cam.p[0], it.pos[1] - F.cam.p[1], it.pos[2] - F.cam.p[2]], z = dot(off, B.f); if (z <= 0) continue;
@@ -118,7 +131,9 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 			gl.uniform4fv(U.sprite.uAtmo, it.atmo || [0, 0, 0, 0]);
 			gl.drawArrays(gl.TRIANGLES, 0, 6);
 		}
-		gl.useProgram(P.mesh); camUniforms('mesh', B, K);
+		gl.useProgram(P.mesh); camUniforms('mesh', B, K); gl.uniform1f(U.mesh.uNV, nv);
+		/* the spotlights (camera-relative): F.spot = {pos, dir, strength, cos, range} */
+		const sp = F.spot; if (sp) { gl.uniform3f(U.mesh.uSpotP, sp.pos[0] - F.cam.p[0], sp.pos[1] - F.cam.p[1], sp.pos[2] - F.cam.p[2]); gl.uniform3fv(U.mesh.uSpotD, sp.dir); gl.uniform4f(U.mesh.uSpot, sp.strength, sp.cos, sp.range, 0) } else gl.uniform4f(U.mesh.uSpot, 0, 0, 1, 0);
 		for (const it of F.items) {
 			if (it.sprite) continue;
 			const m = meshes[it.id]; if (!m) continue;
@@ -129,7 +144,7 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 		}
 		gl.bindVertexArray(null);
 	}
-	return {kind: 'webgl', upload, clear, ids: () => Object.keys(meshes), setSky, frame, basis};
+	return {kind: 'webgl', upload, clear, drop, ids: () => Object.keys(meshes), setSky, frame, basis};
 }
 
 /* ---------------- Canvas 2D fallback ---------------- */
@@ -184,7 +199,7 @@ function canvas2d(cv) {
 			ctx.fillStyle = d.fill; ctx.strokeStyle = d.fill; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(d.tri[0][0], d.tri[0][1]); ctx.lineTo(d.tri[1][0], d.tri[1][1]); ctx.lineTo(d.tri[2][0], d.tri[2][1]); ctx.closePath(); ctx.fill(); ctx.stroke();
 		}
 	}
-	return {kind: 'canvas', upload: (id, m) => { meshes[id] = m }, clear: () => { for (const id of Object.keys(meshes)) delete meshes[id] }, ids: () => Object.keys(meshes), setSky: a => { sky = a }, frame, basis};
+	return {kind: 'canvas', upload: (id, m) => { meshes[id] = m }, clear: () => { for (const id of Object.keys(meshes)) delete meshes[id] }, drop: id => { delete meshes[id] }, ids: () => Object.keys(meshes), setSky: a => { sky = a }, frame, basis};
 }
 
 const EmberRender = {create, basis, NEAR, FAR};

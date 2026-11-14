@@ -26,6 +26,8 @@ try {
 	const W = {kind: 'planet', name: 'Testmoon', pos: [1e11, 0, 0], radius: 3e6, g: 0.5, M: 0.05, karman: Sc.karmanOf ? 5000 : 5000, axis: [0, 0, 1], period: 10 * 3600, phase: 0, src: {g: 0.5, Ts: 220}};
 	const scene = {star: {name: 'Test'}, bodies: [{kind: 'star', name: 'Test', pos: [0, 0, 0], radius: 7e8}, W], station: null, day: 0};
 	const fr = Sc.worldFrame(W);
+	/* the terrain's height under a direction (world axes) at time t (L1.3: worlds have terrain) */
+	const hAt = (d, t) => Sc.heightAt(W, Sc.localDir(scene, W, d.map(v => v / len(d)), t || 0));
 	ok('7. a world\'s frame: centred on it, spinning about its axis once a day (a 10-hour world: 2π / 36,000 s)', fr.c == W.pos && Math.abs(len(fr.w) - 2 * Math.PI / 36000) < 1e-15 && fr.w[2] > 0);
 	const back = Sc.worldFrame(Object.assign({}, W, {period: -36000}));
 	ok('8. a world that turns backwards spins the other way', back.w[2] < 0);
@@ -41,7 +43,7 @@ try {
 		if (i % 60 == 0) worst = Math.max(worst, len(sub(s.p, spotAt(i / 60))));
 	}
 	const st = Sc.surfaceState(scene, s, 60, ship);
-	ok('9. hovering with flight assist, a ship holds its spot over the turning ground for a minute (the ground moves ' + Math.round(len(fr.w) * (W.radius + 2000) * 60) + ' m)', worst < 5 && Math.abs(st.alt - 2000) < 5 && st.vh < 0.5 && Math.abs(st.vz) < 0.5, worst.toFixed(2) + ' m off at worst; ' + JSON.stringify({alt: st.alt, vh: st.vh, vz: st.vz}));
+	ok('9. hovering with flight assist, a ship holds its spot over the turning ground for a minute (the ground moves ' + Math.round(len(fr.w) * (W.radius + 2000) * 60) + ' m)', worst < 5 && Math.abs(st.alt + hAt(sub(s.p, W.pos), 60) - 2000) < 5 && st.vh < 0.5 && Math.abs(st.vz) < 0.5, worst.toFixed(2) + ' m off at worst; ' + JSON.stringify({alt: st.alt, vh: st.vh, vz: st.vz}));
 	const s2 = Fl.create(ship, {p: p0, q: look([0, 1, 0], up0)}); s2.v = [0, 0, 0];   /* (no FA: held still in space) */
 	const free = Sc.surfaceState(scene, s2, 0, ship);
 	ok('10. held still in space, the ground slides by at the world\'s turning speed', Math.abs(free.vh - len(fr.w) * (W.radius + 2000)) < 1e-6 && Math.abs(free.vz) < 1e-9);
@@ -49,7 +51,7 @@ try {
 	const p3 = add(W.pos, mul([0, 0, 1], W.radius + 1234)), s3 = Fl.create(ship, {p: p3, q: look([1, 0, 0], [0, 0, 1])});
 	s3.v = [0, 0, -3];
 	const r3 = Sc.surfaceState(scene, s3, 0, ship);
-	ok('11. over the north pole: 1,234 m up, falling at 3 m/s, latitude 90°, nose level, wings level', Math.abs(r3.alt - 1234) < 1e-6 && Math.abs(r3.vz + 3) < 1e-9 && Math.abs(r3.lat - 90) < 1e-6 && Math.abs(r3.pitch) < 1e-6 && Math.abs(r3.bank) < 1e-6, r3);
+	ok('11. over the north pole: 1,234 m from the radius (less the terrain there), falling at 3 m/s, latitude 90°, nose level, wings level', Math.abs(r3.alt + hAt([0, 0, 1]) - 1234) < 1e-6 && Math.abs(r3.vz + 3) < 1e-9 && Math.abs(r3.lat - 90) < 1e-6 && Math.abs(r3.pitch) < 1e-6 && Math.abs(r3.bank) < 1e-6, r3);
 	const s4 = Fl.create(ship, {p: p3, q: look([Math.cos(0.3), 0, Math.sin(0.3)], [-Math.sin(0.3), 0, Math.cos(0.3)])});
 	const r4 = Sc.surfaceState(scene, s4, 0, ship), r5 = Sc.surfaceState(scene, Fl.create(ship, {p: p3, q: look([1, 0, 0], [0, Math.sin(0.4), Math.cos(0.4)])}), 0, ship);
 	ok('12. pitch and bank against the local horizon (nose up 17.2°; banked 22.9°)', Math.abs(r4.pitch - 0.3 * 180 / Math.PI) < 1e-6 && Math.abs(Math.abs(r5.bank) - 0.4 * 180 / Math.PI) < 1e-6, [r4.pitch, r5.bank]);
@@ -68,11 +70,11 @@ try {
 	ok('17. anything but the gear counts three times over: a gentle belly landing is a hard one, one at the gear\'s limit a crash; so is a nose-first touch', belly.hard && belly.part == 'belly' && belly2.crash && nose.part == 'nose' && nose.hard);
 	ok('18. the gear: down by itself under 300 m, up above 500 m, and no faster than 100 m/s while down; it can break like any module', L.GEAR.auto.down == 300 && L.GEAR.auto.up == 500 && L.GEAR.vmax == 100 && Mo.fit(wren).modules.some(m => m.id == 'gear'));
 	/* landed: fixed to the ground, turning with the world */
-	const sL = Fl.create(wren, {p: add(W.pos, mul([1, 0, 0], W.radius + g0.d)), q: look([0.3, 1, 0], [1, 0.2, 0])});
+	const sL = Fl.create(wren, {p: add(W.pos, mul([1, 0, 0], W.radius + hAt([1, 0, 0]) + g0.d)), q: look([0.3, 1, 0], [1, 0.2, 0])});
 	const land = Sc.landAt(scene, sL, W, 0, g0.d), at0 = Sc.pinLanded(scene, land, 0), at9 = Sc.pinLanded(scene, land, 9000);
 	const upAt = p => sub(p, W.pos).map(v => v / len(sub(p, W.pos))), shipUp = q => Fl.toWorld(q, [0, 1, 0]), dotp = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-	ok('19. landed, the ship stands upright on its gear where it touched down', len(sub(at0.p, sL.p)) < 1e-3 && dotp(shipUp(at0.q), upAt(at0.p)) > 0.999999 && Math.abs(len(sub(at0.p, W.pos)) - W.radius - g0.d) < 1e-3);   /* (to a millimetre: the world is 1e11 m out) */
-	ok('20. a quarter of a 10-hour day on, it has turned a quarter of the way round with the world, moving with the ground', Math.abs(dotp(upAt(at9.p), [0, 1, 0]) - 1) < 1e-9 && Math.abs(len(at9.v) - len(fr.w) * (W.radius + g0.d)) < 1e-6 && dotp(shipUp(at9.q), upAt(at9.p)) > 0.999999);
+	ok('19. landed, the ship stands upright on its gear where it touched down', len(sub(at0.p, sL.p)) < 1e-3 && dotp(shipUp(at0.q), upAt(at0.p)) > 0.999999 && Math.abs(len(sub(at0.p, W.pos)) - W.radius - hAt([1, 0, 0]) - g0.d) < 1e-3);   /* (to a millimetre: the world is 1e11 m out) */
+	ok('20. a quarter of a 10-hour day on, it has turned a quarter of the way round with the world, moving with the ground', Math.abs(dotp(upAt(at9.p), [0, 1, 0]) - 1) < 1e-9 && Math.abs(len(at9.v) - len(fr.w) * len(sub(at9.p, W.pos))) < 1e-6 && dotp(shipUp(at9.q), upAt(at9.p)) > 0.999999);
 	const st9 = Sc.surfaceState(scene, Object.assign(Fl.create(wren, {p: at9.p, q: at9.q}), {v: at9.v}), 9000, wren);
 	ok('21. ...and reads as standing still: no vertical or ground speed, no tilt', Math.abs(st9.vz) < 1e-6 && st9.vh < 1e-6 && st9.tilt < 1e-3, st9);
 	/* saved and restored */
