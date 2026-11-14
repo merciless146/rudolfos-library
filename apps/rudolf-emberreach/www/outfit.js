@@ -45,14 +45,25 @@ const CAT = {
 	alien: {cat: 'internal', name: 'Alien relay booster', grades: 'A', sizes: [2, 4], price: 0, value: 400000, draw: 0.3, ruins: true, text: 'Far more range: built from a ruin\'s blueprint'},
 	phaser: {cat: 'internal', name: 'Alien dimensional phaser', grades: 'A', sizes: [3, 3], price: 0, value: 300000, draw: 1.5, ruins: true, text: 'Lets the ship pass through a black hole\'s wormhole: built from a ruin\'s blueprint'},
 	/* external: size is the smallest hardpoint it fits (1 small ... 4 huge) */
-	pulse: {cat: 'external', name: 'Pulse laser', grades: 'C', sizes: [1, 1], price: 4000, draw: 0.3, weapon: true, text: '1.2 dmg × 6/s, heats'},
-	driver: {cat: 'external', name: 'Mass driver', grades: 'C', sizes: [2, 2], price: 9000, draw: 0.4, weapon: true, text: '4.5 dmg × 2/s, 150 rounds'},
+	/* (weapons: fixed fire along the nose, gimballed track a target within a circle of the screen for 15% less damage
+	   and half again the price: combat.js) */
+	pulse: {cat: 'external', name: 'Pulse laser (fixed)', grades: 'C', sizes: [1, 1], price: 4000, draw: 0.3, weapon: true, text: '1.2 dmg × 6/s, hitscan, heats, better against shields'},
+	pulseG: {cat: 'external', name: 'Pulse laser (gimballed)', grades: 'C', sizes: [1, 1], price: 6000, draw: 0.3, weapon: true, text: 'Tracks a target in its circle; 1 dmg × 6/s, hitscan, heats'},
+	gatling: {cat: 'external', name: 'Light gatling (fixed)', grades: 'C', sizes: [1, 1], price: 6000, draw: 0.2, weapon: true, text: '0.5 dmg × 14/s, 1,500 rounds, better against hulls'},
+	gatlingG: {cat: 'external', name: 'Light gatling (gimballed)', grades: 'C', sizes: [1, 1], price: 9000, draw: 0.2, weapon: true, text: 'Tracks a target in its circle; 0.43 dmg × 14/s, 1,500 rounds'},
+	driver: {cat: 'external', name: 'Mass driver', grades: 'C', sizes: [2, 2], price: 12000, draw: 0.5, weapon: true, text: 'Hold to charge, let go to fire: 9 dmg a full shot, 150 slugs; held past full it heats'},
+	gatlingM: {cat: 'external', name: 'Gatling (fixed)', grades: 'C', sizes: [2, 2], price: 14000, draw: 0.3, weapon: true, text: '0.9 dmg × 12/s, 2,000 rounds, better against hulls'},
+	gatlingMG: {cat: 'external', name: 'Gatling (gimballed)', grades: 'C', sizes: [2, 2], price: 21000, draw: 0.3, weapon: true, text: 'Tracks a target in its circle; 0.77 dmg × 12/s, 2,000 rounds'},
 	missile: {cat: 'external', name: 'Missile rack', grades: 'C', sizes: [2, 2], price: 12000, draw: 0.2, weapon: true, text: '4 homing missiles, needs a lock'},
-	heavy: {cat: 'external', name: 'Heavy laser', grades: 'C', sizes: [3, 3], price: 30000, draw: 0.7, weapon: true, text: '9 dmg × 1.5/s, heats'},
+	heavy: {cat: 'external', name: 'Heavy laser (fixed)', grades: 'C', sizes: [3, 3], price: 30000, draw: 0.7, weapon: true, text: '9 dmg × 1.5/s, hitscan, heats, better against shields'},
+	heavyG: {cat: 'external', name: 'Heavy laser (gimballed)', grades: 'C', sizes: [3, 3], price: 45000, draw: 0.7, weapon: true, text: 'Tracks a target in its circle; 7.7 dmg × 1.5/s, hitscan, heats'},
+	gatlingL: {cat: 'external', name: 'Heavy gatling (fixed)', grades: 'C', sizes: [3, 3], price: 40000, draw: 0.5, weapon: true, text: '1.6 dmg × 10/s, 2,500 rounds, better against hulls'},
+	gatlingLG: {cat: 'external', name: 'Heavy gatling (gimballed)', grades: 'C', sizes: [3, 3], price: 60000, draw: 0.5, weapon: true, text: 'Tracks a target in its circle; 1.36 dmg × 10/s, 2,500 rounds'},
 	torpedo: {cat: 'external', name: 'Torpedo rack', grades: 'C', sizes: [4, 4], price: 90000, draw: 0.6, weapon: true, text: '150 dmg homing, 8 torpedoes'},
 	mining: {cat: 'external', name: 'Mining laser', grades: 'C', sizes: [1, 1], price: 5000, draw: 0.4, weapon: true, text: 'Breaks ore from asteroids'},
-	needle: {cat: 'external', name: 'Precursor needle', grades: 'P', sizes: [1, 1], price: 4000, draw: 0.3, weapon: true, precursor: true, text: '3 dmg × 6/s, runs cool: Precursor work'},
-	lance: {cat: 'external', name: 'Precursor lance', grades: 'P', sizes: [3, 3], price: 30000, draw: 0.8, weapon: true, precursor: true, text: '26 dmg × 1.5/s, cuts shields and hull alike: Precursor work'},
+	needle: {cat: 'external', name: 'Precursor needle (fixed)', grades: 'P', sizes: [1, 1], price: 4000, draw: 0.3, weapon: true, precursor: true, text: '3 dmg × 6/s, hitscan, runs cool: Precursor work'},
+	needleG: {cat: 'external', name: 'Precursor needle (gimballed)', grades: 'P', sizes: [1, 1], price: 6000, draw: 0.3, weapon: true, precursor: true, text: 'Tracks a target in its circle; 2.55 dmg × 6/s, hitscan, runs cool: Precursor work'},
+	lance: {cat: 'external', name: 'Precursor lance', grades: 'P', sizes: [3, 3], price: 30000, draw: 0.8, weapon: true, precursor: true, text: '26 dmg × 1.5/s, hitscan, cuts shields and hull alike: Precursor work'},
 	tractor: {cat: 'external', name: 'Tractor beam', grades: 'C', sizes: [1, 1], price: 7000, draw: 0.3, text: 'Pulls canisters and ore to an open hatch'},
 	/* utility: one per mount, no size */
 	warrant: {cat: 'utility', name: 'Warrant scanner', kind: 'scanner', grades: 'C', price: 15000, draw: 0.2, text: 'Scan a ship for bounties in every jurisdiction'},
@@ -211,7 +222,7 @@ const RECIPES = {
 const BLUEPRINT = {alien: 'Alien relay booster', phaser: 'Alien dimensional phaser', precursor: 'Precursor', hull: 'Precursor hull'};
 const PRECURSOR_HULLS = () => S.precursors ? S.precursors() : [];
 /* what a Precursor blueprint makes: a module (core ones are built at your hull's size, at the broker) */
-const PRECURSOR_MODS = ['power', 'thrusters', 'maneuver', 'hyperdrive', 'shield', 'armour', 'relay', 'needle', 'lance'];
+const PRECURSOR_MODS = ['power', 'thrusters', 'maneuver', 'hyperdrive', 'shield', 'armour', 'relay', 'needle', 'lance', 'needleG'];
 const bpName = bp => bp.id == 'hull' ? (PRECURSOR_HULLS().find(h => h.id == bp.hull) || {name: '?'}).name + ' (Precursor hull)' : bp.id == 'precursor' ? 'Precursor ' + CAT[bp.mod].name.toLowerCase().replace(/^precursor /, '') + (CAT[bp.mod].cat == 'internal' ? ' ' + bp.size + 'P' : '') : BLUEPRINT[bp.id] + (bp.id == 'alien' ? ' ' + bp.size + 'A' : '');
 const recipe = bp => bp.id == 'hull' ? RECIPES.hull(0, bp.hull) : bp.id == 'precursor' ? RECIPES.precursor(bp.size || 4, bp.mod) : RECIPES[bp.id](bp.size);
 /* a Precursor ruin's survey: a blueprint more often than not. A hull now and then (10%), a weapon (15%), or a
@@ -219,7 +230,7 @@ const recipe = bp => bp.id == 'hull' ? RECIPES.hull(0, bp.hull) : bp.id == 'prec
 function precursorFrom(rnd) {
 	const r = rnd();
 	if (r < 0.1) { const H = PRECURSOR_HULLS(); return H.length ? {id: 'hull', hull: H[Math.floor(rnd() * H.length)].id, size: 0} : null }
-	if (r < 0.25) return rnd() < 0.6 ? {id: 'precursor', mod: 'needle', size: 1} : {id: 'precursor', mod: 'lance', size: 3};
+	if (r < 0.25) { const w = rnd(); return w < 0.3 ? {id: 'precursor', mod: 'needle', size: 1} : w < 0.6 ? {id: 'precursor', mod: 'needleG', size: 1} : {id: 'precursor', mod: 'lance', size: 3} }
 	if (r < 0.7) { const mod = PRECURSOR_MODS.slice(0, 7)[Math.floor(rnd() * 7)], c = CAT[mod]; return {id: 'precursor', mod, size: c.cat == 'core' ? 0 : c.sizes[0] + Math.floor(rnd() * (Math.min(c.sizes[1], 6) - c.sizes[0] + 1))} }
 	return null;
 }

@@ -135,8 +135,14 @@ function draw(ctx, W, H, h, t) {
 			ctx.fillStyle = T.hostile ? C.red : C.amber; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 12, y + Math.sin(a) * 12); ctx.lineTo(x + Math.cos(a + 2.5) * 10, y + Math.sin(a + 2.5) * 10); ctx.lineTo(x + Math.cos(a - 2.5) * 10, y + Math.sin(a - 2.5) * 10); ctx.closePath(); ctx.fill();
 		}
 	}
-	/* the lead pip: where to aim so the guns hit */
-	if (h.target && h.target.lead && h.target.lead.on) { const L = h.target.lead; ctx.strokeStyle = C.red; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(L.x, L.y - 6); ctx.lineTo(L.x + 6, L.y); ctx.lineTo(L.x, L.y + 6); ctx.lineTo(L.x - 6, L.y); ctx.closePath(); ctx.stroke() }
+	/* fixed guns' points of aim: where to put the crosshair so the shots meet the target (S and F: the slower and the
+	   faster shot, when there are two) */
+	if (h.target && h.target.leads) for (const L of h.target.leads) { if (!L.on) continue; ctx.strokeStyle = C.red; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(L.x, L.y - 6); ctx.lineTo(L.x + 6, L.y); ctx.lineTo(L.x, L.y + 6); ctx.lineTo(L.x - 6, L.y); ctx.closePath(); ctx.stroke(); if (L.label) text(ctx, L.label, L.x + 9, L.y + 4, {mono: true, size: 10, weight: 700, col: C.red}) }
+	/* gimballed guns: their circle round the crosshair, and, when a target is in it, the point they're tracking */
+	if (h.gimbal && h.gimbal.r) { ctx.strokeStyle = 'rgba(108,201,232,0.28)'; ctx.lineWidth = 1; ctx.setLineDash([4, 6]); ctx.beginPath(); ctx.arc(cx, cy, h.gimbal.r, 0, 7); ctx.stroke(); ctx.setLineDash([]) }
+	if (h.target && h.target.track) { const P = h.target.track; ctx.strokeStyle = C.cyan; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(P.x, P.y, 9, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(P.x, P.y, 2.5, 0, 7); ctx.fillStyle = C.cyan; ctx.fill() }
+	/* the mass driver's charge: an arc under the crosshair, filling; red once it's held past full (it heats) */
+	if (h.gimbal && h.gimbal.charge > 0) { const k = Math.min(1, h.gimbal.charge), over = h.gimbal.charge > 1; ctx.strokeStyle = over ? C.red : C.amber; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, 30, Math.PI * 0.75, Math.PI * (0.75 + 1.5 * k)); ctx.stroke() }
 	/* ---- the panels, at the HUD's size (Settings); the markers above stay where they point ---- */
 	const W0 = W, H0 = H, k0 = OPT.size || 1; ctx.save(); ctx.scale(k0, k0); W = W / k0; H = H / k0;
 	const cxk = W / 2, small2 = W < 700;

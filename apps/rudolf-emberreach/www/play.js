@@ -61,7 +61,7 @@ const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconom
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.0'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.1'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -85,7 +85,7 @@ let baseShip = null, W = 1, Hh = 1, view = null, R = null, scene = null, st = nu
 const game = {t: 0, day: 200, star: null, port: null, fuel: 1, route: null, jump: null, lastPort: null, mapOpen: false,
 	cruise: {on: false, v: 0, charge: 0}, throttle: 0, target: 0, clearance: null, docked: false, chase: false, systems: false, mouseFly: false, msgs: [], vision: null, gFelt: null, lastStep: null,
 	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: {stick: null, dx: 0, dy: 0, thr: null, fire: null, msl: false},
-	tgt: null, npcs: [], shots: [], booms: [], cans: [], hatch: false, spill: {}, fields: [], field: null, rocks: [], sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, visits: 0, mouseFire: false, own: null};
+	tgt: null, npcs: [], shots: [], beams: [], booms: [], cans: [], hatch: false, spill: {}, fields: [], field: null, rocks: [], sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, visits: 0, mouseFire: false, own: null};
 const say = (text, col) => { game.msgs.push({text, col, t: game.t}); if (game.msgs.length > 12) game.msgs.shift() };
 const at = x => [x.x, x.y, x.z];
 const owner = () => game.port ? F.byId(game.port.owner) : null;
@@ -184,7 +184,7 @@ function enterSystem(star) {
 	game.port = capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day) || T.portFor(star, game.day);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
 	st = scene.station;
-	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null; game.deposits = []; game.gscan = null;
+	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null; game.deposits = []; game.gscan = null;
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
 	site(); beaconAt();
@@ -807,6 +807,9 @@ function marshalsArrive() {
 function combat(dt) {
 	const P = game.P, pc = game.pcs;
 	if (game.marshalsAt != null && game.t >= game.marshalsAt) marshalsArrive();
+	/* every ship's acceleration, for others' aim (combat.js track); the gimbal's reach from the field of view */
+	C.track(s, dt); for (const n of game.npcs) if (!n.cs.dead) C.track(n.s, dt);
+	pc.gimbalDeg = C.gimbalFor(fovNow());
 	/* AI pilots: pick a foe now and then, fly, fire */
 	for (const n of game.npcs) {
 		if (n.cs.dead) continue;
@@ -824,7 +827,7 @@ function combat(dt) {
 			if (!best && n.ai.mode == 'attack') n.ai.mode = n.ai.base;
 			if (best == ME && !n.provokedByPlayer) { if (!n.wasHostile) hail(n); n.wasHostile = true }
 		}
-		const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, id: f.id} : null;
+		const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, a: s.acc, heat: pc.heat, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, a: f.s.acc, heat: f.cs.heat, id: f.id} : null;
 		const c = C.think(n, tgt, n.home, game.t);
 		/* below a world's line: its gravity, its turning frame (as the player's), and 450 m kept off the ground */
 		n.s.grav = Sc.gravityAt(scene, n.s.p);
@@ -839,7 +842,9 @@ function combat(dt) {
 			if (n.role == 'marshal' && f == ME && d < En.MARSHALS.tractor) { if (!held()) { say(n.name + ': tractor beam on you. Speed cut, hyperspace blocked: get clear of 3 km, or fight', '#e5484d'); Snd.cue('lock') } game.held = {by: n, until: game.t + 0.5} }
 			/* the no-fire zone: only the Marshals fire inside it */
 			if (n.role != 'marshal' && (inZone(n.s.p) || inZone(tgt.p))) continue;
-			if (c.fire && d < (n.cs.load.turrets ? 4000 : 3500)) { const k = C.fire(n.cs, n.s, game.t, tgt, game.shots); if (k && d < 3000) Snd.cue(n.cs.load.guns[0].kind == 'driver' ? 'driver' : 'pulse') }
+			if (c.fire && d < (n.cs.load.turrets ? 4000 : 3500)) { const k = C.fire(n.cs, n.s, game.t, tgt, game.shots); if (k && d < 3000) Snd.cue(gunCue(n.cs)) }
+			/* their mass drivers: charged while they'd fire, let go at full charge */
+			if (C.railStep(n.cs, n.s, game.t, tgt, game.shots, c.fire && d < 4000 && !C.railReady(n.cs), dt) && d < 3000) Snd.cue('driver');
 			if (C.updateLock(n.cs, n.s, tgt, dt) && c.missile && Math.random() < dt * 0.12) { if (C.launch(n.cs, n.s, tgt, game.shots) && tgt.id == 'me') { say('Missile launched at you by ' + n.name + ': B for flares', '#e5484d'); Snd.cue('incoming') } }
 		}
 	}
@@ -851,12 +856,15 @@ function combat(dt) {
 	const hasMsl = pc.load.missiles > 0 || pc.load.guns.some(g => g.kind == 'torpedo' && g.ammo > 0);
 	const wasLocked = game.locked; game.locked = hasMsl && C.updateLock(pc, s, foe, dt); if (!hasMsl) pc.lock = {id: null, t: 0};
 	if (game.locked && !wasLocked) Snd.cue('lock');
-	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned;
+	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned, trigger = RG.down('fire') || game.mouseFire || game.touch.fire != null;
+	/* the mass drivers: held, they charge; let go, they fire (combat mode only; out of it, the charge is lost) */
+	if (!can || game.mode == 'analysis') { for (const g of pc.load.guns) g.charge = 0 }
+	else if (C.railStep(pc, s, game.t, foe, game.shots, trigger, dt)) Snd.cue('driver');
 	if (zoned && (RG.down('fire') || game.mouseFire || game.touch.fire != null || RG.pressed('missile')) && (!game.zoneSaid || game.t - game.zoneSaid > 4)) { game.zoneSaid = game.t; say('No-fire zone: the Interstellar Marshals\' anchorage. Your weapons are locked within ' + H.fmtDist(En.MARSHALS.zone) + ' of it.', '#f2a33a'); Snd.cue('refused') }
 	if (can && (RG.down('fire') || game.mouseFire || game.touch.fire != null)) {
 		if (!pc.load.guns.length) { if (!game.saidUnarmed) { game.saidUnarmed = true; say('The ' + ship.name + ' carries no weapons', '#f2a33a') } }
 		else if (game.mode == 'analysis' && !pc.load.guns.some(g => g.kind == 'mining')) { if (!game.saidSafe2 || game.t - game.saidSafe2 > 4) { game.saidSafe2 = game.t; say('Analysis mode: weapons safe. No mining laser to fire (M for Combat mode)', '#9fb0cc') } }
-		else { const k = C.fire(pc, s, game.t, foe, game.shots, game.mode == 'analysis' ? ['mining'] : null); if (k) Snd.cue(pc.load.guns.some(g => g.kind == 'heavy' || g.kind == 'lance') ? 'heavy' : pc.load.guns.some(g => g.kind == 'pulse' || g.kind == 'needle') ? 'pulse' : 'driver') }
+		else { const k = C.fire(pc, s, game.t, foe, game.shots, game.mode == 'analysis' ? ['mining'] : null); if (k) Snd.cue(gunCue(pc)) }
 	} else game.saidUnarmed = false;
 	if (game.mode == 'analysis' && (RG.pressed('missile') || game.touch.msl)) { game.touch.msl = false; scanNow() }
 	else if (can && (RG.pressed('missile') || game.touch.msl)) {
@@ -871,13 +879,16 @@ function combat(dt) {
 	else if (RG.pressed('flare') || game.touch.flare) { game.touch.flare = false; if (pc.load.flares > 0) { const k = C.flare(pc, game.shots); say('Flare' + (k ? ': ' + k + (k == 1 ? ' missile' : ' missiles') + ' decoyed' : '') + ' · ' + pc.load.flares + ' left'); Snd.cue('flare') } else say('No flares left', '#f2a33a') }
 	/* bolts against asteroids: mining lasers chip ore; anything else just stops */
 	if (game.rocks.length) for (let i = game.shots.length - 1; i >= 0; i--) {
-		const m = game.shots[i], rk = Mi.hitRock(game.rocks, m.p, add(m.p, mul(m.v, dt))); if (!rk) continue;
+		const m = game.shots[i], rk = Mi.hitRock(game.rocks, m.p, m.ray ? add(m.p, mul(m.dir, m.range)) : add(m.p, mul(m.v, dt))); if (!rk) continue;
+		if (m.ray) { const at = Math.max(0, dot(sub(rk.pos, m.p), m.dir) - rk.radius); game.beams.push({a: m.p, b: add(m.p, mul(m.dir, at)), kind: m.kind, t: game.t}); m.p = add(m.p, mul(m.dir, at)) }
 		game.shots.splice(i, 1); game.booms.push({pos: m.p.slice(), t: game.t, r: 3, col: [0.7, 0.65, 0.55], life: 0.3});
 		if (m.kind == 'mining') { const ch = Mi.chip(rk, m.owner == 'me' ? s.p : m.p, Math.random, game.P.mined = game.P.mined || {}); if (ch) { const c = Ca.make(ch.good, ch.p, ch.v, game.t); c.ore = ch.t; c.name = ch.good + ' ore'; game.cans.push(c); if (m.owner == 'me') say('Ore: ' + ch.t + ' t ' + ch.good + (rk.left <= 0 ? ' · the asteroid is spent' : ''), '#c9a46a') } }
 	}
 	/* everything in flight */
 	const ships = [{id: 'me', s, cs: pc}, ...game.npcs.filter(n => !n.cs.dead).map(n => ({id: n.id, s: n.s, cs: n.cs, n}))];
-	for (const h of C.stepProjectiles(game.shots, ships, dt)) {
+	const beams = []; const hits = C.stepProjectiles(game.shots, ships, dt, beams); for (const b of beams) { b.t = game.t; game.beams.push(b) }
+	game.beams = game.beams.filter(b => game.t - b.t < (C.WEAPONS[b.kind].beam || 0.05));
+	for (const h of hits) {
 		const pr = h.proj, W = C.WEAPONS[pr.kind], big = pr.kind == 'missile' || pr.kind == 'torpedo';
 		game.booms.push({pos: pr.p.slice(), t: game.t, r: big ? 30 : 4, col: W.col, life: big ? 0.6 : 0.2});
 		if (h.ship.id == 'me') { hitMe(pr); if (game.pcs !== pc) return; continue }
@@ -910,6 +921,10 @@ function provoke(n) {
 	say('You fired on ' + n.name + (n.role == 'trader' ? ': a crime. The patrol will come.' : '. They are returning fire.'), '#f2a33a');
 }
 /* a hit on you: shields, then the hull and its modules */
+/* the sound of the guns that just fired */
+const gunCue = cs => cs.load.guns.some(g => g.kind == 'heavy' || g.kind == 'lance' || g.kind == 'gatlingL') ? 'heavy' : cs.load.guns.some(g => /^gatling/.test(g.kind)) ? 'gatling' : 'pulse';
+/* the mass drivers' charge, 0-1 (and over 1 held past full), for the HUD */
+const railCharge = cs => { const g = cs.load.guns.find(x => C.WEAPONS[x.kind].charge && x.charge > 0); return g ? g.charge / C.WEAPONS[g.kind].charge : 0 };
 function hitMe(pr) {
 	const out = C.damage(game.pcs, pr.dmg, pr.kind, game.t);
 	game.hitAt = game.t;
@@ -1364,6 +1379,8 @@ function draw() {
 	}
 	if (game.beacon) glows.push({pos: game.beacon.pos, radius: 12, col: [0.45, 0.8, 1], alpha: 0.6 + 0.4 * Math.sin(game.t * 3), scale: 6, min: 0.005});
 	for (const m of game.shots) { const W = C.WEAPONS[m.kind], big = m.kind == 'missile' || m.kind == 'torpedo'; glows.push({pos: m.p, radius: big ? 6 : 2.5, col: W.col, alpha: 1, scale: 4, min: big ? 0.012 : 0.007}) }
+	/* lasers' beams: a line of glows, fading over the beam's moment */
+	for (const b of game.beams) { const W = C.WEAPONS[b.kind], d = sub(b.b, b.a), L = len(d), n = Math.max(2, Math.min(28, Math.ceil(L / 60))), al = Math.max(0, 1 - (game.t - b.t) / (W.beam || 0.05)); for (let i = 0; i <= n; i++) glows.push({pos: add(b.a, mul(d, i / n)), radius: b.kind == "heavy" || b.kind == "lance" ? 1.8 : 1.1, col: W.col, alpha: al, scale: 3, min: 0.006}) }
 	for (const b of game.booms) { const k = (game.t - b.t) / b.life; glows.push({pos: b.pos, radius: b.r * (0.4 + k), col: b.col, alpha: Math.max(0, 1 - k), scale: 3, min: 0.01}) }
 	glows.push({pos: add(cam.p, mul(game.coreDir, 1e18)), radius: 1e16, col: [1, 0.85, 0.6], alpha: 0.22, scale: 1, min: 0.6});
 	/* the spotlights shine from the nose along it; night vision fades in and out over a quarter of a second */
@@ -1416,8 +1433,13 @@ function hudDraw(cam) {
 		const scan = Tg.scanned ? (Tg.scanned.warrant ? (Tg.wanted ? ' · WANTED ' + Tg.wanted.amount.toLocaleString('en') + ' ' + Tg.wanted.code : ' · CLEAN') : '') : (ship.utility.warrant || ship.utility.manifest) && Tg.scanT > 0 ? ' · SCANNING ' + Math.round(Tg.scanT / 3 * 100) + '%' : '';
 		if (Tg.scanned && Tg.scanned.manifest) { const by = {}; for (const g of Tg.cargo || []) by[g] = (by[g] || 0) + 1; target.kind += ' · ' + (Object.keys(by).length ? Object.entries(by).map(([g, t]) => g + ' ' + t + ' t').join(', ') : 'empty hold') }
 		target.bars = {what: (target.hostile ? 'HOSTILE' : Tg.role == 'trader' ? 'CIVILIAN' : 'NEUTRAL') + scan, shield: Tg.cs.shield / Math.max(1, Tg.cs.shieldMax), hull: Tg.cs.hull / Tg.cs.hullMax};
-		const g = game.pcs.load.guns.find(x => !C.WEAPONS[x.kind].homing);
-		if (g && dist < 6000) { const lp = project(cam, C.lead(s.p, s.v, Tg.s.p, Tg.s.v, C.WEAPONS[g.kind].speed)); target.lead = {x: lp.x, y: lp.y, on: lp.z > 0 && game.settings.hud.lead && game.mode != 'analysis'} }
+		/* fixed guns: a point of aim for each shot speed fitted (a laser's is the target itself); gimballed: whether they
+		   have it in their circle now, and where they point */
+		const show = game.settings.hud.lead && game.mode != 'analysis' && dist < 6000, foeT = {p: Tg.s.p, v: Tg.s.v, a: Tg.s.acc, heat: Tg.cs.heat, id: Tg.id};
+		const fixedSpeeds = [...new Set(game.pcs.load.guns.filter(x => x.mount != 'gimbal' && !C.WEAPONS[x.kind].homing && !C.WEAPONS[x.kind].hitscan && C.WEAPONS[x.kind].speed).map(x => C.WEAPONS[x.kind].speed))].sort((a, b) => a - b);
+		target.leads = fixedSpeeds.map((sp, i) => { const lp = project(cam, C.lead(s.p, s.v, Tg.s.p, Tg.s.v, sp, Tg.s.acc)); return {x: lp.x, y: lp.y, on: show && lp.z > 0, label: fixedSpeeds.length > 1 ? (i ? 'F' : 'S') : ''} });
+		const gg = game.pcs.load.guns.find(x => x.mount == 'gimbal');
+		if (gg && show) { const a = C.aimOf(game.pcs, s, gg, foeT); if (a.tracking) { const tp = project(cam, add(s.p, mul(a.dir, dist))); target.track = {x: tp.x, y: tp.y} } }
 		const lk = game.pcs.lock; target.lock = lk.id == Tg.id ? Math.min(1, lk.t / C.COMBAT.lockTime) : 0; target.locked = !!game.locked;
 	}
 	/* the scanner: ships within 8 km, in the ship's frame */
@@ -1427,7 +1449,7 @@ function hudDraw(cam) {
 	const pc = game.pcs, full = C.loadout(ship), ammoGuns = pc.load.guns.filter(g => g.ammo != null && g.kind != 'torpedo');
 	const vm = speed > 2 ? project(cam, add(cam.p, mul(norm(cz.on ? Fl.forward(s) : rel.v), 1e6))) : null;
 	const leg = nextLeg(), J = game.jump;
-	H.draw(ctx, W, Hh, {
+	H.draw(ctx, W, Hh, game.hudData = {
 		speed, vmax: s.spec.vmax, throttle: game.throttle, fa: s.fa, cruise: cz.on, charging: cz.charge > 0 ? cz.charge : 0, massLocked: !cz.on && Sc.massLocked(scene, s.p),
 		target, prograde: vm && game.settings.hud.prograde ? {x: vm.x, y: vm.y, on: vm.z > 0} : null, alerts: M.alerts(fit), modules: fit.modules, showSystems: game.systems, shipName: ship.name,
 		messages: game.msgs, vision: game.vision, gFelt: game.gFelt, reduceFlash: reduceFlash(), reduceMotion: game.settings.a11y.motion, thrustNote: s.fa ? null : tr('Thrust') + ' ' + Math.round(game.throttle * 100) + '%',
@@ -1441,6 +1463,8 @@ function hudDraw(cam) {
 		hatch: !hasHatch() ? null : !M.works(fit, 'hatch') ? 'jammed' : game.hatch ? 'open' : null,
 		surface: !cz.on && game.well ? (() => { const ss = Sc.surfaceState(scene, s, game.t, ship); return ss && ss.alt < 30000 ? {world: ss.world, alt: ss.alt, vz: ss.vz, vh: ss.vh, pitch: ss.pitch, bank: ss.bank, limit: Ld.TOUCH[Ld.padFor(ship.size)].vz, landable: ss.landable && ss.landable.ok} : null })() : null,
 		scanner: M.works(fit, 'sensors') && game.settings.hud.scanner ? {range: game.t < (game.pulseUntil || 0) ? PULSE.range : 8000, blips} : null, well: game.well ? {g: game.well.g, alt: game.well.alt, name: game.well.body.name} : null, incoming: game.incoming > 0, hitAge: game.hitAt != null ? game.t - game.hitAt : null,
+		/* the gimballed guns' circle: 40% of the screen's height across */
+		gimbal: pc.load.guns.some(g => g.mount == 'gimbal') && game.mode != 'analysis' && !cz.on && !game.docked ? {r: 0.2 * Hh, charge: railCharge(pc)} : railCharge(pc) ? {r: 0, charge: railCharge(pc)} : null,
 		combat: {shield: pc.shield / Math.max(1, pc.shieldMax), hull: pc.hull / pc.hullMax, heat: Math.min(1, pc.heat), hot: pc.hot, armed: pc.load.guns.length > 0,
 			ammo: ammoGuns.length ? ammoGuns.reduce((t, g) => t + g.ammo, 0) : null, missiles: pc.load.missiles + pc.load.guns.filter(g => g.kind == 'torpedo').reduce((t, g) => t + g.ammo, 0),
 			missileMax: full.missiles + full.guns.filter(g => g.kind == 'torpedo').length, flares: pc.load.flares}

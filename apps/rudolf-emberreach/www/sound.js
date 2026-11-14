@@ -103,7 +103,7 @@ A.cue = function (k, arg) {
 	if (!A.on || !ctx() || held) return;
 	dest = ALERTS.includes(k) ? alr : fx;
 	const t = C.currentTime, now = performance.now();
-	const gap = {collide: 250, warning: 400, critical: 400, tick: 60, pulse: 70, driver: 120, heavy: 200, shieldHit: 90, hullHit: 120, boom: 150, lock: 600, incoming: 900}[k] || 0; if (gap && now - (last[k] || 0) < gap) return; last[k] = now;
+	const gap = {collide: 250, warning: 400, critical: 400, tick: 60, pulse: 70, gatling: 45, driver: 120, heavy: 200, shieldHit: 90, hullHit: 120, boom: 150, lock: 600, incoming: 900}[k] || 0; if (gap && now - (last[k] || 0) < gap) return; last[k] = now;
 	switch (k) {
 	case 'warning': tone(t, 880, 0.14, 'square', 0.05); tone(t + 0.17, 660, 0.18, 'square', 0.05); break;
 	case 'critical': for (let i = 0; i < 3; i++) tone(t + i * 0.11, 1250, 0.08, 'square', 0.06); break;
@@ -127,6 +127,7 @@ A.cue = function (k, arg) {
 	/* combat (M4): guns, hits, explosions at a distance (arg: 0..1 loudness), missile lock and warning */
 	case 'pulse': tone(t, 1400, 0.07, 'square', 0.025, 500); break;
 	case 'driver': burst(t, 0.12, 0.25, 'bandpass', 1200); tone(t, 260, 0.1, 'square', 0.03, 90); break;
+	case 'gatling': burst(t, 0.03, 0.18, 'bandpass', 2200); break;
 	case 'heavy': tone(t, 700, 0.25, 'sawtooth', 0.04, 160); break;
 	case 'missile': burst(t, 0.9, 0.3, 'bandpass', 1600); tone(t, 400, 0.6, 'sawtooth', 0.025, 1200); break;
 	case 'flare': burst(t, 0.3, 0.3, 'highpass', 2500); break;
