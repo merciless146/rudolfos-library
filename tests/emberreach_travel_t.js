@@ -39,5 +39,9 @@ try {
 	ok('14. even where stars crowd (the Glow, thousands within reach), a route plots fast', r3.ok && Date.now() - t0 < 3000, (Date.now() - t0) + ' ms, ' + r3.jumps + ' jumps');
 	ok('15. a leg checks range and fuel', T.canMake({kind: 'jump', d: 7}, 6, 1).why == 'range' && T.canMake({kind: 'jump', d: 6}, 6, 0.2).why == 'fuel' && T.canMake({kind: 'lane', d: 40}, 6, 0.5).ok);
 	ok('16. a star can be found again from its id and place (for saves)', T.starAt(near.id, T.at(near)).id == near.id);
+	/* landing L2.1: the ports at a star, by id */
+	const cap = F.majors()[0], pa = T.portsAt(cap.star, 200), bare = G.sampleGalaxy(400, 31).filter(x => x.kind == 'star').find(x => !T.portFor(x, 200));
+	ok('L2.1. the ports at a star are a list with ids: a capital\'s space port is \'orbital\' (the same as portFor); a star with no port has none; a colony\'s port stands in for the space port', pa.length == 1 && pa[0].id == 'orbital' && pa[0].cls == T.portFor(cap.star, 200).cls && T.portById(pa, 'orbital') === pa[0] && T.portById(pa, 'surface:x:camp') === null
+		&& (!bare || T.portsAt(bare, 200).length == 0) && T.portsAt(cap.star, 200, {cls: 'bloom', colony: true})[0].cls == 'bloom' && T.PORT_ID.test('surface:Vega b:outpost') && !T.PORT_ID.test('castle'));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

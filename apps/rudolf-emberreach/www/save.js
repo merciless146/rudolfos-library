@@ -15,20 +15,25 @@
    GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
-const VERSION = 3;
+/* 4: port ids (landing L2.1): the port docked at (at), and the last port's (lastPort.port); a version 3 save's are
+   all the space port's, 'orbital' */
+const VERSION = 4;
 /* the galaxy a save was made in: 2 is 0.2.0's (4 million stars, twelve powers). A save from an older galaxy names
    stars and powers that are no longer there, so it keeps only its settings and a new game starts */
 const GALAXY = 2;
 const star = x => x && typeof x == 'object' && typeof x.id == 'string' && vec(x.p, 3) ? {id: x.id, p: x.p} : null;
+/* a port's id: 'orbital' or 'surface:<world>:<kind>' (travel.js); anything else is the space port's */
+const portId = x => typeof x == 'string' && /^(orbital|surface:[^:]+:[a-z]+)$/.test(x) ? x : 'orbital';
+const withPort = (st, port) => st ? Object.assign(st, {port: portId(port)}) : null;
 const num = x => typeof x == 'number' && isFinite(x);
 const vec = (x, n) => Array.isArray(x) && x.length == n && x.every(num);
 
 /* g: {power, port, ship (id), day, t, docked, pad, s (flight state), fa, throttle, fit (modules.js), settings} */
 function pack(g) {
 	const r = v => v.map(x => +x.toPrecision(15));
-	const ref = x => x ? {id: x.id, p: [x.x, x.y, x.z]} : null;
+	const ref = (x, port) => x ? Object.assign({id: x.id, p: [x.x, x.y, x.z]}, port ? {port} : {}) : null;
 	return trim({v: VERSION, galaxy: GALAXY, power: g.power, port: g.port || null, ship: g.ship, day: g.day, t: +g.t.toFixed(3), docked: !!g.docked, pad: g.pad || null,
-		star: ref(g.star), fuel: +(g.fuel == null ? 1 : g.fuel).toFixed(4), lastPort: ref(g.lastPort), routeTo: ref(g.routeTo),
+		star: ref(g.star), at: g.docked ? g.at || 'orbital' : null, fuel: +(g.fuel == null ? 1 : g.fuel).toFixed(4), lastPort: ref(g.lastPort, g.lastPortId || 'orbital'), routeTo: ref(g.routeTo),
 		player: g.player ? packPlayer(g.player) : null,
 		p: r(g.s.p), scale: 12, vel: r(g.s.v), q: r(g.s.q), w: r(g.s.w), fa: !!g.s.fa, throttle: +(+g.throttle || 0).toFixed(3),
 		modules: Object.fromEntries(g.fit.modules.map(m => [m.id, +m.hp.toFixed(2)])),
@@ -63,7 +68,7 @@ function trim(out) {
 function unpack(raw, known) {
 	/* a new game keeps the settings: the save is just them until the first real one */
 	if (raw && typeof raw == 'object' && raw.settingsOnly) return {settings: St ? St.sanitise(raw.settings, null, I18 && I18.LANGS.map(l => l[0])) : raw.settings};
-	if (!raw || typeof raw != 'object' || [1, 2, 3].indexOf(raw.v) < 0) return null;
+	if (!raw || typeof raw != 'object' || [1, 2, 3, 4].indexOf(raw.v) < 0) return null;
 	if (raw.galaxy !== GALAXY) return {settings: St ? St.sanitise(raw.settings, null, I18 && I18.LANGS.map(l => l[0])) : raw.settings, oldGalaxy: true};
 	const k = known || {};
 	if (!Number.isInteger(raw.power) || raw.power < 0 || (k.powers && raw.power >= k.powers)) return null;
@@ -79,7 +84,7 @@ function unpack(raw, known) {
 	if (!raw.modules || typeof raw.modules != 'object' || Object.values(raw.modules).some(h => !num(h) || h < 0)) return null;
 	const set = raw.settings || {};
 	return {power: raw.power, port: raw.port, ship: raw.ship, day: raw.day, t: raw.t, docked: !!raw.docked, pad: Number.isInteger(raw.pad) ? raw.pad : null,
-		star: raw.v >= 2 ? star(raw.star) : null, fuel: raw.v >= 2 ? raw.fuel : 1, lastPort: raw.v >= 2 ? star(raw.lastPort) : null, routeTo: raw.v >= 2 ? star(raw.routeTo) : null, version: raw.v, player,
+		star: raw.v >= 2 ? star(raw.star) : null, fuel: raw.v >= 2 ? raw.fuel : 1, at: raw.docked ? (raw.v >= 4 ? portId(raw.at) : 'orbital') : null, lastPort: raw.v >= 2 ? withPort(star(raw.lastPort), raw.v >= 4 && raw.lastPort ? raw.lastPort.port : null) : null, routeTo: raw.v >= 2 ? star(raw.routeTo) : null, version: raw.v, player,
 		p: raw.scale == 12 ? raw.p : raw.p.map(x => x / 12), v: raw.vel, q: raw.q.map(c => c / qn), w: raw.w, fa: raw.fa !== false, throttle: num(raw.throttle) ? Math.max(-1, Math.min(1, raw.throttle)) : 0,
 		modules: raw.modules, settings: St ? St.sanitise(set, null, I18 && I18.LANGS.map(l => l[0])) : set,
 		landed: landed(raw.landed), gear: raw.gear === true};

@@ -222,7 +222,8 @@ function accept(P, m, day) {
 	const star = missionStar(m); if (!star) return {ok: false, why: 'That front has moved.'};
 	const need = NEEDS[m.type];
 	if (need == 'deliver' && (P.cargo.Munitions || 0) < ENC.supplyTons) return {ok: false, why: 'Load ' + ENC.supplyTons + ' t of Munitions first.'};
-	const x = Object.assign({}, m, {star, accepted: day, due: day + ENC.missionDays, kills: 0, stay: 0, depot: false, done: false});
+	/* (port: where it ends; null: any port at the star, as munitions deliveries are) */
+	const x = Object.assign({}, m, {star, port: null, accepted: day, due: day + ENC.missionDays, kills: 0, stay: 0, depot: false, done: false});
 	P.missions.push(x);
 	return {ok: true, mission: x};
 }

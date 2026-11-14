@@ -225,7 +225,7 @@ function create() {
 	function scaleText() { const D = M.D; return 'View ' + (D < 10 ? D.toFixed(1) : Math.round(D).toLocaleString('en-US')) + ' pc out' + (D > FAR ? ' · the galaxy' : D > 25 ? ' · a region' : ' · nearby stars') }
 	function describe(s) {
 		const Co = window.EmberColonies, col = M.player && Co ? Co.colonyAt(M.player, s.id) : null;
-		const o = T.ownerOf(s, M.day), port = T.portFor(s, M.day), sys = G.system(s), live = sys.planets.filter(p => p.life || p.alive).length;
+		const o = T.ownerOf(s, M.day), ports = T.portsAt(s, M.day), port = T.portById(ports, T.ORBITAL), sys = G.system(s), live = sys.planets.filter(p => p.life || p.alive).length;
 		const m = o.owner ? F.byId(o.owner) : null, rel = m && M.origin && m.id != M.origin ? F.relation(M.origin, m.id) : 0;
 		const d = M.here ? dist(at(M.here), at(s)) : 0, mj = T.misjumpChance(s);
 		return {kind: (s.cls || s.kind || 'star') + ' class · ' + (s.M || 0).toFixed(2) + ' suns',

@@ -17,13 +17,19 @@ try {
 	ok('2. module damage comes back: the broken canopy, the dented engines', M.get(fit2, 'canopy').hp == 0 && Math.abs(M.get(fit2, 'engines').hp - (M.get(fit2, 'engines').max - 4.5)) < 1e-9 && M.alerts(fit2).length == 1);
 	ok('3. it stays small (well under gamekit\'s limit)', json.length < 1500, json.length + ' bytes');
 	ok('4. a docked save keeps its pad', Sv.unpack(JSON.parse(JSON.stringify(Sv.pack(Object.assign({}, g, {docked: true, pad: 7})))), known).pad == 7);
-	const bad = [null, 7, {}, Object.assign(JSON.parse(json), {v: 4}), Object.assign(JSON.parse(json), {ship: 'nosuch'}), Object.assign(JSON.parse(json), {port: 'castle'}),
+	const bad = [null, 7, {}, Object.assign(JSON.parse(json), {v: 5}), Object.assign(JSON.parse(json), {ship: 'nosuch'}), Object.assign(JSON.parse(json), {port: 'castle'}),
 		Object.assign(JSON.parse(json), {power: 99}), Object.assign(JSON.parse(json), {p: [1, 2]}), Object.assign(JSON.parse(json), {q: [0, 0, 0, 0]}), Object.assign(JSON.parse(json), {modules: {canopy: -3}}),
 		Object.assign(JSON.parse(json), {vel: [1, 'x', 3]}), Object.assign(JSON.parse(json), {t: -5})];
 	ok('5. anything damaged or from another version gives null (a new game, not a broken one)', bad.every(b => Sv.unpack(b, known) === null));
 	ok('7. version 2 keeps the star, the fuel and the last port; a system with no port saves with port null', back.star.id == 'abc123' && back.star.p[2] == 1050.125 && back.fuel == 0.625 && back.lastPort.id == 'abc123' && back.routeTo === null
 		&& Sv.unpack(JSON.parse(JSON.stringify(Sv.pack(Object.assign({}, g, {port: null})))), known).port === null);
 	const v1 = Object.assign(JSON.parse(json), {v: 1}); delete v1.star; delete v1.fuel;
+	/* version 4: port ids (landing L2.1) */
+	const v4 = Sv.unpack(JSON.parse(JSON.stringify(Sv.pack(Object.assign({}, g, {docked: true, pad: 3, at: 'surface:Vega b:outpost', lastPortId: 'surface:Vega b:outpost'})))), known);
+	const v3 = JSON.parse(JSON.stringify(Sv.pack(Object.assign({}, g, {docked: true, pad: 3})))); v3.v = 3; delete v3.at; delete v3.lastPort.port; const old3 = Sv.unpack(v3, known);
+	const odd = Sv.unpack(Object.assign(JSON.parse(JSON.stringify(Sv.pack(Object.assign({}, g, {docked: true, at: 'castle; drop'})))), {}), known);
+	ok('8b. version 4 keeps the port docked at and the last port by id; a version 3 save reads both as the space port (orbital); a bad id reads as the space port', Sv.VERSION == 4 && v4.at == 'surface:Vega b:outpost' && v4.lastPort.port == 'surface:Vega b:outpost'
+		&& old3 && old3.at == 'orbital' && old3.lastPort.port == 'orbital' && old3.lastPort.id == 'abc123' && odd.at == 'orbital' && back.at === null && back.lastPort.port == 'orbital');
 	ok('8a. the world scale (1/12): saves keep the ship where it is; a save from before puts it at the same place in the smaller system', (() => {
 		const raw = JSON.parse(JSON.stringify(Sv.pack(g))), now = Sv.unpack(raw, known); delete raw.scale; const old = Sv.unpack(raw, known);
 		return raw.p && now.p.every((x, i) => x == g.s.p[i]) && old.p.every((x, i) => Math.abs(x - raw.p[i] / 12) < 1e-6 * Math.abs(raw.p[i] || 1)) })());

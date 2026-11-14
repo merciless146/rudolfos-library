@@ -61,7 +61,7 @@ const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconom
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.1'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.2'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -146,7 +146,7 @@ async function start() {
 	game.day = ok ? sv.day : +(Q.get('day') || 200);
 	game.fuel = ok ? sv.fuel : 1;
 	const here = ok && sv.star ? T.starAt(sv.star.id, sv.star.p) : null;
-	game.lastPort = ok && sv.lastPort ? T.starAt(sv.lastPort.id, sv.lastPort.p) : null;
+	game.lastPort = ok && sv.lastPort ? T.starAt(sv.lastPort.id, sv.lastPort.p) : null; game.lastPortId = ok && sv.lastPort && sv.lastPort.port || T.ORBITAL;
 	/* renderer, then the system */
 	R = Re.create(gl, {canvas2d: Q.has('canvas'), antialias: game.settings.graphics.aa});
 	enterSystem(here || game.home.star);
@@ -159,7 +159,7 @@ async function start() {
 	if (ok) resume(sv);
 	else {
 		/* a new game starts docked at the capital, in the starport */
-		launch(true); game.lastPort = game.star;
+		launch(true); game.lastPort = game.star; game.lastPortId = T.ORBITAL;
 		if (st && !Q.has('spawn')) { game.docked = true; game.clearance = {pad: 1 + Math.floor(Math.random() * 24), until: Infinity}; say('Welcome to ' + st.name + '. Your ' + ship.name + ' is ready.') }
 	}
 	if (ok && sv.routeTo) game.pendingRoute = sv.routeTo;
@@ -181,7 +181,9 @@ function enterSystem(star) {
 	game.star = star;
 	G.realm(star.rift ? 'rift' : 'normal');   /* the map, routes and everything near you: in the Rift, or this side */
 	const capHome = star.id == game.home.star.id;
-	game.port = capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day) || T.portFor(star, game.day);
+	/* the ports here (L2.1: a list, by id); game.port is the space port, the one the scene builds */
+	game.ports = capHome ? [{id: T.ORBITAL, cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true}] : T.portsAt(star, game.day, Co.portOf(game.P, star, game.day));
+	game.port = T.portById(game.ports, T.ORBITAL);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
 	st = scene.station;
 	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null; game.deposits = []; game.gscan = null;
@@ -240,7 +242,7 @@ function resume(sv) {
 	s = Fl.create(ship, {p: sv.p, v: sv.v, q: sv.q, w: sv.w, fa: sv.fa}); s.radius = Math.max(2, ship.length / 2);
 	fit = Sv.restoreModules(M.fit(ship), sv.modules); pilot = Pi.create(); M.apply(fit, s); arm();
 	if (!sv.docked) populate();
-	game.t = sv.t; game.throttle = sv.throttle; game.docked = !!(sv.docked && st);
+	game.t = sv.t; game.throttle = sv.throttle; game.docked = !!(sv.docked && st && T.portById(game.ports, sv.at)); game.portId = game.docked ? sv.at : null;
 	/* landed where it was (L1.2): back on the ground at its place on the turning world */
 	if (sv.landed && !game.docked && scene.bodies.some(b => b.name == sv.landed.world)) { game.landed = sv.landed; game.gear = true; landedStep(null) } else game.gear = !!sv.gear; game.clearance = game.docked && sv.pad ? {pad: sv.pad, until: Infinity} : null;
 	if (!game.lastPort) game.lastPort = st ? game.star : game.home.star;
@@ -256,7 +258,7 @@ function persist() {
 	game.P.day = game.day;
 	if (game.pcs && !game.docked) game.P.combat = C.keep(game.pcs);
 	RG.save(Sv.pack({player: game.P, power: game.power, port: st ? st.cls : null, ship: ship.id, day: game.day, t: game.t, docked: game.docked, pad: game.clearance && game.clearance.pad, s, throttle: game.throttle, fit,
-		star: game.star, fuel: game.fuel, lastPort: game.lastPort, routeTo, settings: game.settings, landed: game.landed, gear: game.gear}))
+		star: game.star, at: game.docked ? game.portId || T.ORBITAL : null, fuel: game.fuel, lastPort: game.lastPort, lastPortId: game.lastPortId, routeTo, settings: game.settings, landed: game.landed, gear: game.gear}))
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
 		.then(() => { setTimeout(() => { game.saving = false; if (game.savePending) persist() }, 1000) });
 }
@@ -1212,13 +1214,13 @@ function lost(how) {
 	}
 	game.P.cargo = {}; game.P.cost = {}; game.P.combat = C.refill(ship, {hull: 1}); game.cans = [];
 	fit = M.fit(ship); arm(); game.fuel = 1; game.route = null;
-	enterSystem(c.star);
+	enterSystem(c.star); game.lastPortId = c.portId || T.ORBITAL;
 	launch(true);
 	say((c.starter ? 'A starter ' : 'A new ') + ship.name + ' waits at ' + (st ? st.name : game.star.name) + (c.why == 'exchange' ? ' (the nearest port whose exchange takes ' + c.code + ')' : c.why == 'currency' ? ' (the nearest port trading in ' + c.code + ')' : ''));
 	persist();
 }
 function docked() {
-	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.lastPort = game.star;
+	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.lastPort = game.star; game.portId = game.lastPortId = game.port ? game.port.id : T.ORBITAL;
 	game.P.combat = C.keep(game.pcs); game.npcs = []; game.shots = []; game.booms = [];
 	En.tick(game.P, game.star.id, 0, true); settle();
 	Snd.cue('docked'); Snd.update({main: 0, rcs: 0, speed: 0, cruise: 0, strain: 0, conscious: true, docked: true});
