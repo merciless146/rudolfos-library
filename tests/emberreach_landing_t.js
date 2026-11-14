@@ -87,13 +87,13 @@ try {
 	/* L1.4: the approach */
 	const X = req('explore.js'), G = req('galaxy.js'), Tr = req('trade.js');
 	const airy = Object.assign({}, W, {name: 'Airy', atmo: true, src: {g: 0.9, Ts: 288, atmo: true, bars: 1}});
-	ok('24. cruise drops out above a targeted world you could land on: at its Kármán line or 50 km up, whichever is higher; other worlds as before', Sc.dropRange(W) == Math.max(W.karman, 5e4) && Sc.dropRange(Object.assign({}, W, {karman: 9e4})) == 9e4 && Sc.dropRange(airy) == airy.radius);
+	ok('24. cruise drops out above a targeted world you could land on: at its Kármán line or 4.2 km up (50 km at full size), whichever is higher; other worlds as before', Sc.dropRange(W) == Math.max(W.karman, Sc.DROP_LAND) && Sc.dropRange(Object.assign({}, W, {karman: 9e4})) == 9e4 && Sc.dropRange(airy) == airy.radius);
 	const lockA = Sc.lockAlt(W), below = add(W.pos, [W.radius + lockA - 10, 0, 0]), above = add(W.pos, [W.radius + lockA + 10, 0, 0]);
 	ok('25. a world\'s surface locks cruise below half a radius up or its Kármán line, whichever is lower', lockA == Math.min(W.radius / 2, W.karman) && Sc.worldLock(scene, below) == W && !Sc.worldLock(scene, above) && Sc.massLocked(scene, below) && !Sc.massLocked(scene, above));
 	/* cruising straight down at a world: targeted, a clean drop above it; untargeted with nothing else near, into the lock */
 	const dive = (target, from) => { const s5 = Fl.create(ship, {p: add(W.pos, [from, 0, 0]), q: look([-1, 0, 0], [0, 0, 1])}), cz = {on: true, v: 2e4}; for (let i = 0; i < 20000; i++) { const r = Sc.cruiseStep(scene, s5, cz, {throttle: 1}, 1 / 60, target); if (r) return {r, alt: len(sub(s5.p, W.pos)) - W.radius} } return null };
 	const d1 = dive(W, W.radius + 4e5), d2 = dive(null, W.radius + 1.2e5);
-	ok('26. diving in cruise: with the world targeted, a drop near 50 km up; without, the old safety drop (15% of the radius) comes first', d1 && d1.r == 'drop' && d1.alt <= 5e4 && d1.alt > 4e4 && d2 && d2.r == 'drop' && d2.alt <= 0.15 * W.radius + 1, {d1, d2});
+	ok('26. diving in cruise: with the world targeted, a drop near 4.2 km up; without, the old safety drop (15% of the radius) comes first', d1 && d1.r == 'drop' && d1.alt <= Sc.dropRange(W) && d1.alt > 0.8 * Sc.dropRange(W) && d2 && d2.r == 'drop' && d2.alt <= 0.15 * W.radius + 1, {d1, d2});
 	const tiny = Object.assign({}, W, {radius: 2e5, karman: 3e5}), sceneT = {bodies: [scene.bodies[0], tiny], day: 0}, s6 = Fl.create(ship, {p: add(tiny.pos, [tiny.radius + 1.2e5, 0, 0]), q: look([-1, 0, 0], [0, 0, 1])});
 	let r6 = null; const cz6 = {on: true, v: 3e4}; for (let i = 0; i < 2000 && !r6; i++) r6 = Sc.cruiseStep(sceneT, s6, cz6, {throttle: 1}, 1 / 60, null);
 	const d6 = Sc.dropOut(s6, {v: 100}, true);

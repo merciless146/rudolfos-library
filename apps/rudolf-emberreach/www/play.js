@@ -61,7 +61,7 @@ const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconom
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.7'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.8'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -1239,7 +1239,7 @@ const TILES = {world: null, res: 0, built: new globalThis.Map(), used: new globa
 function terrainItems(b, items, bf, sun) {
 	if (R.kind != 'webgl' || b.kind != 'planet' || b.atmo || (b.src && b.src.gas)) return false;
 	const camD = sub(game.camP || s.p, b.pos), alt = len(camD) - b.radius;
-	if (alt > Te.TER.prebuild) return false;
+	if (alt > Te.prebuildOf(b)) return false;
 	const low = quality == 'low', res = low ? Te.TER.lowRes : Te.TER.res, budget = (low ? Te.TER.lowBudget : Te.TER.budget) * (game.dynTer || 1);
 	if (TILES.world != b.name || TILES.res != res) { for (const k of TILES.built.keys()) R.drop(k); TILES.built.clear(); TILES.used.clear(); TILES.world = b.name; TILES.res = res }
 	const id = t => 'ter:' + res + ':' + Te.key(t), camL = [dot(camD, bf.x), dot(camD, bf.y), dot(camD, bf.z)];
@@ -1253,7 +1253,7 @@ function terrainItems(b, items, bf, sun) {
 	}
 	/* let go of tiles unused for 10 s (once a second) */
 	if (game.t - TILES.sweep > 1) { TILES.sweep = game.t; for (const [k, at] of TILES.used) if (game.t - at > 10) { R.drop(k); TILES.built.delete(k); TILES.used.delete(k) } }
-	if (alt > Te.TER.near || !sel.draw.every(t => TILES.built.has(id(t)))) return false;
+	if (alt > Te.nearOf(b) || !sel.draw.every(t => TILES.built.has(id(t)))) return false;
 	const rot = mat3(bf.x, bf.y, bf.z);
 	let tris = 0;
 	for (const t of sel.draw) {
@@ -1295,11 +1295,12 @@ function draw() {
 	const B = R.basis(s.q), cam = game.chase ? {p: add(add(s.p, mul(B.f, -ship.length * 3.2)), mul(B.u, ship.length * 0.9)), q: s.q} : {p: add(s.p, mul(B.f, ship.length * 0.3)), q: s.q};
 	const sun = scene.bodies[0], items = [], glows = [], CB = R.basis(cam.q), kpx = Hh / 2 / Math.tan(fovNow() / 2 * Math.PI / 180);
 	/* how many pixels across a thing of radius r at p looks */
-	const px = (p, r) => { const z = dot(sub(p, cam.p), CB.f); return z > 0 ? r / z * kpx : Infinity };
+	/* (a thing behind the camera is out of sight, unless it's so close it reaches round: then in full) */
+	const px = (p, r) => { const d = sub(p, cam.p), z = dot(d, CB.f); return z > 0 ? r / z * kpx : len(d) < 3 * r ? Infinity : 0 };
 	game.lod = {sprites: 0, meshes: 0, station: '', terrain: null};
 	game.camP = cam.p;
 	/* the airless world nearest the camera, within reach of its terrain */
-	let ground = null, gd = Infinity; for (const b of scene.bodies) { if (b.kind != 'planet' || b.atmo) continue; const a = len(sub(cam.p, b.pos)) - b.radius; if (a < Te.TER.prebuild && a < gd) { gd = a; ground = b } }
+	let ground = null, gd = Infinity; for (const b of scene.bodies) { if (b.kind != 'planet' || b.atmo) continue; const a = len(sub(cam.p, b.pos)) - b.radius; if (a < Te.prebuildOf(b) && a < gd) { gd = a; ground = b } }
 	for (const b of scene.bodies) {
 		const lightDir = norm(sub(sun.pos, b.pos)), bf = Sc.bodyFrame(b, Sc.turnOf(b, game.day, game.t)), rot = mat3(mul(bf.x, b.radius), mul(bf.y, b.radius), mul(bf.z, b.radius));
 		const far = px(b.pos, b.radius * (b.ring ? 2.3 : 1)) < LOD.spritePx, atmo = b.atmo ? Me.atmosphere(b.type) : null;

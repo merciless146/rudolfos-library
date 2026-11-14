@@ -9,8 +9,8 @@ const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; c
 const nrm = v => { const l = Math.hypot(...v); return v.map(x => x / l) }, seeded = s => () => { s = (s * 16807) % 2147483647; return s / 2147483647 };
 const randDir = r => nrm([r() - 0.5, r() - 0.5, r() - 0.5]);
 try {
-	const moon = {kind: 'planet', name: 'Test moon a', radius: 1.7e6, type: 'Barren', seed: 5}, big = {kind: 'planet', name: 'Test world b', radius: 6e6, type: 'Desert', seed: 3},
-		small = {kind: 'planet', name: 'Test rock c', radius: 3e5, type: 'Barren', seed: 2}, ice = {kind: 'planet', name: 'Test ice d', radius: 1.7e6, type: 'Tundra', seed: 9};
+	const moon = {kind: 'planet', name: 'Test moon a', radius: 1.7e6 / 12, type: 'Barren', seed: 5}, big = {kind: 'planet', name: 'Test world b', radius: 6e6 / 12, type: 'Desert', seed: 3},
+		small = {kind: 'planet', name: 'Test rock c', radius: 3e5 / 12, type: 'Barren', seed: 2}, ice = {kind: 'planet', name: 'Test ice d', radius: 1.7e6 / 12, type: 'Tundra', seed: 9};
 	const r = seeded(11), dirs = [...Array(4000)].map(() => randDir(r));
 	ok('1. the height is the same every time, for the same world and place', dirs.slice(0, 200).every(d => Te.height(moon, d) === Te.height(moon, d)) && Te.height(moon, dirs[0]) != Te.height(big, dirs[0]));
 	const span = b => { let lo = Infinity, hi = -Infinity; for (const d of dirs) { const h = Te.height(b, d); lo = Math.min(lo, h); hi = Math.max(hi, h) } return [lo, hi] };

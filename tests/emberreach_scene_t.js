@@ -11,10 +11,10 @@ try {
 	const sc = Sc.build(home.star, {day: 200, portWorld: home.home.name});
 	const pl = sc.bodies.filter(b => b.kind == 'planet'), G0 = require(path.join(DIR, 'galaxy.js'));
 	const pl0 = pl.filter(b => !b.parent), mo = pl.filter(b => b.parent);
-	ok('1. the real system: its star, every planet of the model on its orbit, sizes in metres', sc.bodies[0].kind == 'star' && pl0.length == G0.system(home.star).planets.length
-		&& pl0.every(b => { const hostPos = b.host == 'B' ? sc.bodies.find(x => x.companion).pos : [0, 0, 0]; return Math.abs(len(sub(b.pos, hostPos)) / Sc.AU - G0.system(home.star).planets.find(x => x.name == b.name).a) < 0.01 && b.radius > 1e6 }));
+	ok('1. the real system at the world scale (1/12): its star, every planet of the model on its orbit, sizes in metres', sc.bodies[0].kind == 'star' && pl0.length == G0.system(home.star).planets.length
+		&& pl0.every(b => { const hostPos = b.host == 'B' ? sc.bodies.find(x => x.companion).pos : [0, 0, 0]; return Math.abs(len(sub(b.pos, hostPos)) / Sc.AU_S - G0.system(home.star).planets.find(x => x.name == b.name).a) < 0.01 && Math.abs(b.radius / (b.src.R * Sc.RE_S) - 1) < 1e-9 }));
 	ok('1a. moons orbit their planets, at their distances', mo.every(m => { const pb = pl.find(b => b.name == m.parent); return Math.abs(len(sub(m.pos, pb.pos)) / pb.radius - m.src.dist) < 0.1 }));
-	ok('1b. orbits move with the days', len(sub(Sc.build(home.star, {day: 230}).bodies.find(b => b.kind == 'planet').pos, pl[0].pos)) > 1e9);
+	ok('1b. orbits move with the days', len(sub(Sc.build(home.star, {day: 230}).bodies.find(b => b.kind == 'planet').pos, pl[0].pos)) > 1e8);
 	const st = sc.station;
 	ok('2. the home port is a Halo in orbit of the home world, its mouth facing open space', st.cls == 'halo' && st.world.name == home.home.name && Math.abs(len(sub(st.c, st.world.pos)) / st.world.radius - 2) < 1e-9 && dot(st.axis, Sc.v.norm(sub(st.c, st.world.pos))) > 0.99);
 	ok('3. each class spins for 1 g at its floor', ['trefoil', 'bloom', 'lantern', 'halo'].every(c => Math.abs(Sc.spinOf(c) ** 2 * Sc.STATION[c].floor - 9.81) < 1e-9));
@@ -61,18 +61,18 @@ try {
 	ok('14. a port\'s mass lock: no cruise within 20 km', Sc.massLocked(sc, sp.p) && !Sc.massLocked(sc, Sc.toWorldPt(st, [0, 0, 30000])));
 	/* a planet whose straight course from the port stays well clear of the star */
 	const clearOf = (a, b) => { const d = sub(b, a), t0 = Math.max(0, Math.min(1, -dot(a, d) / dot(d, d))); return len(add(a, mul(d, t0))) };
-	const far = pl.filter(b => !b.host && !b.parent && b != st.world && clearOf(st.c, b.pos) > 0.1 * Sc.AU).sort((a, b) => len(sub(b.pos, st.c)) - len(sub(a.pos, st.c)))[0], c = Fl.create(wren, {p: Sc.toWorldPt(st, [0, 0, 30000]), q: Sc.lookRotation(sub(far.pos, Sc.toWorldPt(st, [0, 0, 30000])), [0, 0, 1])}); c.radius = 4.5;
+	const far = pl.filter(b => !b.host && !b.parent && b != st.world && clearOf(st.c, b.pos) > 0.1 * Sc.AU_S).sort((a, b) => len(sub(b.pos, st.c)) - len(sub(a.pos, st.c)))[0], c = Fl.create(wren, {p: Sc.toWorldPt(st, [0, 0, 30000]), q: Sc.lookRotation(sub(far.pos, Sc.toWorldPt(st, [0, 0, 30000])), [0, 0, 1])}); c.radius = 4.5;
 	const cz = {v: 0}; let t = 0, top = 0, hit = false, res = null;
 	while (t < 600 && !res) { res = Sc.cruiseStep(sc, c, cz, {throttle: 1}, DT, far); t += DT; top = Math.max(top, cz.v); if (Sc.collide(sc, c, t)) hit = true }
-	const dist = len(sub(far.pos, st.c)) / Sc.AU;
+	const dist = len(sub(far.pos, st.c)) / Sc.AU_S;
 	ok('15. cruise crosses to another planet (' + dist.toFixed(2) + ' AU) in a minute or two, and drops out near it', res == 'drop' && t > 20 && t < 150 && Sc.surfaceDist(far, c.p) < Sc.dropRange(far) && Sc.surfaceDist(far, c.p) > 0 && !hit, t.toFixed(0) + ' s, top ' + (top / Sc.C).toFixed(1) + ' c');
 	ok('16. cruise slows on its own near a surface: never faster than the distance to it, a second', (() => { const q = Fl.create(wren, {p: add(far.pos, [far.radius * 3, 0, 0]), q: Sc.lookRotation([-1, 0, 0], [0, 0, 1])}); const z = {v: Sc.CRUISE.cap}; for (let k = 0; k < 600; k++) { const lim = Sc.cruiseLimit(sc, q.p); Sc.cruiseStep(sc, q, z, {throttle: 1}, DT); if (z.v > lim + 1e-6) return false } return true })());
 	ok('16b. a course into the star throws the ship out of cruise before it reaches the surface', (() => { const sun = sc.bodies[0], q = Fl.create(wren, {p: [0.5 * Sc.AU, 0, 0], q: Sc.lookRotation([-1, 0, 0], [0, 0, 1])}); const z = {v: 0}; for (let k = 0; k < 60 * 120; k++) if (Sc.cruiseStep(sc, q, z, {throttle: 1}, DT) == 'drop') return Sc.surfaceDist(sun, q.p) > sun.radius; return false })());
 	const drop = Sc.dropOut(c, {v: 4e5});
 	ok('17. dropping out keeps the heading at no more than top speed; above 300 km/s it\'s an emergency', drop.emergency && Math.abs(len(c.v) - c.spec.vmax) < 1e-6 && !Sc.dropOut(c, {v: 1000}).emergency);
 	const lockedP = pl.find(b => b.locked), freeP = pl.find(b => !b.locked);
-	ok('19. planets turn: locked worlds once per orbit, others in 0.3 to 3 days; tilts are kept, the orbits unchanged by them', (!lockedP || Math.abs(lockedP.period / 86400 - Math.sqrt(Math.pow(len(lockedP.pos) / Sc.AU, 3) / home.star.M) * 365.25) < 1e-6 * lockedP.period)
-		&& (!freeP || (freeP.period / 86400 >= 0.3 && freeP.period / 86400 <= 3)) && pl.every(b => Math.abs(len(b.axis) - 1) < 1e-9) && Math.abs(Sc.turnOf(pl[0], 200, pl[0].period) - Sc.turnOf(pl[0], 200, 0)) < 1e-9
+	ok('19. planets turn: locked worlds once per orbit, others in 0.3 to 3 days (at the world scale, times 1/sqrt(12)); tilts are kept, the orbits unchanged by them', (!lockedP || Math.abs(lockedP.period / 86400 - Math.sqrt(Math.pow(len(lockedP.pos) / Sc.AU_S, 3) / home.star.M) * 365.25 * Sc.TS) < 1e-6 * lockedP.period)
+		&& (!freeP || (freeP.period / 86400 >= 0.3 * Sc.TS && freeP.period / 86400 <= 3 * Sc.TS)) && pl.every(b => Math.abs(len(b.axis) - 1) < 1e-9) && Math.abs(Sc.turnOf(pl[0], 200, pl[0].period) - Sc.turnOf(pl[0], 200, 0)) < 1e-9
 		&& Math.abs(dot(Sc.bodyFrame(pl[0], 1.2).x, pl[0].axis)) < 1e-9);
 	const ringed = F.majors().map(m => ({m, sc: Sc.build(m.star, {portWorld: m.home.name})})).find(x => x.sc.station.world.ring);
 	ok('20. every power\'s port orbits its own homeworld, and clears any rings', F.majors().slice(0, 12).every(m => Sc.build(m.star, {portWorld: m.home.name}).station.world.name == m.home.name)
@@ -80,6 +80,11 @@ try {
 	const bare = Sc.build(home.star, {port: null}), arr = Sc.arrival(bare), wa = Fl.create(wren, arr); wa.radius = 4;
 	ok('21. a system with no port: no station, no mass lock, nothing to hit but its bodies; a jump arrives clear of the star, facing on', bare.station === null && !Sc.massLocked(bare, arr.p) && !Sc.collide(bare, wa, 0)
 		&& len(sub(arr.p, bare.bodies[0].pos)) > 30 * bare.bodies[0].radius && Sc.cruiseLimit(bare, arr.p) > 1e9);
+	/* the world scale, as Kerbal Space Program does it: a twelfth the size, the same surface gravity, times by sqrt(12) */
+	const Gw = require(path.join(DIR, 'galaxy.js')), m0 = Gw.system(home.star).planets[0], b0 = pl.find(b => b.name == m0.name);
+	ok('1c. the world scale: 1/12 the size, the same surface gravity, orbits and days in 1/sqrt(12) of the time (an Earth\'s year 105 days, its Kármán line 8.3 km)',
+		Gw.WORLD_SCALE == 1 / 12 && Math.abs(b0.radius - m0.R * 6.371e6 / 12) < 1e-6 && b0.g == m0.g && Math.abs(sc.bodies[0].radius - home.star.R * 6.957e8 / 12) < 1e-3
+		&& Math.abs(365.25 * Sc.TS - 105.44) < 0.01 && Math.abs(Sc.karmanOf(1) - 8333.3) < 0.1, {r: b0.radius, R: m0.R});
 	ok('18. the same system every time', JSON.stringify(Sc.build(home.star, {day: 200}).bodies) == JSON.stringify(sc.bodies));
 	/* years and days, as real worlds have them */
 	const Gx = require(path.join(DIR, 'galaxy.js')), earth = {i: 0, a: 1, M: 1, R: 1, locked: false, gas: false, moons: [{dist: 60.3}]}; Gx.spin({id: 'sol', M: 1}, earth);
@@ -87,13 +92,13 @@ try {
 	const ws = Gx.sampleGalaxy(800, 9).filter(x => x.kind == 'star').flatMap(x => Gx.system(x).planets), rocks = ws.filter(w => !w.gas && !w.locked), gas = ws.filter(w => w.gas && !w.locked);
 	ok('23. days as real worlds have them: locked worlds once a year, gas giants in 9-18 h, rocky worlds from 10 h to months (some backwards), moons locked to their months', ws.filter(w => w.locked).every(w => w.day == w.year) && gas.every(w => w.day * 24 >= 9 && w.day * 24 <= 18) && rocks.every(w => Math.abs(w.day) * 24 >= 9.99) && rocks.some(w => w.day < 0) && ws.flatMap(w => w.moons || []).every(m => m.day == m.year && m.year > 0));
 	const sc2 = Sc.build(home.star, {day: 200}), moonB = sc2.bodies.find(b => b.parent), worldB = sc2.bodies.find(b => b.kind == 'planet' && !b.parent);
-	ok('24. in the scene, each world turns once a day of its own and each moon goes round in its month, in real time', !moonB || (Math.abs(moonB.period - moonB.src.year * 86400) < 1 && Math.abs(worldB.period - worldB.src.day * 86400) < 1));
+	ok('24. in the scene, each world turns once a day of its own and each moon goes round in its month, at the world scale\'s time (1/sqrt(12))', !moonB || (Math.abs(moonB.period - moonB.src.year * 86400 * Sc.TS) < 1 && Math.abs(worldB.period - worldB.src.day * 86400 * Sc.TS) < 1));
 	/* gravity, below the Kármán line */
-	const world = {kind: 'planet', name: 'Test', pos: [0, 0, 0], radius: 1.7e6, g: 0.16, M: 0.0123, karman: Sc.karmanOf(0.0123)}, earthK = Sc.karmanOf(1), sc3 = {bodies: [{kind: 'star', pos: [1e12, 0, 0], radius: 7e8}, world]};
-	ok('25. a world\'s Kármán line: Earth\'s 100 km up, every other world\'s in proportion to its mass (a Moon\'s 1.2 km, a 318-Earth giant\'s 31,800 km)', earthK == 1e5 && Math.abs(world.karman - 1230) < 1 && Math.abs(Sc.karmanOf(318) - 3.18e7) < 1);
+	const world = {kind: 'planet', name: 'Test', pos: [0, 0, 0], radius: 1.7e6 / 12, g: 0.16, M: 0.0123, karman: 1230}, earthK = Sc.karmanOf(1), sc3 = {bodies: [{kind: 'star', pos: [1e12, 0, 0], radius: 7e8}, world]};
+	ok('25. a world\'s Kármán line: an Earth\'s 100 km up at full size, 8.3 km at the world scale; every other world\'s in proportion to its mass (a Moon\'s 103 m, a 318-Earth giant\'s 2,650 km)', Math.abs(earthK - 1e5 / 12) < 1e-6 && Math.abs(Sc.karmanOf(0.0123) - 102.5) < 0.1 && Math.abs(Sc.karmanOf(318) - 2.65e6) < 1);
 	const gAt = h => len(Sc.gravityAt(sc3, [world.radius + h, 0, 0]));
 	ok('26. below it the world pulls (its surface gravity, falling off with the square of the distance); above it, nothing', Math.abs(gAt(0) - 0.16 * 9.81) < 1e-9 && gAt(1000) > 0 && gAt(1000) < gAt(0) && gAt(1300) == 0 && Sc.gravityAt(sc3, [-world.radius - 500, 0, 0])[0] > 0);
-	ok('27. stars pull nothing here, and every scene world carries its line', gAt(1e9) == 0 && sc.bodies.filter(b => b.kind == 'planet').every(b => Math.abs(b.karman - 1e5 * b.M) < 1e-6));
+	ok('27. stars pull nothing here, and every scene world carries its line (a solid world\'s at least 2 km over its highest ground)', gAt(1e9) == 0 && sc.bodies.filter(b => b.kind == 'planet').every(b => Math.abs(b.karman - (b.src.gas ? 1e5 / 12 * b.M : Math.max(1e5 / 12 * b.M, require(path.join(DIR, 'terrain.js')).bound(b) + 2000))) < 1e-6));
 	const hov = hull => { const st = Fl.create(hull, {p: [world.radius + 800, 0, 0]}); for (let i = 0; i < 600; i++) { st.grav = Sc.gravityAt(sc3, st.p); Fl.step(st, {throttle: 0, strafe: [0, 0]}, 1 / 60) } return st };
 	const h1 = hov(S.ships().find(x => x.name == 'Dodo'));
 	ok('28. flight assist holds a ship against the pull (ten seconds hovering 800 m up, within a metre)', Math.abs(h1.p[0] - (world.radius + 800)) < 1);

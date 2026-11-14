@@ -100,23 +100,23 @@ async function frame(pg, test) {
 		ok('9c. wanted, the Interstellar Marshals arrive; within 3 km their tractor beam holds you: no hyperspace, a quarter of your speed', mz.n >= 2 && mz.said && mz.hostile && held.held && !held.jump && held.v <= held.vmax * 0.26 && held.said, {mz, held});
 		await f.evaluate(() => { const g = EmberDebug.game; g.npcs = []; g.P.bounties = {}; g.held = null; g.marshalsAt = null; g.shots = [] });
 		/* landing L1.1: below a world's Kármán line the HUD reads the surface, and a hover holds its spot over the turning ground */
-		const wld = await f.evaluate(() => { const sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok) || sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000); if (!b) return null; EmberDebug.near(b, 1 + 2000 / b.radius); const g = EmberDebug.game; g.cruise = {on: false, v: 0, charge: 0}; g.throttle = 0; const s = EmberDebug.s, F = EmberScene.worldFrame(b); s.v = EmberFlight.frameAt(F, s.p).v; s.fa = true; return b.name });
+		const wld = await f.evaluate(() => { const sc = EmberDebug.scene, b = sc.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0]; if (!b) return null; const H = Math.min(2000, 0.8 * b.karman); EmberDebug.near(b, 1 + H / b.radius); const g = EmberDebug.game; g.cruise = {on: false, v: 0, charge: 0}; g.throttle = 0; const s = EmberDebug.s, F = EmberScene.worldFrame(b); s.v = EmberFlight.frameAt(F, s.p).v; s.fa = true; return {name: b.name, H} });
 		await sleep(3000);
 		const sfc = await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberScene.surfaceState(EmberDebug.scene, s, g.t, EmberDebug.ship); return st && {alt: st.alt, hill: EmberScene.groundAt(EmberDebug.scene, st.body, s.p, g.t).h, vh: st.vh, vz: st.vz, world: st.world, land: EmberLanding.card(EmberDebug.ship, st.body.src).line} });
 		await pg.screenshot({path: path.join(W, 'surface.png')});
-		ok('9d. 2 km over a world (over its terrain\'s hills and craters), the surface readout holds: the hover keeps its height and its spot as the world turns', wld && sfc && Math.abs(sfc.alt + sfc.hill - 2000) < 60 && sfc.vh < 3 && Math.abs(sfc.vz) < 3, {wld, sfc});
-		/* terrain L1.3: from 100 km down to 1 km, the tiles stand in for the sphere, finer the lower, within budget */
+		ok('9d. 2 km over a world (or under its Kármán line, if that\'s lower) (over its terrain\'s hills and craters), the surface readout holds: the hover keeps its height and its spot as the world turns', wld && sfc && Math.abs(sfc.alt + sfc.hill - wld.H) < 60 && sfc.vh < 3 && Math.abs(sfc.vz) < 3, {wld, sfc});
+		/* terrain L1.3: from where tiles start (200 km, or 0.3 radii on a small world) down to 1 km, the tiles stand in for the sphere, finer the lower, within budget */
 		const terr = [];
-		for (const km of [100, 10, 1]) {
-			await f.evaluate(km => { const sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok); const s = EmberDebug.s, u = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...u);
-				s.p = b.pos.map((v, i) => v + u[i] / n * (b.radius + km * 1000)); s.v = EmberFlight.frameAt(EmberScene.worldFrame(b), s.p).v; s.q = EmberScene.lookRotation(u.map(v => -v / n), [0, 0, 1]); EmberDebug.game.gear = false }, km);
-			await sleep(km == 100 ? 6000 : 4000);
+		for (const km of ['top', 10, 1]) {
+			await f.evaluate(km => { const sc = EmberDebug.scene, b = sc.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0]; const s = EmberDebug.s, u = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...u);
+				s.p = b.pos.map((v, i) => v + u[i] / n * (b.radius + (km == 'top' ? 0.9 * EmberTerrain.nearOf(b) : km * 1000))); s.v = EmberFlight.frameAt(EmberScene.worldFrame(b), s.p).v; s.q = EmberScene.lookRotation(u.map(v => -v / n), [0, 0, 1]); EmberDebug.game.gear = false }, km);
+			await sleep(km == 'top' ? 6000 : 4000);
 			terr.push(await f.evaluate(() => Object.assign({}, EmberDebug.game.lod.terrain, {fps: EmberDebug.game.fps})));
 		}
 		await pg.screenshot({path: path.join(W, 'terrain.png')});
-		ok('9g. terrain: drawn as tiles from 100 km down, under 60,000 triangles, finer the lower', terr.every(t => t.tiles > 0 && t.tris <= 60000) && terr[2].deepest > terr[0].deepest, terr);
+		ok('9g. terrain: drawn as tiles from 200 km down (0.3 radii on a small world), under 60,000 triangles, finer the lower', terr.every(t => t.tiles > 0 && t.tris <= 60000) && terr[2].deepest > terr[0].deepest, terr);
 		/* spotlights and night vision, on the night side 150 m up */
-		await f.evaluate(() => { const sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok), sun = sc.bodies[0], g = EmberDebug.game, s = EmberDebug.s;
+		await f.evaluate(() => { const sc = EmberDebug.scene, b = sc.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0], sun = sc.bodies[0], g = EmberDebug.game, s = EmberDebug.s;
 			const away = b.pos.map((v, i) => v - sun.pos[i]), n = Math.hypot(...away), U = away.map(v => v / n), h = EmberScene.groundAt(sc, b, b.pos.map((v, i) => v + U[i] * b.radius), g.t).h;
 			s.p = b.pos.map((v, i) => v + U[i] * (b.radius + h + 150)); s.v = EmberFlight.frameAt(EmberScene.worldFrame(b), s.p).v; g.gear = false; g.lights = false; g.nv = false;
 			const side = [-U[1], U[0], 0], sl = Math.hypot(...side), fwd = U.map((v, i) => -v * 0.6 + side[i] / sl * 0.4), fl = Math.hypot(...fwd); s.q = EmberScene.lookRotation(fwd.map(v => v / fl), [0, 0, 1]) });
@@ -151,14 +151,14 @@ async function frame(pg, test) {
 		await f.evaluate(() => { EmberDebug.game.settings.controls.scheme = 'full' }); await pg.keyboard.press('KeyZ'); await sleep(200);
 		const faFull = await f.evaluate(() => EmberDebug.s.fa); await pg.keyboard.press('KeyZ'); await sleep(100);
 		ok('9k. Simple keeps flight assist on; Full lets it go', faHeld === true && faFull === false, {faHeld, faFull});
-		const la = await f.evaluate(async () => { const sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok), g = EmberDebug.game, s = EmberDebug.s;
+		const la = await f.evaluate(async () => { const sc = EmberDebug.scene, b = sc.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0], g = EmberDebug.game, s = EmberDebug.s;
 			g.settings.controls.landAssist = true; const u0 = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...u0), u = u0.map(v => v / n), h = EmberScene.groundAt(sc, b, b.pos.map((v, i) => v + u[i] * b.radius), g.t).h;
 			s.p = b.pos.map((v, i) => v + u[i] * (b.radius + h + 120)); const gv = EmberFlight.frameAt(EmberScene.worldFrame(b), s.p).v; s.v = gv.map((v, i) => v - u[i] * 40); s.fa = true; g.gear = true; g.throttle = 0; g.landed = null; g.lastAlt = null;
 			await new Promise(r => setTimeout(r, 400)); const st = EmberScene.surfaceState(sc, s, g.t, EmberDebug.ship); return {vz: st.vz, alt: st.alt, max: Math.max(EmberLanding.TOUCH[EmberLanding.padFor(EmberDebug.ship.size)].vz * 0.75, st.alt * 0.1)} });
 		ok('9l. the landing assist holds a 40 m/s plunge at 120 m to a safe descent', la.vz >= -la.max - 0.5, la);
 		await f.evaluate(() => { const g = EmberDebug.game; g.gear = false; g.lights = false; g.landed = null });
 		/* landing L1.2: set down on the gear, sit there as the world turns, lift off; then come down far too fast */
-		const setDown = (h, vz) => f.evaluate(([h, vz]) => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok); if (!b) return null;
+		const setDown = (h, vz) => f.evaluate(([h, vz]) => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0]; if (!b) return null;
 			const sh = EmberDebug.ship, low = EmberLanding.lowest(sh, true, 0), s = EmberDebug.s, up = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...up), u = up.map(v => v / n);
 			const gh = EmberScene.groundAt(sc, b, b.pos.map((v, i) => v + u[i] * b.radius), g.t).h;   /* (the terrain's own height there) */
 			s.p = b.pos.map((v, i) => v + u[i] * (b.radius + gh + low.d + h)); const side = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], fw = [u[1] * side[2] - u[2] * side[1], u[2] * side[0] - u[0] * side[2], u[0] * side[1] - u[1] * side[0]];
@@ -175,12 +175,12 @@ async function frame(pg, test) {
 		await setDown(0.6, -1.0); await sleep(8000);
 		const gs = await f.evaluate(() => { const g = EmberDebug.game; return {landed: !!g.landed, scanned: g.msgs.some(m => /^Ground scan/.test(m.text)), deps: (g.deposits || []).length, record: Object.keys((g.P.explore && g.P.explore.land) || {}).length} });
 		ok('9n. landed, the ground scan runs by itself (6 s) and marks a handful of deposits within 5 km; the landing is in the record', gs.landed && gs.deps > 0 && gs.deps < 20 && gs.record >= 1, gs);
-		/* cruise toward a targeted world you can land on drops out about 50 km up */
-		await f.evaluate(() => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok), s = EmberDebug.s;
+		/* cruise toward a targeted world you can land on drops out at its line, or 4.2 km up */
+		await f.evaluate(() => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0], s = EmberDebug.s;
 			g.landed = null; const u = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...u), U = u.map(v => v / n); s.p = b.pos.map((v, i) => v + U[i] * (b.radius + 3e5)); s.v = [0, 0, 0];
 			s.q = EmberScene.lookRotation(U.map(v => -v), Math.abs(U[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); g.tgt = b; g.gear = false; g.cruise = {on: true, v: 3000, charge: 0}; g.throttle = 1 });
-		let cd = null; for (let i = 0; i < 60 && !cd; i++) { await sleep(500); cd = await f.evaluate(() => { const g = EmberDebug.game; if (g.cruise.on) return null; const st = EmberScene.surfaceState(EmberDebug.scene, EmberDebug.s, g.t, EmberDebug.ship); const b = EmberDebug.scene.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok); return {alt: EmberScene.groundAt(EmberDebug.scene, b, EmberDebug.s.p, g.t).alt, said: g.msgs.slice(-3).map(m => m.text)} }) }
-		ok('9o. cruising at a targeted world you can land on drops you out about 50 km above it', cd && cd.alt > 2e4 && cd.alt < 6e4, cd);
+		let cd = null; for (let i = 0; i < 60 && !cd; i++) { await sleep(500); cd = await f.evaluate(() => { const g = EmberDebug.game; if (g.cruise.on) return null; const st = EmberScene.surfaceState(EmberDebug.scene, EmberDebug.s, g.t, EmberDebug.ship); const b = EmberDebug.scene.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0]; return {alt: EmberScene.groundAt(EmberDebug.scene, b, EmberDebug.s.p, g.t).alt, drop: EmberScene.dropRange(b), said: g.msgs.slice(-3).map(m => m.text)} }) }
+		ok('9o. cruising at a targeted world you can land on drops you out above it, at its line or 4.2 km up', cd && cd.alt > 0.4 * cd.drop && cd.alt < 1.2 * cd.drop, cd);
 		await setDown(2, -60); await sleep(1500);
 		const cr = await f.evaluate(() => { const g = EmberDebug.game; return {lost: g.msgs.some(m => /Ship destroyed: a crash on/.test(m.text)), landed: !!g.landed} });
 		ok('9f. coming down at 60 m/s is a crash: the ship is lost and the insurer takes over', cr.lost && !cr.landed, cr);

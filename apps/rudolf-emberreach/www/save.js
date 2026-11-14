@@ -30,7 +30,7 @@ function pack(g) {
 	return trim({v: VERSION, galaxy: GALAXY, power: g.power, port: g.port || null, ship: g.ship, day: g.day, t: +g.t.toFixed(3), docked: !!g.docked, pad: g.pad || null,
 		star: ref(g.star), fuel: +(g.fuel == null ? 1 : g.fuel).toFixed(4), lastPort: ref(g.lastPort), routeTo: ref(g.routeTo),
 		player: g.player ? packPlayer(g.player) : null,
-		p: r(g.s.p), vel: r(g.s.v), q: r(g.s.q), w: r(g.s.w), fa: !!g.s.fa, throttle: +(+g.throttle || 0).toFixed(3),
+		p: r(g.s.p), scale: 12, vel: r(g.s.v), q: r(g.s.q), w: r(g.s.w), fa: !!g.s.fa, throttle: +(+g.throttle || 0).toFixed(3),
 		modules: Object.fromEntries(g.fit.modules.map(m => [m.id, +m.hp.toFixed(2)])),
 		/* landed (L1.2): the world, and the ship's place and heading in its turning axes */
 		landed: g.landed ? {world: g.landed.world, dir: r(g.landed.dir), h: +g.landed.h.toFixed(3), f: r(g.landed.f), u: r(g.landed.u)} : undefined, gear: g.gear ? true : undefined,
@@ -80,7 +80,7 @@ function unpack(raw, known) {
 	const set = raw.settings || {};
 	return {power: raw.power, port: raw.port, ship: raw.ship, day: raw.day, t: raw.t, docked: !!raw.docked, pad: Number.isInteger(raw.pad) ? raw.pad : null,
 		star: raw.v >= 2 ? star(raw.star) : null, fuel: raw.v >= 2 ? raw.fuel : 1, lastPort: raw.v >= 2 ? star(raw.lastPort) : null, routeTo: raw.v >= 2 ? star(raw.routeTo) : null, version: raw.v, player,
-		p: raw.p, v: raw.vel, q: raw.q.map(c => c / qn), w: raw.w, fa: raw.fa !== false, throttle: num(raw.throttle) ? Math.max(-1, Math.min(1, raw.throttle)) : 0,
+		p: raw.scale == 12 ? raw.p : raw.p.map(x => x / 12), v: raw.vel, q: raw.q.map(c => c / qn), w: raw.w, fa: raw.fa !== false, throttle: num(raw.throttle) ? Math.max(-1, Math.min(1, raw.throttle)) : 0,
 		modules: raw.modules, settings: St ? St.sanitise(set, null, I18 && I18.LANGS.map(l => l[0])) : set,
 		landed: landed(raw.landed), gear: raw.gear === true};
 }
