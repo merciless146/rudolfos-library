@@ -937,6 +937,41 @@ home currency.
   - **Contested systems** trade in the currency of whoever holds them that day; while they're fought over, only in
     SU, through free traders.
 
+### Settings
+
+In the game since 0.1.1's follow-up (`settings.js`, `i18n.js`; tested in `tests/emberreach_settings_t.js`, 17
+checks, and the browser test's check 9). Opened from the pause screen's **Settings** button. Three pages:
+
+- **Graphics, audio and HUD**
+  - **Graphics:** quality (high/low), resolution (50–100% of the screen's), field of view (50–100°), glow
+    effects, and a frame-rate counter.
+  - **Audio:** sound on/off, and four volumes: master, engines and ambience, effects, and alerts and warnings.
+    Alerts are the warning, critical, clearance, refused, lock, incoming and blackout cues.
+  - **HUD:** size (75–150%; the panels scale, the markers stay where they point), opacity, how many messages
+    and for how long, and the scanner, velocity marker and lead marker on or off.
+- **Controls**
+  - Every action has two keys and a gamepad button, rebound by pressing what you want. Esc cancels;
+    Backspace or Delete unbinds.
+  - A key already taken is moved, and the menu says from which action.
+  - Also: mouse sensitivity and inverted pitch, gamepad inverted pitch and dead zone, and a reset.
+  - The controls help (H) lists the bindings as they are.
+  - **Defaults:** the landing gear is on **L** and fire on **;**. The rest are unchanged.
+- **Language and accessibility**
+  - **Languages:** the nine Rudolf OS offers in its own settings, with its codes and names: English, Español,
+    Português, Français, Deutsch, Русский, 中文, 日本語, 한국어.
+    - The menus, the HUD, the controls and the sound captions are translated. The starport and the flight
+      messages are still in English.
+    - A new pilot starts in the browser's language if it's one of these.
+  - **Accessibility:**
+    - reduce flashing: as Rudolf OS says (the default), on, or off;
+    - reduce motion: no hyperspace streaks, no blinking alerts;
+    - a colour-blind palette: red–green (blue for good, yellow and orange for warnings) or blue–yellow;
+    - a high-contrast HUD;
+    - captions for the sounds.
+
+The save keeps the settings, clamped and cleaned (`St.sanitise`), and a new game keeps them. Older saves'
+quality and sound carry over.
+
 ### Ship insurance
 
 In the game since this change (`insurance.js`; tested in `tests/emberreach_insurance_t.js`, 15 checks).

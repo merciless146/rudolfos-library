@@ -16,6 +16,21 @@
 (function (root) {
 'use strict';
 const C = {cyan: '#6cc9e8', amber: '#f2a33a', red: '#e5484d', text: '#e8edf6', muted: '#9fb0cc', panel: 'rgba(8,14,26,0.78)', line: '#2a3a5c', green: '#7fd1a8'};
+/* ---------- options (Settings) ----------
+   size: the panels' scale (the markers stay where they point); messages: how many lines, msgTime: for how long;
+   palette: 'rg' (red–green colour blindness: blue for good, yellow and orange for warnings) or 'by' (blue–yellow:
+   pink for cyan, orange for amber); contrast: solid panels and brighter text */
+const BASE = Object.assign({}, C), OPT = {size: 1, messages: 3, msgTime: 8, palette: 'off', contrast: false};
+const PAL = {rg: {cyan: '#7cc6ff', green: '#3d8bff', amber: '#ffd23f', red: '#ff7a00'}, by: {cyan: '#ff8fc8', green: '#3ddc84', amber: '#ff9a3c', red: '#e5484d'}};
+const HICON = {panel: 'rgba(0,0,0,0.94)', line: '#9fb3d9', text: '#ffffff', muted: '#dfe6f2'};
+function setOptions(o) {
+	Object.assign(OPT, o || {});
+	Object.assign(C, BASE, PAL[OPT.palette] || {}, OPT.contrast ? HICON : {});
+}
+/* a message's colour, through the palette */
+const KNOWN = {'#e5484d': 'red', '#f2a33a': 'amber', '#7fd1a8': 'green', '#6cc9e8': 'cyan', '#9fb0cc': 'muted', '#e8edf6': 'text'};
+const pal = col => col && KNOWN[col.toLowerCase()] ? C[KNOWN[col.toLowerCase()]] : col;
+const TT = t => root.EmberI18n ? root.EmberI18n.T(t) : t;
 const MONO = '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace', SANS = 'Inter, system-ui, sans-serif';
 /* the ship's side profile (nose right), the same zones as the HUD mockup */
 const PROFILE = {hull: 'M20 50 L60 34 L200 30 L250 40 L300 58 L250 74 L200 84 L60 86 L20 72 Z',
@@ -51,7 +66,7 @@ function draw(ctx, W, H, h, t) {
 	const cx = W / 2, cy = H / 2, small = W < 700;
 	/* ---- vision under g: the edges darken; black when out ---- */
 	if (h.vision && h.vision.dark > 0) {
-		if (!h.vision.conscious) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); text(ctx, 'PILOT UNCONSCIOUS · CONTROLS LOCKED', cx, cy, {mono: true, col: '#3a4660', align: 'center', size: 13}); ctx.restore(); return }
+		if (!h.vision.conscious) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); text(ctx, TT('PILOT UNCONSCIOUS · CONTROLS LOCKED'), cx, cy, {mono: true, col: '#3a4660', align: 'center', size: 13}); ctx.restore(); return }
 		const d = h.vision.dark, g = ctx.createRadialGradient(cx, cy, Math.max(W, H) * 0.62 * (1 - d), cx, cy, Math.max(W, H) * (0.78 - 0.35 * d));
 		g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,' + Math.min(1, 0.55 + d) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 	}
@@ -65,12 +80,12 @@ function draw(ctx, W, H, h, t) {
 		const k = h.witch;
 		ctx.fillStyle = 'rgba(2,4,10,' + (0.55 + 0.4 * Math.sin(Math.PI * k)).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
 		const R = Math.hypot(W, H) / 2;
-		for (let i = 0; i < 140; i++) {
+		for (let i = 0; i < (h.reduceMotion ? 0 : 140); i++) {
 			const a = i * 2.39996, ph = (t * (1.2 + (i % 7) * 0.15) + i * 0.137) % 1, r0 = R * Math.pow(ph, 2.2), r1 = r0 + R * 0.08 * (0.5 + ph) * (0.6 + Math.sin(Math.PI * k));
 			ctx.strokeStyle = 'rgba(' + (150 + (i % 3) * 40) + ',' + (200 + (i % 2) * 30) + ',255,' + (0.25 + 0.6 * ph).toFixed(2) + ')'; ctx.lineWidth = 1 + 1.5 * ph;
 			ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.stroke();
 		}
-		if (h.witchTo) text(ctx, 'HYPERSPACE · ' + h.witchTo.toUpperCase(), cx, H - 40, {mono: true, align: 'center', size: 13, col: C.cyan, weight: 600});
+		if (h.witchTo) text(ctx, TT('HYPERSPACE') + ' · ' + h.witchTo.toUpperCase(), cx, H - 40, {mono: true, align: 'center', size: 13, col: C.cyan, weight: 600});
 		ctx.restore(); return;
 	}
 	/* ---- the reticle ---- */
@@ -89,7 +104,7 @@ function draw(ctx, W, H, h, t) {
 			for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.moveTo(T.x + sx * s, T.y + sy * (s - 7)); ctx.lineTo(T.x + sx * s, T.y + sy * s); ctx.lineTo(T.x + sx * (s - 7), T.y + sy * s) }
 			ctx.stroke(); text(ctx, T.name, T.x + s + 6, T.y - 2, {col: tc, size: 12, weight: 600});
 			/* missile lock: a ring closing in; solid when locked */
-			if (T.lock > 0) { ctx.strokeStyle = T.locked ? C.red : 'rgba(229,72,77,0.6)'; ctx.lineWidth = T.locked ? 2.4 : 1.4; ctx.beginPath(); ctx.arc(T.x, T.y, s + 10 + (1 - T.lock) * 40, 0, 7); ctx.stroke(); if (T.locked) text(ctx, 'LOCK', T.x, T.y + s + 24, {mono: true, size: 11, weight: 700, col: C.red, align: 'center'}) } text(ctx, fmtDist(T.dist), T.x + s + 6, T.y + 13, {col: C.text, size: 12, mono: true});
+			if (T.lock > 0) { ctx.strokeStyle = T.locked ? C.red : 'rgba(229,72,77,0.6)'; ctx.lineWidth = T.locked ? 2.4 : 1.4; ctx.beginPath(); ctx.arc(T.x, T.y, s + 10 + (1 - T.lock) * 40, 0, 7); ctx.stroke(); if (T.locked) text(ctx, TT('LOCK'), T.x, T.y + s + 24, {mono: true, size: 11, weight: 700, col: C.red, align: 'center'}) } text(ctx, fmtDist(T.dist), T.x + s + 6, T.y + 13, {col: C.text, size: 12, mono: true});
 		} else {
 			/* an arrow at the edge, pointing the way to turn */
 			const a = Math.atan2(T.dy, T.dx), r = Math.min(W, H) * 0.42, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
@@ -98,43 +113,49 @@ function draw(ctx, W, H, h, t) {
 	}
 	/* the lead pip: where to aim so the guns hit */
 	if (h.target && h.target.lead && h.target.lead.on) { const L = h.target.lead; ctx.strokeStyle = C.red; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(L.x, L.y - 6); ctx.lineTo(L.x + 6, L.y); ctx.lineTo(L.x, L.y + 6); ctx.lineTo(L.x - 6, L.y); ctx.closePath(); ctx.stroke() }
+	/* ---- the panels, at the HUD's size (Settings); the markers above stay where they point ---- */
+	const W0 = W, H0 = H, k0 = OPT.size || 1; ctx.save(); ctx.scale(k0, k0); W = W / k0; H = H / k0;
+	const cxk = W / 2, small2 = W < 700;
+	/* sound captions, above the scanner */
+	if (h.captions && h.captions.length) { const cy2 = H - (h.touch ? 340 : 150); h.captions.slice(-3).forEach((c, i, a) => { const yy = cy2 - (a.length - 1 - i) * 22; ctx.font = '600 13px ' + SANS; const w = ctx.measureText('[ ' + c.text + ' ]').width + 16; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(cxk - w / 2, yy - 15, w, 20); text(ctx, '[ ' + c.text + ' ]', cxk, yy, {align: 'center', size: 13, weight: 600, col: '#ffffff'}) }) }
+	if (h.fps != null) text(ctx, Math.round(h.fps) + ' FPS', W - 16, 14, {mono: true, size: 10, col: C.muted, align: 'right'});
 	/* ---- bottom centre: the scanner ---- */
 	if (h.scanner) {
-		const sc = h.scanner, rw = small ? 110 : 150, rh = small ? 38 : 50, sx = cx, sy = H - rh - (h.touch ? 200 : 26), R = sc.range;
+		const sc = h.scanner, rw = small2 ? 110 : 150, rh = small2 ? 38 : 50, sx = cxk, sy = H - rh - (h.touch ? 200 : 26), R = sc.range;
 		ctx.fillStyle = 'rgba(8,14,26,0.6)'; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.fill();
 		ctx.strokeStyle = 'rgba(108,201,232,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.ellipse(sx, sy, rw / 2, rh / 2, 0, 0, 7); ctx.moveTo(sx - rw, sy); ctx.lineTo(sx + rw, sy); ctx.moveTo(sx, sy - rh); ctx.lineTo(sx, sy + rh); ctx.stroke();
 		for (const b of sc.blips) {
 			const k = Math.hypot(b.x, b.z) / R; if (k > 1) continue;
 			const px = sx + b.x / R * rw, py = sy - b.z / R * rh, top = py - Math.max(-rh, Math.min(rh, b.y / R * rh * 1.6));
-			ctx.strokeStyle = b.col; ctx.fillStyle = b.col; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, top); ctx.stroke();
+			ctx.strokeStyle = ctx.fillStyle = pal(b.col); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, top); ctx.stroke();
 			ctx.fillRect(px - (b.big ? 4 : 2.5), top - (b.big ? 2 : 1.5), b.big ? 8 : 5, b.big ? 4 : 3);
 			if (b.target) { ctx.strokeRect(px - 6, top - 5, 12, 10) }
 		}
 		text(ctx, (R / 1000) + ' km', sx + rw - 4, sy + rh + 12, {mono: true, size: 10, col: C.muted, align: 'right'});
 	}
 	/* ---- bottom left: flight ---- */
-	const bw = small ? 240 : 290, bh = 118, bx = 16, by = H - bh - (h.touch ? 190 : 16);
+	const bw = small2 ? 240 : 290, bh = 118, bx = 16, by = H - bh - (h.touch ? 190 : 16);
 	box(ctx, bx, by, bw, bh);
 	if (h.combat) {
 		const k = h.combat, py = by - 84;
 		box(ctx, bx, py, bw, 78);
-		const rows = [['SHLD', k.shield, C.cyan], ['HULL', k.hull, k.hull < 0.3 ? C.red : k.hull < 0.6 ? C.amber : C.green], ['HEAT', k.heat, k.hot ? C.red : k.heat > 0.75 ? C.amber : '#c9a46a']];
-		rows.forEach(([l, v, col], i) => { const yy = py + 10 + i * 16; text(ctx, l, bx + 10, yy + 8, {mono: true, size: 10, col: C.muted}); bar(ctx, bx + 50, yy, bw - 150, 8, v, col) });
-		if (k.hot) text(ctx, 'OVERHEAT', bx + bw - 92, py + 34, {mono: true, size: 10, weight: 700, col: C.red});
+		const rows = [[TT('SHLD'), k.shield, C.cyan], [TT('HULL'), k.hull, k.hull < 0.3 ? C.red : k.hull < 0.6 ? C.amber : C.green], [TT('HEAT'), k.heat, k.hot ? C.red : k.heat > 0.75 ? C.amber : '#c9a46a']];
+		rows.forEach(([l, v, col], i) => { const yy = py + 10 + i * 16; text(ctx, l, bx + 10, yy + 8, {mono: true, size: 10, col: C.muted}); bar(ctx, bx + 72, yy, bw - 172, 8, v, col) });
+		if (k.hot) text(ctx, TT('OVERHEAT'), bx + bw - 92, py + 34, {mono: true, size: 10, weight: 700, col: C.red});
 		const inv = [k.ammo != null ? 'RND ' + k.ammo : null, k.missileMax ? 'MSL ' + k.missiles : null, 'FLR ' + k.flares].filter(Boolean);
 		inv.forEach((t2, i) => text(ctx, t2, bx + bw - 10, py + 18 + i * 16, {mono: true, size: 10, col: C.muted, align: 'right'}));
 		/* the status line: the hatch, an incoming missile */
 		const sts = [];
-		if (h.sweep) sts.push(['SWEEP ' + Math.round(h.sweep * 100) + '%', C.cyan]);
-		if (h.hatch) sts.push([h.hatch == 'jammed' ? 'HATCH JAMMED · SPILLING' : 'HATCH OPEN · SCOOPING', h.hatch == 'jammed' ? C.red : C.cyan]);
-		if (h.incoming) sts.push(['MISSILE INBOUND', C.red]);
+		if (h.sweep) sts.push([TT('SWEEP') + ' ' + Math.round(h.sweep * 100) + '%', C.cyan]);
+		if (h.hatch) sts.push([TT(h.hatch == 'jammed' ? 'HATCH JAMMED · SPILLING' : 'HATCH OPEN · SCOOPING'), h.hatch == 'jammed' ? C.red : C.cyan]);
+		if (h.incoming) sts.push([TT('MISSILE INBOUND'), C.red]);
 		/* below a world's Kármán line: its pull, and the height above its surface */
-		if (h.well) sts.push(['GRAVITY ' + h.well.g.toFixed(2) + ' g · ' + fmtDist(Math.max(0, h.well.alt)) + ' UP', C.amber]);
-		if (h.refinery) sts.push(['REFINERY ' + h.refinery, '#c9a46a']);
-		if (!k.armed && !sts.length) sts.push(['UNARMED', C.muted]);
+		if (h.well) sts.push([TT('GRAVITY') + ' ' + h.well.g.toFixed(2) + ' g · ' + TT('UP') + ' ' + fmtDist(Math.max(0, h.well.alt)), C.amber]);
+		if (h.refinery) sts.push([TT('REFINERY') + ' ' + h.refinery, '#c9a46a']);
+		if (!k.armed && !sts.length) sts.push([TT('UNARMED'), C.muted]);
 		let sx2 = bx + 10; for (const [t2, col] of sts) { text(ctx, t2, sx2, py + 68, {mono: true, size: 10, weight: 700, col}); ctx.font = '700 10px ' + MONO; sx2 += ctx.measureText(t2).width + 14 }
 	}
-	text(ctx, h.cruise ? 'CRUISE' : 'SPEED', bx + 12, by + 22, {col: C.muted, size: 11, mono: true});
+	text(ctx, TT(h.cruise ? 'CRUISE' : 'SPEED'), bx + 12, by + 22, {col: C.muted, size: 11, mono: true});
 	text(ctx, fmtSpeed(h.speed), bx + 12, by + 50, {size: 26, weight: 600, mono: true, col: h.cruise ? C.cyan : C.text});
 	/* throttle bar: FA on, a set speed (reverse below the line); FA off, thrust */
 	const tx = bx + bw - 30, ty = by + 12, tH = bh - 24;
@@ -142,18 +163,19 @@ function draw(ctx, W, H, h, t) {
 	const zero = ty + tH * (1 / 1.3), thr = Math.max(-0.3, Math.min(1, h.throttle || 0));
 	ctx.fillStyle = h.cruise ? C.cyan : C.amber; if (thr >= 0) ctx.fillRect(tx, zero - thr * (zero - ty), 12, thr * (zero - ty)); else ctx.fillRect(tx, zero, 12, (-thr / 0.3) * (ty + tH - zero));
 	ctx.fillStyle = C.muted; ctx.fillRect(tx - 4, zero, 20, 1);
-	const chips = [[h.fa ? 'FA ON' : 'FA OFF', h.fa ? C.cyan : C.amber]];
-	if (h.cruise) chips.push(['CRUISE', C.cyan]); else if (h.charging) chips.push(['CHARGING ' + Math.ceil(h.charging), C.cyan]); else if (h.massLocked) chips.push(['MASS LOCKED', C.muted]);
-	if (h.jumpCharge) chips.push(['JUMP ' + Math.ceil(h.jumpCharge), C.cyan]);
-	if (h.fuel != null) chips.push(['FUEL ' + Math.round(h.fuel * 100) + '%', h.fuel < 0.25 ? C.amber : C.muted]);
+	const chips = [[TT(h.fa ? 'FA ON' : 'FA OFF'), h.fa ? C.cyan : C.amber]];
+	if (h.gear) chips.push([TT('GEAR DOWN'), C.amber]);
+	if (h.cruise) chips.push([TT('CRUISE'), C.cyan]); else if (h.charging) chips.push([TT('CHARGING') + ' ' + Math.ceil(h.charging), C.cyan]); else if (h.massLocked) chips.push([TT('MASS LOCKED'), C.muted]);
+	if (h.jumpCharge) chips.push([TT('JUMP') + ' ' + Math.ceil(h.jumpCharge), C.cyan]);
+	if (h.fuel != null) chips.push([TT('FUEL') + ' ' + Math.round(h.fuel * 100) + '%', h.fuel < 0.25 ? C.amber : C.muted]);
 	if (h.gFelt != null) chips.push([h.gFelt.toFixed(1) + ' g', h.gFelt > 4 ? C.amber : C.muted]);
 	let chx = bx + 12;
 	for (const [s, col] of chips) { ctx.font = '600 11px ' + MONO; const w = ctx.measureText(s).width + 12; ctx.strokeStyle = col; ctx.strokeRect(chx + 0.5, by + 72.5, w, 20); text(ctx, s, chx + 6, by + 86, {mono: true, size: 11, col, weight: 600}); chx += w + 6 }
 	if (h.nextLeg) text(ctx, h.nextLeg, bx + 12, by + 110, {size: 11, col: C.cyan, weight: 600});
-	else text(ctx, h.fa ? 'Set ' + fmtSpeed(Math.max(0, thr) * h.vmax) : (h.thrustNote || 'Thrust ' + Math.round(thr * 100) + '%'), bx + 12, by + 110, {size: 11, col: C.muted});
+	else text(ctx, h.fa ? TT('Set') + ' ' + fmtSpeed(Math.max(0, thr) * h.vmax) : (h.thrustNote || TT('Thrust') + ' ' + Math.round(thr * 100) + '%'), bx + 12, by + 110, {size: 11, col: C.muted});
 	/* ---- bottom right: target ---- */
 	if (h.target) {
-		const T = h.target, w = small ? 210 : 280, x = W - w - 16, y = H - 118 - (h.touch ? 190 : 16);
+		const T = h.target, w = small2 ? 210 : 280, x = W - w - 16, y = H - 118 - (h.touch ? 190 : 16);
 		box(ctx, x, y, w, 118);
 		text(ctx, T.kind.toUpperCase(), x + 12, y + 20, {mono: true, size: 11, col: C.muted});
 		text(ctx, T.name, x + 12, y + 42, {size: 16, weight: 600});
@@ -164,15 +186,15 @@ function draw(ctx, W, H, h, t) {
 	}
 	/* ---- top left: alerts, or the console ---- */
 	const al = h.alerts || [];
-	const lx = 16, ly = 16, lw = small ? Math.min(W - 32, 300) : 340;
+	const lx = 16, ly = 16, lw = small2 ? Math.min(W - 32, 300) : 340;
 	let y = ly;
 	if (al.length) {
 		box(ctx, lx, y, lw, 120);
-		text(ctx, (h.shipName || 'SHIP').toUpperCase() + ' · SIDE PROFILE', lx + 10, y + 16, {mono: true, size: 10, col: C.muted});
-		text(ctx, al.length + ' INOP', lx + lw - 10, y + 16, {mono: true, size: 10, col: C.muted, align: 'right'});
+		text(ctx, (h.shipName || 'SHIP').toUpperCase() + ' · ' + TT('SIDE PROFILE'), lx + 10, y + 16, {mono: true, size: 10, col: C.muted});
+		text(ctx, al.length + ' ' + TT('INOP'), lx + lw - 10, y + 16, {mono: true, size: 10, col: C.muted, align: 'right'});
 		ctx.save(); const sc = (lw - 24) / 320; ctx.translate(lx + 12, y + 18); ctx.scale(sc, sc * 0.85);
 		ctx.fillStyle = '#0b1424'; ctx.strokeStyle = '#3a4d72'; ctx.lineWidth = 1.4 / sc; ctx.fill(path(PROFILE.hull)); ctx.stroke(path(PROFILE.hull));
-		const blink = (Math.floor(t * 2.2) % 2 == 0) || h.reduceFlash;
+		const blink = (Math.floor(t * 2.2) % 2 == 0) || h.reduceFlash || h.reduceMotion;
 		for (const z in PROFILE) {
 			if (z == 'hull') continue;
 			const bad = al.find(a => a.module == z), m = h.modules && h.modules.find(x => x.id == z); if (!m && !bad) continue;
@@ -185,30 +207,31 @@ function draw(ctx, W, H, h, t) {
 		y += 126;
 		const ch = 12 + al.length * 26;
 		ctx.fillStyle = 'rgba(3,6,12,0.92)'; ctx.fillRect(lx, y, lw, ch); ctx.strokeStyle = C.line; ctx.strokeRect(lx + 0.5, y + 0.5, lw - 1, ch - 1);
-		al.forEach((a, i) => { triangle(ctx, lx + 10, y + 8 + i * 26, a.color); text(ctx, '> ' + a.text.toUpperCase(), lx + 40, y + 24 + i * 26, {mono: true, size: 13, weight: 700, col: a.color}) });
+		al.forEach((a, i) => { triangle(ctx, lx + 10, y + 8 + i * 26, pal(a.color)); text(ctx, '> ' + a.text.toUpperCase(), lx + 40, y + 24 + i * 26, {mono: true, size: 13, weight: 700, col: pal(a.color)}) });
 		y += ch + 8;
 	}
-	const msgs = (h.messages || []).filter(m => t - m.t < 8).slice(-3);
+	const MT = OPT.msgTime || 8, msgs = OPT.messages > 0 ? (h.messages || []).filter(m => t - m.t < MT).slice(-OPT.messages) : [];
 	if (msgs.length) {
 		const ch = 10 + msgs.length * 20;
 		ctx.fillStyle = 'rgba(3,6,12,0.8)'; ctx.fillRect(lx, y, lw, ch);
-		msgs.forEach((m, i) => { ctx.globalAlpha = Math.min(1, (8 - (t - m.t)) / 1.5); text(ctx, '> ' + m.text, lx + 10, y + 20 + i * 20, {mono: true, size: 12, col: m.col || C.green}) });
+		msgs.forEach((m, i) => { ctx.globalAlpha = Math.min(1, (MT - (t - m.t)) / 1.5); text(ctx, '> ' + m.text, lx + 10, y + 20 + i * 20, {mono: true, size: 12, col: pal(m.col) || C.green}) });
 		ctx.globalAlpha = 1;
 	}
 	/* ---- right: internal systems ---- */
 	if (h.showSystems && h.modules) {
 		const w = 260, x = W - w - 16, y0 = 16, rows = h.modules.length, ph = 34 + rows * 26;
 		box(ctx, x, y0, w, ph);
-		text(ctx, 'INTERNAL SYSTEMS', x + 12, y0 + 21, {mono: true, size: 11, col: C.muted});
+		text(ctx, TT('INTERNAL SYSTEMS'), x + 12, y0 + 21, {mono: true, size: 11, col: C.muted});
 		h.modules.forEach((m, i) => {
 			const yy = y0 + 34 + i * 26, inop = m.hp <= 0, col = inop ? (m.critical ? C.red : C.amber) : C.text;
 			text(ctx, m.name, x + 12, yy + 13, {size: 12, col, weight: inop ? 700 : 500});
 			ctx.fillStyle = '#1a2540'; ctx.fillRect(x + 128, yy + 6, 70, 6);
 			ctx.fillStyle = m.hp < m.max ? C.amber : C.cyan; ctx.fillRect(x + 128, yy + 6, 70 * m.hp / m.max, 6);
-			text(ctx, inop ? 'INOP' : Math.ceil(m.hp) + '/' + m.max, x + w - 12, yy + 13, {mono: true, size: 11, col: inop ? col : C.muted, align: 'right', weight: inop ? 700 : 400});
+			text(ctx, inop ? TT('INOP') : Math.ceil(m.hp) + '/' + m.max, x + w - 12, yy + 13, {mono: true, size: 11, col: inop ? col : C.muted, align: 'right', weight: inop ? 700 : 400});
 		});
 	}
-	/* ---- touch controls ---- */
+	ctx.restore(); W = W0; H = H0;
+	/* ---- touch controls (where the touches land: not scaled) ---- */
 	if (h.touch && h.touchUI) {
 		const u = h.touchUI;
 		ctx.strokeStyle = 'rgba(232,237,246,0.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(u.stick.x, u.stick.y, u.stick.r, 0, 7); ctx.stroke();
@@ -220,6 +243,6 @@ function draw(ctx, W, H, h, t) {
 	ctx.restore();
 }
 
-const EmberHUD = {draw, fmtDist, fmtSpeed, COLORS: C, PROFILE};
+const EmberHUD = {draw, setOptions, OPT, fmtDist, fmtSpeed, COLORS: C, PROFILE};
 if (typeof module != 'undefined') module.exports = EmberHUD; else root.EmberHUD = EmberHUD;
 })(typeof window != 'undefined' ? window : this);

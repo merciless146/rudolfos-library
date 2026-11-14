@@ -62,23 +62,33 @@ async function frame(pg, test) {
 		await pg.evaluate(() => send({op: 'pause'})); await sleep(400);
 		const paused = await f.evaluate(() => ({ov: !document.getElementById('ov').hidden, h: document.getElementById('ovT').textContent, build: (document.querySelector('#ovBody .build') || {}).textContent}));
 		ok('8. the desktop\'s pause pauses it (the alpha build named on the pause screen)', paused.ov && /Paused/.test(paused.h) && /Alpha/.test(paused.build), paused);
+		/* Settings, from the pause screen: Spanish, then back to English; a rebinding */
+		await f.click('#ovBtns button:nth-child(2)'); await sleep(300);
+		await f.click('button[data-tab="2"]'); await f.selectOption('select[data-set="lang"]', 'es'); await sleep(200);
+		const es = await f.evaluate(() => document.getElementById('ovT').textContent);
+		await f.click('button[data-tab="1"]'); await f.click('button[data-bind="flare"][data-slot="1"]'); await pg.keyboard.press('KeyL'); await sleep(200);
+		const bound = await f.evaluate(() => ({flare: RG.bindings().flare, gear: RG.bindings().gear}));
+		await f.click('button[data-tab="2"]'); await f.selectOption('select[data-set="lang"]', 'en'); await sleep(200);
+		await f.click('#ovBtns button.primary'); await sleep(300);
+		const kept = await pg.evaluate(() => SAVES['ember-reach'] && SAVES['ember-reach'].settings && SAVES['ember-reach'].settings.controls.keys.flare);
+		ok('9. Settings (from the pause screen): the language changes the menus, a key rebinds (taken from the landing gear), and the save keeps it', es == 'Ajustes' && bound.flare.includes('KeyL') && !bound.gear.includes('KeyL') && kept && kept.includes('KeyL'), {es, bound, kept});
 		await pg.evaluate(() => send({op: 'resume'})); await f.click('#ovBtns button.primary').catch(() => {}); await sleep(1200);
 		/* the Maw and the Rift */
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
 		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(15000);
 		const rift = await f.evaluate(() => ({id: EmberDebug.game.star.id, realm: EmberGalaxy.realm(), riftborn: EmberDebug.game.npcs.filter(n => n.role == 'riftborn').length}));
-		ok('9. with a phaser, the Maw takes the ship into the Rift', rift.id == 'R:heart' && rift.realm == 'rift', rift);
+		ok('10. with a phaser, the Maw takes the ship into the Rift', rift.id == 'R:heart' && rift.realm == 'rift', rift);
 		await pg.screenshot({path: path.join(W, 'rift.png')});
 		await f.evaluate(() => { EmberDebug.game.npcs = []; EmberDebug.settle && 0 }); await pg.evaluate(() => send({op: 'pause'})); await sleep(1200);
 		/* reopen: the save takes it back where it was */
 		await pg.goto(`http://127.0.0.1:${PORT}/desk.html#debug`); await pg.reload(); f = await frame(pg, () => window.EmberDebug && EmberDebug.game.star && EmberDebug.scene);
 		const back = await f.evaluate(() => ({id: EmberDebug.game.star.id, realm: EmberGalaxy.realm(), chooser: !!document.querySelector('#ovBody button[data-i]')}));
-		ok('10. reopened, it resumes from the save (in the Rift), without asking for an origin', back.id == 'R:heart' && back.realm == 'rift' && !back.chooser, back);
+		ok('11. reopened, it resumes from the save (in the Rift), without asking for an origin', back.id == 'R:heart' && back.realm == 'rift' && !back.chooser, back);
 		/* losing the ship: the insurer (insurance.js) brings it back, this side of the Maw */
 		const lostAt = await f.evaluate(() => { EmberDebug.lose('a test'); const g = EmberDebug.game; return {star: g.star.id, realm: EmberGalaxy.realm(), ship: EmberDebug.ship.name, hull: g.pcs.hull > 0, port: !!g.port, msg: g.msgs.slice(-3).map(m => m.text).join(' | ')} });
-		ok('11. lost in the Rift, the ship comes back under its insurance, at a port this side', lostAt.realm == 'normal' && !lostAt.star.startsWith('R:') && lostAt.ship == 'Griffin' && lostAt.hull && lostAt.port && /Insurance|waits at/.test(lostAt.msg), lostAt);
-		ok('12. no errors on the way', errs.length == 0, errs);
+		ok('12. lost in the Rift, the ship comes back under its insurance, at a port this side', lostAt.realm == 'normal' && !lostAt.star.startsWith('R:') && lostAt.ship == 'Griffin' && lostAt.hull && lostAt.port && /Insurance|waits at/.test(lostAt.msg), lostAt);
+		ok('13. no errors on the way', errs.length == 0, errs);
 		console.log('screenshots: ' + W);
 	} catch (e) { F++; console.log('FAIL (error) ' + (e.stack || e)) }
 	await br.close(); srv.kill();

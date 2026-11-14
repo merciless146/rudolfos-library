@@ -76,6 +76,23 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 .org button span{font-size:12px;color:#9fb0cc}.org button:hover,.org button:focus-visible{border-color:#f2a33a;outline:none}
 .card{max-width:min(980px,94vw)}
 #load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:500 14px ui-monospace,Menlo,Consolas,monospace;color:#9fb0cc}
+
+/* settings (settings.js) */
+.st-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 6px}
+.st-tabs button{background:#101a2e;color:#c3cde0;border:1px solid #2a3a5c;padding:7px 12px;font:600 13px Inter,system-ui,sans-serif;cursor:pointer}
+.st-tabs button.on{background:#17305a;color:#fff;border-color:#6cc9e8}
+.st-page h3{margin:16px 0 6px;font-size:15px;color:#e8edf6}
+.st-page h4{margin:12px 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9fb0cc}
+.st-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #172340;font-size:14px}
+.st-row label{color:#c3cde0}
+.st-row select{background:#0e1830;color:#e8edf6;border:1px solid #2a3a5c;padding:5px 8px;font:inherit;max-width:60%}
+.st-r{display:flex;align-items:center;gap:8px}.st-r input{width:160px;accent-color:#6cc9e8}.st-r output{min-width:46px;text-align:right;font:12px ui-monospace,Menlo,Consolas,monospace;color:#9fb0cc}
+.st-keys{width:100%;border-collapse:collapse}.st-keys th{font:600 11px Inter,system-ui,sans-serif;color:#9fb0cc;text-align:left;padding:2px 4px}
+.st-keys td{padding:3px 4px;border-bottom:1px solid #172340;font-size:13px}
+.st-key{min-width:86px;background:#0e1830;color:#e8edf6;border:1px solid #2a3a5c;padding:4px 8px;font:12px ui-monospace,Menlo,Consolas,monospace;cursor:pointer}
+.st-key.on{border-color:#f2a33a;color:#f2a33a}
+.st-wait{color:#f2a33a;font-weight:600}.st-note{color:#9fb0cc;font-size:12px}
+.st-reset{background:#2a1a1a;color:#ffd0c8;border:1px solid #5c2a2a;padding:6px 12px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -85,6 +102,8 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 <div id="port" hidden></div>
 <div id="ov" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="ovT"><div id="ovBody"></div><div class="btns" id="ovBtns"></div></div></div>
 <script src="gamekit.js"></script>
+<script src="i18n.js"></script>
+<script src="settings.js"></script>
 <script src="wos-stats.js"></script>
 <script src="galaxy.js"></script>
 <script src="factions.js"></script>
