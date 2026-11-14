@@ -24,6 +24,9 @@ try {
 	ok('7. version 2 keeps the star, the fuel and the last port; a system with no port saves with port null', back.star.id == 'abc123' && back.star.p[2] == 1050.125 && back.fuel == 0.625 && back.lastPort.id == 'abc123' && back.routeTo === null
 		&& Sv.unpack(JSON.parse(JSON.stringify(Sv.pack(Object.assign({}, g, {port: null})))), known).port === null);
 	const v1 = Object.assign(JSON.parse(json), {v: 1}); delete v1.star; delete v1.fuel;
+	ok('8a. the world scale (1/12): saves keep the ship where it is; a save from before puts it at the same place in the smaller system', (() => {
+		const raw = JSON.parse(JSON.stringify(Sv.pack(g))), now = Sv.unpack(raw, known); delete raw.scale; const old = Sv.unpack(raw, known);
+		return raw.p && now.p.every((x, i) => x == g.s.p[i]) && old.p.every((x, i) => Math.abs(x - raw.p[i] / 12) < 1e-6 * Math.abs(raw.p[i] || 1)) })());
 	ok('8. an M1 save (version 1, always the home system) still loads, with a full tank', (() => { const b = Sv.unpack(v1, known); return b && b.star === null && b.fuel == 1 && b.version == 1 })());
 	ok('9. a version 2 save without its star is refused', Sv.unpack(Object.assign(JSON.parse(json), {star: null}), known) === null);
 	/* version 3: the player */

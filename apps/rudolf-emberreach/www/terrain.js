@@ -2,8 +2,9 @@
    One height function, h(world, dir): pure, seeded from the world's name, the same in node and the browser. Drawing,
    contact, the safety, the altitude readout and (in L2) port sites all use it, so what's drawn is what's hit.
    - Relief: value noise in octaves (the same noise meshes.js colours planets with), rougher than plain fbm (each
-     octave keeps 55% of the last), over about 1 km on a small moon up to 4 km on a large rocky world; icy worlds
-     half that. Large worlds (over 2,000 km across) have smooth, low plains, like maria.
+     octave keeps 55% of the last), over about 1 km on a small moon up to 4 km on a large rocky world (by the galaxy model's size; at the world
+     scale, 1/12, the relief is kept, so worlds are more rugged for their size, as in Kerbal Space Program); icy
+     worlds half that. Worlds of the Moon's size and up (by the galaxy model's size) have smooth, low plains, like maria.
    - Craters: seeded on a grid over each face of a cube round the world, in thirteen sizes, from a few hundred km
      across down to a few tens of metres (a bowl, a raised rim, and a central peak on the big ones). Each lies wholly inside its own grid cell, so a point only asks its own cell in
      each size, and nothing crosses a cube face: the height is continuous everywhere.
@@ -43,13 +44,13 @@ const P = new Map();
 /* b: a scene body (name, radius, type, seed); everything else is drawn from its name */
 function params(b) {
 	let p = P.get(b.name); if (p) return p;
-	const seed = G.hashStr('terrain:' + b.name) % 100000, R = b.radius, icy = /Tundra|Ice/.test(b.type || '');
-	const A = Math.max(500, Math.min(4000, 1000 + 3000 * (R - 1.7e6) / 4.3e6)) * (icy ? 0.5 : 1);
+	const seed = G.hashStr('terrain:' + b.name) % 100000, R = b.radius, R0 = R / (G.WORLD_SCALE || 1), icy = /Tundra|Ice/.test(b.type || '');
+	const A = Math.max(500, Math.min(4000, 1000 + 3000 * (R0 - 1.7e6) / 4.3e6)) * (icy ? 0.5 : 1);   /* by the model's (full) size */
 	/* octaves: frequency oct0 · 2^k round the world, amplitude persist^k, until one would add under minAmp metres */
 	const oct = []; let amp = 1, f = TER.oct0, sum = 0;
 	while (A * amp > TER.minAmp && oct.length < 24) { oct.push({f, amp, wave: 2 * Math.PI * R / f}); sum += amp; amp *= TER.persist; f *= 2 }
 	oct.forEach(o => o.amp /= sum);
-	p = {seed, R, A, icy, oct, maria: R > 1e6, flats: []};
+	p = {seed, R, R0, A, icy, oct, maria: R0 > 1e6, flats: []};
 	P.set(b.name, p);
 	return p;
 }
@@ -72,7 +73,7 @@ function craters(p, d, minWave) {
 		if (x > 1.3) continue;
 		/* simple craters are about a fifth as deep as they are wide; big, complex ones far shallower (and never more than
 		   one and a half times the relief) */
-		const big = j < 3, depth = Math.min(1.5 * p.A, rad * p.R * (big ? 0.03 : 0.1));
+		const big = j < 3, depth = Math.min(1.5 * p.A, rad * (big ? 0.03 * p.R0 : 0.1 * p.R));   /* the big basins as deep as at full size, the small craters to their own size */
 		/* the bowl, its raised rim (the ejecta falling away beyond it), a central peak on the big ones */
 		let z = x < 1 ? -depth * (1 - x * x) + 0.15 * depth : 0.15 * depth * (1 - smooth(1, 1.3, x));
 		if (big && x < 0.25) z += depth * 0.5 * (1 - x / 0.25) * (1 - x / 0.25);
@@ -97,6 +98,9 @@ function height(b, d, minWave) {
 }
 /* a levelled disc (L2's port sites): at dir, r metres across with a ramp, at the height the ground has there */
 function addFlat(b, dir, r, ramp) { const p = params(b), d = nrm(dir); const h = height(b, d); p.flats.push({dir: d, r, ramp: ramp || r * 0.5, h}); return h }
+/* how high up a world's tiles are drawn (in place of the sphere) and built ahead: 200 km and 400 km, nearer on a small
+   world (0.3 and 0.6 of its radius), so a port in orbit of one isn't over its ground */
+const nearOf = b => Math.min(TER.near, 0.3 * b.radius), prebuildOf = b => Math.min(TER.prebuild, 0.6 * b.radius);
 /* the relief's bound for a world (no point is more than this above or below its radius) */
 const bound = b => { const p = params(b); return p.A + 1.5 * p.A * 1.2 + 10 };
 
@@ -165,6 +169,6 @@ function build(b, t, res) {
 	return {mesh: m, centre: c, tris: m.p.length / 9, key: key(t)};
 }
 
-const EmberTerrain = {TER, FACES, onFace, faceOf, params, height, addFlat, bound, key, tileInfo, children, maxLevel, select, build};
+const EmberTerrain = {TER, nearOf, prebuildOf, FACES, onFace, faceOf, params, height, addFlat, bound, key, tileInfo, children, maxLevel, select, build};
 if (isNode) module.exports = EmberTerrain; else root.EmberTerrain = EmberTerrain;
 })(typeof window != 'undefined' ? window : globalThis);

@@ -220,6 +220,30 @@ The worlds get ground worth landing on.
 **Done when:** a moon looks like a moon from 100 km down to the pad, the ship lands on what's drawn, and the
 frame rate holds.
 
+### The world scale (0.2.8)
+
+Systems in flight are built at 1/12 scale, the way Kerbal Space Program shrinks its worlds (`galaxy.js` `WORLD_SCALE`,
+`scene.js` `WS`, `TS`):
+- **Lengths:** worlds, stars and orbits are 1/12 as wide (an Earth 531 km in radius, its orbit 12.5 million km).
+  Surface gravity is the same, so masses are 1/144 and worlds 12 times as dense. Distances between stars are
+  unchanged.
+- **Times:** they go with the square root, so orbits, days and months run in 1/sqrt(12) of the time (an Earth's year
+  105 days).
+- **Unchanged:** the galaxy model's own figures (sizes, years, temperatures) stay the real ones, and black holes keep
+  their size.
+- **Terrain:** relief keeps its full height, so worlds are more rugged for their size, as in KSP. The big basins keep
+  their full depth; small craters are sized to their width.
+- **Kármán lines:** at the scale (an Earth's 8.3 km), but at least 2 km over a solid world's highest ground (3.4 km on
+  the smallest moons, about 13 km on the largest rocky worlds). The cruise drop above a targeted world is 4.2 km at
+  least (50 km before).
+- **Terrain distance:** tiles are drawn from 0.3 radii up on small worlds (200 km at most), so a port in orbit
+  isn't over its ground.
+- **Older saves:** they keep their place, scaled down.
+
+Kármán line to the ground at 200 m/s now takes about 20 to 70 s, against 4 to 7 minutes before. Frame rates are
+unchanged near the ground on the software renderer (the terrain budget sets the cost there).
+Fixed along the way: worlds behind the camera were drawn as full meshes.
+
 ### L1.4 The approach
 
 **Done** (0.2.7):

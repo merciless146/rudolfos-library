@@ -396,6 +396,11 @@ function riftWorlds(s, planets) {
    mass and its distance in the planet's radii; moons are locked, so their day is their month. All from draws of
    their own: nothing else about a system moves. */
 const G_SI = 6.674e-11, M_EARTH = 5.972e24, R_EARTH = 6.371e6;
+/* the size of systems in flight (scene.js), as Kerbal Space Program does it: worlds, stars and orbits are 1/12 as
+   wide as this model's, their surface gravity the same (so their masses 1/144), and times go with the square root:
+   orbits, days and months run in 1/sqrt(12) of the time. The model's own figures (sizes, years, temperatures) stay
+   the real ones; distances between stars are unchanged */
+const WORLD_SCALE = 1 / 12;
 function spin(s, p) {
 	const q = rng(hashStr('rot:' + s.id + ':' + p.i + (p.host || '')));
 	p.year = Math.sqrt(Math.pow(p.a, 3) / Math.max(0.05, s.M || 1)) * 365.25;
@@ -566,6 +571,6 @@ function civilizations0() {
 	return CIVS;
 }
 
-const EmberGalaxy = {STARS_WANTED, SCALE, RIFT_SCALE, RIFT_KEEP, RIFT_STARS, inRift, fromRift, toRift, densityHere, spin, HEART, RIFT_HEART, RIFT, realm, inRealm, normal, riftOf, lookup, byId, legacy, capitalIds, KGF, MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
+const EmberGalaxy = {STARS_WANTED, SCALE, WORLD_SCALE, RIFT_SCALE, RIFT_KEEP, RIFT_STARS, inRift, fromRift, toRift, densityHere, spin, HEART, RIFT_HEART, RIFT, realm, inRealm, normal, riftOf, lookup, byId, legacy, capitalIds, KGF, MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
 if (typeof module != 'undefined') module.exports = EmberGalaxy; else root.EmberGalaxy = EmberGalaxy;
 })(typeof window != 'undefined' ? window : this);

@@ -14,7 +14,7 @@
 'use strict';
 const isNode = typeof module != 'undefined';
 const G = isNode ? require('./galaxy.js') : root.EmberGalaxy;
-const MINE = {site: 15000, rocks: 64, sizes: [30, 60, 120, 240], hitsPerChunk: 6, chunk: [0.25, 0.6], laserRange: 600, scanRange: 3000, scanTime: 3, tractor: 600, tractorSpeed: 40, AU: 1.495978707e11};
+const MINE = {site: 15000, rocks: 64, sizes: [30, 60, 120, 240], hitsPerChunk: 6, chunk: [0.25, 0.6], laserRange: 600, scanRange: 3000, scanTime: 3, tractor: 600, tractorSpeed: 40, AU: 1.495978707e11 / 12};   /* at the world scale (galaxy.js WORLD_SCALE) */
 /* what each kind of field holds: goods and weights */
 const KINDS = {
 	Stone: {name: 'stone ring', goods: {Iron: 5, Copper: 3, Coal: 3, Lead: 2, Aluminum: 2, Titanium: 1, Jade: 0.4, Diamond: 0.15}},
