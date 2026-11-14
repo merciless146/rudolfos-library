@@ -100,6 +100,12 @@ flight assist holds its spot over the turning ground.
 
 ### L1.2 Landing gear, touchdown and crashes
 
+**Done** (0.2.3): the gear (a module that can break), the safety letting go over landable ground with the gear down,
+contact (`landing.js` `lowest`, `contact`), hard landings and crashes, the landed state (`scene.js` `landAt`,
+`pinLanded`), lift-off, and the landed place in saves. The sounds reuse the game's existing cues (the hatch's motor
+for the gear, a collision's thud scaled by the impact) rather than new ones. Tested in
+`tests/emberreach_landing_t.js` (23 checks in all) and the browser test's 9e and 9f.
+
 The ground becomes solid.
 
 - **Gear** (`play.js`, state `game.gear`):

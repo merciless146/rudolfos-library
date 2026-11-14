@@ -43,12 +43,30 @@ function touchdown(size, vz, vh, tilt) {
 	if (x >= 3) return {ok: false, crash: true, x};
 	return {ok: true, hard: true, damage: (x - 1) * (x - 1) * 0.15, x};   /* a share of the hull */
 }
+/* ---------- contact (L1.2) ----------
+   The ship's lowest point below its centre (m): its gear when down and working (it stands 12% of its length below
+   the belly), its belly when not, and its nose when pitched past 45° (half its length times the pitch's sine) */
+const GEAR = {belly: 0.18, legs: 0.12, auto: {down: 300, up: 500}, vmax: 100};
+function lowest(ship, gear, pitch) {
+	const Lm = ship.length || 20, belly = GEAR.belly * Lm, onGear = !!gear;
+	const nose = Math.abs(pitch) > 45 ? 0.5 * Lm * Math.sin(Math.abs(pitch) * Math.PI / 180) : 0;
+	const g = onGear ? belly + GEAR.legs * Lm : belly;
+	return nose > g ? {d: nose, part: 'nose'} : {d: g, part: onGear ? 'gear' : 'belly'};
+}
+/* first contact: how it goes. Anything but the gear touching counts as three times past the limits. sf: the
+   surface state (scene.js): vz, vh, tilt (degrees off upright) */
+function contact(ship, sf, gear) {
+	const low = lowest(ship, gear, sf.pitch), k = low.part == 'gear' ? 1 : 3;
+	const out = touchdown(ship.size, Math.abs(sf.vz) * k, sf.vh * k, sf.tilt * k);
+	return Object.assign(out, {part: low.part});
+}
+
 /* the target card's line for a world: "Landable · 0.30 g · lift 9.4 g", or why not */
 function card(ship, p) {
 	const c = canLand(ship, p);
 	return c.ok ? {ok: true, line: 'Landable · ' + p.g.toFixed(2) + ' g · lift ' + (lift(ship) / G0).toFixed(1) + ' g'} : {ok: false, line: 'Not landable: ' + c.why.replace(/^./, x => x.toLowerCase())};
 }
 
-const EmberLanding = {G0, LAND, TOUCH, landable, lift, canLand, maxG, padFor, touchdown, card};
+const EmberLanding = {G0, LAND, TOUCH, GEAR, landable, lift, canLand, maxG, padFor, touchdown, card, lowest, contact};
 if (typeof module != 'undefined') module.exports = EmberLanding; else root.EmberLanding = EmberLanding;
 })(typeof window != 'undefined' ? window : globalThis);

@@ -61,7 +61,7 @@ const Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy,
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.2'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.3'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -184,7 +184,7 @@ function enterSystem(star) {
 	game.port = capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day) || T.portFor(star, game.day);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
 	st = scene.station;
-	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null;
+	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null;
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
 	site(); beaconAt();
@@ -239,7 +239,9 @@ function resume(sv) {
 	s = Fl.create(ship, {p: sv.p, v: sv.v, q: sv.q, w: sv.w, fa: sv.fa}); s.radius = Math.max(2, ship.length / 2);
 	fit = Sv.restoreModules(M.fit(ship), sv.modules); pilot = Pi.create(); M.apply(fit, s); arm();
 	if (!sv.docked) populate();
-	game.t = sv.t; game.throttle = sv.throttle; game.docked = !!(sv.docked && st); game.clearance = game.docked && sv.pad ? {pad: sv.pad, until: Infinity} : null;
+	game.t = sv.t; game.throttle = sv.throttle; game.docked = !!(sv.docked && st);
+	/* landed where it was (L1.2): back on the ground at its place on the turning world */
+	if (sv.landed && !game.docked && scene.bodies.some(b => b.name == sv.landed.world)) { game.landed = sv.landed; game.gear = true; landedStep(null) } else game.gear = !!sv.gear; game.clearance = game.docked && sv.pad ? {pad: sv.pad, until: Infinity} : null;
 	if (!game.lastPort) game.lastPort = st ? game.star : game.home.star;
 	say(game.docked ? 'Welcome back: docked at ' + st.name : st ? 'Welcome back, ' + H.fmtDist(len(sub(s.p, st.c))) + ' from ' + st.name : 'Welcome back, in the ' + game.star.name + ' system');
 }
@@ -253,7 +255,7 @@ function persist() {
 	game.P.day = game.day;
 	if (game.pcs && !game.docked) game.P.combat = C.keep(game.pcs);
 	RG.save(Sv.pack({player: game.P, power: game.power, port: st ? st.cls : null, ship: ship.id, day: game.day, t: game.t, docked: game.docked, pad: game.clearance && game.clearance.pad, s, throttle: game.throttle, fit,
-		star: game.star, fuel: game.fuel, lastPort: game.lastPort, routeTo, settings: game.settings}))
+		star: game.star, fuel: game.fuel, lastPort: game.lastPort, routeTo, settings: game.settings, landed: game.landed, gear: game.gear}))
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
 		.then(() => { setTimeout(() => { game.saving = false; if (game.savePending) persist() }, 1000) });
 }
@@ -329,11 +331,54 @@ function actions(dt) {
 }
 /* the landing gear (L): down or up. Down, top speed is held to 100 m/s; it only goes down below that. (Landing
    itself comes in L1: docs/plan-ember-reach-landing-work.md) */
-const GEAR = {vmax: 100};
+const GEAR = Ld.GEAR;   /* (landing.js: 100 m/s with the gear down; down by itself under 300 m, up above 500 m) */
 function toggleGear() {
 	if (game.cruise.on) return;
+	if (game.landed) { say('Landed: the gear stays down until you lift off', '#f2a33a'); Snd.cue('refused'); return }
 	if (!game.gear && len(Fl.relative(s, frameNear()).v) > GEAR.vmax + 1) { say(tr('Landing gear: down only below 100 m/s'), '#f2a33a'); Snd.cue('refused'); return }
 	game.gear = !game.gear; say(tr(game.gear ? 'Landing gear down' : 'Landing gear up'), '#9fb0cc'); Snd.cue('hatch');
+}
+/* ---------------- landing (L1.2) ---------------- */
+const gearWorks = () => M.works(fit, 'gear');
+/* the gear by itself: down when you come under 300 m over ground you could land on, up again above 500 m */
+function surfaceGear() {
+	const sf = Sc.surfaceState(scene, s, game.t, ship); if (!sf || !Ld.landable(sf.body.src).ok) { game.lastAlt = null; return }
+	const was = game.lastAlt; game.lastAlt = sf.alt;
+	if (was == null) return;
+	if (!game.gear && was >= GEAR.auto.down && sf.alt < GEAR.auto.down) { game.gear = true; say(tr('Landing gear down') + (gearWorks() ? '' : ': it won\'t lock. A belly landing'), gearWorks() ? '#9fb0cc' : '#e5484d'); Snd.cue('hatch') }
+	if (game.gear && was <= GEAR.auto.up && sf.alt > GEAR.auto.up) { game.gear = false; say(tr('Landing gear up'), '#9fb0cc'); Snd.cue('hatch') }
+}
+/* first contact with the ground: a landing, a hard landing (hull damage), or a crash (the insurer takes over) */
+function touch() {
+	const sf = Sc.surfaceState(scene, s, game.t, ship); if (!sf || !Ld.landable(sf.body.src).ok) return false;
+	const onGear = game.gear && gearWorks(), low = Ld.lowest(ship, onGear, sf.pitch);
+	if (sf.alt - low.d > 0) return false;
+	const out = Ld.contact(ship, sf, onGear), what = low.part == 'gear' ? '' : low.part == 'nose' ? ' nose first' : ' on the belly';
+	if (out.crash) { Snd.cue('collide', 1); lost('a crash on ' + sf.world + what); return true }
+	if (out.hard) {
+		const hull = game.pcs.hullMax * out.damage; game.pcs.hull = Math.max(1, game.pcs.hull - hull); damage(hull * 0.5);
+		const g = M.get(fit, 'gear'); if (g) { const a = M.damage(fit, 'gear', g.max * Math.min(1, out.damage * 2)); if (a) moduleAlert(a) }
+		game.hitAt = game.t; Snd.cue('collide', Math.min(1, out.x / 3));
+		say('Hard landing' + what + ' on ' + sf.world + ': ' + Math.abs(sf.vz).toFixed(1) + ' m/s down, hull −' + Math.round(out.damage * 100) + '%', '#f2a33a');
+	} else { Snd.cue('docked'); say('Landed on ' + sf.world + ' · ' + Math.abs(sf.vz).toFixed(1) + ' m/s down · ' + sf.lat.toFixed(2) + '°, ' + sf.lon.toFixed(2) + '°', '#7fd1a8') }
+	game.landed = Sc.landAt(scene, s, sf.body, game.t, low.d);
+	game.cruise = {on: false, v: 0, charge: 0}; game.jump = null; game.throttle = 0;
+	landedStep(null);
+	persist();
+	return true;
+}
+/* landed: fixed to the ground, turning with the world; vertical thrust (or the throttle past 10%) lifts off */
+function landedStep(input) {
+	const pin = Sc.pinLanded(scene, game.landed, game.t);
+	if (!pin) { game.landed = null; return }
+	if (input && (input.strafe[1] > 0.5 || game.throttle > 0.1)) { liftOff(pin); return }
+	s.p = pin.p; s.q = pin.q; s.v = pin.v; s.w = [0, 0, 0];
+	s.grav = Sc.gravityAt(scene, s.p); game.well = Sc.gravityWell(scene, s.p); game.gFelt = null;
+}
+function liftOff(pin) {
+	const up = norm(sub(pin.p, pin.body.pos));
+	game.landed = null; s.p = add(pin.p, mul(up, 0.5)); s.q = pin.q; s.v = add(pin.v, mul(up, 3)); s.w = [0, 0, 0];
+	game.lastAlt = 0; say('Lifting off from ' + pin.body.name, '#6cc9e8'); Snd.cue('launch');
 }
 function toggleFA() { Fl.setAssist(s, !s.fa); game.throttle = s.fa ? Math.min(1, len(s.v) / s.spec.vmax) : 0; say('Flight assist ' + (s.fa ? 'on' : 'off'), s.fa ? '#6cc9e8' : '#f2a33a'); Snd.cue(s.fa ? 'faOn' : 'faOff') }
 function nextTarget() { const L = targets(), i = L.indexOf(curTarget()); game.tgt = L[(i + 1) % L.length]; say('Target: ' + game.tgt.name); Snd.cue('tick') }
@@ -375,6 +420,7 @@ function toggleCruise() {
 	const cz = game.cruise;
 	if (cz.on) { const r = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say(r.emergency ? 'Emergency drop out: the drive took a knock' : 'Dropped out of cruise', r.emergency ? '#f2a33a' : undefined); Snd.cue(r.emergency ? 'emergency' : 'drop'); if (r.emergency) damage(25); return }
 	if (cz.charge > 0) { cz.charge = 0; say('Cruise cancelled'); return }
+	if (game.landed) { say('Landed: lift off first', '#f2a33a'); Snd.cue('refused'); return }
 	if (Sc.massLocked(scene, s.p)) { say('Mass locked by ' + st.name + ': cruise needs 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
 	if (shipLock()) { say('Mass locked by ' + shipLock().name + ': ships within 5 km hold you', '#f2a33a'); Snd.cue('refused'); return }
 	if (!M.status(fit).output.main) { say('Cruise needs working engines', '#e5484d'); Snd.cue('refused'); return }
@@ -391,6 +437,7 @@ function nextLeg() {
 }
 function requestJump() {
 	if (game.jump) { const ph = game.jump.phase; game.jump = null; say(ph ? 'Phase cancelled' : 'Jump cancelled'); return }
+	if (game.landed) { say('Landed: lift off first (vertical thrust, or throttle up)', '#f2a33a'); Snd.cue('refused'); return }
 	const Tb = curTarget(); if (Tb && Tb.bh) { requestPhase(Tb); return }
 	const leg = nextLeg();
 	if (!leg) { say('No destination: open the map (G), pick a star, and plot a route (Enter)', '#f2a33a'); Snd.cue('refused'); return }
@@ -497,7 +544,8 @@ function update(dt) {
 		if (Sc.massLocked(scene, s.p)) { cz.charge = 0; say('Cruise interrupted: mass locked', '#f2a33a') }
 		else if (cz.charge <= 0) { cz.on = true; cz.v = len(s.v); game.throttle = Math.max(game.throttle, 0.5); say('Cruise engaged'); Snd.cue('cruise') }
 	}
-	if (cz.on) {
+	if (game.landed) landedStep(input);
+	else if (cz.on) {
 		const tgt = curTarget();
 		const res = Sc.cruiseStep(scene, s, cz, input, dt, tgt);
 		if (res == 'drop') { const d = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say('Dropped out near ' + Sc.nearest(scene, s.p).what.name + (d.emergency ? ' (emergency)' : '')); Snd.cue(d.emergency ? 'emergency' : 'drop'); if (d.emergency) damage(25) }
@@ -507,6 +555,8 @@ function update(dt) {
 		r = Fl.step(s, input, dt, frameNear());
 		/* a tractor beam: dragged to a quarter of top speed */
 		if (held()) { const v = len(s.v), cap = s.spec.vmax * En.MARSHALS.slow; if (v > cap) s.v = mul(s.v, cap / v) }
+		/* the ground: the gear by itself, and first contact */
+		if (game.well) { surfaceGear(); if (touch()) return }
 		const g = M.gForce(fit, r);
 		game.gFelt = M.works(fit, 'canopy') ? null : g.felt;
 		game.vision = Pi.step(pilot, g.felt, dt);
@@ -842,11 +892,13 @@ function restOnGround(c) {
 }
 function safety() {
 	for (const b of scene.bodies) {
+		/* with the gear down over ground that can be landed on, the safety lets go: contact decides (touch) */
+		if (game.gear && b.kind == 'planet' && !b.atmo && Ld.landable(b.src).ok) continue;
 		const lim = Sc.safeDist(b), d = sub(s.p, b.pos), L = len(d); if (L >= lim) continue;
 		const n = mul(d, 1 / (L || 1)), vn = dot(s.v, n);
 		s.p = add(b.pos, mul(n, lim));
 		if (vn < 0) s.v = sub(s.v, mul(n, vn));
-		if (!game.saidSafe || game.t - game.saidSafe > 6) { game.saidSafe = game.t; say('Proximity safety: holding off ' + pname(b) + (b.bh ? ' (a black hole)' : b.kind == 'star' ? '' : b.atmo ? ': its atmosphere' : ': no landing here yet'), '#f2a33a'); Snd.cue('warning') }
+		if (!game.saidSafe || game.t - game.saidSafe > 6) { game.saidSafe = game.t; say('Proximity safety: holding off ' + pname(b) + (b.bh ? ' (a black hole)' : b.kind == 'star' ? '' : b.atmo ? ': its atmosphere' : !Ld.landable(b.src).ok ? ': ' + Ld.landable(b.src).why.toLowerCase() : ': lower the landing gear (L) to land'), '#f2a33a'); Snd.cue('warning') }
 	}
 }
 const PHASE = {range: 2.5e6, charge: 8};
@@ -1158,7 +1210,7 @@ function hudDraw(cam) {
 		speed, vmax: s.spec.vmax, throttle: game.throttle, fa: s.fa, cruise: cz.on, charging: cz.charge > 0 ? cz.charge : 0, massLocked: !cz.on && Sc.massLocked(scene, s.p),
 		target, prograde: vm && game.settings.hud.prograde ? {x: vm.x, y: vm.y, on: vm.z > 0} : null, alerts: M.alerts(fit), modules: fit.modules, showSystems: game.systems, shipName: ship.name,
 		messages: game.msgs, vision: game.vision, gFelt: game.gFelt, reduceFlash: reduceFlash(), reduceMotion: game.settings.a11y.motion, thrustNote: s.fa ? null : tr('Thrust') + ' ' + Math.round(game.throttle * 100) + '%',
-		gear: game.gear, fps: game.settings.graphics.fps ? game.fps : null, captions: game.settings.a11y.captions ? game.captions.filter(c => game.t - c.t < 3) : null,
+		gear: game.gear, landed: !!game.landed, fps: game.settings.graphics.fps ? game.fps : null, captions: game.settings.a11y.captions ? game.captions.filter(c => game.t - c.t < 3) : null,
 		fuel: game.fuel, jumpCharge: J && J.tunnel == null ? J.charge : 0, witch: J && J.tunnel != null ? 1 - J.tunnel / JUMP.tunnel : null, witchTo: J && J.leg.star.name,
 		nextLeg: leg ? tr('Next') + ': ' + leg.star.name + ' · ' + leg.d.toFixed(1) + ' pc' + (leg.kind != 'jump' ? ' (lane)' : '') + ' · J' : null,
 		touch: RG.lastInput == 'touch', touchUI: touchLayout(),

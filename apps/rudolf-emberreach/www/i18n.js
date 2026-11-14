@@ -25,7 +25,7 @@ const EN = [
 	'Docked', 'Launched', 'Collision', 'Drive charging', 'Dropped out of cruise', 'Emergency drop', 'Flight assist on', 'Flight assist off', 'Blackout', 'Waking',
 	'Arrived', 'Ship destroyed', 'Weapons fire', 'Missile launched', 'Shield hit', 'Hull hit', 'Explosion', 'Missile lock', 'System charted', 'Canister scooped',
 	'Missile incoming', 'Landing gear down', 'Landing gear up', 'Landing gear: down only below 100 m/s', 'Next',
-	'ALT', 'V/S', 'GND'];
+	'ALT', 'V/S', 'GND', 'LANDED'];
 
 const TR = {
 es: ['Ajustes', 'Gráficos, audio y HUD', 'Controles', 'Idioma y accesibilidad', 'Gráficos', 'Calidad', 'Alta', 'Baja', 'Resolución', 'Campo de visión',
@@ -44,7 +44,7 @@ es: ['Ajustes', 'Gráficos, audio y HUD', 'Controles', 'Idioma y accesibilidad',
 	'Atracado', 'Despegue', 'Colisión', 'Motor cargando', 'Fuera de crucero', 'Salida de emergencia', 'Asistencia de vuelo activada', 'Asistencia de vuelo desactivada', 'Pérdida de conciencia', 'Recuperando la conciencia',
 	'Llegada', 'Nave destruida', 'Disparos', 'Misil lanzado', 'Impacto en el escudo', 'Impacto en el casco', 'Explosión', 'Misil fijado', 'Sistema cartografiado', 'Contenedor recogido',
 	'Misil en camino', 'Tren de aterrizaje fuera', 'Tren de aterrizaje recogido', 'Tren de aterrizaje: solo por debajo de 100 m/s', 'Siguiente',
-	'ALT', 'V/V', 'SUELO'],
+	'ALT', 'V/V', 'SUELO', 'POSADO'],
 pt: ['Configurações', 'Gráficos, áudio e HUD', 'Controles', 'Idioma e acessibilidade', 'Gráficos', 'Qualidade', 'Alta', 'Baixa', 'Resolução', 'Campo de visão',
 	'Efeitos de brilho', 'Mostrar quadros por segundo', 'Áudio', 'Som', 'Volume geral', 'Motores e ambiente', 'Efeitos', 'Alertas e avisos', 'HUD', 'Tamanho do HUD',
 	'Opacidade do HUD', 'Mensagens exibidas', 'Duração das mensagens', 'Scanner', 'Marcador de velocidade', 'Marcador de antecipação', 'Ligado', 'Desligado', 'Teclado e controle', 'Pressione uma tecla ou um botão do controle (Esc cancela)',
@@ -61,7 +61,7 @@ pt: ['Configurações', 'Gráficos, áudio e HUD', 'Controles', 'Idioma e acessi
 	'Atracado', 'Decolagem', 'Colisão', 'Motor carregando', 'Saída do cruzeiro', 'Saída de emergência', 'Assistência de voo ligada', 'Assistência de voo desligada', 'Desmaio', 'Recobrando a consciência',
 	'Chegada', 'Nave destruída', 'Disparos', 'Míssil lançado', 'Impacto no escudo', 'Impacto no casco', 'Explosão', 'Míssil travado', 'Sistema mapeado', 'Contêiner coletado',
 	'Míssil a caminho', 'Trem de pouso baixado', 'Trem de pouso recolhido', 'Trem de pouso: só abaixo de 100 m/s', 'Próximo',
-	'ALT', 'V/V', 'SOLO'],
+	'ALT', 'V/V', 'SOLO', 'POUSADO'],
 fr: ['Paramètres', 'Graphismes, son et HUD', 'Commandes', 'Langue et accessibilité', 'Graphismes', 'Qualité', 'Haute', 'Basse', 'Résolution', 'Champ de vision',
 	'Effets lumineux', 'Afficher les images par seconde', 'Son', 'Son', 'Volume principal', 'Moteurs et ambiance', 'Effets', 'Alertes et avertissements', 'HUD', 'Taille du HUD',
 	'Opacité du HUD', 'Messages affichés', 'Durée des messages', 'Scanner', 'Marqueur de vitesse', 'Marqueur de visée anticipée', 'Activé', 'Désactivé', 'Clavier et manette', 'Appuyez sur une touche ou un bouton de manette (Échap annule)',
@@ -78,7 +78,7 @@ fr: ['Paramètres', 'Graphismes, son et HUD', 'Commandes', 'Langue et accessibil
 	'Amarré', 'Décollage', 'Collision', 'Moteur en charge', 'Sortie de croisière', 'Sortie d’urgence', 'Assistance de vol activée', 'Assistance de vol désactivée', 'Perte de conscience', 'Reprise de conscience',
 	'Arrivée', 'Vaisseau détruit', 'Tirs', 'Missile lancé', 'Impact sur le bouclier', 'Impact sur la coque', 'Explosion', 'Verrouillage missile', 'Système cartographié', 'Conteneur ramassé',
 	'Missile en approche', 'Train d’atterrissage sorti', 'Train d’atterrissage rentré', 'Train d’atterrissage : seulement sous 100 m/s', 'Suivant',
-	'ALT', 'V/V', 'SOL'],
+	'ALT', 'V/V', 'SOL', 'POSÉ'],
 de: ['Einstellungen', 'Grafik, Ton und HUD', 'Steuerung', 'Sprache und Barrierefreiheit', 'Grafik', 'Qualität', 'Hoch', 'Niedrig', 'Auflösung', 'Sichtfeld',
 	'Leuchteffekte', 'Bildrate anzeigen', 'Ton', 'Ton', 'Gesamtlautstärke', 'Triebwerke und Umgebung', 'Effekte', 'Alarme und Warnungen', 'HUD', 'HUD-Größe',
 	'HUD-Deckkraft', 'Angezeigte Meldungen', 'Anzeigedauer der Meldungen', 'Scanner', 'Geschwindigkeitsmarke', 'Vorhaltemarke', 'Ein', 'Aus', 'Tastatur und Controller', 'Drücke eine Taste oder einen Controller-Knopf (Esc bricht ab)',
@@ -95,7 +95,7 @@ de: ['Einstellungen', 'Grafik, Ton und HUD', 'Steuerung', 'Sprache und Barrieref
 	'Angedockt', 'Gestartet', 'Kollision', 'Antrieb lädt', 'Reiseflug verlassen', 'Notausstieg aus dem Reiseflug', 'Flugassistent an', 'Flugassistent aus', 'Bewusstlosigkeit', 'Erwachen',
 	'Angekommen', 'Schiff zerstört', 'Schüsse', 'Rakete abgefeuert', 'Treffer am Schild', 'Treffer am Rumpf', 'Explosion', 'Raketenerfassung', 'System kartiert', 'Behälter aufgenommen',
 	'Rakete im Anflug', 'Fahrwerk ausgefahren', 'Fahrwerk eingefahren', 'Fahrwerk: nur unter 100 m/s', 'Weiter',
-	'HÖHE', 'V/S', 'GRUND'],
+	'HÖHE', 'V/S', 'GRUND', 'GELANDET'],
 ru: ['Настройки', 'Графика, звук и HUD', 'Управление', 'Язык и специальные возможности', 'Графика', 'Качество', 'Высокое', 'Низкое', 'Разрешение', 'Поле зрения',
 	'Эффекты свечения', 'Показывать частоту кадров', 'Звук', 'Звук', 'Общая громкость', 'Двигатели и фон', 'Эффекты', 'Тревоги и предупреждения', 'HUD', 'Размер HUD',
 	'Прозрачность HUD', 'Показывать сообщений', 'Время показа сообщений', 'Сканер', 'Метка скорости', 'Метка упреждения', 'Вкл.', 'Выкл.', 'Клавиатура и геймпад', 'Нажмите клавишу или кнопку геймпада (Esc — отмена)',
@@ -112,7 +112,7 @@ ru: ['Настройки', 'Графика, звук и HUD', 'Управлен�
 	'Стыковка', 'Взлёт', 'Столкновение', 'Зарядка двигателя', 'Выход из круиза', 'Аварийный выход', 'Помощь в полёте включена', 'Помощь в полёте выключена', 'Потеря сознания', 'Возвращение сознания',
 	'Прибытие', 'Корабль уничтожен', 'Стрельба', 'Ракета запущена', 'Попадание в щит', 'Попадание в корпус', 'Взрыв', 'Захват ракетой', 'Система нанесена на карту', 'Контейнер подобран',
 	'Ракета приближается', 'Шасси выпущено', 'Шасси убрано', 'Шасси: только ниже 100 м/с', 'Далее',
-	'ВЫС', 'В/С', 'ЗЕМЛЯ'],
+	'ВЫС', 'В/С', 'ЗЕМЛЯ', 'ПОСАДКА'],
 zh: ['设置', '图形、音频与 HUD', '控制', '语言与无障碍', '图形', '画质', '高', '低', '分辨率', '视野',
 	'光晕效果', '显示帧率', '音频', '声音', '主音量', '引擎与环境音', '音效', '警报与警告', 'HUD', 'HUD 大小',
 	'HUD 不透明度', '显示的消息数', '消息显示时长', '扫描仪', '速度标记', '提前量标记', '开', '关', '键盘与手柄', '按下一个键或手柄按钮（Esc 取消）',
@@ -129,7 +129,7 @@ zh: ['设置', '图形、音频与 HUD', '控制', '语言与无障碍', '图形
 	'已停靠', '已起飞', '碰撞', '引擎充能', '退出巡航', '紧急退出', '飞行辅助已开启', '飞行辅助已关闭', '失去意识', '恢复意识',
 	'已抵达', '飞船被摧毁', '武器开火', '导弹已发射', '护盾被击中', '船体被击中', '爆炸', '导弹锁定', '星系已测绘', '货箱已收集',
 	'导弹来袭', '起落架已放下', '起落架已收起', '起落架：仅在 100 米/秒以下放下', '下一个',
-	'高度', '垂速', '地速'],
+	'高度', '垂速', '地速', '已着陆'],
 ja: ['設定', 'グラフィック・音声・HUD', '操作', '言語とアクセシビリティ', 'グラフィック', '画質', '高', '低', '解像度', '視野角',
 	'発光エフェクト', 'フレームレートを表示', '音声', 'サウンド', 'マスター音量', 'エンジンと環境音', '効果音', '警報と警告', 'HUD', 'HUD のサイズ',
 	'HUD の不透明度', '表示するメッセージ数', 'メッセージの表示時間', 'スキャナー', '速度マーカー', '偏差射撃マーカー', 'オン', 'オフ', 'キーボードとゲームパッド', 'キーかゲームパッドのボタンを押してください（Esc で取り消し）',
@@ -146,7 +146,7 @@ ja: ['設定', 'グラフィック・音声・HUD', '操作', '言語とアク�
 	'ドッキング完了', '発進', '衝突', 'ドライブ充電中', '巡航を解除', '緊急離脱', 'フライトアシスト オン', 'フライトアシスト オフ', '意識喪失', '意識回復',
 	'到着', '船が破壊されました', '射撃', 'ミサイル発射', 'シールドに被弾', '船体に被弾', '爆発', 'ミサイルロック', '星系を測量', 'コンテナを回収',
 	'ミサイル接近中', '着陸脚を展開', '着陸脚を格納', '着陸脚：秒速 100 m 未満でのみ展開', '次へ',
-	'高度', '昇降', '対地'],
+	'高度', '昇降', '対地', '着陸'],
 ko: ['설정', '그래픽, 오디오, HUD', '조작', '언어 및 접근성', '그래픽', '품질', '높음', '낮음', '해상도', '시야각',
 	'발광 효과', '프레임 속도 표시', '오디오', '사운드', '전체 볼륨', '엔진 및 환경음', '효과음', '경보 및 경고', 'HUD', 'HUD 크기',
 	'HUD 불투명도', '표시할 메시지 수', '메시지 표시 시간', '스캐너', '속도 표시', '예측 사격 표시', '켜기', '끄기', '키보드 및 게임패드', '키나 게임패드 버튼을 누르세요 (Esc로 취소)',
@@ -163,7 +163,7 @@ ko: ['설정', '그래픽, 오디오, HUD', '조작', '언어 및 접근성', '�
 	'도킹 완료', '출항', '충돌', '드라이브 충전 중', '순항 해제', '긴급 이탈', '비행 보조 켬', '비행 보조 끔', '의식 잃음', '의식 회복',
 	'도착', '함선 파괴됨', '사격', '미사일 발사', '실드 피격', '선체 피격', '폭발', '미사일 록온', '항성계 측량 완료', '컨테이너 수집',
 	'미사일 접근 중', '착륙 장치 내림', '착륙 장치 올림', '착륙 장치: 초속 100m 미만에서만', '다음',
-	'고도', '수직', '대지']};
+	'고도', '수직', '대지', '착륙']};
 
 const MAP = {};
 for (const [code, list] of Object.entries(TR)) { const m = MAP[code] = {}; EN.forEach((e, i) => { if (list[i]) m[e] = list[i] }) }

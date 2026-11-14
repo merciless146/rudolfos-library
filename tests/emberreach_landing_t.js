@@ -57,5 +57,30 @@ try {
 	/* the game's own worlds */
 	const sc = Sc.build(F.majors()[0].star, {day: 200}), worlds = sc.bodies.filter(b => b.kind == 'planet');
 	ok('14. every world in a system carries a frame and an answer on landing', worlds.length > 0 && worlds.every(b => Sc.worldFrame(b).w.length == 3 && typeof L.landable(b.src).ok == 'boolean'));
+	/* L1.2: gear, contact, landed */
+	const Sv = req('save.js'), Mo = req('modules.js'), wren = S.ships().find(x => x.size == 'S') || dodo, Lm = wren.length;
+	const g0 = L.lowest(wren, true, 0), b0 = L.lowest(wren, false, 0), n0 = L.lowest(wren, true, 70);
+	ok('15. the lowest point: the gear (30% of the length down), the belly (18%) with it up, the nose when pitched past 45°', Math.abs(g0.d - 0.3 * Lm) < 1e-9 && g0.part == 'gear' && Math.abs(b0.d - 0.18 * Lm) < 1e-9 && b0.part == 'belly' && n0.part == 'nose' && n0.d > g0.d);
+	const lim = L.TOUCH[L.padFor(wren.size)], sf = (vz, vh, tilt, pitch) => ({vz: -vz, vh, tilt, pitch: pitch || 0});
+	const on = L.contact(wren, sf(lim.vz, lim.vh, lim.tilt), true), past = L.contact(wren, sf(lim.vz * 1.5, 0, 0), true), wreck = L.contact(wren, sf(lim.vz * 3, 0, 0), true);
+	ok('16. on the gear: at the limits clean, past them hard, three times past them a crash', on.ok && !on.hard && on.part == 'gear' && past.hard && Math.abs(past.damage - 0.15 * 0.25) < 1e-9 && wreck.crash);
+	const belly = L.contact(wren, sf(lim.vz * 0.5, 0, 0), false), belly2 = L.contact(wren, sf(lim.vz, 0, 0), false), nose = L.contact(wren, sf(lim.vz * 0.4, 0, 0, 60), true);
+	ok('17. anything but the gear counts three times over: a gentle belly landing is a hard one, one at the gear\'s limit a crash; so is a nose-first touch', belly.hard && belly.part == 'belly' && belly2.crash && nose.part == 'nose' && nose.hard);
+	ok('18. the gear: down by itself under 300 m, up above 500 m, and no faster than 100 m/s while down; it can break like any module', L.GEAR.auto.down == 300 && L.GEAR.auto.up == 500 && L.GEAR.vmax == 100 && Mo.fit(wren).modules.some(m => m.id == 'gear'));
+	/* landed: fixed to the ground, turning with the world */
+	const sL = Fl.create(wren, {p: add(W.pos, mul([1, 0, 0], W.radius + g0.d)), q: look([0.3, 1, 0], [1, 0.2, 0])});
+	const land = Sc.landAt(scene, sL, W, 0, g0.d), at0 = Sc.pinLanded(scene, land, 0), at9 = Sc.pinLanded(scene, land, 9000);
+	const upAt = p => sub(p, W.pos).map(v => v / len(sub(p, W.pos))), shipUp = q => Fl.toWorld(q, [0, 1, 0]), dotp = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+	ok('19. landed, the ship stands upright on its gear where it touched down', len(sub(at0.p, sL.p)) < 1e-3 && dotp(shipUp(at0.q), upAt(at0.p)) > 0.999999 && Math.abs(len(sub(at0.p, W.pos)) - W.radius - g0.d) < 1e-3);   /* (to a millimetre: the world is 1e11 m out) */
+	ok('20. a quarter of a 10-hour day on, it has turned a quarter of the way round with the world, moving with the ground', Math.abs(dotp(upAt(at9.p), [0, 1, 0]) - 1) < 1e-9 && Math.abs(len(at9.v) - len(fr.w) * (W.radius + g0.d)) < 1e-6 && dotp(shipUp(at9.q), upAt(at9.p)) > 0.999999);
+	const st9 = Sc.surfaceState(scene, Object.assign(Fl.create(wren, {p: at9.p, q: at9.q}), {v: at9.v}), 9000, wren);
+	ok('21. ...and reads as standing still: no vertical or ground speed, no tilt', Math.abs(st9.vz) < 1e-6 && st9.vh < 1e-6 && st9.tilt < 1e-3, st9);
+	/* saved and restored */
+	const shipS = S.ships()[0], fitS = Mo.fit(shipS), sS = Fl.create(shipS, {p: at0.p, q: at0.q});
+	const packed = JSON.parse(JSON.stringify(Sv.pack({power: 0, port: null, ship: shipS.id, day: 3, t: 12, docked: false, s: sS, throttle: 0, fit: fitS, star: {id: 'x', x: 0, y: 0, z: 0}, fuel: 1, landed: land, gear: true})));
+	const un = Sv.unpack(packed, {});
+	ok('22. a landed ship is saved with its world and its place, and comes back to it', un && un.landed && un.landed.world == 'Testmoon' && un.gear && len(sub(Sc.pinLanded(scene, un.landed, 9000).p, at9.p)) < 0.01);
+	delete packed.landed; delete packed.gear;
+	ok('23. a save without one (older) loads flying, as before', Sv.unpack(packed, {}).landed === null);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
