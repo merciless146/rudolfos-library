@@ -300,6 +300,9 @@ a dive) and the browser test's 9p.
 
 ### L1.6 Release 0.3.0
 
+**Done** (0.3.0): the store description and the plan's release notes are updated; the full suite and the browser
+test pass on the release test machine (the sandbox's software-rendered Chromium).
+
 - Bump `PKGINFO` to **0.3.0** (0.2.0 went to the smaller galaxy).
 - Update the store description: landing on airless worlds, gravity, rotation and insurance.
 - Update the plan's "Released" note.
