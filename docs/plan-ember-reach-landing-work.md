@@ -162,6 +162,25 @@ readout on terrain, tiles drawn in place of the sphere under 200 km (built from 
   software renderer (a logarithmic depth written per pixel). A follow-up should look at the depth write and the
   resolution setting before the plan's 30 fps can be met.
 
+**Performance, 0.2.6.** Profiling showed the JavaScript takes almost none of the time on the software renderer:
+it's rasterising.
+- **Antialiasing** was most of it: off, everything ran about 60% faster. A setting now has it on Auto (the default),
+  On or Off. Auto turns it off on a software renderer and leaves it on with a graphics card.
+- **Docked:** the view is no longer drawn behind the port's screens.
+- **Automatic resolution** (on by default): under 28 fps the resolution steps down to half the screen's at most, and
+  then the terrain's triangle budget to a quarter at most. Above 52 fps the terrain detail comes back first, then the
+  resolution.
+- **The log depth written per pixel** turned out not to matter (no change without it), so it stays.
+
+On the release test machine at 1100 × 720:
+
+| Situation | Before (fps) | After (fps) |
+|---|---|---|
+| Docked | 12 | 60 (the cap) |
+| Space, idle | 42 | 60 |
+| Combat, 6 pirates firing | 18 | 30–38 |
+| 1 km over a moon | 9 | 31 (half resolution, terrain at 38%) |
+
 Added alongside, at the pilot's request: **forward spotlights** (1) and **night vision** (2), separate functions.
 Spotlights need power and light a 20° cone ahead (`render.js`'s mesh shader); night vision needs the sensors, and
 amplifies the image to an intensifier's green (every shader). The night side's ambient light now comes from the sky

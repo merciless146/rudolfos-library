@@ -128,6 +128,9 @@ async function frame(pg, test) {
 		await pg.keyboard.press('Digit2'); await sleep(600);
 		const off = await f.evaluate(() => ({nv: EmberDebug.game.nv, k: EmberDebug.game.nvK}));
 		ok('9h. 1 turns the forward spotlights on and off; 2, separately, night vision', li === true && nv.nv === true && nv.k > 0.9 && nv.lights === false && off.nv === false && off.k < 0.1, {li, nv, off});
+		/* performance: antialiasing off on a software renderer (Auto); automatic resolution steps down under 28 fps */
+		const pf = await f.evaluate(() => ({sw: EmberDebug.renderer.software, aa: EmberDebug.renderer.antialias, renderer: EmberDebug.renderer.renderer}));
+		ok('9m. on this software renderer, Auto leaves antialiasing off', pf.sw && pf.aa === false, pf);
 		/* control schemes: M switches Combat and Analysis; the radial menu on ~; Simple keeps FA on; the landing assist */
 		await f.evaluate(() => { const g = EmberDebug.game; g.npcs = []; g.shots = []; g.mode = 'combat'; g.gear = false; g.lights = false; g.nv = false });
 		await f.focus('#hud'); await pg.keyboard.press('KeyM'); await sleep(200);
