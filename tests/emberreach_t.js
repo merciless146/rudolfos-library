@@ -171,6 +171,16 @@ async function frame(pg, test) {
 		await f.focus('#hud'); await pg.keyboard.down('Space'); await sleep(1200); await pg.keyboard.up('Space');
 		const up1 = await f.evaluate(() => { const g = EmberDebug.game, st = EmberScene.surfaceState(EmberDebug.scene, EmberDebug.s, g.t, EmberDebug.ship); return {landed: !!g.landed, alt: st && st.alt, said: g.msgs.some(m => /Lifting off/.test(m.text))} });
 		ok('9e. on the gear, a ship sets down, sits fixed to the ground as the world turns, and lifts off on vertical thrust', lw && ld.landed == lw && ld.said && ld2.still && ld2.moved > 0 && Math.abs(ld2.vz) < 0.01 && ld2.vh < 0.01 && !up1.landed && up1.said && up1.alt > 1, {lw, ld, ld2, up1});
+		/* L1.4: landed, the ground scan marks deposits; first landings are recorded */
+		await setDown(0.6, -1.0); await sleep(8000);
+		const gs = await f.evaluate(() => { const g = EmberDebug.game; return {landed: !!g.landed, scanned: g.msgs.some(m => /^Ground scan/.test(m.text)), deps: (g.deposits || []).length, record: Object.keys((g.P.explore && g.P.explore.land) || {}).length} });
+		ok('9n. landed, the ground scan runs by itself (6 s) and marks a handful of deposits within 5 km; the landing is in the record', gs.landed && gs.deps > 0 && gs.deps < 20 && gs.record >= 1, gs);
+		/* cruise toward a targeted world you can land on drops out about 50 km up */
+		await f.evaluate(() => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok), s = EmberDebug.s;
+			g.landed = null; const u = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...u), U = u.map(v => v / n); s.p = b.pos.map((v, i) => v + U[i] * (b.radius + 3e5)); s.v = [0, 0, 0];
+			s.q = EmberScene.lookRotation(U.map(v => -v), Math.abs(U[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); g.tgt = b; g.gear = false; g.cruise = {on: true, v: 3000, charge: 0}; g.throttle = 1 });
+		let cd = null; for (let i = 0; i < 60 && !cd; i++) { await sleep(500); cd = await f.evaluate(() => { const g = EmberDebug.game; if (g.cruise.on) return null; const st = EmberScene.surfaceState(EmberDebug.scene, EmberDebug.s, g.t, EmberDebug.ship); const b = EmberDebug.scene.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok); return {alt: EmberScene.groundAt(EmberDebug.scene, b, EmberDebug.s.p, g.t).alt, said: g.msgs.slice(-3).map(m => m.text)} }) }
+		ok('9o. cruising at a targeted world you can land on drops you out about 50 km above it', cd && cd.alt > 2e4 && cd.alt < 6e4, cd);
 		await setDown(2, -60); await sleep(1500);
 		const cr = await f.evaluate(() => { const g = EmberDebug.game; return {lost: g.msgs.some(m => /Ship destroyed: a crash on/.test(m.text)), landed: !!g.landed} });
 		ok('9f. coming down at 60 m/s is a crash: the ship is lost and the insurer takes over', cr.lost && !cr.landed, cr);

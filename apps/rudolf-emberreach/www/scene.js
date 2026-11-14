@@ -298,11 +298,18 @@ function nearest(scene, p) {
 	return best;
 }
 /* a station's mass lock: no cruise within 20 km */
-const massLocked = (scene, p) => !!scene.station && len(sub(p, scene.station.c)) < CRUISE.lock;
+/* a world's surface locks cruise (landing L1.4): below half a radius up, or below its Kármán line, whichever is lower.
+   Cruise can't start there (nor a jump), and cruising into it is an emergency drop */
+const lockAlt = b => Math.min(0.5 * b.radius, b.karman || 0);
+const worldLock = (scene, p) => scene.bodies.find(b => b.kind == 'planet' && b.karman && len(sub(p, b.pos)) - b.radius < lockAlt(b)) || null;
+const massLocked = (scene, p) => (!!scene.station && len(sub(p, scene.station.c)) < CRUISE.lock) || !!worldLock(scene, p);
+/* a world you could land on, targeted: cruise drops out above it at its Kármán line or 50 km up, whichever is higher */
+const landableTarget = b => b.kind == 'planet' && !b.atmo && !(b.src && b.src.gas) && !!Ld() && Ld().landable(b.src || b).ok;
+const DROP_LAND = 5e4;
 /* the fastest cruise allowed here */
 const cruiseLimit = (scene, p) => Math.min(CRUISE.cap, Math.max(CRUISE.min, CRUISE.k * Math.max(0, nearest(scene, p).d)));
 /* how close to a target (its surface, m) the cruise drops out */
-const dropRange = (target) => target.bh ? bhSafe(target) * 1.5 : target.kind == 'planet' ? target.radius * CRUISE.drop.planet : target.kind == 'star' ? target.radius * CRUISE.drop.star : CRUISE.drop.station;
+const dropRange = (target) => target.bh ? bhSafe(target) * 1.5 : landableTarget(target) ? Math.max(target.karman || 0, DROP_LAND) : target.kind == 'planet' ? target.radius * CRUISE.drop.planet : target.kind == 'star' ? target.radius * CRUISE.drop.star : CRUISE.drop.station;
 /* the ship's proximity safety: how close it lets itself go. Black holes 2,000 km; stars 1.6 radii; worlds with air
    their atmosphere's top (1.12 radii); airless worlds their surface, 300 m up (no landing yet) */
 const SAFE = {bh: 2e6, star: 1.6, atmo: 1.12, ground: 300};
@@ -321,14 +328,17 @@ function cruiseStep(scene, s, cz, input, dt, target) {
 	const f = Fl.forward(s);
 	s.p = add(p0, mul(f, cz.v * dt)); s.v = mul(f, cz.v);
 	if (target && surfaceDist(target, s.p) < dropRange(target)) return 'drop';
-	/* too close to anything: drop out (a star throws you out sooner, from three of its radii) */
+	/* into a world's lock: an emergency drop (L1.4) */
+	if (worldLock(scene, s.p)) return 'lock';
+	/* too close to anything else: drop out (a star throws you out sooner, from three of its radii); a targeted world
+	   you could land on is left to its own drop point above */
 	const nb = nearest(scene, s.p);
-	if (nb.what && nb.d < (nb.what.bh ? bhSafe(nb.what) : nb.what.kind == 'planet' ? 0.15 * nb.what.radius : nb.what.kind == 'star' ? 2 * nb.what.radius : CRUISE.drop.station * 0.5)) return 'drop';
+	if (nb.what && !(nb.what == target && landableTarget(target)) && nb.d < (nb.what.bh ? bhSafe(nb.what) : nb.what.kind == 'planet' ? 0.15 * nb.what.radius : nb.what.kind == 'star' ? 2 * nb.what.radius : CRUISE.drop.station * 0.5)) return 'drop';
 	return null;
 }
 /* leaving cruise: the ship keeps its heading at up to its top speed; above 300 km/s it's an emergency drop */
-function dropOut(s, cz) {
-	const f = Fl.forward(s), emergency = cz.v > CRUISE.emergency;
+function dropOut(s, cz, forced) {
+	const f = Fl.forward(s), emergency = forced || cz.v > CRUISE.emergency;
 	s.v = mul(f, Math.min(s.spec.vmax, cz.v)); cz.v = 0;
 	return {emergency};
 }
@@ -346,7 +356,7 @@ function spawn(scene, dist) {
 	return {p, q: lookRotation(mul(st.axis, -1), st.y)};
 }
 
-const EmberScene = {localDir, groundAt, landAt, pinLanded, worldFrame, heightAt, surfaceState, AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
+const EmberScene = {DROP_LAND, lockAlt, worldLock, landableTarget, localDir, groundAt, landAt, pinLanded, worldFrame, heightAt, surfaceState, AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
 	KARMAN, karmanOf, gravityAt, gravityWell, SAFE, bhSafe, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
 	v: {add, sub, mul, dot, cross, len, norm}};
 if (isNode) module.exports = EmberScene; else root.EmberScene = EmberScene;

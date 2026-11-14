@@ -84,5 +84,30 @@ try {
 	ok('22. a landed ship is saved with its world and its place, and comes back to it', un && un.landed && un.landed.world == 'Testmoon' && un.gear && len(sub(Sc.pinLanded(scene, un.landed, 9000).p, at9.p)) < 0.01);
 	delete packed.landed; delete packed.gear;
 	ok('23. a save without one (older) loads flying, as before', Sv.unpack(packed, {}).landed === null);
+	/* L1.4: the approach */
+	const X = req('explore.js'), G = req('galaxy.js'), Tr = req('trade.js');
+	const airy = Object.assign({}, W, {name: 'Airy', atmo: true, src: {g: 0.9, Ts: 288, atmo: true, bars: 1}});
+	ok('24. cruise drops out above a targeted world you could land on: at its Kármán line or 50 km up, whichever is higher; other worlds as before', Sc.dropRange(W) == Math.max(W.karman, 5e4) && Sc.dropRange(Object.assign({}, W, {karman: 9e4})) == 9e4 && Sc.dropRange(airy) == airy.radius);
+	const lockA = Sc.lockAlt(W), below = add(W.pos, [W.radius + lockA - 10, 0, 0]), above = add(W.pos, [W.radius + lockA + 10, 0, 0]);
+	ok('25. a world\'s surface locks cruise below half a radius up or its Kármán line, whichever is lower', lockA == Math.min(W.radius / 2, W.karman) && Sc.worldLock(scene, below) == W && !Sc.worldLock(scene, above) && Sc.massLocked(scene, below) && !Sc.massLocked(scene, above));
+	/* cruising straight down at a world: targeted, a clean drop above it; untargeted with nothing else near, into the lock */
+	const dive = (target, from) => { const s5 = Fl.create(ship, {p: add(W.pos, [from, 0, 0]), q: look([-1, 0, 0], [0, 0, 1])}), cz = {on: true, v: 2e4}; for (let i = 0; i < 20000; i++) { const r = Sc.cruiseStep(scene, s5, cz, {throttle: 1}, 1 / 60, target); if (r) return {r, alt: len(sub(s5.p, W.pos)) - W.radius} } return null };
+	const d1 = dive(W, W.radius + 4e5), d2 = dive(null, W.radius + 1.2e5);
+	ok('26. diving in cruise: with the world targeted, a drop near 50 km up; without, the old safety drop (15% of the radius) comes first', d1 && d1.r == 'drop' && d1.alt <= 5e4 && d1.alt > 4e4 && d2 && d2.r == 'drop' && d2.alt <= 0.15 * W.radius + 1, {d1, d2});
+	const tiny = Object.assign({}, W, {radius: 2e5, karman: 3e5}), sceneT = {bodies: [scene.bodies[0], tiny], day: 0}, s6 = Fl.create(ship, {p: add(tiny.pos, [tiny.radius + 1.2e5, 0, 0]), q: look([-1, 0, 0], [0, 0, 1])});
+	let r6 = null; const cz6 = {on: true, v: 3e4}; for (let i = 0; i < 2000 && !r6; i++) r6 = Sc.cruiseStep(sceneT, s6, cz6, {throttle: 1}, 1 / 60, null);
+	const d6 = Sc.dropOut(s6, {v: 100}, true);
+	ok('27. where the lock reaches past the safety drop, cruising into it is an emergency drop', r6 == 'lock' && d6.emergency);
+	/* first landings */
+	const pl = Tr.newPlayer(F.majors()[0].id), far = G.sampleGalaxy(60, 8).flatMap(q => G.starsNear(q.x, q.y, q.z, 3).slice(0, 5)).find(st => st.kind == 'star' && G.system(st).planets.some(p => !p.gas && !p.atmo) && !F.claimAt([st.x, st.y, st.z]).owner && !F.claimAt([st.x, st.y, st.z]).contested);   /* (a real star, found again by its id) */
+	const wp = G.system(far).planets.find(p => !p.gas && !p.atmo), l1 = X.landed(pl, far, wp, null, 210), l2 = X.landed(pl, far, wp, null, 211);
+	ok('28. the first landing on a world out of the powers\' charted space is a discovery: recorded once, worth half a survey, 2.5 times over', l1.new && l1.first && Math.abs(l1.value - X.worth(wp) / 2 * 2.5) < 1e-9 && !l2.new && X.landedOn(pl, far.id, wp.name));
+	const items = X.unsold(pl), li = items.find(x => x.kind == 'landing');
+	pl.wallet = {}; const sold = X.sell(pl, null, 'SU', 212);
+	ok('29. landing data sells to cartographers with the rest, once', li && Math.abs(li.su - l1.value) < 1e-9 && sold.ok && !X.unsold(pl).some(x => x.kind == 'landing'));
+	/* deposits */
+	const wd = {name: 'Dep world', radius: 1.7e6}, wsrc = {res: ['Iron', 'Titanium', 'Gold']}, here = [0.6, 0.64, 0.48].map(v => v / Math.hypot(0.6, 0.64, 0.48));
+	const dA = X.deposits(wd, wsrc, here, 5000), dB = X.deposits(wd, wsrc, here, 5000);
+	ok('30. a ground scan marks the world\'s own resources within 5 km, the same every time, nearest first', dA.length > 0 && JSON.stringify(dA) == JSON.stringify(dB) && dA.every(d => d.dist <= 5000 && wsrc.res.includes(d.res)) && dA.every((d, i, a) => !i || a[i - 1].dist <= d.dist) && X.deposits(wd, {res: []}, here, 5000).length == 0, dA.length + ' deposits');
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
