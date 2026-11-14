@@ -59,7 +59,12 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 	};
 	const U = {}; for (const k in P) { U[k] = {}; const n = gl.getProgramParameter(P[k], gl.ACTIVE_UNIFORMS); for (let i = 0; i < n; i++) { const u = gl.getActiveUniform(P[k], i); U[k][u.name] = gl.getUniformLocation(P[k], u.name) } }
 	const meshes = {};
+	/* a mesh's GPU memory goes when it's replaced or the system is left (before 0.1.2 every system's meshes were kept, about
+	   10 MB of memory and 8 MB of graphics memory a jump) */
+	const drop = id => { const o = meshes[id]; if (!o) return; gl.deleteVertexArray(o.vao); gl.deleteBuffer(o.buf); delete meshes[id] };
+	function clear() { for (const id of Object.keys(meshes)) drop(id) }
 	function upload(id, m) {
+		drop(id);
 		const n = m.p.length / 3, buf = new Float32Array(n * 10);
 		for (let i = 0; i < n; i++) { buf.set(m.p.slice(i * 3, i * 3 + 3), i * 10); buf.set(m.n.slice(i * 3, i * 3 + 3), i * 10 + 3); buf.set(m.c.slice(i * 4, i * 4 + 4), i * 10 + 6) }
 		const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
@@ -69,17 +74,18 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 		gl.enableVertexAttribArray(loc('aN')); gl.vertexAttribPointer(loc('aN'), 3, gl.FLOAT, false, 40, 12);
 		gl.enableVertexAttribArray(loc('aC')); gl.vertexAttribPointer(loc('aC'), 4, gl.FLOAT, false, 40, 24);
 		gl.bindVertexArray(null);
-		meshes[id] = {vao, n, src: m};
+		meshes[id] = {vao, buf: b, n};
 	}
 	let sky = null;
 	function setSky(arr) {   /* [dx, dy, dz, r, g, b, size] per star */
+		if (sky) { gl.deleteVertexArray(sky.vao); gl.deleteBuffer(sky.buf) }
 		const n = arr.length / 7, buf = new Float32Array(n * 7); buf.set(arr);
 		const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
 		const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, buf, gl.STATIC_DRAW);
 		const lp = gl.getAttribLocation(P.pts, 'aP'), lc = gl.getAttribLocation(P.pts, 'aC');
 		gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp, 3, gl.FLOAT, false, 28, 0);
 		gl.enableVertexAttribArray(lc); gl.vertexAttribPointer(lc, 4, gl.FLOAT, false, 28, 12);
-		gl.bindVertexArray(null); sky = {vao, n};
+		gl.bindVertexArray(null); sky = {vao, buf: b, n};
 	}
 	const quadFor = pg => { const vao = gl.createVertexArray(); gl.bindVertexArray(vao); const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]), gl.STATIC_DRAW); const l = gl.getAttribLocation(pg, 'aP'); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 0, 0); gl.bindVertexArray(null); return vao };
 	const quad = quadFor(P.glow), squad = quadFor(P.sprite);
@@ -123,7 +129,7 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 		}
 		gl.bindVertexArray(null);
 	}
-	return {kind: 'webgl', upload, setSky, frame, basis};
+	return {kind: 'webgl', upload, clear, ids: () => Object.keys(meshes), setSky, frame, basis};
 }
 
 /* ---------------- Canvas 2D fallback ---------------- */
@@ -178,7 +184,7 @@ function canvas2d(cv) {
 			ctx.fillStyle = d.fill; ctx.strokeStyle = d.fill; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(d.tri[0][0], d.tri[0][1]); ctx.lineTo(d.tri[1][0], d.tri[1][1]); ctx.lineTo(d.tri[2][0], d.tri[2][1]); ctx.closePath(); ctx.fill(); ctx.stroke();
 		}
 	}
-	return {kind: 'canvas', upload: (id, m) => { meshes[id] = m }, setSky: a => { sky = a }, frame, basis};
+	return {kind: 'canvas', upload: (id, m) => { meshes[id] = m }, clear: () => { for (const id of Object.keys(meshes)) delete meshes[id] }, ids: () => Object.keys(meshes), setSky: a => { sky = a }, frame, basis};
 }
 
 const EmberRender = {create, basis, NEAR, FAR};

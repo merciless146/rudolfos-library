@@ -56,9 +56,12 @@ async function frame(pg, test) {
 		await pg.keyboard.press('KeyG'); await sleep(1200); const mapOn = await f.evaluate(() => EmberDebug.game.mapOpen); await pg.screenshot({path: path.join(W, 'map.png')}); await pg.keyboard.press('KeyG'); await sleep(300); const mapOff = await f.evaluate(() => !EmberDebug.game.mapOpen);
 		ok('6. the star map opens and closes (G)', mapOn && mapOff && errs.length == 0, {mapOn, mapOff, errs});
 		/* a jump: straight to a near star with worlds (the debug hook skips the drive's charge) */
+		const before = await f.evaluate(() => EmberDebug.scene.bodies.map(b => b.name));
 		const to = await f.evaluate(() => { const g = EmberDebug.game, h = g.star, s = EmberGalaxy.starsNear(h.x, h.y, h.z, 6).find(x => x.id != h.id && x.kind == 'star' && EmberGalaxy.system(x).planets.length); EmberDebug.go(s); return s.id });
 		await sleep(1500);
 		ok('7. a jump to another star builds its system', await f.evaluate(id => EmberDebug.game.star.id == id && EmberDebug.scene.bodies.length > 1, to));
+		const left = await f.evaluate(old => { const now = new Set(EmberDebug.scene.bodies.map(b => b.name)); return EmberDebug.meshIds().filter(id => old.includes(id.split(':')[0]) && !now.has(id.split(':')[0])) }, before);
+		ok('7b. ...and lets the last system\'s meshes go (0.1.1 kept every system\'s, about 10 MB a jump)', before.length > 0 && left.length == 0, {before, left});
 		await pg.evaluate(() => send({op: 'pause'})); await sleep(400);
 		const paused = await f.evaluate(() => ({ov: !document.getElementById('ov').hidden, h: document.getElementById('ovT').textContent, build: (document.querySelector('#ovBody .build') || {}).textContent}));
 		ok('8. the desktop\'s pause pauses it (the alpha build named on the pause screen)', paused.ov && /Paused/.test(paused.h) && /Alpha/.test(paused.build), paused);

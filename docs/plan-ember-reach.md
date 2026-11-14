@@ -1157,6 +1157,11 @@ everything through M5b, and the Maw and the Rift from M6. The release brought th
 - **Follow Rudolf OS**, the new default language: the language Rudolf OS shares with apps (from Rudolf OS 1.5.9),
   else the browser's.
 
+**0.1.2** fixes:
+- **Memory grew with every jump.** Each system's planet, star and station meshes were kept after leaving it:
+  about 10 MB of memory and 8 MB of graphics memory a jump (over 300 MB after 30 jumps). They are now freed on
+  arrival, so memory stays level however far you travel.
+
 Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer. Landing on airless worlds and surface ports are planned in
 `docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).
 
