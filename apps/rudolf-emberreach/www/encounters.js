@@ -44,6 +44,45 @@ function riftCast(star, r, add, odds) {
 	const k = star.heart ? 3 + Math.floor(r() * 3) : 1 + Math.floor(r() * 3);
 	for (let i = 0; i < k; i++) { const small = pool.filter(s => SIZES.indexOf(s.size) <= (i == 0 ? SIZES.indexOf(big) : 2)); add({role: 'riftborn', faction: 'riftborn', ship: riftborn(pick(small, r)), where: 'arrival', range: 7000 + r() * 6000, ai: 'attack', wing: 'r'}) }
 }
+/* ---------- the Interstellar Marshals (0.2.0) ----------
+   A galactic police force, neutral (no power's, no faction's), keeping the anchorage at the Rift's side of the Maw
+   and a strict no-fire zone around it. They hunt, in the main galaxy only, pilots with an excessive bounty (over
+   50,000 SU across every power's currency) or who have destroyed 10 or more police ships (a port's patrols, or the
+   Marshals' own) within 10 game days. Arriving in a system while wanted, the Marshals find you more often than not,
+   some seconds after you arrive: a wing of two or three, 6-9 km off. Their ships are navy hulls rebuilt to just
+   below Precursor strength (90% of a Precursor hull's hull and shields for the size), carrying disruptors that cut
+   into the shield generator itself and a tractor beam that, within 3 km, drags a ship to a quarter of its speed and
+   holds it out of hyperspace. They can be beaten, but hardly without Precursor work: the best chance is to jump
+   out soon after they appear. */
+const MARSHALS = {name: 'The Interstellar Marshals', short: 'Marshal', bounty: 50000, police: 10, window: 10, odds: 0.6, delay: [15, 40], appear: [6000, 9000],
+	pre: 0.9, dmgK: 1.4, tractor: 3000, slow: 0.25, zone: 10000};
+/* a pilot's bounties, all currencies together, in SU */
+function bountySU(P, day) { return Object.entries((P && P.bounties) || {}).reduce((t, [c, v]) => t + (v > 0 ? v / (E.rate(c, day) || 1) : 0), 0) }
+/* police ships destroyed within the window */
+function policeKills(P, day) { return ((P && P.policeKills) || []).filter(d => day - d < MARSHALS.window && day >= d).length }
+/* do the Marshals want this pilot? {bounty (SU), kills} or null */
+function marshalsWant(P, day) {
+	if (!P) return null;
+	const d = day == null ? P.day || 0 : day, b = bountySU(P, d), k = policeKills(P, d);
+	return b >= MARSHALS.bounty || k >= MARSHALS.police ? {bounty: Math.round(b), kills: k} : null;
+}
+/* a Marshal ship from a navy hull: 90% of the Precursor hull of its size, disruptors, heavy lasers, a missile rack */
+function marshalShip(base) {
+	const pre = S.precursors().find(p => p.size == base.size) || S.precursors().find(p => p.size == 'M');
+	const guns = base.size == 'L' ? ['disruptor', 'disruptor', 'heavy', 'heavy', 'heavy', 'missile'] : ['disruptor', 'disruptor', 'heavy', 'missile'];
+	return Object.assign({}, base, {hull: Math.round(pre.hull * MARSHALS.pre), shield: Math.round(pre.shield * MARSHALS.pre), guns, dmgK: MARSHALS.dmgK, tractor: true, marshal: true, value: base.value * 3});
+}
+const marshalHulls = size => S.ships().filter(s => s.who.includes('navy') && s.size == size && s.hard.some(Boolean));
+/* a hunting wing: a large ship and one or two medium ones */
+function marshalWing(r) {
+	r = r || Math.random;
+	const k = 2 + Math.floor(r() * 2), out = [];
+	for (let i = 0; i < k; i++) out.push({role: 'marshal', faction: 'marshals', ship: marshalShip(pick(marshalHulls(i == 0 ? 'L' : 'M'), r)), where: 'arrival', range: MARSHALS.appear[0] + r() * (MARSHALS.appear[1] - MARSHALS.appear[0]), ai: 'attack', wing: 'm'});
+	return out;
+}
+/* the guards at their anchorage */
+function marshalGuards(r) { return [0, 1].map(i => ({role: 'marshal', faction: 'marshals', ship: marshalShip(pick(marshalHulls(i == 0 ? 'L' : 'M'), r)), where: 'port', range: 2000 + r() * 2000, ai: 'patrol', guard: true})) }
+
 /* the cast at a star on a day. ctx: {port (portFor result or null), visit (a count, so each arrival differs), missions} */
 function cast(star, day, P, ctx) {
 	ctx = ctx || {};
@@ -51,7 +90,7 @@ function cast(star, day, P, ctx) {
 	let n = 0;
 	const add = (o) => { o.id = 'n' + (n++); o.provoked = false; out.push(o); return o };
 	/* the Rift has only the Riftborn; some slip through the Maw to this side too */
-	if (star.rift) { riftCast(star, r, add, star.heart ? RIFTBORN.heart : RIFTBORN.odds); return out }
+	if (star.rift) { if (star.heart) marshalGuards(r).forEach(add); riftCast(star, r, add, star.heart ? RIFTBORN.heart : RIFTBORN.odds); return out }
 	if (star.heart) { riftCast(star, r, add, RIFTBORN.maw); return out }
 	const capital = F.majors().find(m => m.star.id == star.id);
 	const own = capital ? {owner: capital.id, contested: false} : T.ownerOf(star, day);
@@ -99,6 +138,7 @@ function cast(star, day, P, ctx) {
 function hostile(P, npc, ctx) {
 	if (npc.provoked) return true;
 	if (npc.role == 'sentinel' || npc.role == 'riftborn') return true;   /* the old defences around ruins answer to nobody living */
+	if (npc.role == 'marshal') return !!marshalsWant(P);   /* the Marshals: only the wanted */
 	if (npc.role == 'trader' || npc.role == 'depot') return false;
 	const rep = P.rep[npc.faction] || 0;
 	if (npc.role == 'pirate') return rep < 500;
@@ -124,6 +164,8 @@ function enemies(a, b, P) {
 /* the player destroyed an NPC: reputation, bounty (theirs, or yours), war effort, mission progress. ctx: {star, day,
    own: ownerOf result} */
 function killed(P, npc, ctx) {
+	/* police ships (a port's patrol, or the Marshals): counted for the Marshals */
+	if (npc.role == 'patrol' || npc.role == 'marshal') { const d = ctx && ctx.day != null ? ctx.day : P.day || 0; P.policeKills = ((P.policeKills || []).filter(x => d - x < MARSHALS.window)).concat([d]) }
 	const day = ctx.day, star = ctx.star, own = ctx.own || {}, msg = [], pay = [];
 	const f = F.byId(npc.faction), value = npc.ship.value || 0;
 	if (npc.wasHostile == null) npc.wasHostile = !npc.provokedByPlayer && hostile(P, npc);
@@ -131,6 +173,7 @@ function killed(P, npc, ctx) {
 	const warrant = npc.scanned && npc.scanned.warrant && npc.wanted;
 	if (npc.role == 'sentinel') msg.push(npc.rift ? 'A Precursor guardian falls silent' : 'An old defence falls silent');
 	else if (npc.role == 'riftborn') msg.push('A Riftborn ship breaks apart: what it carried is the Rift\'s');
+	else if (npc.role == 'marshal') msg.push('A Marshal ship destroyed. The Marshals count it against you: ' + policeKills(P, day) + ' police ship' + (policeKills(P, day) == 1 ? '' : 's') + ' in ' + MARSHALS.window + ' days');
 	else if (npc.role != 'pirate' && npc.wanted && npc.role != 'depot') {
 		/* a wanted ship: no crime to kill it; its bounty is paid if you scanned the warrant */
 		if (warrant) { P.wallet[npc.wanted.code] = (P.wallet[npc.wanted.code] || 0) + npc.wanted.amount; pay.push({code: npc.wanted.code, amount: npc.wanted.amount}); msg.push('Warrant claimed: ' + npc.wanted.amount.toLocaleString('en') + ' ' + npc.wanted.code) }
@@ -217,6 +260,6 @@ function settle(P, day) {
 	return out;
 }
 
-const EmberEncounters = {RIFTBORN, riftborn, ENC, NEEDS, DEPOT, cast, hostile, enemies, killed, provoke, offers, missionStar, accept, need, tick, complete, settle};
+const EmberEncounters = {MARSHALS, bountySU, policeKills, marshalsWant, marshalShip, marshalWing, marshalGuards, RIFTBORN, riftborn, ENC, NEEDS, DEPOT, cast, hostile, enemies, killed, provoke, offers, missionStar, accept, need, tick, complete, settle};
 if (isNode) module.exports = EmberEncounters; else root.EmberEncounters = EmberEncounters;
 })(typeof window != 'undefined' ? window : this);

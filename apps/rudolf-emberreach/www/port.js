@@ -53,7 +53,7 @@ const rel = id => !id ? 0 : id == P().origin ? 1 : F.relation(P().origin, id);
 function render() {
 	const pl = P(), ship = env.ship, cur = here(), o = holder() ? F.byId(holder()) : null;
 	const fuelCost = Tr.refuelCost(ship, env.fuel(), mkt), repCost = Tr.repairCost(ship, env.fit, mkt, env.day, hull()), stock = restockCost();
-	const top = '<header class="pt-top"><div class="pt-name"><b>' + esc(env.stationName) + '</b><span>' + esc(o ? o.name.replace(/^The /, '') : env.port.anchorage ? 'Precursor anchorage · the Rift' : 'free traders') + (mkt.contested ? ' · contested' : '') + '</span></div><div class="pt-stats">'
+	const top = '<header class="pt-top"><div class="pt-name"><b>' + esc(env.stationName) + '</b><span>' + esc(o ? o.name.replace(/^The /, '') : env.port.maw ? 'The Interstellar Marshals · the Maw · no-fire zone' : env.port.anchorage ? 'Precursor anchorage · the Rift' : 'free traders') + (mkt.contested ? ' · contested' : '') + '</span></div><div class="pt-stats">'
 		+ stat('Day', Math.floor(env.day)) + (cur != 'SU' ? stat(o.currency.name.split(' ').pop(), E.rate(cur, env.day).toFixed(3) + ' ' + cur + '/SU') : stat('Trade', 'SU, via free traders'))
 		+ stat('Cargo', Tr.held(pl) + '/' + ship.cargo + ' t') + stat('Legal', pl.bounties && Object.keys(pl.bounties).length ? 'Wanted' : 'Clean')
 		+ stat('Wallet', cur != 'SU' ? money(pl.wallet[cur] || 0, cur) : fmt(Tr.walletSU(pl, env.day)) + ' SU in all', true) + '</div></header>';
@@ -99,7 +99,7 @@ function body() {
 function station() {
 	const st = env.star, sy = G.system(st), o = holder() ? F.byId(holder()) : null, me = P();
 	const rows = [['Star', (st.cls || st.kind) + ' class · ' + st.M.toFixed(2) + ' suns'], ['Port', (env.port.capital ? 'Capital · ' : '') + env.stationName], ['From the centre', fmt(G.mRad(st.x, st.y, st.z)) + ' pc'],
-		['Holder', o ? o.name.replace(/^The /, '') + (mkt.contested ? ' (contested)' : '') : env.port.anchorage ? 'nobody: an old Precursor dock, still working' : 'nobody: free traders'], ['Your standing', o ? R.tier(me.rep[o.id] || 0) + ' (' + Math.round(me.rep[o.id] || 0) + ')' : '—']];
+		['Holder', o ? o.name.replace(/^The /, '') + (mkt.contested ? ' (contested)' : '') : env.port.maw ? 'the Interstellar Marshals (neutral), who keep a no-fire zone around it' : env.port.anchorage ? 'nobody: an old Precursor dock, still working' : 'nobody: free traders'], ['Your standing', o ? R.tier(me.rep[o.id] || 0) + ' (' + Math.round(me.rep[o.id] || 0) + ')' : '—']];
 	const allies = o ? F.majors().filter(m => m.id != o.id && F.relation(o.id, m.id) > 0) : [], enemies = o ? F.majors().filter(m => F.relation(o.id, m.id) < 0) : [];
 	const rc = m => rel(m.id) < 0 ? ' class="bad"' : rel(m.id) > 0 ? ' class="good"' : '';
 	return h1('Station', o ? (env.port.capital ? 'The ' + o.name.replace(/^The /, '') + '\'s capital' : 'A port of the ' + o.name.replace(/^The /, '')) : '')
