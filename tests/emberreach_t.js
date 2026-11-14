@@ -69,12 +69,14 @@ async function frame(pg, test) {
 		await f.click('#ovBtns button:nth-child(2)'); await sleep(300);
 		await f.click('button[data-tab="2"]'); await f.selectOption('select[data-set="lang"]', 'es'); await sleep(200);
 		const es = await f.evaluate(() => document.getElementById('ovT').textContent);
-		await f.click('button[data-tab="1"]'); await f.click('button[data-bind="flare"][data-slot="1"]'); await pg.keyboard.press('KeyL'); await sleep(200);
+		await f.click('button[data-tab="1"]'); const simpleRows = await f.evaluate(() => ({flare: !!document.querySelector('button[data-bind="flare"]'), radial: !!document.querySelector('button[data-bind="radial"]')}));
+		await f.selectOption('select[data-set="controls.scheme"]', 'full'); await sleep(200);   /* (a new pilot starts on Simple: Full lists every key) */
+		await f.click('button[data-bind="flare"][data-slot="1"]'); await pg.keyboard.press('KeyL'); await sleep(200);
 		const bound = await f.evaluate(() => ({flare: RG.bindings().flare, gear: RG.bindings().gear}));
 		await f.click('button[data-tab="2"]'); await f.selectOption('select[data-set="lang"]', 'en'); await sleep(200);
 		await f.click('#ovBtns button.primary'); await sleep(300);
 		const kept = await pg.evaluate(() => SAVES['ember-reach'] && SAVES['ember-reach'].settings && SAVES['ember-reach'].settings.controls.keys.flare);
-		ok('9. Settings (from the pause screen): the language changes the menus, a key rebinds (taken from the landing gear), and the save keeps it', es == 'Ajustes' && bound.flare.includes('KeyL') && !bound.gear.includes('KeyL') && kept && kept.includes('KeyL'), {es, bound, kept});
+		ok('9. Settings (from the pause screen): the language changes the menus; Simple lists the core keys only, Full every one; a key rebinds (taken from the landing gear), and the save keeps it', es == 'Ajustes' && !simpleRows.flare && simpleRows.radial && bound.flare.includes('KeyL') && !bound.gear.includes('KeyL') && kept && kept.includes('KeyL'), {es, bound, kept, simpleRows});
 		/* Follow Rudolf OS: the language Rudolf OS shares (in its settings messages), else the browser's */
 		await f.click('#ovBtns button:nth-child(2)'); await sleep(300); await f.click('button[data-tab="2"]');
 		const opt0 = await f.evaluate(() => document.querySelector('select[data-set="lang"] option[value="os"]').textContent);
@@ -126,6 +128,32 @@ async function frame(pg, test) {
 		await pg.keyboard.press('Digit2'); await sleep(600);
 		const off = await f.evaluate(() => ({nv: EmberDebug.game.nv, k: EmberDebug.game.nvK}));
 		ok('9h. 1 turns the forward spotlights on and off; 2, separately, night vision', li === true && nv.nv === true && nv.k > 0.9 && nv.lights === false && off.nv === false && off.k < 0.1, {li, nv, off});
+		/* control schemes: M switches Combat and Analysis; the radial menu on ~; Simple keeps FA on; the landing assist */
+		await f.evaluate(() => { const g = EmberDebug.game; g.npcs = []; g.shots = []; g.mode = 'combat'; g.gear = false; g.lights = false; g.nv = false });
+		await f.focus('#hud'); await pg.keyboard.press('KeyM'); await sleep(200);
+		await pg.keyboard.down('Semicolon'); await sleep(500); await pg.keyboard.up('Semicolon');
+		const an = await f.evaluate(() => ({mode: EmberDebug.game.mode, shots: EmberDebug.game.shots.filter(x => x.owner == 'me' && x.kind != 'mining').length}));
+		await pg.keyboard.press('KeyM'); await sleep(200);
+		await pg.keyboard.down('Semicolon'); await sleep(500); await pg.keyboard.up('Semicolon');
+		const cb = await f.evaluate(() => ({mode: EmberDebug.game.mode, shots: EmberDebug.game.shots.filter(x => x.owner == 'me').length}));
+		ok('9i. M switches Combat and Analysis mode: in Analysis the weapons are safe, in Combat they fire', an.mode == 'analysis' && an.shots == 0 && cb.mode == 'combat' && cb.shots > 0, {an, cb});
+		await pg.keyboard.down('Backquote'); await sleep(250); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await sleep(250);
+		const rOpen = await f.evaluate(() => ({open: !!EmberDebug.game.radial, sel: EmberDebug.game.radial && EmberDebug.game.radial.sel}));
+		await pg.screenshot({path: path.join(W, 'radial.png')});
+		await pg.keyboard.up('Backquote'); await sleep(300);
+		const rDone = await f.evaluate(() => ({open: !!EmberDebug.game.radial, lights: EmberDebug.game.lights}));
+		ok('9j. holding ~ opens the radial menu; ← → step round it (steering waits); letting go switches the one picked (the spotlights, third)', rOpen.open && rOpen.sel == 2 && !rDone.open && rDone.lights === true, {rOpen, rDone});
+		await f.evaluate(() => { const g = EmberDebug.game; g.settings.controls.scheme = 'simple'; EmberDebug.s.fa = true; g.lights = false }); await pg.keyboard.press('KeyZ'); await sleep(200);
+		const faHeld = await f.evaluate(() => EmberDebug.s.fa);
+		await f.evaluate(() => { EmberDebug.game.settings.controls.scheme = 'full' }); await pg.keyboard.press('KeyZ'); await sleep(200);
+		const faFull = await f.evaluate(() => EmberDebug.s.fa); await pg.keyboard.press('KeyZ'); await sleep(100);
+		ok('9k. Simple keeps flight assist on; Full lets it go', faHeld === true && faFull === false, {faHeld, faFull});
+		const la = await f.evaluate(async () => { const sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok), g = EmberDebug.game, s = EmberDebug.s;
+			g.settings.controls.landAssist = true; const u0 = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...u0), u = u0.map(v => v / n), h = EmberScene.groundAt(sc, b, b.pos.map((v, i) => v + u[i] * b.radius), g.t).h;
+			s.p = b.pos.map((v, i) => v + u[i] * (b.radius + h + 120)); const gv = EmberFlight.frameAt(EmberScene.worldFrame(b), s.p).v; s.v = gv.map((v, i) => v - u[i] * 40); s.fa = true; g.gear = true; g.throttle = 0; g.landed = null; g.lastAlt = null;
+			await new Promise(r => setTimeout(r, 400)); const st = EmberScene.surfaceState(sc, s, g.t, EmberDebug.ship); return {vz: st.vz, alt: st.alt, max: Math.max(EmberLanding.TOUCH[EmberLanding.padFor(EmberDebug.ship.size)].vz * 0.75, st.alt * 0.1)} });
+		ok('9l. the landing assist holds a 40 m/s plunge at 120 m to a safe descent', la.vz >= -la.max - 0.5, la);
+		await f.evaluate(() => { const g = EmberDebug.game; g.gear = false; g.lights = false; g.landed = null });
 		/* landing L1.2: set down on the gear, sit there as the world turns, lift off; then come down far too fast */
 		const setDown = (h, vz) => f.evaluate(([h, vz]) => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok); if (!b) return null;
 			const sh = EmberDebug.ship, low = EmberLanding.lowest(sh, true, 0), s = EmberDebug.s, up = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...up), u = up.map(v => v / n);

@@ -17,19 +17,26 @@ const DEFAULTS = () => ({
 	graphics: {quality: 'high', res: 100, fov: 70, glow: true, fps: false},
 	audio: {on: true, master: 80, engines: 80, effects: 80, alerts: 100},
 	hud: {size: 100, opacity: 100, messages: 3, msgTime: 8, scanner: true, prograde: true, lead: true},
-	controls: {keys: {}, mouseSens: 100, invertMouse: false, invertPad: false, deadzone: 12},
+	/* the control scheme (Simple: the core keys, the rest in the radial menu, and the assists on; Full: every key) and
+	   the assists, each on or off whatever the scheme */
+	controls: {keys: {}, mouseSens: 100, invertMouse: false, invertPad: false, deadzone: 12, scheme: 'simple', autoGear: true, autoLights: true, landAssist: true, autoRoute: true},
 	lang: 'os',   /* follow Rudolf OS (or the browser) */
 	a11y: {flash: 'os', motion: false, palette: 'off', contrast: false, captions: false}});
 
 /* the actions on the Controls page, in groups (the debug keys aren't listed) */
 const GROUPS = [
 	['Flight', ['pitchDown', 'pitchUp', 'rollLeft', 'rollRight', 'yawLeft', 'yawRight', 'faster', 'slower', 'stop', 'strafeL', 'strafeR', 'strafeU', 'strafeD', 'fa', 'gear']],
-	['Combat', ['fire', 'missile', 'flare', 'target', 'hostile']],
+	['Combat and analysis', ['mode', 'fire', 'missile', 'flare', 'target', 'hostile']],
 	['Navigation', ['cruise', 'jump', 'dock', 'map', 'route', 'home']],
 	['Ship', ['hatch', 'lights', 'nightVision', 'systems']],
-	['Interface', ['view', 'mouse', 'help', 'pause']]];
+	['Interface', ['radial', 'view', 'mouse', 'help', 'pause']]];
+/* the Simple scheme lists only these; the rest are in the radial menu (~), and still work if bound */
+const SIMPLE = ['pitchDown', 'pitchUp', 'rollLeft', 'rollRight', 'yawLeft', 'yawRight', 'faster', 'slower', 'stop', 'strafeL', 'strafeR', 'strafeU', 'strafeD',
+	'mode', 'fire', 'missile', 'target', 'hostile', 'cruise', 'jump', 'dock', 'map', 'route', 'radial', 'view', 'help', 'pause'];
+/* picking a scheme sets the assists to its defaults (each can be changed after) */
+function applyScheme(S, scheme) { const on = scheme == 'simple'; Object.assign(S.controls, {scheme, autoGear: true, autoLights: on, landAssist: on, autoRoute: on}) }
 const ACTION = {pitchDown: 'Pitch down', pitchUp: 'Pitch up', rollLeft: 'Roll left', rollRight: 'Roll right', yawLeft: 'Yaw left', yawRight: 'Yaw right', faster: 'Throttle up', slower: 'Throttle down', stop: 'Throttle to zero',
-	strafeL: 'Strafe left', strafeR: 'Strafe right', strafeU: 'Strafe up', strafeD: 'Strafe down', fa: 'Flight assist', gear: 'Landing gear', lights: 'Spotlights', nightVision: 'Night vision', fire: 'Fire', missile: 'Missile', flare: 'Flare', target: 'Next target', hostile: 'Nearest hostile',
+	strafeL: 'Strafe left', strafeR: 'Strafe right', strafeU: 'Strafe up', strafeD: 'Strafe down', fa: 'Flight assist', gear: 'Landing gear', lights: 'Spotlights', nightVision: 'Night vision', mode: 'Combat / analysis mode', radial: 'Radial menu', fire: 'Fire', missile: 'Missile', flare: 'Flare', target: 'Next target', hostile: 'Nearest hostile',
 	cruise: 'Cruise', jump: 'Jump', dock: 'Request docking', map: 'Star map', route: 'Plot route', home: 'Map: back to you', hatch: 'Cargo hatch', systems: 'Internal systems', view: 'Camera view', mouse: 'Mouse flight', help: 'Controls help', pause: 'Pause'};
 
 /* how a key or gamepad button reads */
@@ -62,7 +69,12 @@ function sanitise(x, actions, langs) {
 		graphics: {quality: one(g.quality || x.quality, ['high', 'low'], 'high'), res: num(g.res, 50, 100, 100), fov: num(g.fov, 50, 100, 70), glow: bool(g.glow, true), fps: bool(g.fps, false)},
 		audio: {on: bool(a.on, x.sound === undefined ? true : x.sound !== false), master: num(a.master, 0, 100, 80), engines: num(a.engines, 0, 100, 80), effects: num(a.effects, 0, 100, 80), alerts: num(a.alerts, 0, 100, 100)},
 		hud: {size: num(h.size, 75, 150, 100), opacity: num(h.opacity, 30, 100, 100), messages: num(h.messages, 0, 8, 3), msgTime: num(h.msgTime, 3, 20, 8), scanner: bool(h.scanner, true), prograde: bool(h.prograde, true), lead: bool(h.lead, true)},
-		controls: {keys, mouseSens: num(c.mouseSens, 25, 300, 100), invertMouse: bool(c.invertMouse, false), invertPad: bool(c.invertPad, false), deadzone: num(c.deadzone, 0, 40, 12)},
+		controls: (() => {
+			/* (a player from before the schemes keeps Full, the keys they know; a new one starts Simple) */
+			const scheme = one(c.scheme, ['simple', 'full'], x.controls ? 'full' : 'simple'), on = scheme == 'simple';
+			return {keys, mouseSens: num(c.mouseSens, 25, 300, 100), invertMouse: bool(c.invertMouse, false), invertPad: bool(c.invertPad, false), deadzone: num(c.deadzone, 0, 40, 12),
+				scheme, autoGear: bool(c.autoGear, true), autoLights: bool(c.autoLights, on), landAssist: bool(c.landAssist, on), autoRoute: bool(c.autoRoute, on)};
+		})(),
 		lang: x.lang == 'os' || (langs || ['en']).includes(x.lang) ? x.lang : D.lang,
 		a11y: {flash: one(y.flash, ['os', 'on', 'off'], 'os'), motion: bool(y.motion, false), palette: one(y.palette, ['off', 'rg', 'by'], 'off'), contrast: bool(y.contrast, false), captions: bool(y.captions, false)}};
 }
@@ -84,7 +96,7 @@ function rebind(defaults, S, action, slot, code) {
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 function open(el, S, env) {
 	let tab = 0, wait = null, note = '';
-	const set = (path, v, quiet) => { const [a, b] = path.split('.'); if (b) S[a][b] = v; else S[a] = v; env.apply(a); if (!quiet) draw() };
+	const set = (path, v, quiet) => { const [a, b] = path.split('.'); if (path == 'controls.scheme') applyScheme(S, v); else if (b) S[a][b] = v; else S[a] = v; env.apply(a); if (!quiet) draw() };
 	const onOff = (path, v) => '<select data-set="' + path + '"><option value="1"' + (v ? ' selected' : '') + '>' + esc(T('On')) + '</option><option value="0"' + (v ? '' : ' selected') + '>' + esc(T('Off')) + '</option></select>';
 	const range = (path, v, lo, hi, step, unit) => '<span class="st-r"><input type="range" data-set="' + path + '" min="' + lo + '" max="' + hi + '" step="' + step + '" value="' + v + '"><output>' + v + (unit || '') + '</output></span>';
 	const pick = (path, v, opts) => '<select data-set="' + path + '">' + opts.map(([k, l]) => '<option value="' + k + '"' + (k == v ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>';
@@ -100,12 +112,17 @@ function open(el, S, env) {
 			+ row('Message time', range('hud.msgTime', h.msgTime, 3, 20, 1, ' s')) + row('Scanner', onOff('hud.scanner', h.scanner)) + row('Velocity marker', onOff('hud.prograde', h.prograde)) + row('Lead marker', onOff('hud.lead', h.lead));
 	}
 	function page1() {
-		const B = bindings(env.defaults, S), c = S.controls;
-		let out = head('Keyboard and gamepad') + (wait ? '<p class="st-wait">' + esc(T('Press a key or gamepad button (Esc cancels)')) + '</p>' : '') + (note ? '<p class="st-note">' + esc(note) + '</p>' : '');
+		const B = bindings(env.defaults, S), c = S.controls, simple = c.scheme == 'simple';
+		let out = head('Control scheme') + row('Control scheme', pick('controls.scheme', c.scheme, [['simple', T('Simple')], ['full', T('Full')]]))
+			+ '<p class="st-note">' + esc(T(simple ? 'Simple: the core keys only, flight assist always on, and the assists below on. Everything else is in the radial menu (~).' : 'Full: every key, and flight assist yours to switch off.')) + '</p>'
+			+ head('Assists') + row('Automatic landing gear', onOff('controls.autoGear', c.autoGear)) + row('Automatic spotlights', onOff('controls.autoLights', c.autoLights))
+			+ row('Landing assist', onOff('controls.landAssist', c.landAssist)) + row('Automatic jumps along a route', onOff('controls.autoRoute', c.autoRoute))
+			+ head('Keyboard and gamepad') + (wait ? '<p class="st-wait">' + esc(T('Press a key or gamepad button (Esc cancels)')) + '</p>' : '') + (note ? '<p class="st-note">' + esc(note) + '</p>' : '');
 		for (const [g, acts] of GROUPS) {
+			if (simple && !acts.some(a => SIMPLE.includes(a))) continue;
 			out += '<h4>' + esc(T(g)) + '</h4><table class="st-keys"><tr><th></th><th>' + esc(T('Key')) + '</th><th>' + esc(T('Key')) + '</th><th>' + esc(T('Gamepad')) + '</th></tr>';
 			for (const a of acts) {
-				if (!B[a]) continue;
+				if (!B[a] || (simple && !SIMPLE.includes(a))) continue;
 				const ks = B[a].filter(z => !z.startsWith('pad:')), pd = B[a].find(z => z.startsWith('pad:'));
 				const cell = (slot, code) => '<td><button class="st-key' + (wait && wait.a == a && wait.slot == slot ? ' on' : '') + '" data-bind="' + a + '" data-slot="' + slot + '">' + esc(code ? keyName(code) : T('Unbound')) + '</button></td>';
 				out += '<tr><td>' + esc(T(ACTION[a])) + '</td>' + cell(0, ks[0]) + cell(1, ks[1]) + cell(2, pd) + '</tr>';
@@ -156,6 +173,6 @@ function open(el, S, env) {
 	return {redraw: draw};
 }
 
-const EmberSettings = {DEFAULTS, GROUPS, ACTION, keyName, sanitise, bindings, rebind, open};
+const EmberSettings = {SIMPLE, applyScheme, DEFAULTS, GROUPS, ACTION, keyName, sanitise, bindings, rebind, open};
 if (typeof module != 'undefined') module.exports = EmberSettings; else root.EmberSettings = EmberSettings;
 })(typeof window != 'undefined' ? window : globalThis);

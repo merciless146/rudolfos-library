@@ -95,10 +95,12 @@ function lead(from, fromV, to, toV, speed) {
 }
 /* fire the guns that are ready, as projectiles from a ship (s: flight state, radius), towards a target (or straight
    ahead). Guns aim along the nose, or at the target's lead within the gimbal; turrets aim anywhere */
-function fire(cs, s, t, target, out) {
+/* only: the kinds of gun to fire (Analysis mode: the mining lasers), all if omitted */
+function fire(cs, s, t, target, out, only) {
 	if (cs.hot || !M.works(cs.fit, 'weapons') || !M.works(cs.fit, 'power')) return 0;
 	const nose = Fl.forward(s); let n = 0;
 	for (const g of cs.load.guns) {
+		if (only && !only.includes(g.kind)) continue;
 		const W = WEAPONS[g.kind];
 		if (g.cool > 0 || W.homing || (g.ammo != null && g.ammo <= 0)) continue;
 		let dir = nose;

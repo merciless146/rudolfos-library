@@ -191,7 +191,7 @@ function draw(ctx, W, H, h, t) {
 	const zero = ty + tH * (1 / 1.3), thr = Math.max(-0.3, Math.min(1, h.throttle || 0));
 	ctx.fillStyle = h.cruise ? C.cyan : C.amber; if (thr >= 0) ctx.fillRect(tx, zero - thr * (zero - ty), 12, thr * (zero - ty)); else ctx.fillRect(tx, zero, 12, (-thr / 0.3) * (ty + tH - zero));
 	ctx.fillStyle = C.muted; ctx.fillRect(tx - 4, zero, 20, 1);
-	const chips = [[TT(h.fa ? 'FA ON' : 'FA OFF'), h.fa ? C.cyan : C.amber]];
+	const chips = [[TT(h.mode == 'analysis' ? 'ANALYSIS' : 'COMBAT'), h.mode == 'analysis' ? C.cyan : C.amber], [TT(h.fa ? 'FA ON' : 'FA OFF'), h.fa ? C.cyan : C.amber]];
 	if (h.landed) chips.push([TT('LANDED'), C.green]); else if (h.gear) chips.push([TT('GEAR DOWN'), C.amber]);
 	if (h.lights) chips.push([TT('LIGHTS'), C.text]);
 	if (h.nv) chips.push([TT('NV'), C.green]);
@@ -215,6 +215,20 @@ function draw(ctx, W, H, h, t) {
 		text(ctx, (T.closing >= 0 ? '▼ ' : '▲ ') + fmtSpeed(Math.abs(T.closing)), x + w - 12, y + 66, {mono: true, size: 12, col: C.muted, align: 'right'});
 		if (T.bars) { text(ctx, T.bars.what, x + 12, y + 88, {size: 11, col: T.hostile ? C.red : C.muted, weight: 600}); bar(ctx, x + 12, y + 96, w - 24, 6, T.bars.shield, C.cyan); bar(ctx, x + 12, y + 106, w - 24, 6, T.bars.hull, T.bars.hull < 0.3 ? C.red : C.green) }
 		if (T.dock) { const d = T.dock; text(ctx, d.line1, x + 12, y + 90, {size: 12, col: d.col || C.text, weight: 600}); if (d.line2) text(ctx, d.line2, x + 12, y + 108, {size: 12, col: C.muted}) }
+	}
+	/* ---- the radial menu (held on ~): its functions round a ring, the one pointed at lit ---- */
+	if (h.radial) {
+		const R0 = Math.min(W, H) * 0.26, n = h.radial.items.length;
+		ctx.fillStyle = 'rgba(4,8,16,0.55)'; ctx.beginPath(); ctx.arc(cx, cy, R0 + 70, 0, 7); ctx.fill();
+		ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, R0 * 0.35, 0, 7); ctx.stroke();
+		h.radial.items.forEach((it, k) => {
+			const a = k / n * 2 * Math.PI, x = cx + Math.sin(a) * R0, y = cy - Math.cos(a) * R0, sel = k == h.radial.sel, w = 150, hh = 40;
+			ctx.fillStyle = sel ? 'rgba(108,201,232,0.28)' : C.panel; ctx.fillRect(x - w / 2, y - hh / 2, w, hh);
+			ctx.strokeStyle = sel ? C.cyan : C.line; ctx.lineWidth = sel ? 2 : 1; ctx.strokeRect(x - w / 2 + 0.5, y - hh / 2 + 0.5, w, hh);
+			text(ctx, it.name, x, y + 1, {align: 'center', size: 13, weight: sel ? 700 : 500, col: sel ? C.text : C.muted});
+			if (it.on != null) text(ctx, TT(it.on ? 'On' : 'Off'), x, y + 15, {align: 'center', size: 10, mono: true, col: it.on ? C.green : C.muted});
+		});
+		text(ctx, TT('Radial menu'), cx, cy + 4, {align: 'center', size: 12, mono: true, col: C.muted});
 	}
 	/* ---- top left: alerts, or the console ---- */
 	const al = h.alerts || [];
