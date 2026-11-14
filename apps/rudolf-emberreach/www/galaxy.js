@@ -1,6 +1,7 @@
 /* ===== Ember Reach: the galaxy, as a scale model (docs/plan-ember-reach.md).
-   A compact elliptical galaxy (after M32): about 3 billion solar masses of mostly old stars, half of its light within
-   300 pc, slightly flattened (axes 1 : 0.85 : 0.7), a black hole of 5 million suns at the centre. Every star exists:
+   A compact elliptical galaxy, shaped after M32 but scaled down (0.2.0) to 4 million stars at M32's own crowding:
+   about 1.5 million solar masses of mostly old stars, half of its light within 24 pc, slightly flattened (axes
+   1 : 0.85 : 0.7), out to 239 pc, a black hole of about 2,500 suns at the centre. Every star exists:
    space is cut into 4-pc cells, a cell holding many stars is split into eight (and so on), and each cell's stars are
    made from a hash of where the cell is. Nothing is stored; the same place always gives the same stars.
 
@@ -26,23 +27,30 @@
 const WOS = typeof module != 'undefined' ? require('./wos-stats.js') : root.WOS_STATS;
 
 /* ---------- the galaxy ---------- */
+/* 0.2.0: the M32-sized model (7.95 billion stars, 3,000 pc) shrunk to STARS_WANTED stars with its crowding kept:
+   every length times SCALE (the cube root of the ratio), the masses times SCALE³. Stars stand as far apart as
+   before, so jump ranges, travel and the sky are unchanged; the galaxy is 2,000 times smaller in stars. */
+const STARS_WANTED = 4e6, SCALE = Math.cbrt(STARS_WANTED / 7.95e9);
 const GAL = {
-	Mstar: 3e9,          /* solar masses in stars and remnants: about 8 billion stars */
-	Re: 300,             /* pc: half the light inside this (projected) */
+	Mstar: 3e9 * SCALE ** 3,   /* solar masses in stars and remnants (set exactly below, for STARS_WANTED) */
+	Re: 300 * SCALE,     /* pc: half the light inside this (projected): about 24 pc */
 	axes: [1, 0.85, 0.7],/* triaxial: an E3 seen from the side */
-	rMax: 3000,          /* pc: where the model stops (10 Re) */
-	rCore: 0.5,          /* pc: inside this, the black hole and its own cluster (a game zone of its own) */
-	MBH: 5e6,
-	sigma: 54,           /* km/s: velocity dispersion (sigma² ∝ M / R, so √2 below the 6e9-sun version of the same size) */
+	rMax: 3000 * SCALE,  /* pc: where the model stops (10 Re): about 239 pc */
+	rCore: 0.5 * SCALE,  /* pc: inside this, the black hole and its own cluster (a game zone of its own) */
+	MBH: 5e6 * SCALE ** 3,   /* about 2,500 suns */
+	/* km/s: velocity dispersion, used only for close passes between stars (the galactic habitable zone). Kept at
+	   the full-size model's 54 (a galaxy this small would have about 4), so the crowded middle is stripped and
+	   sterile as before and the quiet outskirts keep their living worlds: the game's map of where life lasts. */
+	sigma: 54,
 	ageOld: 10e9, ageYoung: 3e9, youngCentre: 0.3, nursery: 0.004, reclass: 0.27,   /* share of young stars at the centre, falling outward */
 	FeHCentre: 0.15, FeHSlope: -0.35, FeHScatter: 0.15,
 	cell: 4, splitAt: 48, maxDepth: 10,
 	/* galactic north is +z, the short axis; the great powers live in the northern Middle Reach */
-	north: {mLo: 1000, mHi: 2000, latMin: 30},
-	/* six clusters of great powers, each 6-8 powers; each power holds about 8,000-14,000 systems */
-	clusters: {count: 6, perMin: 6, perMax: 8, heldMin: 8000, heldMax: 14000, nearCore: [45, 90], nearRim: [2150, 2350], others: [500, 2000]}};
+	north: {mLo: 1000 * SCALE, mHi: 2000 * SCALE, latMin: 30},
+	/* two clusters of six great powers (the North and the Hearth); each power holds 250-400 systems */
+	clusters: {count: 2, perMin: 6, perMax: 6, heldMin: 250, heldMax: 400, nearCore: [45 * SCALE, 90 * SCALE], nearRim: [2150 * SCALE, 2350 * SCALE], others: [500 * SCALE, 2000 * SCALE]}};
 /* the regions, by ellipsoidal radius (pc) */
-const REGIONS = [['Core', 0, 30], ['Glow', 30, 450], ['Inner Reach', 450, 1000], ['Middle Reach', 1000, 2000], ['Outer Clouds', 2000, 3000]];
+const REGIONS = [['Core', 0, 30], ['Glow', 30, 450], ['Inner Reach', 450, 1000], ['Middle Reach', 1000, 2000], ['Outer Clouds', 2000, 3000]].map(([n, lo, hi]) => [n, lo * SCALE, hi * SCALE]);
 /* galactic latitude, degrees: +90 at the north pole */
 function latitude(x, y, z) { const d = Math.hypot(x, y, z); return d ? Math.asin(z / d) * 180 / Math.PI : 0 }
 function regionAt(x, y, z) { const m = mRad(x, y, z), r = REGIONS.find(([, lo, hi]) => m >= lo && m < hi) || REGIONS[4]; return {name: r[0], m, lat: latitude(x, y, z)} }
@@ -114,6 +122,8 @@ function rho(x, y, z) { const m = Math.max(GAL.rCore, mRad(x, y, z)); if (m > GA
 function massInside(m) { return GAL.Mstar * m * m / ((m + A) * (m + A)) }
 /* the average mass of a star or remnant today (the IMF evolved for the galaxy's ages) */
 const MEAN = (() => { const r = rng(12345); let s = 0, n = 40000; for (let i = 0; i < n; i++) { const M0 = IMF(r), age = r() < 0.15 ? GAL.ageYoung : GAL.ageOld; s += evolve(M0, age, r).M } return s / n })();
+/* the mass that gives exactly STARS_WANTED stars and remnants */
+GAL.Mstar = STARS_WANTED * MEAN / ((GAL.rMax / (GAL.rMax + A)) ** 2);
 const numberDensity = (x, y, z) => rho(x, y, z) / MEAN;
 const STARS_TOTAL = massInside(GAL.rMax) / MEAN;
 /* stars expected in a box: the density averaged over a 3×3×3 grid inside it */
@@ -175,8 +185,10 @@ function star(id, x, y, z) {
 	return Object.assign({id, x, y, z, m, age: born, M0, FeH, companion: born < 1e8 ? null : companion, name: starName(hashStr('name:' + id))}, s);
 }
 function starsNear(x, y, z, R) {
-	const out = [], rift = REALM == 'rift' && !LEGACY, zq = rift ? -z : z;
-	forLeaves(x - R, y - R, zq - R, x + R, y + R, zq + R, leaf => { for (const s0 of cellStars(leaf)) { const s = rift ? riftOf(s0) : s0, d = Math.hypot(s.x - x, s.y - y, s.z - z); if (d <= R) { s.d = d; out.push(s) } } });
+	const out = [], rift = REALM == 'rift' && !LEGACY;
+	/* in the Rift: look where its stars were drawn from (a box the Rift's scale larger), keep the Rift's half */
+	const [qx, qy, qz] = rift ? fromRift([x, y, z]) : [x, y, z], Q = rift ? R / RIFT_SCALE : R;
+	forLeaves(qx - Q, qy - Q, qz - Q, qx + Q, qy + Q, qz + Q, leaf => { for (const s0 of cellStars(leaf)) { if (rift && !inRift(s0)) continue; const s = rift ? riftOf(s0) : s0, d = Math.hypot(s.x - x, s.y - y, s.z - z); if (d <= R) { s.d = d; out.push(s) } } });
 	/* the black hole at the centre: a place of its own (not in the old measures the great powers were set by) */
 	if (!LEGACY && !HEARTLESS) { const d = Math.hypot(x, y, z); if (d <= R) out.push(Object.assign({}, rift ? RIFT_HEART : HEART, {d})) }
 	return out.sort((a, b) => a.d - b.d);
@@ -184,10 +196,20 @@ function starsNear(x, y, z, R) {
 
 /* ---------- the Heart, and the Rift ----------
    The black hole at the centre (the Maw) is a wormhole like the others, but it leads to one place only: the Rift,
-   the galaxy upside down. Every star there is a star here turned over (its height above the galactic plane the
-   other way), the same in kind and age; but its worlds are its own (from a draw of their own), lifeless, and rich
-   in things found nowhere else: nullite, voidglass, aetherium, and the Precursors' relics in the ruins they left.
-   No great power reaches it. The Maw on the Rift side leads home. */
+   the galaxy upside down. 0.2.0: it is 75% as wide as the galaxy (RIFT_SCALE) and holds half its stars (RIFT_KEEP),
+   2 million: each Rift star is a star here turned over (its height above the galactic plane the other way) and
+   drawn in to 75% of its distance from the centre, the same in kind and age, for one star in two (picked by a hash
+   of its id). Its worlds are its own (from a draw of their own), lifeless, and rich in things found nowhere else:
+   nullite, voidglass, aetherium, and the Precursors' relics in the ruins they left. No great power reaches it. The
+   Maw on the Rift side leads home. */
+const RIFT_SCALE = 0.75, RIFT_KEEP = 0.5, RIFT_STARS = STARS_TOTAL * RIFT_KEEP;
+/* a star here has a self in the Rift? */
+const inRift = s => s.heart || rng(hashStr('riftkeep:' + s.id))() < RIFT_KEEP;
+/* a point in the Rift and the point of the galaxy it was drawn from, both ways */
+const fromRift = p => [p[0] / RIFT_SCALE, p[1] / RIFT_SCALE, -p[2] / RIFT_SCALE], toRift = p => [p[0] * RIFT_SCALE, p[1] * RIFT_SCALE, -p[2] * RIFT_SCALE];
+/* stars per cubic parsec where you are, in whichever galaxy (the Rift is a little more crowded: half the stars in
+   0.42 of the room) */
+function densityHere(x, y, z) { if (REALM != 'rift') return numberDensity(x, y, z); const q = fromRift([x, y, z]); return numberDensity(q[0], q[1], q[2]) * RIFT_KEEP / RIFT_SCALE ** 3 }
 const HEART = {id: 'heart', x: 0, y: 0, z: 0, m: 0, kind: 'black hole', cls: 'BH', M: GAL.MBH, L: 0, R: 0, T: 0, age: GAL.ageOld, M0: GAL.MBH, FeH: GAL.FeHCentre, companion: null, name: 'The Maw', heart: true};
 const RIFT_HEART = Object.assign({}, HEART, {id: 'R:heart', rift: true});
 let REALM = 'normal', HEARTLESS = false;
@@ -201,7 +223,8 @@ const rname = n => { const r = n.toLowerCase().split('').reverse().join(''); ret
 function riftOf(s) {
 	if (s.rift) return s;
 	if (s.heart) return Object.assign({}, RIFT_HEART);
-	return Object.assign({}, s, {id: 'R:' + s.id, z: -s.z, rift: true, name: rname(s.name), companion: s.companion});
+	const q = toRift([s.x, s.y, s.z]);
+	return Object.assign({}, s, {id: 'R:' + s.id, x: q[0], y: q[1], z: q[2], m: s.m * RIFT_SCALE, rift: true, name: rname(s.name), companion: s.companion});
 }
 /* a star of the normal galaxy straight from its id: the id names its cell ("i,j,k/" and the octants it was split
    into) and its place in the cell, so nothing else needs searching (the centre has millions within a few pc) */
@@ -216,9 +239,10 @@ function byId(id) {
 function lookup(id, p) {
 	if (id == 'heart') return Object.assign({}, HEART);
 	if (id == 'R:heart') return Object.assign({}, RIFT_HEART);
-	const rift = id.startsWith('R:'), base = rift ? id.slice(2) : id, q = p && (rift ? [p[0], p[1], -p[2]] : p);
+	const rift = id.startsWith('R:'), base = rift ? id.slice(2) : id, q = p && (rift ? fromRift(p) : p);
 	const find = r => q ? inRealm('normal', () => starsNear(q[0], q[1], q[2], r).find(s => s.id == base)) : null;
 	const s = byId(base) || find(1e-3) || find(0.05);
+	if (s && rift && !inRift(s)) return null;   /* (not one of the Rift's stars) */
 	return s ? (rift ? riftOf(s) : s) : null;
 }
 const RIFT = {ruins: 0.1, nullite: 0.4, voidglass: 0.15, aetherium: 0.5};
@@ -245,7 +269,9 @@ function radiusOf(M) { if (M < 2.04) return Math.pow(M, 0.279); const Rn = 1.22 
 
 /* ---------- the galactic habitable zone: close passes ---------- */
 /* chance a planet's orbit (and its life) goes undisturbed for t years: passes inside b AU at the local density and speed */
-function quietChance(s, bAU, t) {
+function quietChance(s0, bAU, t) {
+	/* a Rift star's sky, from where it was drawn from (its worlds were made like any others, before the Rift took them) */
+	const s = s0.rift && !s0.heart ? Object.assign({}, s0, (([x, y, z]) => ({x, y, z, m: s0.m / RIFT_SCALE}))(fromRift([s0.x, s0.y, s0.z]))) : s0;
 	const n = numberDensity(s.x, s.y, s.z), vk = Math.SQRT2 * sigmaAt(s.m), v = vk * PC_PER_KMS_YR, b = bAU / 206265;
 	const focus = 1 + 2 * 4.3e-3 * (s.M + 0.5) / (b * vk * vk);   /* gravitational focusing; G = 4.3e-3 pc (km/s)^2 per sun */
 	return Math.exp(-Math.PI * b * b * n * v * focus * t);
@@ -280,7 +306,7 @@ function system(s) {
 	/* a companion star's own worlds (S-type orbits, well inside the pair's separation) */
 	const c = s.companion;
 	if (c && c.kind == 'star') {
-		const B = Object.assign({}, c, {id: s.id + ':B', name: s.name + ' B', x: s.x, y: s.y, z: s.z, m: s.m, age: s.age, FeH: s.FeH}), rB = rng(hashStr('sys:' + s.id + ':B'));
+		const B = Object.assign({}, c, {id: s.id + ':B', name: s.name + ' B', x: s.x, y: s.y, z: s.z, m: s.m, age: s.age, FeH: s.FeH, rift: s.rift}), rB = rng(hashStr('sys:' + s.id + ':B'));
 		out.hzB = hz(B);
 		if (rB() < 0.5 * chanceOfPlanets(B)) {
 			const kB = 1 + Math.floor(rB() * 3), snowB = 2.7 * Math.sqrt(Math.max(B.L, 1e-4)), quietB = quietChance(B, 20 * Math.sqrt(Math.max(B.L, 0.01)), 4e9), list = [];
@@ -413,10 +439,11 @@ function classify(p, r) {
 let ruinChance = null;
 const RUIN_CHANCE = () => ruinChance == null ? (ruinChance = legacy(() => drake(sampleGalaxy(3000, 99), true)).past * DRAKE.footprint / STARS_TOTAL) : ruinChance;
 /* N = N* · fp · ne · fl · fi · fc · (L / T): ne is measured on the model itself (habitable, quiet worlds per star) */
-/* fl, fi, fc and L are the game's choices (nobody knows them): about forty civilisations alive now (six clusters
-   of six to eight great powers), each lasting 180,000 years; the millions before them left ruins, each civilisation
-   in about ten systems (its home and colonies). The number of earlier ones does not depend on L. */
-const DRAKE = {fl: 0.5, fi: 0.01, fc: 0.2, L: 180000, T: 1e10, footprint: 10};
+/* fl, fi, fc and L are the game's choices (nobody knows them): about twelve civilisations alive now (two clusters
+   of six great powers), each lasting about 110 million years (0.2.0: in a galaxy of 4 million stars; 180,000 years
+   gave forty among 8 billion); the thousand before them left ruins, each civilisation in about ten systems (its
+   home and colonies). The number of earlier ones does not depend on L. */
+const DRAKE = {fl: 0.5, fi: 0.01, fc: 0.2, L: 1.1e8, T: 1e10, footprint: 10};
 /* the Drake equation is measured on the galaxy as the great powers rose in it (LEGACY) */
 function drake(sampleStars, noRuins) { return legacy(() => drake0(sampleStars, noRuins)) }
 function drake0(sampleStars, noRuins) {
@@ -476,6 +503,7 @@ function clusters() {
 		const m = (lo, hi) => lo + r() * (hi - lo);
 		const pts = [np, pointAt(m(...C.nearCore), r), pointAt(m(...C.nearRim), r)];
 		while (pts.length < C.count) pts.push(pointAt(m(...C.others), r));
+		pts.length = C.count;   /* (two clusters: the North and the Hearth) */
 		const ds = []; for (let i = 0; i < pts.length; i++) for (let k = i + 1; k < pts.length; k++) ds.push(d3(pts[i], pts[k]));
 		const mean = ds.reduce((a, b) => a + b) / ds.length, cv = Math.sqrt(ds.reduce((a, b) => a + (b - mean) ** 2, 0) / ds.length) / mean;
 		if (cv < bestCV) { bestCV = cv; best = pts }
@@ -538,6 +566,6 @@ function civilizations0() {
 	return CIVS;
 }
 
-const EmberGalaxy = {spin, HEART, RIFT_HEART, RIFT, realm, inRealm, normal, riftOf, lookup, byId, legacy, capitalIds, KGF, MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
+const EmberGalaxy = {STARS_WANTED, SCALE, RIFT_SCALE, RIFT_KEEP, RIFT_STARS, inRift, fromRift, toRift, densityHere, spin, HEART, RIFT_HEART, RIFT, realm, inRealm, normal, riftOf, lookup, byId, legacy, capitalIds, KGF, MIN_CIVS, northPoint, clusters, claimFor, nearestStars, starName, sampleRegion, REGIONS, regionAt, latitude, quietAt: (x, y, z) => quietChance({x, y, z, m: mRad(x, y, z), M: 1, L: 1}, 20, 4e9), civilizations, GAL, A, MEAN, STARS_TOTAL, DRAKE, rho, numberDensity, massInside, mRad, expectIn, forLeaves, cellStars, starsNear, star, system, hz, esi, radiusOf, quietChance, drake, sampleGalaxy, IMF, evolve, msLife, rng, hash, hashStr, popAt, sigmaAt};
 if (typeof module != 'undefined') module.exports = EmberGalaxy; else root.EmberGalaxy = EmberGalaxy;
 })(typeof window != 'undefined' ? window : this);

@@ -46,6 +46,6 @@ try {
 	/* where wormholes lead: anywhere the galaxy has stars */
 	const ends = []; for (let k = 0; k < 20; k++) { const sm = G.sampleGalaxy(1, 1000 + k)[0]; let to = null; for (let R0 = 1; !to && R0 < 200; R0 *= 2) to = G.starsNear(sm.x, sm.y, sm.z, R0).find(x => x.kind == 'star'); ends.push(to) }
 	const rr = ends.map(t => Math.hypot(t.x, t.y, t.z));
-	ok('13. a wormhole leads to a real star, anywhere: near the centre and far out', ends.every(Boolean) && Math.min(...rr) < 150 && Math.max(...rr) > 300, rr.map(Math.round).join(','));
+	ok('13. a wormhole leads to a real star, anywhere: near the centre and far out', ends.every(Boolean) && Math.min(...rr) < 150 * G.SCALE && Math.max(...rr) > 300 * G.SCALE, rr.map(Math.round).join(','));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

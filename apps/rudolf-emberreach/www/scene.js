@@ -261,7 +261,7 @@ const dropRange = (target) => target.bh ? bhSafe(target) * 1.5 : target.kind == 
 /* the ship's proximity safety: how close it lets itself go. Black holes 2,000 km; stars 1.6 radii; worlds with air
    their atmosphere's top (1.12 radii); airless worlds their surface, 300 m up (no landing yet) */
 const SAFE = {bh: 2e6, star: 1.6, atmo: 1.12, ground: 300};
-/* (a black hole as big as the Maw, five million suns: three of its horizon's radii) */
+/* (a black hole as big as the Maw, about 2,500 suns: three of its horizon's radii) */
 function bhSafe(b) { return Math.max(SAFE.bh, 3 * b.radius) }
 function safeDist(b) { return b.bh ? bhSafe(b) : b.kind == 'star' ? b.radius * SAFE.star : b.kind == 'planet' ? (b.atmo ? b.radius * SAFE.atmo : b.radius + SAFE.ground) : 0 }
 const surfaceDist = (target, p) => len(sub(p, target.pos || target.c)) - (target.radius || target.def.radius);

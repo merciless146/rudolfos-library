@@ -11,6 +11,8 @@
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, T = window.EmberTravel;
+/* the whole galaxy is in view beyond FAR (it is about 480 pc across); the view goes out to DMAX */
+const FAR = 150, DMAX = 1200;
 const C = {cyan: '#6cc9e8', amber: '#f2a33a', red: '#ff6a5c', text: '#e8edf6', muted: '#9fb0cc', panel: 'rgba(8,14,26,0.86)', line: '#2a3a5c', green: '#7fd1a8'};
 const SANS = 'Inter, system-ui, sans-serif', MONO = '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace';
 const at = s => s.at || [s.x, s.y, s.z], dist = T.dist;
@@ -59,7 +61,7 @@ function create() {
 	/* stars near the view's centre: a few thousand at most */
 	let localCache = null;
 	function localStars() {
-		const n = G.numberDensity(...M.focus) + 1e-9, R = Math.min(M.D * 0.9, Math.cbrt(3500 / (n * 4.19)));
+		const n = G.densityHere(...M.focus) + 1e-9, R = Math.min(M.D * 0.9, Math.cbrt(3500 / (n * 4.19)));
 		if (localCache && dist(localCache.f, M.focus) < R * 0.25 && Math.abs(localCache.R / R - 1) < 0.3) return localCache.list;
 		const list = G.starsNear(M.focus[0], M.focus[1], M.focus[2], R).slice(0, 4000);
 		localCache = {f: M.focus.slice(), R, list};
@@ -87,12 +89,12 @@ function create() {
 		ctx.save();
 		ctx.fillStyle = '#020409'; ctx.fillRect(0, 0, W, H);
 		if (M.charting) { text(ctx, '> charting the powers\' space…', W / 2, H / 2, {mono: true, col: C.muted, align: 'center'}); ctx.restore(); return }
-		const D = M.D, far = D > 700, mid = D > 25, rift = G.realm() == 'rift';
+		const D = M.D, far = D > FAR, mid = D > 25, rift = G.realm() == 'rift';
 		/* the galaxy: a scatter of its stars and its outline */
-		const bA = Math.max(0.12, Math.min(0.9, (D - 60) / 900));
+		const bA = Math.max(0.12, Math.min(0.9, (D - 60) / 300));
 		if (D > 60) for (const b of backdropOf()) { const p = proj(b.p); if (!p) continue; ctx.fillStyle = 'rgba(' + b.c[0] + ',' + b.c[1] + ',' + b.c[2] + ',' + bA.toFixed(2) + ')'; ctx.fillRect(p[0], p[1], 1.3, 1.3) }
 		if (far) {
-			const ax = G.GAL.axes.map(a => a * G.GAL.rMax);
+			const ax = G.GAL.axes.map(a => a * G.GAL.rMax * (rift ? G.RIFT_SCALE : 1));
 			ctx.strokeStyle = 'rgba(159,176,204,0.25)'; ctx.lineWidth = 1;
 			for (const [i, j] of [[0, 1], [0, 2], [1, 2]]) { ctx.beginPath(); for (let k = 0; k <= 64; k++) { const a = k / 64 * 2 * Math.PI, q = [0, 0, 0]; q[i] = ax[i] * Math.cos(a); q[j] = ax[j] * Math.sin(a); const p = proj(q); if (p) k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]) } ctx.stroke() }
 		}
@@ -113,7 +115,7 @@ function create() {
 		/* a cluster near the centre of the view, in detail */
 		if (!far && M.ready && !rift) {
 			const cl = G.clusters().map(c => ({c, d: dist(c.at, M.focus)})).sort((a, b) => a.d - b.d)[0];
-			if (cl && cl.d < 900) drawCluster(ctx, art(cl.c), D);
+			if (cl && cl.d < 120) drawCluster(ctx, art(cl.c), D);
 		}
 		/* nearby stars */
 		if (D < 80) {
@@ -220,7 +222,7 @@ function create() {
 		for (const b of M.buttons) { ctx.fillStyle = 'rgba(8,14,26,0.85)'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = C.line; ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1); text(ctx, b.label, b.x + b.w / 2, b.y + 27, {align: 'center', size: 13, weight: 600}) }
 		text(ctx, scaleText(), 16, 30, {mono: true, size: 12, col: C.muted});
 	}
-	function scaleText() { const D = M.D; return 'View ' + (D < 10 ? D.toFixed(1) : Math.round(D).toLocaleString('en-US')) + ' pc out' + (D > 700 ? ' · the galaxy' : D > 25 ? ' · a region' : ' · nearby stars') }
+	function scaleText() { const D = M.D; return 'View ' + (D < 10 ? D.toFixed(1) : Math.round(D).toLocaleString('en-US')) + ' pc out' + (D > FAR ? ' · the galaxy' : D > 25 ? ' · a region' : ' · nearby stars') }
 	function describe(s) {
 		const Co = window.EmberColonies, col = M.player && Co ? Co.colonyAt(M.player, s.id) : null;
 		const o = T.ownerOf(s, M.day), port = T.portFor(s, M.day), sys = G.system(s), live = sys.planets.filter(p => p.life || p.alive).length;
@@ -229,20 +231,20 @@ function create() {
 		return {kind: (s.cls || s.kind || 'star') + ' class · ' + (s.M || 0).toFixed(2) + ' suns',
 			owner: o.owner ? (o.contested ? 'Contested, held by ' : '') + m.name.replace(/^The /, '') + (rel < 0 ? ' (at war with you)' : rel > 0 ? ' (allied)' : '') : (s.rift ? 'The Rift: nobody\'s' : 'Unclaimed space'), ownerCol: rel < 0 ? C.red : rel > 0 ? C.green : C.text,
 			port: port && port.anchorage ? 'Precursor anchorage at ' + port.world + ': fuel, repairs, trade' : col ? 'Your colony: ' + {claimed: 'claimed, beacon by day ' + col.beaconBy, building: 'building, ' + Math.round(100 * Co.progress(col)) + '%', done: col.port + ' built'}[col.stage] : port ? 'Port: ' + {halo: 'Halo (capital)', lantern: 'Lantern', trefoil: 'Trefoil outpost', bloom: 'Bloom'}[port.cls] + ' at ' + port.world : 'No port',
-			planets: s.heart ? (s.rift ? 'The Maw: the way home, for a ship with a dimensional phaser' : 'The Maw: five million suns, and the way into the Rift, for a ship with a dimensional phaser') : s.kind == 'black hole' ? 'A black hole: a wormhole to ' + (s.rift ? 'anywhere in the Rift' : 'anywhere') + ', for a ship with a dimensional phaser' : sys.planets.length + (sys.planets.length == 1 ? ' planet' : ' planets') + (live ? ' · ' + live + ' living' : '') + (M.explore && M.explore.sys[s.id] != null ? ' · charted by you' : !o.owner ? ' · uncharted' : ''),
+			planets: s.heart ? (s.rift ? 'The Maw: the way home, for a ship with a dimensional phaser' : 'The Maw: ' + Math.round(G.GAL.MBH).toLocaleString('en-US') + ' suns, and the way into the Rift, for a ship with a dimensional phaser') : s.kind == 'black hole' ? 'A black hole: a wormhole to ' + (s.rift ? 'anywhere in the Rift' : 'anywhere') + ', for a ship with a dimensional phaser' : sys.planets.length + (sys.planets.length == 1 ? ' planet' : ' planets') + (live ? ' · ' + live + ' living' : '') + (M.explore && M.explore.sys[s.id] != null ? ' · charted by you' : !o.owner ? ' · uncharted' : ''),
 			dist: d < 1000 ? d.toFixed(d < 10 ? 2 : 1) + ' pc' : Math.round(d).toLocaleString('en-US') + ' pc', misjump: mj > 0.005 ? Math.round(mj * 100) + '%' : null};
 	}
 	function box(ctx, x, y, w, h) { ctx.fillStyle = C.panel; ctx.fillRect(x, y, w, h); ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1) }
 	function text(ctx, s, x, y, o) { o = o || {}; ctx.font = (o.weight || 500) + ' ' + (o.size || 13) + 'px ' + (o.mono ? MONO : SANS); ctx.fillStyle = o.col || C.text; ctx.textAlign = o.align || 'left'; ctx.fillText(s, x, y) }
 
 	/* ---- control ---- */
-	function zoom(f) { M.D = Math.max(0.3, Math.min(9000, M.D * f)) }
+	function zoom(f) { M.D = Math.max(0.3, Math.min(DMAX, M.D * f)) }
 	function turn(dx, dy) { M.yaw += dx; M.pitch = Math.max(-1.45, Math.min(1.45, M.pitch + dy)) }
 	function home() { if (M.here) { M.focus = at(M.here).slice(); M.D = Math.max(3 * M.range, 12) } }
 	function pick(x, y) {
 		let best = null; for (const h of M.hits) { const d = Math.hypot(h.x - x, h.y - y); if (d < 16 && (!best || d < best.d)) best = {h, d} }
 		if (!best) return false;
-		if (best.h.kind == 'cluster') { M.focus = best.h.cl.at.slice(); M.D = 450; return true }
+		if (best.h.kind == 'cluster') { M.focus = best.h.cl.at.slice(); M.D = 60; return true }
 		M.sel = best.h.s; M.info = null; return true;
 	}
 	function focusSel() { if (M.sel) { M.focus = at(M.sel).slice(); if (M.D > 80) M.D = 40 } }
@@ -259,7 +261,7 @@ function create() {
 	}
 	function move(p) {
 		if (pts.has(p.id)) pts.set(p.id, p);
-		if (pinch && pts.size == 2) { const [a, c] = [...pts.values()], d = Math.hypot(a.x - c.x, a.y - c.y); M.D = Math.max(0.3, Math.min(9000, pinch.D * pinch.d / Math.max(10, d))); return }
+		if (pinch && pts.size == 2) { const [a, c] = [...pts.values()], d = Math.hypot(a.x - c.x, a.y - c.y); M.D = Math.max(0.3, Math.min(DMAX, pinch.D * pinch.d / Math.max(10, d))); return }
 		if (!drag) return;
 		const dx = p.x - drag.x, dy = p.y - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = p.x; drag.y = p.y;
 		turn(-dx * 0.008, dy * 0.008);

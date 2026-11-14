@@ -6,7 +6,7 @@ const Tr = require(path.join(DIR, 'trade.js')), E = require(path.join(DIR, 'econ
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d ? ' - ' + d : '')) } };
 try {
-	const ships = S.ships(), wren = ships.find(s => s.id == 'wren'), known = {powers: 46, ports: Object.keys(Sc.STATION), ships: ships.map(s => s.id)};
+	const ships = S.ships(), wren = ships.find(s => s.id == 'wren'), known = {powers: 12, ports: Object.keys(Sc.STATION), ships: ships.map(s => s.id)};
 	const s = Fl.create(wren, {p: [1.2e11, -3.4e10, 2.5e6], v: [12.5, -3, 180], q: Sc.lookRotation([0.3, 0.4, 0.86], [0, 0, 1]), w: [0.1, 0, -0.2], fa: false});
 	const fit = M.fit(wren); M.damage(fit, 'canopy', 1e6); M.damage(fit, 'engines', 4.5);
 	const here = {id: 'abc123', x: 12.5, y: -3.25, z: 1050.125}, g = {power: 3, port: 'trefoil', ship: 'wren', day: 200, t: 1234.5678, docked: false, pad: null, s, throttle: 0.42, fit, settings: {quality: 'low', sound: false}, star: here, fuel: 0.625, lastPort: here, routeTo: null};
@@ -50,5 +50,9 @@ try {
 		const out = Sv.pack(Object.assign({}, g3, {player: big})), n = JSON.stringify(out).length, X = out.player.explore;
 		return n <= 256 * 1024 && n > 150 * 1024 && Object.keys(X.pl).filter(k => X.pl[k].f).length == firsts && X.names['0,0,0/1#0|World b'] == 'Hope' && Object.keys(big.explore.sys).length == was && Sv.unpack(JSON.parse(JSON.stringify(out)), known);
 	})());
+	/* 0.2.0: a save from the old galaxy (8 billion stars, 46 powers) keeps only its settings */
+	const old = JSON.parse(JSON.stringify(Sv.pack(Object.assign({}, g, {settings: Object.assign({}, g.settings || {}, {lang: 'de'})})))); delete old.galaxy;
+	const ob = Sv.unpack(old, known);
+	ok('18. a save from before 0.2.0\'s galaxy starts a new game, keeping its settings', ob && ob.oldGalaxy && !ob.ship && ob.settings && ob.settings.lang == 'de' && Sv.unpack(JSON.parse(json), known).ship && JSON.parse(json).galaxy == Sv.GALAXY, ob && Object.keys(ob).join());
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

@@ -19,7 +19,7 @@ const req = (n, g) => isNode ? require('./' + n) : root[g];
 const G = req('galaxy.js', 'EmberGalaxy'), F = req('factions.js', 'EmberFactions'), E = req('economy.js', 'EmberEconomy'),
 	T = req('travel.js', 'EmberTravel'), S = req('ships.js', 'EmberShips'), O = req('outfit.js', 'EmberOutfit'), R = req('reputation.js', 'EmberReputation');
 const INSURE = {weekly: 0.10, week: 7, reachLy: 1000, ly: 3.26156, local: 6};
-const reachPc = INSURE.reachLy / INSURE.ly;
+const reachPc = () => INSURE.reachLy / INSURE.ly;   /* (read when asked, so a test can narrow it) */
 
 /* the ship's whole value (SU): its hull, and what's fitted beyond the stock modules */
 const shipValue = (hull, fit) => S.value(hull) + (fit ? O.extra(hull, fit) : 0);
@@ -65,7 +65,7 @@ function candidates(at, ctx, day) {
 	const out = [], seen = new Set();
 	const add = (star) => {
 		if (!star || seen.has(star.id) || star.rift || star.heart) return; seen.add(star.id);
-		const d = Math.hypot(star.x - at[0], star.y - at[1], star.z - at[2]); if (d > reachPc) return;
+		const d = Math.hypot(star.x - at[0], star.y - at[1], star.z - at[2]); if (d > reachPc()) return;
 		const port = T.portFor(star, day); if (!port) return;
 		const own = T.ownerOf(star, day), holder = own.contested ? null : own.owner, m = holder && F.byId(holder);
 		out.push({star, port, d, holder: m && m.kind == 'major' ? holder : null, code: m && m.kind == 'major' ? m.currency.code : null});
