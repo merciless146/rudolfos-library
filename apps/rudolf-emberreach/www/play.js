@@ -61,7 +61,7 @@ const E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions,
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.0'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.2.1'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -184,7 +184,7 @@ function enterSystem(star) {
 	game.port = capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day) || T.portFor(star, game.day);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
 	st = scene.station;
-	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = [];
+	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null;
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
 	site(); beaconAt();
@@ -359,6 +359,7 @@ function requestDock() {
 	if (d > 10000) { say('Docking clearance is given within 10 km of the port (' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
 	if (game.clearance) { say('Clearance already granted: pad ' + game.clearance.pad); return }
 	const o = owner();
+	if (game.port && game.port.maw && En.marshalsWant(game.P, game.day)) { say(st.name + ': Interstellar Marshals. Docking denied: you are wanted. Surrender is the only clearance we give you.', '#e5484d'); Snd.cue('refused'); return }
 	if (o && game.P.bounties[o.currency.code] > 0 && game.npcs.some(n => n.role == 'patrol' && !n.cs.dead && n.faction == o.id)) { talk(o.id, st.name + ': docking denied. You are wanted here: ' + Math.round(game.P.bounties[o.currency.code]).toLocaleString('en-US') + ' ' + o.currency.code + '.', '#e5484d'); Snd.cue('refused'); return }
 	if (o && o.id != game.home.id && F.relation(game.home.id, o.id) < 0) { talk(o.id, st.name + ': docking denied. ' + o.name.replace(/^The /, '') + ' is at war with you.', '#e5484d'); Snd.cue('refused'); return }
 	/* the traffic controller's rule: five minutes to dock, or the clearance is revoked (ask again) */
@@ -394,6 +395,7 @@ function requestJump() {
 	const st0 = M.status(fit);
 	if (!st0.jump) { say('Hyperspace drive inoperable', '#e5484d'); Snd.cue('refused'); return }
 	if (Sc.massLocked(scene, s.p)) { say('Mass locked by ' + st.name + ': jumps need 20 km clear', '#f2a33a'); Snd.cue('refused'); return }
+	if (held()) { say('Held by ' + held().by.name + '\'s tractor beam: no hyperspace until you break 3 km', '#e5484d'); Snd.cue('refused'); return }
 	const can = T.canMake(leg, ship.jump, game.fuel * ship.tank);
 	if (!can.ok) { say(can.why == 'range' ? leg.star.name + ' is ' + leg.d.toFixed(1) + ' pc away; the ' + ship.name + ' jumps ' + ship.jump + ' pc. Plot a route (Enter on the map).' : 'Not enough fuel: the jump needs ' + Math.round(can.cost * 100) + '% of a tank. Dock to refuel.', '#f2a33a'); Snd.cue('refused'); return }
 	shutHatch('the jump');
@@ -481,7 +483,8 @@ function update(dt) {
 	if (J) {
 		if (J.tunnel != null) { J.tunnel -= dt; if (J.tunnel <= 0) { if (J.phase) phaseOut(); else arrive() } return }
 		J.charge -= dt;
-		if (Sc.massLocked(scene, s.p)) { game.jump = null; say('Jump interrupted: mass locked', '#f2a33a'); Snd.cue('refused') }
+		if (held() && !J.phase) { game.jump = null; say('Jump interrupted: a Marshal tractor beam holds you out of hyperspace', '#e5484d'); Snd.cue('refused') }
+		else if (Sc.massLocked(scene, s.p)) { game.jump = null; say('Jump interrupted: mass locked', '#f2a33a'); Snd.cue('refused') }
 		else if (!M.status(fit).jump) { game.jump = null; say('Jump failed: hyperspace drive inoperable', '#e5484d') }
 		else if (J.charge <= 0) { J.tunnel = JUMP.tunnel; game.cruise = {on: false, v: 0, charge: 0}; Snd.cue('jump'); return }
 	}
@@ -500,6 +503,8 @@ function update(dt) {
 	} else {
 		s.grav = Sc.gravityAt(scene, s.p); game.well = Sc.gravityWell(scene, s.p);
 		r = Fl.step(s, input, dt, frameNear());
+		/* a tractor beam: dragged to a quarter of top speed */
+		if (held()) { const v = len(s.v), cap = s.spec.vmax * En.MARSHALS.slow; if (v > cap) s.v = mul(s.v, cap / v) }
 		const g = M.gForce(fit, r);
 		game.gFelt = M.works(fit, 'canopy') ? null : g.felt;
 		game.vision = Pi.step(pilot, g.felt, dt);
@@ -546,19 +551,21 @@ function update(dt) {
 /* ---------------- combat ---------------- */
 /* the player's guns, shields and hull: a fresh fighting state on the fit, with the hull and magazines carried over */
 function arm() { game.pcs = C.restore(C.state(ship, fit), game.P.combat); game.pcs.id = 'me' }
-const shortName = id => { if (id == 'riftborn') return 'Riftborn'; const f = F.byId(id); return f ? f.name.replace(/^The /, '') : 'Independent' };
+const shortName = id => { if (id == 'riftborn') return 'Riftborn'; if (id == 'marshals') return 'Marshal'; const f = F.byId(id); return f ? f.name.replace(/^The /, '') : 'Independent' };
 function npcMesh(n) { const k = 'npc:' + n.ship.length; if (!game.npcMeshes.has(k)) { game.npcMeshes.add(k); R.upload(k, Me.ship(n.ship.length, quality)) } }
 /* the system's cast, placed: around the port, or ahead of where you are */
 function populate() {
 	game.npcs = []; game.shots = []; game.booms = [];
 	if (!s) return;
 	place(En.cast(game.star, Math.floor(game.day), game.P, {port: game.port, visit: game.visits++}));
+	/* the Interstellar Marshals: in the main galaxy they find a wanted pilot more often than not, some seconds on */
+	if (!game.star.rift && En.marshalsWant(game.P, game.day) && Math.random() < En.MARSHALS.odds) game.marshalsAt = game.t + En.MARSHALS.delay[0] + Math.random() * (En.MARSHALS.delay[1] - En.MARSHALS.delay[0]);
 	/* a colony here: construction draws raiders; a rented carrier waits at the site */
 	const c = Co.colonyAt(game.P, game.star.id);
 	if (c) {
 		const building = c.stage == 'building' || (c.builds || []).some(b => !b.done), guarded = (c.builds || []).some(b => b.done && b.fac == 'military') || Co.PORTS[c.port].base;
 		if (building && !guarded && Math.random() < (!/^R:/.test(c.id) && F.claimAt(c.star.at).owner ? 0.25 : 0.5)) {
-			const gang = F.minors().filter(m => m.type == 'criminal')[Math.floor(Math.random() * 16)], hulls = S.ships().filter(x => x.who.includes('pirate') && ['XS', 'S', 'M'].includes(x.size));
+			const gangs = F.minors().filter(m => m.type == 'criminal'), gang = gangs[Math.floor(Math.random() * gangs.length)], hulls = S.ships().filter(x => x.who.includes('pirate') && ['XS', 'S', 'M'].includes(x.size));
 			place([0, 1].map(i => ({role: 'pirate', faction: gang.id, ship: hulls[Math.floor(Math.random() * hulls.length)], where: 'arrival', range: 5000 + i * 600, ai: 'attack', wing: 'raid'})));
 			say('Raiders are circling your construction at ' + c.star.name, '#e5484d');
 		}
@@ -576,7 +583,7 @@ function place(list) {
 		const p = add(centre, mul(dir, n.range)), face = norm(sub(n.ai == 'attack' ? s.p : add(p, mul(dir, 1)), p));
 		n.s = Fl.create(n.ship, {p, q: Sc.lookRotation(Math.abs(face[1]) > 0.99 ? norm(add(face, [0.1, 0, 0])) : face, [0, 1, 0]), v: [0, 0, 0]});
 		n.s.radius = Math.max(2, n.ship.length / 2);
-		n.cs = C.state(O.derive(n.ship)); n.cs.id = n.id;
+		n.cs = C.state(n.ship.marshal ? n.ship : O.derive(n.ship)); n.cs.id = n.id;   /* (Marshal ships are fitted as they come: their own guns, hull and shields) */
 		/* who's wanted, and what's aboard (warrant and manifest scanners read these) */
 		n.cargo = n.cargo || Ca.wreck(n.role, n.ship);
 		if (n.wanted == null) n.wanted = n.role == 'pirate' ? wantedFor(n, 1) : ['trader', 'navy'].includes(n.role) && Math.random() < 0.08 ? wantedFor(n, 0.3) : null;
@@ -593,8 +600,20 @@ const isHostile = n => !n.cs.dead && En.hostile(game.P, n);
 /* hostile ships within 5 km hold you out of cruise */
 const shipLock = () => game.npcs.find(n => !n.cs.dead && isHostile(n) && n.role != 'depot' && len(sub(n.s.p, s.p)) < 5000);
 const ME = {player: true, id: 'me'};
+/* the Marshals' anchorage (the Rift's side of the Maw): nobody fires within its zone but the Marshals */
+const inZone = p => !!(game.port && game.port.maw && st && len(sub(p, st.c)) < En.MARSHALS.zone);
+/* held by a Marshal's tractor beam (speed cut, hyperspace blocked) */
+const held = () => game.held && game.t < game.held.until ? game.held : null;
+function marshalsArrive() {
+	game.marshalsAt = null;
+	const w = En.marshalWing(); place(w);
+	const want = En.marshalsWant(game.P, game.day);
+	say('The Interstellar Marshals: ' + w.length + ' ships dropping in, ' + H.fmtDist(Math.min(...w.map(n => n.range))) + ' off. ' + (want && want.bounty >= En.MARSHALS.bounty ? 'Your bounties come to ' + want.bounty.toLocaleString('en-US') + ' SU.' : 'You have destroyed ' + (want ? want.kills : 0) + ' police ships in ' + En.MARSHALS.window + ' days.') + ' Their disruptors cut out shield generators and their tractor beams hold ships out of hyperspace: jump now if you can.', '#e5484d');
+	Snd.cue('critical');
+}
 function combat(dt) {
 	const P = game.P, pc = game.pcs;
+	if (game.marshalsAt != null && game.t >= game.marshalsAt) marshalsArrive();
 	/* AI pilots: pick a foe now and then, fly, fire */
 	for (const n of game.npcs) {
 		if (n.cs.dead) continue;
@@ -620,6 +639,10 @@ function combat(dt) {
 		n.pos = n.s.p;
 		if (tgt) {
 			const d = len(sub(tgt.p, n.s.p));
+			/* a Marshal's tractor beam on a wanted pilot */
+			if (n.role == 'marshal' && f == ME && d < En.MARSHALS.tractor) { if (!held()) { say(n.name + ': tractor beam on you. Speed cut, hyperspace blocked: get clear of 3 km, or fight', '#e5484d'); Snd.cue('lock') } game.held = {by: n, until: game.t + 0.5} }
+			/* the no-fire zone: only the Marshals fire inside it */
+			if (n.role != 'marshal' && (inZone(n.s.p) || inZone(tgt.p))) continue;
 			if (c.fire && d < (n.cs.load.turrets ? 4000 : 3500)) { const k = C.fire(n.cs, n.s, game.t, tgt, game.shots); if (k && d < 3000) Snd.cue(n.cs.load.guns[0].kind == 'driver' ? 'driver' : 'pulse') }
 			if (C.updateLock(n.cs, n.s, tgt, dt) && c.missile && Math.random() < dt * 0.12) { if (C.launch(n.cs, n.s, tgt, game.shots) && tgt.id == 'me') { say('Missile launched at you by ' + n.name + ': B for flares', '#e5484d'); Snd.cue('incoming') } }
 		}
@@ -632,7 +655,8 @@ function combat(dt) {
 	const hasMsl = pc.load.missiles > 0 || pc.load.guns.some(g => g.kind == 'torpedo' && g.ammo > 0);
 	const wasLocked = game.locked; game.locked = hasMsl && C.updateLock(pc, s, foe, dt); if (!hasMsl) pc.lock = {id: null, t: 0};
 	if (game.locked && !wasLocked) Snd.cue('lock');
-	const can = pilot.conscious && !game.jump;
+	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned;
+	if (zoned && (RG.down('fire') || game.mouseFire || game.touch.fire != null || RG.pressed('missile')) && (!game.zoneSaid || game.t - game.zoneSaid > 4)) { game.zoneSaid = game.t; say('No-fire zone: the Interstellar Marshals\' anchorage. Your weapons are locked within ' + H.fmtDist(En.MARSHALS.zone) + ' of it.', '#f2a33a'); Snd.cue('refused') }
 	if (can && (RG.down('fire') || game.mouseFire || game.touch.fire != null)) {
 		if (!pc.load.guns.length) { if (!game.saidUnarmed) { game.saidUnarmed = true; say('The ' + ship.name + ' carries no weapons', '#f2a33a') } }
 		else { const k = C.fire(pc, s, game.t, foe, game.shots); if (k) Snd.cue(pc.load.guns.some(g => g.kind == 'heavy' || g.kind == 'lance') ? 'heavy' : pc.load.guns.some(g => g.kind == 'pulse' || g.kind == 'needle') ? 'pulse' : 'driver') }
@@ -699,7 +723,12 @@ function destroyed(n, byMe) {
 	for (const g of n.cargo || []) game.cans.push(Ca.make(g, n.s.p, n.s.v, game.t));
 	Snd.cue('boom', Math.max(0.15, Math.min(1, 3000 / (len(sub(n.s.p, s.p)) + 1))));
 	if (byMe) {
+		const was = !!En.marshalsWant(game.P, game.day);
 		const res = En.killed(game.P, n, {star: game.star, day: game.day, own: game.own});
+		if (!was && En.marshalsWant(game.P, game.day) && !game.star.rift && game.marshalsAt == null && !game.npcs.some(x => x.role == 'marshal' && !x.cs.dead)) {
+			game.marshalsAt = game.t + 30 + Math.random() * 30;
+			say('The Interstellar Marshals have your name now. They are on their way.', '#e5484d');
+		}
 		say(n.name + ' destroyed', '#7fd1a8');
 		for (const m of res.msg) say(m, /Crime/.test(m) ? '#e5484d' : '#7fd1a8');
 		settle();
@@ -785,10 +814,10 @@ function talk(fid, text, col) {
 	say(O.garble(text, fid) + ' [' + O.langName(O.langOf(fid)) + ', untranslated]', '#9fb0cc');
 }
 /* a ship hails you as it attacks */
-const HAILS = {pirate: ['Cut your engines and dump your cargo.', 'Nice ship. It\'s ours now.', 'Nobody\'s coming for you out here.'], patrol: ['You are wanted. Power down and submit.', 'Wanted vessel: you are ordered to stand down.'], navy: ['Enemy contact. Engaging.', 'You picked the wrong side, pilot.'], sentinel: []};
+const HAILS = {marshal: ['Interstellar Marshals. Your record precedes you: cut your drive and stand by.', 'Marshals. There is nowhere in this galaxy you can run from us.', 'Wanted pilot: by the Marshals\' warrant, stand down.'], pirate: ['Cut your engines and dump your cargo.', 'Nice ship. It\'s ours now.', 'Nobody\'s coming for you out here.'], patrol: ['You are wanted. Power down and submit.', 'Wanted vessel: you are ordered to stand down.'], navy: ['Enemy contact. Engaging.', 'You picked the wrong side, pilot.'], sentinel: []};
 function hail(n) {
 	const L = HAILS[n.role]; if (!L || !L.length) return;
-	talk(n.faction, n.name + ': ' + L[Math.floor(Math.random() * L.length)], '#e5484d');
+	talk(n.role == 'marshal' ? null : n.faction, n.name + ': ' + L[Math.floor(Math.random() * L.length)], '#e5484d');
 }
 /* bounties on NPCs: pirates always, a few others; in the space's coin */
 function wantedFor(n, k) {

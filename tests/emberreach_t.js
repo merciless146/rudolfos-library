@@ -88,6 +88,15 @@ async function frame(pg, test) {
 		ok('9b. "Follow Rudolf OS" takes the language Rudolf OS shares, and the browser\'s once it stops sharing; the save keeps the choice',
 			/Follow Rudolf OS · English/.test(opt0) && fr1.lang == 'fr' && fr1.rg == 'fr' && fr1.loc == 'fr-FR' && fr1.t == 'Paramètres' && en1.lang == 'en' && en1.rg === null && osKept == 'os', {opt0, fr1, en1, osKept});
 		await pg.evaluate(() => send({op: 'resume'})); await f.click('#ovBtns button.primary').catch(() => {}); await sleep(1200);
+		/* the Interstellar Marshals: wanted, they come; their tractor beam holds you out of hyperspace and slows you */
+		await f.evaluate(() => { const g = EmberDebug.game; g.npcs = []; g.P.bounties[g.home.currency.code] = 1e9; g.marshalsAt = g.t }); await sleep(1500);
+		const mz = await f.evaluate(() => { const g = EmberDebug.game, m = g.npcs.filter(n => n.role == 'marshal'); return {n: m.length, said: g.msgs.some(x => /Interstellar Marshals/.test(x.text)), hostile: m.every(n => EmberEncounters.hostile(g.P, n))} });
+		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, m = g.npcs.find(n => n.role == 'marshal'); m.s.p = s.p.map((v, i) => v + (i == 0 ? 1500 : 0)); m.s.v = [0, 0, 0] }); await sleep(800);
+		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(300);
+		await f.evaluate(() => { const s = EmberDebug.s; s.v = [0, 0, s.spec.vmax] }); await sleep(300);
+		const held = await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s; return {held: !!(g.held && g.t < g.held.until), jump: !!g.jump, v: Math.hypot(...s.v), vmax: s.spec.vmax, said: g.msgs.slice(-6).some(x => /tractor beam/i.test(x.text))} });
+		ok('9c. wanted, the Interstellar Marshals arrive; within 3 km their tractor beam holds you: no hyperspace, a quarter of your speed', mz.n >= 2 && mz.said && mz.hostile && held.held && !held.jump && held.v <= held.vmax * 0.26 && held.said, {mz, held});
+		await f.evaluate(() => { const g = EmberDebug.game; g.npcs = []; g.P.bounties = {}; g.held = null; g.marshalsAt = null; g.shots = [] });
 		/* the Maw and the Rift */
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
@@ -95,6 +104,12 @@ async function frame(pg, test) {
 		const rift = await f.evaluate(() => ({id: EmberDebug.game.star.id, realm: EmberGalaxy.realm(), riftborn: EmberDebug.game.npcs.filter(n => n.role == 'riftborn').length}));
 		ok('10. with a phaser, the Maw takes the ship into the Rift', rift.id == 'R:heart' && rift.realm == 'rift', rift);
 		await pg.screenshot({path: path.join(W, 'rift.png')});
+		/* the Marshals' anchorage at the Maw: guards, and a no-fire zone */
+		const zone = await f.evaluate(() => { const g = EmberDebug.game, st = EmberDebug.scene.station; return {maw: !!(g.port && g.port.maw), guards: g.npcs.filter(n => n.role == 'marshal').length, st: !!st} });
+		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberDebug.scene.station; g.npcs = g.npcs.filter(n => n.role == 'marshal'); s.p = st.c.map((v, i) => v + st.axis[i] * 4000); s.v = [0, 0, 0]; g.shots = [] });
+		await f.focus('#hud'); await pg.keyboard.down('Semicolon'); await sleep(900); await pg.keyboard.up('Semicolon');
+		const nf = await f.evaluate(() => { const g = EmberDebug.game; return {mine: g.shots.filter(x => x.owner == 'me').length, said: g.msgs.some(x => /No-fire zone/.test(x.text))} });
+		ok('10b. the Maw\'s anchorage is the Marshals\': their guards hold it, and nobody\'s guns fire within its no-fire zone', zone.maw && zone.st && zone.guards == 2 && nf.mine == 0 && nf.said, {zone, nf});
 		await f.evaluate(() => { EmberDebug.game.npcs = []; EmberDebug.settle && 0 }); await pg.evaluate(() => send({op: 'pause'})); await sleep(1200);
 		/* reopen: the save takes it back where it was */
 		await pg.goto(`http://127.0.0.1:${PORT}/desk.html#debug`); await pg.reload(); f = await frame(pg, () => window.EmberDebug && EmberDebug.game.star && EmberDebug.scene);

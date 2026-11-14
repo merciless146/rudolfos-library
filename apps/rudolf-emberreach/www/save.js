@@ -87,7 +87,7 @@ function packPlayer(P) {
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
 		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
 		mined: P.mined || {}, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
-		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance};
+		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance, policeKills: (P.policeKills || []).slice(-60)};
 }
 const numMap = o => o && typeof o == 'object' && !Array.isArray(o) && Object.values(o).every(num);
 function unpackPlayer(x) {
@@ -104,6 +104,8 @@ function unpackPlayer(x) {
 		/* alien blueprints found in ruins */
 		blueprints: Array.isArray(x.blueprints) ? x.blueprints.filter(b => obj(b) && num(b.size) && (b.id == 'alien' || b.id == 'phaser' || (b.id == 'precursor' && O && O.PRECURSOR_MODS.includes(b.mod)) || (b.id == 'hull' && typeof b.hull == 'string' && S0 && S0.hull(b.hull) && S0.hull(b.hull).precursor))).slice(0, 30) : [],
 		/* the Rift: whether you've been (and the Maw's side you're on comes back with the star) */
+		/* the days police ships were destroyed (the Interstellar Marshals count them) */
+		policeKills: Array.isArray(x.policeKills) ? x.policeKills.filter(num).slice(-60) : [],
 		rift: obj(x.rift) ? {first: num(x.rift.first) ? x.rift.first : null, crossings: num(x.rift.crossings) ? x.rift.crossings : 0} : null,
 		/* modules in storage (bought, taken out, or found) */
 		stored: Array.isArray(x.stored) ? x.stored.filter(m => obj(m) && O && O.CAT[m.id] && O.GRADE[m.grade]).slice(0, 60) : [],

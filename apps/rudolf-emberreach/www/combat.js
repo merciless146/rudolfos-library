@@ -33,6 +33,9 @@ const WEAPONS = {
 	/* Precursor work (outfit.js): hits like the next size up, and runs cool */
 	needle: {name: 'Precursor needle', size: 0, dmg: 3, rate: 6, speed: 5000, range: 3000, heat: 0.012, vsShield: 1.2, vsHull: 1.1, ammo: null, col: [0.75, 0.55, 1]},
 	lance: {name: 'Precursor lance', size: 2, dmg: 26, rate: 1.5, speed: 6000, range: 5000, heat: 0.05, vsShield: 1.2, vsHull: 1.2, ammo: null, col: [0.85, 0.6, 1]},
+	/* the Interstellar Marshals' (encounters.js): each hit also cuts into the shield generator itself, shields up or
+	   not, a twenty-fifth of it, so a wing's disruptors put shields out in seconds */
+	disruptor: {name: 'Marshal disruptor', size: 1, dmg: 5, rate: 2, speed: 3500, range: 3500, heat: 0.01, vsShield: 1, vsHull: 1, ammo: null, col: [0.4, 0.9, 1], module: 'shields', moduleShare: 0.04},
 	missile: {name: 'Missile', size: -1, dmg: 30, rate: 1, speed: 600, range: 7000, heat: 0, vsShield: 1, vsHull: 1.5, ammo: 4, homing: 2.2, col: [1, 1, 1]}};
 const BY_SIZE = ['pulse', 'driver', 'heavy', 'torpedo'];
 const COMBAT = {gimbal: 5, lockCone: 15, lockTime: 2, flares: 6, flareChance: 0.7, regenDelay: 2.5, regenTime: 15, coolRate: 0.12, overheat: 1, cooled: 0.6, cookRate: 4, moduleShare: 0.6};
@@ -57,6 +60,8 @@ function damage(cs, dmg, kind, t, rnd) {
 	const W = WEAPONS[kind] || WEAPONS.pulse, out = {shield: 0, hull: 0, alerts: []};
 	cs.lastHit = t;
 	let left = dmg;
+	/* a disruptor's hit on the module itself (it reaches through raised shields) */
+	if (W.module) { const m = M.get(cs.fit, W.module); if (m && m.hp > 0) { const a = M.damage(cs.fit, W.module, m.max * W.moduleShare); if (a) out.alerts.push(a); out.module = W.module } }
 	const shieldsUp = M.works(cs.fit, 'shields') && M.works(cs.fit, 'power');
 	if (shieldsUp && cs.shield > 0) {
 		const s = left * W.vsShield;

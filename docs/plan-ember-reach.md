@@ -1188,6 +1188,22 @@ everything through M5b, and the Maw and the Rift from M6. The release brought th
   as you go. Any other haven there is a player's own: independent colonies can be filed at a Rift anchorage.
 - **Saves** from the old galaxy keep only their settings: a new game starts, and the origin screen says why.
 
+**0.2.1** adds **the Interstellar Marshals** (`encounters.js`, tested in `tests/emberreach_marshals_t.js`, 19 checks,
+and the browser test's 9c and 10b):
+- **Who they are:** a galactic police force, neutral (no power's, no faction's). They keep the anchorage at the
+  Rift's side of the Maw, the way home: two guards always hold it, and nobody's guns fire within 10 km of it but
+  theirs. A wanted pilot is refused docking there.
+- **Whom they hunt:** in the main galaxy only, a pilot whose bounties come to over **50,000 SU** across every
+  power's currency, or who has destroyed **10 police ships** (a port's patrols, or the Marshals' own) within
+  **10 game days**. Arriving in a system while wanted, they find you six times in ten, 15-40 s after you arrive;
+  crossing the line mid-system brings them 30-60 s later. A wing of two or three appears 6-9 km off.
+- **Their ships:** navy hulls rebuilt to 90% of the Precursor hull of their size (hull and shields), so just below
+  Precursor strength and above any navy's. **Disruptors** cut a twenty-fifth of the shield generator with every
+  hit, shields up or not: a wing puts shields out in seconds. A **tractor beam** within 3 km drags a ship to a
+  quarter of its top speed and holds it out of hyperspace (a jump charging is cut off).
+- **Surviving them:** they can be beaten, but hardly without Precursor work. The best chance is to jump soon after
+  they appear, before they close to 3 km. Destroying one counts as a police ship.
+
 Still to come: landing on planets, the Core's story, phones (1.6.0), and multiplayer. Landing on airless worlds and surface ports are planned in
 `docs/plan-ember-reach-landing.md` (with a draft model in `wip/emberreach-surface/`).
 
