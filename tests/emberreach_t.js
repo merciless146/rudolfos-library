@@ -103,6 +103,23 @@ async function frame(pg, test) {
 		const sfc = await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberScene.surfaceState(EmberDebug.scene, s, g.t, EmberDebug.ship); return st && {alt: st.alt, vh: st.vh, vz: st.vz, world: st.world, land: EmberLanding.card(EmberDebug.ship, st.body.src).line} });
 		await pg.screenshot({path: path.join(W, 'surface.png')});
 		ok('9d. 2 km over a world, the surface readout holds: the hover keeps its height and its spot as the world turns', wld && sfc && Math.abs(sfc.alt - 2000) < 60 && sfc.vh < 3 && Math.abs(sfc.vz) < 3, {wld, sfc});
+		/* landing L1.2: set down on the gear, sit there as the world turns, lift off; then come down far too fast */
+		const setDown = (h, vz) => f.evaluate(([h, vz]) => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.find(x => x.kind == 'planet' && x.karman > 3000 && EmberLanding.landable(x.src).ok); if (!b) return null;
+			const sh = EmberDebug.ship, low = EmberLanding.lowest(sh, true, 0), s = EmberDebug.s, up = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...up), u = up.map(v => v / n);
+			s.p = b.pos.map((v, i) => v + u[i] * (b.radius + low.d + h)); const side = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], fw = [u[1] * side[2] - u[2] * side[1], u[2] * side[0] - u[0] * side[2], u[0] * side[1] - u[1] * side[0]];
+			s.q = EmberScene.lookRotation(fw, u); const gv = EmberFlight.frameAt(EmberScene.worldFrame(b), s.p).v; s.v = gv.map((v, i) => v + u[i] * vz); s.w = [0, 0, 0]; s.fa = false;
+			g.gear = true; g.throttle = 0; g.landed = null; g.lastAlt = null; g.cruise = {on: false, v: 0, charge: 0}; g.npcs = []; return b.name }, [h, vz]);
+		const lw = await setDown(0.6, -1.5); await sleep(1500);
+		const ld = await f.evaluate(() => { const g = EmberDebug.game; return {landed: g.landed && g.landed.world, said: g.msgs.slice(-4).some(m => /^Landed on/.test(m.text)), p: EmberDebug.s.p.slice()} });
+		await sleep(2000);
+		const ld2 = await f.evaluate(p0 => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberScene.surfaceState(EmberDebug.scene, s, g.t, EmberDebug.ship); return {still: !!g.landed, moved: Math.hypot(...s.p.map((v, i) => v - p0[i])), vz: st.vz, vh: st.vh} }, ld.p);
+		await f.focus('#hud'); await pg.keyboard.down('Space'); await sleep(1200); await pg.keyboard.up('Space');
+		const up1 = await f.evaluate(() => { const g = EmberDebug.game, st = EmberScene.surfaceState(EmberDebug.scene, EmberDebug.s, g.t, EmberDebug.ship); return {landed: !!g.landed, alt: st && st.alt, said: g.msgs.some(m => /Lifting off/.test(m.text))} });
+		ok('9e. on the gear, a ship sets down, sits fixed to the ground as the world turns, and lifts off on vertical thrust', lw && ld.landed == lw && ld.said && ld2.still && ld2.moved > 0 && Math.abs(ld2.vz) < 0.01 && ld2.vh < 0.01 && !up1.landed && up1.said && up1.alt > 1, {lw, ld, ld2, up1});
+		await setDown(2, -60); await sleep(1500);
+		const cr = await f.evaluate(() => { const g = EmberDebug.game; return {lost: g.msgs.some(m => /Ship destroyed: a crash on/.test(m.text)), landed: !!g.landed} });
+		ok('9f. coming down at 60 m/s is a crash: the ship is lost and the insurer takes over', cr.lost && !cr.landed, cr);
+		await f.evaluate(() => { const g = EmberDebug.game; g.npcs = []; g.gear = false });
 		/* the Maw and the Rift */
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });

@@ -259,11 +259,28 @@ function surfaceState(scene, s, t, ship) {
 	const alt = r - b.radius - heightAt(b, up), F = worldFrame(b), vr = sub(s.v, cross(F.w, d)), vz = dot(vr, up), vh = len(sub(vr, mul(up, vz)));
 	const fwd = Fl.toWorld(s.q, [0, 0, 1]), right = Fl.toWorld(s.q, [1, 0, 0]), deg = 180 / Math.PI;
 	const pitch = Math.asin(Math.max(-1, Math.min(1, dot(fwd, up)))) * deg, bank = Math.asin(Math.max(-1, Math.min(1, -dot(right, up)))) * deg;
+	const tilt = Math.acos(Math.max(-1, Math.min(1, dot(Fl.toWorld(s.q, [0, 1, 0]), up)))) * deg;   /* how far the ship's top leans off the local up */
 	const bf = bodyFrame(b, turnOf(b, scene.day || 0, t || 0)), lat = Math.asin(Math.max(-1, Math.min(1, dot(up, bf.z)))) * deg, lon = Math.atan2(dot(up, bf.y), dot(up, bf.x)) * deg;
 	const L = Ld(), land = L ? (ship ? L.canLand(ship, b.src || b) : L.landable(b.src || b)) : null;
-	return {world: b.name, body: b, g: W.g, alt, vz, vh, pitch, bank, lat, lon, up, landable: land, frame: F};
+	return {world: b.name, body: b, g: W.g, alt, vz, vh, pitch, bank, tilt, lat, lon, up, landable: land, frame: F};
 }
 const Ld = () => isNode ? require('./landing.js') : root.EmberLanding;
+/* landed (L1.2): the ship fixed to the ground, turning with the world. Kept in the world's own (turning) axes: where
+   the ship stands (its direction from the centre and its height off the radius) and which way its nose and top point.
+   The ship sets down upright: its top along the local up, its nose along the horizon where it was heading */
+function landAt(scene, s, b, t, height) {
+	const bf = bodyFrame(b, turnOf(b, scene.day || 0, t || 0)), loc = v => [dot(v, bf.x), dot(v, bf.y), dot(v, bf.z)];
+	const up = norm(sub(s.p, b.pos)), f0 = Fl.toWorld(s.q, [0, 0, 1]), fh = sub(f0, mul(up, dot(f0, up)));
+	const fwd = len(fh) > 1e-6 ? norm(fh) : norm(cross(up, Math.abs(up[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]));
+	return {world: b.name, dir: loc(up), h: height, f: loc(fwd), u: loc(up)};
+}
+/* where a landed ship is now, as the world turns: {p, q, v} (null if its world isn't in this scene) */
+function pinLanded(scene, landed, t) {
+	const b = scene.bodies.find(x => x.name == landed.world); if (!b) return null;
+	const bf = bodyFrame(b, turnOf(b, scene.day || 0, t || 0)), w = v => add(add(mul(bf.x, v[0]), mul(bf.y, v[1])), mul(bf.z, v[2]));
+	const up = norm(w(landed.dir)), p = add(b.pos, mul(up, b.radius + heightAt(b, up) + landed.h));
+	return {p, q: lookRotation(norm(w(landed.f)), norm(w(landed.u))), v: cross(worldFrame(b).w, sub(p, b.pos)), body: b};
+}
 
 /* ---------- cruise ---------- */
 const CRUISE = {k: 1, cap: 200 * C, min: 2000, charge: 3, lock: 20000, drop: {station: 25000, planet: 1.0, star: 5}, emergency: 3e5};
@@ -323,7 +340,7 @@ function spawn(scene, dist) {
 	return {p, q: lookRotation(mul(st.axis, -1), st.y)};
 }
 
-const EmberScene = {worldFrame, heightAt, surfaceState, AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
+const EmberScene = {landAt, pinLanded, worldFrame, heightAt, surfaceState, AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
 	KARMAN, karmanOf, gravityAt, gravityWell, SAFE, bhSafe, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
 	v: {add, sub, mul, dot, cross, len, norm}};
 if (isNode) module.exports = EmberScene; else root.EmberScene = EmberScene;

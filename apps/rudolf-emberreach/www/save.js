@@ -32,6 +32,8 @@ function pack(g) {
 		player: g.player ? packPlayer(g.player) : null,
 		p: r(g.s.p), vel: r(g.s.v), q: r(g.s.q), w: r(g.s.w), fa: !!g.s.fa, throttle: +(+g.throttle || 0).toFixed(3),
 		modules: Object.fromEntries(g.fit.modules.map(m => [m.id, +m.hp.toFixed(2)])),
+		/* landed (L1.2): the world, and the ship's place and heading in its turning axes */
+		landed: g.landed ? {world: g.landed.world, dir: r(g.landed.dir), h: +g.landed.h.toFixed(3), f: r(g.landed.f), u: r(g.landed.u)} : undefined, gear: g.gear ? true : undefined,
 		/* the settings (settings.js), kept clean */
 		settings: St ? St.sanitise(g.settings, null, I18 && I18.LANGS.map(l => l[0])) : g.settings});
 }
@@ -79,8 +81,11 @@ function unpack(raw, known) {
 	return {power: raw.power, port: raw.port, ship: raw.ship, day: raw.day, t: raw.t, docked: !!raw.docked, pad: Number.isInteger(raw.pad) ? raw.pad : null,
 		star: raw.v >= 2 ? star(raw.star) : null, fuel: raw.v >= 2 ? raw.fuel : 1, lastPort: raw.v >= 2 ? star(raw.lastPort) : null, routeTo: raw.v >= 2 ? star(raw.routeTo) : null, version: raw.v, player,
 		p: raw.p, v: raw.vel, q: raw.q.map(c => c / qn), w: raw.w, fa: raw.fa !== false, throttle: num(raw.throttle) ? Math.max(-1, Math.min(1, raw.throttle)) : 0,
-		modules: raw.modules, settings: St ? St.sanitise(set, null, I18 && I18.LANGS.map(l => l[0])) : set};
+		modules: raw.modules, settings: St ? St.sanitise(set, null, I18 && I18.LANGS.map(l => l[0])) : set,
+		landed: landed(raw.landed), gear: raw.gear === true};
 }
+/* a landed ship's place, if it's sound (older saves have none) */
+function landed(x) { return x && typeof x == 'object' && typeof x.world == 'string' && vec(x.dir, 3) && num(x.h) && x.h >= 0 && vec(x.f, 3) && vec(x.u, 3) ? {world: x.world, dir: x.dir, h: x.h, f: x.f, u: x.u} : null }
 /* the player, compact: numbers rounded, empty entries dropped */
 function packPlayer(P) {
 	const r = (o, d) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v).map(([k, v]) => [k, +v.toFixed(d)]));
