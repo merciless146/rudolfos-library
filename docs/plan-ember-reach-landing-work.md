@@ -623,6 +623,23 @@ Tested in `tests/emberreach_contracts_t.js` (17 checks) and the browser test's 9
   makes the queue matter.
 - **Forward bases** have turrets that fight for their holder (`combat.js`, as fixed guns).
 
+**Done** (0.3.11):
+- **Traffic:** the traffic controller (`traffic.js`) now tells each NPC arrival and departure. At ports within
+  15 km of you they are flown, up to four in sight at once (the rest come and go unseen).
+  - **Hulls:** traders, couriers, passenger ships, miners, colonists and prospectors, by pad size.
+  - **Arrivals** come from 5 to 7 km out on the Autopilot Computer, into a space port's mouth or down onto their
+    pad, and are gone once down.
+  - **Departures** leave out of the mouth along the axis, or straight up off the pad and away climbing
+    (`autopilot.js` departStation, departGround). They are gone at 11 km.
+  - **Fired on,** one flies as any trader would.
+- **Forward bases** have two turrets each, at bases within 20 km of you. Each has a pulse laser and a light gatling.
+  - **Aim:** a turret turns at 90° a second and fires its fixed guns when lined up.
+  - **Targets:** the holder's enemies within 4 km: pirates, the other side of its war, and you if you're its enemy
+    or wanted in its coin.
+  - **They can be shot down.**
+
+Tested in `tests/emberreach_autopilot_t.js` (16a to 16c) and the browser test's 9z and 9z2. L2.6 is done.
+
 ### L2.7 Release 0.4.0
 
 - Bump the version, update the store description, run the full suite and the playthrough.

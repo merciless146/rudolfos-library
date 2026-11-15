@@ -146,7 +146,7 @@ function hostile(P, npc, ctx) {
 	if (npc.role == 'pirate') return rep < 500;
 	if (R.hostile(P, npc.faction)) return true;
 	/* a port's patrol arrests the wanted */
-	if (npc.role == 'patrol') { const c = currencyOf(npc.faction); if (c && (P.bounties[c] || 0) > 0) return true }
+	if (npc.role == 'patrol' || npc.role == 'turret') { const c = currencyOf(npc.faction); if (c && (P.bounties[c] || 0) > 0) return true }   /* (0.3.11: and a forward base's turrets) */
 	/* a war mission against them makes you their enemy in that system */
 	if (npc.mission) return true;
 	return false;

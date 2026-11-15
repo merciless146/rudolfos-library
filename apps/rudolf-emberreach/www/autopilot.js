@@ -8,8 +8,8 @@
      mouth, and in along it, nose first, turning with the port;
    - docking on the ground: with a clearance it flies to the pad, down a glide slope to a hover above it, and lets
      down onto it under the touchdown limits (landing.js TOUCH).
-   Touching the stick hands control back (play.js); N engages it again. NPC pilots fly their own approaches the
-   same way (they always carry one).
+   Touching the stick hands control back (play.js); N engages it again. NPC traffic flies in and out the same way
+   (0.3.11: they always carry one), and leaves with departStation and departGround.
    Body axes (flight.js): +z the nose, +y up, +x right; +pitch puts the nose down, +yaw to the right, +roll left.
    GPL-2.0-or-later. ===== */
 (function (root) {
@@ -111,9 +111,25 @@ function dockGround(s, pad, up, groundV, frame, touchVz, gearH) {
 	return {input: {pitch: A.pitch, yaw: A.yaw, roll: A.roll, throttle: V.throttle, strafe: V.strafe}, stage, h, hd, off: A.off};
 }
 
+/* ---- leaving (0.3.11: NPC traffic, flown by the same computer). From a space port: out of the mouth along the
+   axis, turning with the port, then away in space's frame. Returns the inputs, the frame, and how far out it is */
+function departStation(s, st, Sc) {
+	const D = st.def.dock, L = Sc.toLocal(st, s.p), inside = L[2] < D.z + 800;
+	const lat = Sc.toWorldDir(st, [-L[0] * 0.4, -L[1] * 0.4, 0]), sp = inside ? 40 : Math.min(s.spec.vmax * 0.6, 40 + (L[2] - D.z - 800) * 0.2);
+	const frame = inside ? Sc.frame(st) : null, A = attitude(s, st.axis), V = velocityInput(s, add(inside ? lat : [0, 0, 0], mul(st.axis, sp)), frame);
+	return {input: {pitch: A.pitch, yaw: A.yaw, roll: 0, throttle: V.throttle, strafe: V.strafe}, frame, out: L[2] - D.z};
+}
+/* from a pad on the ground: straight up to 250 m, then away (away: a level direction), climbing */
+function departGround(s, pad, up, groundV, frame, away) {
+	const r = sub(s.p, pad), h = dot(r, up), aw = norm(sub(away, mul(up, dot(away, up))));
+	const vRel = h < 250 ? mul(up, 15) : add(mul(aw, Math.min(150, 20 + (h - 250) * 0.5)), mul(up, 30));
+	const A = attitude(s, aw, up), V = velocityInput(s, add(groundV, vRel), frame);
+	return {input: {pitch: A.pitch, yaw: A.yaw, roll: A.roll, throttle: V.throttle, strafe: V.strafe}, h};
+}
+
 /* has the pilot taken the stick? (keys, a pad, the mouse, the touch stick: what play.js's controls read) */
 const touched = (c, thr) => Math.abs(c.pitch) > 0.25 || Math.abs(c.yaw) > 0.25 || Math.abs(c.roll) > 0.25 || Math.abs(c.strafe[0]) > 0.25 || Math.abs(c.strafe[1]) > 0.25 || Math.abs(thr || 0) > 0.25;
 
-const EmberAutopilot = {AP, attitude, velocityInput, approachSpeed, cruise, dockStation, dockGround, touched};
+const EmberAutopilot = {AP, attitude, velocityInput, approachSpeed, cruise, dockStation, dockGround, departStation, departGround, touched};
 if (typeof module != 'undefined') module.exports = EmberAutopilot; else root.EmberAutopilot = EmberAutopilot;
 })(typeof window != 'undefined' ? window : this);
