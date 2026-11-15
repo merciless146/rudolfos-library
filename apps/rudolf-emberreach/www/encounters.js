@@ -18,7 +18,9 @@ const req = (n, g) => isNode ? require('./' + n) : root[g];
 const F = req('factions.js', 'EmberFactions'), R = req('reputation.js', 'EmberReputation'), S = req('ships.js', 'EmberShips'), T = req('travel.js', 'EmberTravel'), E = req('economy.js', 'EmberEconomy');
 
 const ENC = {pirateOdds: {unclaimed: 0.5, contested: 0.45, claimed: 0.18, capital: 0.04}, missionDays: 10, maxMissions: 3, kills: 3, reconTime: 30, supplyTons: 5, bountyShare: 0.01, gangHarm: 40};
-const NEEDS = {strike: 'kills', blockade: 'kills', defend: 'kills', escort: 'kills', recon: 'stay', sabotage: 'depot', supply: 'deliver', survey: 'surveyed', ruin: 'surveyed'};
+const NEEDS = {strike: 'kills', blockade: 'kills', defend: 'kills', escort: 'kills', recon: 'stay', sabotage: 'depot', supply: 'deliver', survey: 'surveyed', ruin: 'surveyed',
+	/* (0.3.10) surface work (contracts.js): a delivery to a surface port, a ground survey */
+	delivery: 'deliver', groundsurvey: 'surveyed'};
 /* a depot: a target that doesn't fly or shoot */
 const DEPOT = {id: 'depot', name: 'Supply depot', size: 'L', role: 'depot', hull: 6000, shield: 1500, speed: 0, agility: 0, cargo: 0, jump: 0, hard: [0, 0, 0, 0], length: 120, value: 0, who: []};
 
@@ -229,6 +231,7 @@ function accept(P, m, day) {
 }
 /* what's left to do */
 function need(m) {
+	if (m.kind == 'surface') return (isNode ? require('./contracts.js') : root.EmberContracts).need(m);
 	const k = NEEDS[m.type];
 	if (k == 'kills') return Math.max(0, ENC.kills - m.kills) + ' ' + F.byId(m.against).name.replace(/^The /, '') + ' ship' + (ENC.kills - m.kills == 1 ? '' : 's') + ' to destroy at ' + m.star.name;
 	if (k == 'stay') return 'Scan at ' + m.star.name + ': ' + Math.max(0, Math.ceil(ENC.reconTime - m.stay)) + ' s in the system';

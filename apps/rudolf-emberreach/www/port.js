@@ -17,7 +17,7 @@
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel, Hg = window.EmberHangar;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel, Hg = window.EmberHangar, Ct = window.EmberContracts;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -133,12 +133,14 @@ const HOW = {kills: 'Destroy 3 enemy ships there', stay: 'Stay 30 s in the syste
 function bulletin() {
 	const o = holder(), me = P();
 	if (!o) return h1('Bulletin board') + '<section class="pt-card pt-narrow"><p>No great power posts here while the system is fought over.</p></section>';
-	const ms = En.offers(me, env.port, env.day), xs = X.offers(me, env.star, env.port, env.day), held = (me.missions || []).length, here = [env.star.x, env.star.y, env.star.z];
+	const ms = En.offers(me, env.port, env.day), xs = X.offers(me, env.star, env.port, env.day), ss = Ct.offers(me, env.star, env.port, env.day), held = (me.missions || []).length, here = [env.star.x, env.star.y, env.star.z];
 	const xad = m => '<div class="pt-ad"><span class="tag">' + (m.type == 'ruin' ? 'ruin' : 'survey') + '</span><div><b>' + esc(m.text) + '</b><span class="muted">' + esc('at ' + m.systemName + ' · ' + m.dist.toFixed(1) + ' pc · due in 20 days') + '</span></div><span class="gold num">' + money(m.reward, m.currency) + '</span>'
 		+ '<button class="pt-ghost" data-act="acceptx" data-m="' + esc(m.id) + '"' + (held >= En.ENC.maxMissions ? ' disabled' : '') + '>Accept</button></div>';
+	const sad = m => '<div class="pt-ad"><span class="tag">' + (m.type == 'delivery' ? 'delivery' : 'ground') + '</span><div><b>' + esc(m.text) + '</b><span class="muted">' + esc((m.type == 'delivery' ? 'on ' + m.world + ' · ' : 'land and let the ground scan run · ') + (m.dist ? m.dist.toFixed(1) + ' pc' : 'this system') + ' · due in ' + Ct.CONTRACT.days + ' days') + '</span></div><span class="gold num">' + money(m.reward, m.currency) + '</span>'
+		+ '<button class="pt-ghost" data-act="accepts" data-m="' + esc(m.id) + '"' + (held >= En.ENC.maxMissions ? ' disabled' : '') + '>Accept</button></div>';
 	const ad = m => { const st = En.missionStar(m), d = st ? pc(here, st.at) : 0; return '<div class="pt-ad"><span class="tag">' + esc(m.type) + '</span><div><b>' + esc(m.text) + '</b><span class="muted">' + esc('against the ' + nm(m.against) + ' · ' + d.toFixed(1) + ' pc · ' + HOW[En.NEEDS[m.type]]) + '</span></div><span class="gold num">' + money(m.reward, m.currency) + '</span>'
 		+ '<button class="pt-ghost" data-act="accept" data-m="' + esc(m.id) + '"' + (held >= En.ENC.maxMissions ? ' disabled' : '') + '>Accept</button></div>' };
-	return h1('Bulletin board', 'The ' + nm(o) + '\'s war office') + '<section class="pt-card"><div class="pt-list">' + (ms.length ? ms.map(ad).join('') : '<p class="muted">No war contracts today.</p>') + '</div><h2>Cartographers</h2><div class="pt-list">' + (xs.length ? xs.map(xad).join('') : '<p class="muted">No survey contracts today.</p>') + '</div><p class="muted small">' + (held ? 'You hold ' + held + ' of ' + En.ENC.maxMissions + ' war missions (Status, F9). ' : '') + 'Missions are due in 10 days; the work counts on the front, double with a commission. Taking one makes its enemy\'s ships fight you there.</p></section>';
+	return h1('Bulletin board', 'The ' + nm(o) + '\'s war office') + '<section class="pt-card"><div class="pt-list">' + (ms.length ? ms.map(ad).join('') : '<p class="muted">No war contracts today.</p>') + '</div><h2>Cartographers</h2><div class="pt-list">' + (xs.length ? xs.map(xad).join('') : '<p class="muted">No survey contracts today.</p>') + '</div><h2>Surface work</h2><div class="pt-list">' + (ss.length ? ss.map(sad).join('') : '<p class="muted">No surface contracts today.</p>') + '</div><p class="muted small">Deliveries pay a premium on the goods: bring them in your own hold and dock on one of the port\'s pads. Ground surveys: land on the world and let the scan run.</p><p class="muted small">' + (held ? 'You hold ' + held + ' of ' + En.ENC.maxMissions + ' war missions (Status, F9). ' : '') + 'Missions are due in 10 days; the work counts on the front, double with a commission. Taking one makes its enemy\'s ships fight you there.</p></section>';
 }
 /* Universal Cartographics: sell the data; name your first discoveries */
 function carto() {
@@ -414,6 +416,7 @@ function click(e) {
 	}
 	if (act == 'restock') { const c = restockCost(), r = Tr.pay(me, c.cost, here(), d); if (r.ok) { me.combat = C.refill(env.ship, me.combat); env.say('Restocked: ' + fmt(c.tons, 1) + ' t of munitions for ' + money(r.amount, r.code)); env.cue('clearance') } else env.say('Not enough ' + r.code + ' to restock') }
 	if (act == 'accept') { const m = En.offers(me, env.port, d).find(x => x.id == t.dataset.m), r = m ? En.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Mission accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
+	if (act == 'accepts') { const m = Ct.offers(me, env.star, env.port, d).find(x => x.id == t.dataset.m), r = m ? Ct.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Contract accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'acceptx') { const m = X.offers(me, env.star, env.port, d).find(x => x.id == t.dataset.m), r = m ? X.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Contract accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'selldata') { const o = holder(), r = X.sell(me, o, o ? here() : 'SU', d); env.say(r.ok ? 'Sold ' + r.items + ' charts and surveys for ' + money(r.amount, r.code) : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	if (act == 'rename') { const k = t.dataset.k, r = X.rename(me, k, naming[k] || ''); env.say(r.ok ? 'Named: ' + r.name + '. The name goes in the charts.' : r.why); env.cue(r.ok ? 'clearance' : 'refused'); if (r.ok) delete naming[k] }

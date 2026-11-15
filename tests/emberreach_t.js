@@ -292,7 +292,13 @@ async function frame(pg, test) {
 		const cl0 = await f.evaluate(() => EmberDebug.game.clearance);
 		const other = await set('other');
 		await f.evaluate(() => { const g = EmberDebug.game; g.landed = null; EmberDebug.s.fa = true });
+		/* 0.3.10: a delivery due at this surface port, with the load aboard (paid on docking) */
+		const dl0 = await f.evaluate(() => { const g = EmberDebug.game, P = g.P, cl = g.clearance, q = g.ports.find(x => x.id == cl.port), code = EmberFactions.byId(g.P.origin).currency.code;
+			P.missions = [{id: 'test-delivery', kind: 'surface', type: 'delivery', issuer: g.P.origin, star: {id: g.star.id, name: g.star.name, at: [g.star.x, g.star.y, g.star.z]}, port: q.id, portName: q.name, world: q.world, good: 'Food', tons: 1, text: 'Deliver 1 t of Food', reward: 500, currency: code, dist: 0, accepted: Math.floor(g.day), due: Math.floor(g.day) + 12, done: false}];
+			P.cargo = Object.assign({}, P.cargo, {Food: (P.cargo.Food || 0) + 1}); return {food: P.cargo.Food, wallet: P.wallet[code] || 0, code} });
 		const mine = await set('mine');
+		const dl1 = await f.evaluate(c => { const P = EmberDebug.game.P; return {food: P.cargo.Food || 0, wallet: P.wallet[c] || 0, left: (P.missions || []).length, said: EmberDebug.game.msgs.some(m => /^Delivered 1 t of Food/.test(m.text))} }, dl0.code);
+		ok('9u2. 0.3.10: docking at a surface port hands over a delivery due there, and it pays at once', dl1.food == dl0.food - 1 && Math.abs(dl1.wallet - dl0.wallet - 500) < 1e-6 && dl1.left == 0 && dl1.said, {dl0, dl1});
 		await pg.screenshot({path: path.join(W, 'surface-docked.png')});
 		await f.evaluate(() => { const b = [...document.querySelectorAll('#port [data-screen]')].find(x => x.dataset.screen == 'launch'); b && b.click() }); await sl4(300);
 		await f.evaluate(() => { const b = [...document.querySelectorAll('#port button')].find(x => /^Launch/.test(x.textContent) && x.dataset.act == 'launch') || document.querySelector('#port [data-act="launch"]'); b && b.click() }); await sl4(400);
