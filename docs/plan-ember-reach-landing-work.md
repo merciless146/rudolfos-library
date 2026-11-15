@@ -381,6 +381,17 @@ and 9r.
 - Ports more than 50 km away aren't drawn: the world's sphere stands in for them.
 - **Tests:** meshes within budget for every kind; a port sits on level ground in a browser screenshot check.
 
+**Done** (0.3.4):
+- **Models:** each surface port's model stands on its levelled site, upright to the local up, turning with its world
+  (`play.js` `surfacePortAt`). It's drawn within 50 km, in full detail within 8 km, and uploaded when first near and
+  dropped on leaving the system. Every kind keeps within 6,000 triangles in full detail; windows, lights and the
+  pads' coloured rings glow at night.
+- **Level ground:** a site's disc now stays level where a neighbour's ramp reaches into it (a starport and its
+  field 8 km apart): `terrain.js` applies the ramps first, then the discs.
+- **Not yet:** the beacons' blink and the landing itself (L2.5).
+
+Tested in `tests/emberreach_surface_t.js` 18-19 and the browser test's 9s.
+
 ### L2.4 The traffic controller, pads and docking
 
 - **One traffic controller** for space and surface ports (`traffic.js`), taking over `requestDock`:

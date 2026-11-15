@@ -19,24 +19,24 @@ const DEFAULTS = () => ({
 	hud: {size: 100, opacity: 100, messages: 3, msgTime: 8, scanner: true, prograde: true, lead: true},
 	/* the control scheme (Simple: the core keys, the rest in the radial menu, and the assists on; Full: every key) and
 	   the assists, each on or off whatever the scheme */
-	controls: {keys: {}, mouseSens: 100, invertMouse: false, invertPad: false, deadzone: 12, scheme: 'simple', autoGear: true, autoLights: true, landAssist: true, autoRoute: true},
+	controls: {keys: {}, mice: 1, mouseSens: 100, invertMouse: false, invertPad: false, deadzone: 12, scheme: 'simple', autoGear: true, autoLights: true, landAssist: true, autoRoute: true},
 	lang: 'os',   /* follow Rudolf OS (or the browser) */
 	a11y: {flash: 'os', motion: false, palette: 'off', contrast: false, captions: false}});
 
 /* the actions on the Controls page, in groups (the debug keys aren't listed) */
 const GROUPS = [
 	['Flight', ['pitchDown', 'pitchUp', 'rollLeft', 'rollRight', 'yawLeft', 'yawRight', 'faster', 'slower', 'stop', 'strafeL', 'strafeR', 'strafeU', 'strafeD', 'fa', 'gear']],
-	['Combat and analysis', ['mode', 'fire', 'missile', 'flare', 'target', 'hostile']],
+	['Combat and analysis', ['mode', 'fire', 'fire2', 'missile', 'flare', 'target', 'hostile']],
 	['Navigation', ['cruise', 'jump', 'dock', 'map', 'route', 'home']],
 	['Ship', ['hatch', 'lights', 'nightVision', 'systems']],
 	['Interface', ['radial', 'view', 'mouse', 'help', 'pause']]];
 /* the Simple scheme lists only these; the rest are in the radial menu (~), and still work if bound */
 const SIMPLE = ['pitchDown', 'pitchUp', 'rollLeft', 'rollRight', 'yawLeft', 'yawRight', 'faster', 'slower', 'stop', 'strafeL', 'strafeR', 'strafeU', 'strafeD',
-	'mode', 'fire', 'missile', 'target', 'hostile', 'cruise', 'jump', 'dock', 'map', 'route', 'radial', 'view', 'help', 'pause'];
+	'mode', 'fire', 'fire2', 'missile', 'target', 'hostile', 'cruise', 'jump', 'dock', 'map', 'route', 'radial', 'view', 'help', 'pause'];
 /* picking a scheme sets the assists to its defaults (each can be changed after) */
 function applyScheme(S, scheme) { const on = scheme == 'simple'; Object.assign(S.controls, {scheme, autoGear: true, autoLights: on, landAssist: on, autoRoute: on}) }
 const ACTION = {pitchDown: 'Pitch down', pitchUp: 'Pitch up', rollLeft: 'Roll left', rollRight: 'Roll right', yawLeft: 'Yaw left', yawRight: 'Yaw right', faster: 'Throttle up', slower: 'Throttle down', stop: 'Throttle to zero',
-	strafeL: 'Strafe left', strafeR: 'Strafe right', strafeU: 'Strafe up', strafeD: 'Strafe down', fa: 'Flight assist', gear: 'Landing gear', lights: 'Spotlights', nightVision: 'Night vision', mode: 'Combat / analysis mode', radial: 'Radial menu', fire: 'Fire', missile: 'Missile', flare: 'Flare', target: 'Next target', hostile: 'Nearest hostile',
+	strafeL: 'Strafe left', strafeR: 'Strafe right', strafeU: 'Strafe up', strafeD: 'Strafe down', fa: 'Flight assist', gear: 'Landing gear', lights: 'Spotlights', nightVision: 'Night vision', mode: 'Combat / analysis mode', radial: 'Radial menu', fire: 'Fire', fire2: 'Fire secondary', missile: 'Missile', flare: 'Flare', target: 'Next target', hostile: 'Nearest hostile',
 	cruise: 'Cruise', jump: 'Jump', dock: 'Request docking', map: 'Star map', route: 'Plot route', home: 'Map: back to you', hatch: 'Cargo hatch', systems: 'Internal systems', view: 'Camera view', mouse: 'Mouse flight', help: 'Controls help', pause: 'Pause'};
 
 /* how a key or gamepad button reads */
@@ -44,8 +44,13 @@ const PAD = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'L-sti
 const NAMED = {ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Space: 'Space', ShiftLeft: 'L Shift', ShiftRight: 'R Shift', ControlLeft: 'L Ctrl', ControlRight: 'R Ctrl', AltLeft: 'L Alt', AltRight: 'R Alt',
 	Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\', BracketLeft: '[', BracketRight: ']', Backquote: '`', Equal: '=', Minus: '-', Escape: 'Esc', Backspace: 'Backspace', Enter: 'Enter', Tab: 'Tab',
 	NumpadAdd: 'Num +', NumpadSubtract: 'Num −', NumpadEnter: 'Num Enter', NumpadMultiply: 'Num ×', NumpadDivide: 'Num ÷', Home: 'Home', End: 'End', PageUp: 'PgUp', PageDown: 'PgDn', Insert: 'Ins', Delete: 'Del', CapsLock: 'Caps'};
+/* mouse buttons and the wheel (0.3.4, gamekit 1.2.0) */
+const MOUSE = ['Left click', 'Middle click', 'Right click', 'Mouse 4', 'Mouse 5'];
 function keyName(c) {
 	if (!c) return '—';
+	if (c.startsWith('mouse:')) { const n = +c.slice(6); return '🖱 ' + (MOUSE[n] ? T(MOUSE[n]) : 'Mouse ' + (n + 1)) }
+	if (c == 'wheel:up') return '🖱 ' + T('Wheel up');
+	if (c == 'wheel:down') return '🖱 ' + T('Wheel down');
 	if (c.startsWith('pad:')) { const n = c.slice(4); return '🎮 ' + (/^\d+$/.test(n) ? PAD[+n] || 'B' + n : n.replace('axis', 'Axis ')) }
 	if (NAMED[c]) return NAMED[c];
 	if (/^Key[A-Z]$/.test(c)) return c.slice(3);
@@ -58,13 +63,15 @@ function keyName(c) {
 const num = (v, lo, hi, d) => typeof v == 'number' && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d;
 const bool = (v, d) => typeof v == 'boolean' ? v : d;
 const one = (v, list, d) => list.includes(v) ? v : d;
-const CODE = /^(pad:(\d{1,2}|axis\d[+-])|[A-Za-z0-9]{1,24})$/;
+const CODE = /^(pad:(\d{1,2}|axis\d[+-])|mouse:\d|wheel:(up|down)|[A-Za-z0-9]{1,24})$/;
 /* old saves kept {quality, sound}: they carry over */
 function sanitise(x, actions, langs) {
 	const D = DEFAULTS(); if (!x || typeof x != 'object') return D;
 	const g = x.graphics || {}, a = x.audio || {}, h = x.hud || {}, c = x.controls || {}, y = x.a11y || {};
 	const keys = {};
 	if (c.keys && typeof c.keys == 'object') for (const [k, v] of Object.entries(c.keys)) if ((!actions || actions.includes(k)) && Array.isArray(v)) keys[k] = v.filter(z => typeof z == 'string' && CODE.test(z)).slice(0, 3);
+	/* (before 0.3.4 the left mouse button always fired: a Fire the player rebound gets it, unless something else has it) */
+	if (c.mice !== 1 && keys.fire && !Object.values(keys).some(v => v.includes('mouse:0'))) keys.fire = [...keys.fire.filter(z => !z.startsWith('pad:')).slice(0, 1), 'mouse:0', ...keys.fire.filter(z => z.startsWith('pad:'))];
 	return {
 		graphics: {quality: one(g.quality || x.quality, ['high', 'low'], 'high'), res: num(g.res, 50, 100, 100), fov: num(g.fov, 50, 100, 70), glow: bool(g.glow, true), fps: bool(g.fps, false), aa: one(g.aa, ['auto', 'on', 'off'], 'auto'), autoRes: bool(g.autoRes, true)},
 		audio: {on: bool(a.on, x.sound === undefined ? true : x.sound !== false), master: num(a.master, 0, 100, 80), engines: num(a.engines, 0, 100, 80), effects: num(a.effects, 0, 100, 80), alerts: num(a.alerts, 0, 100, 100)},
@@ -72,7 +79,7 @@ function sanitise(x, actions, langs) {
 		controls: (() => {
 			/* (a player from before the schemes keeps Full, the keys they know; a new one starts Simple) */
 			const scheme = one(c.scheme, ['simple', 'full'], x.controls ? 'full' : 'simple'), on = scheme == 'simple';
-			return {keys, mouseSens: num(c.mouseSens, 25, 300, 100), invertMouse: bool(c.invertMouse, false), invertPad: bool(c.invertPad, false), deadzone: num(c.deadzone, 0, 40, 12),
+			return {keys, mice: 1, mouseSens: num(c.mouseSens, 25, 300, 100), invertMouse: bool(c.invertMouse, false), invertPad: bool(c.invertPad, false), deadzone: num(c.deadzone, 0, 40, 12),
 				scheme, autoGear: bool(c.autoGear, true), autoLights: bool(c.autoLights, on), landAssist: bool(c.landAssist, on), autoRoute: bool(c.autoRoute, on)};
 		})(),
 		lang: x.lang == 'os' || (langs || ['en']).includes(x.lang) ? x.lang : D.lang,
@@ -118,7 +125,7 @@ function open(el, S, env) {
 			+ '<p class="st-note">' + esc(T(simple ? 'Simple: the core keys only, flight assist always on, and the assists below on. Everything else is in the radial menu (~).' : 'Full: every key, and flight assist yours to switch off.')) + '</p>'
 			+ head('Assists') + row('Automatic landing gear', onOff('controls.autoGear', c.autoGear)) + row('Automatic spotlights', onOff('controls.autoLights', c.autoLights))
 			+ row('Landing assist', onOff('controls.landAssist', c.landAssist)) + row('Automatic jumps along a route', onOff('controls.autoRoute', c.autoRoute))
-			+ head('Keyboard and gamepad') + (wait ? '<p class="st-wait">' + esc(T('Press a key or gamepad button (Esc cancels)')) + '</p>' : '') + (note ? '<p class="st-note">' + esc(note) + '</p>' : '');
+			+ head('Keyboard and gamepad') + (wait ? '<p class="st-wait">' + esc(T(wait.slot == 2 ? 'Press a key or gamepad button (Esc cancels)' : 'Press a key, a mouse button or the wheel (Esc cancels)')) + '</p>' : '') + (note ? '<p class="st-note">' + esc(note) + '</p>' : '');
 		for (const [g, acts] of GROUPS) {
 			if (simple && !acts.some(a => SIMPLE.includes(a))) continue;
 			out += '<h4>' + esc(T(g)) + '</h4><table class="st-keys"><tr><th></th><th>' + esc(T('Key')) + '</th><th>' + esc(T('Key')) + '</th><th>' + esc(T('Gamepad')) + '</th></tr>';
@@ -155,13 +162,17 @@ function open(el, S, env) {
 	/* rebinding: the next key (Esc cancels, Backspace or Delete unbinds) or gamepad button */
 	let raf = 0;
 	function finish(code) {
-		removeEventListener('keydown', onKey, true); cancelAnimationFrame(raf);
+		removeEventListener('keydown', onKey, true); removeEventListener('mousedown', onMouse, true); removeEventListener('wheel', onWheel, true); removeEventListener('contextmenu', noMenu, true); cancelAnimationFrame(raf);
 		if (code !== undefined && wait) { const took = rebind(env.defaults, S, wait.a, wait.slot, code); note = took.length ? T('Taken from {a}', {a: took.map(a => T(ACTION[a] || a)).join(', ')}) : ''; env.apply('controls') }
 		wait = null; draw();
 	}
 	function onKey(e) { e.preventDefault(); e.stopImmediatePropagation(); if (e.code == 'Escape') return finish(); if ((e.code == 'Backspace' || e.code == 'Delete') && wait.slot < 2) return finish(null); if (wait.slot == 2) return; finish(e.code) }
+	/* (a mouse button or the wheel, for a keyboard slot; the click that asked for it is already over) */
+	function onMouse(e) { if (!wait || wait.slot == 2) return; e.preventDefault(); e.stopImmediatePropagation(); finish('mouse:' + e.button) }
+	function onWheel(e) { if (!wait || wait.slot == 2 || !e.deltaY) return; e.preventDefault(); e.stopImmediatePropagation(); finish(e.deltaY < 0 ? 'wheel:up' : 'wheel:down') }
+	function noMenu(e) { e.preventDefault() }
 	function listen() {
-		addEventListener('keydown', onKey, true);
+		addEventListener('keydown', onKey, true); addEventListener('mousedown', onMouse, true); addEventListener('wheel', onWheel, {capture: true, passive: false}); addEventListener('contextmenu', noMenu, true);
 		const held = new Set(); let first = true;
 		const poll = () => {
 			let g = null; try { g = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(Boolean) } catch (e) {}

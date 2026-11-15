@@ -24,14 +24,14 @@ const INDEPENDENT = {A: 'Brask & Orrel Free Yards', B: 'Tamsin Mining Cooperativ
 /* name, size, role, maker (a great power by its place in the list, or an independent yard), hull, shields,
    speed (m/s), agility (°/s), cargo (t), jump (pc), hardpoints [S, M, L, H], crew, tech, length (m), hangar, who */
 const STOCK = [
-	['Wren', 'XS', 'shuttle', 'A', 90, 40, 220, 70, 4, 2, [0, 0, 0, 0], 1, 1, 9, 0, 'courier trader'],
+	['Wren', 'XS', 'shuttle', 'A', 90, 40, 220, 70, 4, 2, [1, 0, 0, 0], 1, 1, 9, 0, 'courier trader'],   /* (0.3.4: the starters are armed: a small hardpoint, two on the Gnat and the Tinker) */
 	['Kestrel', 'XS', 'fighter', 0, 140, 90, 320, 95, 0, 0, [2, 0, 0, 0], 1, 2, 12, 0, 'navy pirate'],
 	['Dart', 'XS', 'interceptor', 4, 110, 80, 380, 110, 0, 0, [2, 0, 0, 0], 1, 3, 10, 0, 'navy'],
 	['Hob', 'XS', 'mining pod', 'B', 160, 30, 150, 50, 12, 1.5, [1, 0, 0, 0], 1, 1, 11, 0, 'miner prospector'],
-	['Gnat', 'XS', 'racer', 2, 80, 60, 420, 105, 2, 3, [0, 0, 0, 0], 1, 3, 9, 0, 'courier'],
+	['Gnat', 'XS', 'racer', 2, 80, 60, 420, 105, 2, 3, [2, 0, 0, 0], 1, 3, 9, 0, 'courier'],
 	['Spur', 'XS', 'bomber', 3, 200, 100, 240, 60, 0, 0, [0, 1, 0, 0], 2, 2, 14, 0, 'navy'],
 	['Mote', 'XS', 'scout', 'C', 70, 50, 300, 90, 1, 4, [0, 0, 0, 0], 1, 2, 8, 0, 'explorer'],
-	['Tinker', 'XS', 'repair tender', 5, 150, 70, 200, 60, 6, 2, [0, 0, 0, 0], 2, 2, 12, 0, 'nomad salvager'],
+	['Tinker', 'XS', 'repair tender', 5, 150, 70, 200, 60, 6, 2, [2, 0, 0, 0], 2, 2, 12, 0, 'nomad salvager'],
 	['Lark', 'S', 'courier', 4, 300, 220, 330, 75, 20, 6, [1, 0, 0, 0], 2, 3, 22, 0, 'courier smuggler'],
 	['Packet', 'S', 'light hauler', 'A', 380, 150, 210, 45, 120, 4, [2, 0, 0, 0], 2, 1, 28, 0, 'trader'],
 	['Pike', 'S', 'gunship', 6, 520, 300, 260, 55, 10, 4, [2, 2, 0, 0], 3, 2, 30, 0, 'navy pirate bounty'],

@@ -123,10 +123,11 @@ function stock0(ship) {
 		go(0, 0, []);
 		best.pick.forEach((z, k) => { if (z) fit.internal[free[k]] = {id: 'cargo', size: z, grade: 'C'} });
 	}
-	/* guns: small pulse lasers, medium mass drivers (the last medium a missile rack, with two or more), large heavy
-	   lasers, huge torpedo racks */
-	const meds = L.external.filter(s => s == 2).length; let m = 0;
-	fit.external = L.external.map(s => s == 1 ? {id: 'pulse', size: 1, grade: 'C'} : s == 2 ? {id: ++m == meds && meds >= 2 ? 'missile' : 'driver', size: 2, grade: 'C'} : s == 3 ? {id: 'heavy', size: 3, grade: 'C'} : {id: 'torpedo', size: 4, grade: 'C'});
+	/* guns: small pulse lasers and light gatlings, turn about (0.3.4: a first ship with two small hardpoints has one
+	   of each: the laser on the left mouse button, the gatling on the right), medium mass drivers (the last medium a
+	   missile rack, with two or more), large heavy lasers, huge torpedo racks */
+	const meds = L.external.filter(s => s == 2).length; let m = 0, sm = 0;
+	fit.external = L.external.map(s => s == 1 ? {id: sm++ % 2 ? 'gatling' : 'pulse', size: 1, grade: 'C'} : s == 2 ? {id: ++m == meds && meds >= 2 ? 'missile' : 'driver', size: 2, grade: 'C'} : s == 3 ? {id: 'heavy', size: 3, grade: 'C'} : {id: 'torpedo', size: 4, grade: 'C'});
 	/* miners: a mining laser on the first small hardpoint, a tractor on the second, and a refinery */
 	if (/min/.test(ship.role)) {
 		const sm = L.external.map((z, i) => z == 1 ? i : -1).filter(i => i >= 0);

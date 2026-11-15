@@ -50,5 +50,12 @@ try {
 	const Pl = {explore: {sys: {}, pl: {}, sold: {}, names: {}}};
 	ok('17. a lone port is the power\'s whose space it\'s in, or independent in unclaimed space; once found (by a ground scan or the charts) the record keeps it, and the save too', !!lp && (own.owner && !own.contested ? lp.owner == own.owner : lp.independent && lp.owner === null)
 		&& !X.found(Pl, loneStar.id, lp.id) && X.find(Pl, loneStar.id, lp.id, 210) && !X.find(Pl, loneStar.id, lp.id, 211) && X.found(Pl, loneStar.id, lp.id) && Pl.explore.found[loneStar.id + '|' + lp.id] == 210);
+	/* L2.3: the models */
+	const tri = {}; let over = [];
+	for (const k of Object.keys(S.KIND)) { let hi = 0, lo = 0; for (let i = 1; i <= 40; i++) { const Ly = S.layout(k, i * 7919 + 13), h = S.meshes(Ly, 'hi').count(), l = S.meshes(Ly, 'lo').count(); hi = Math.max(hi, h); lo = Math.max(lo, l); if (h > 6000) over.push(k + ':' + i) } tri[k] = [hi, lo] }
+	ok('18. L2.3: every kind\'s model keeps within 6,000 triangles in full detail (over 40 layouts each), and its far model within half that', !over.length && Object.values(tri).every(([h, l]) => h <= 6000 && l <= h / 2 + 200), tri);
+	const pm = S.meshes(S.layout('starport', 99), 'hi'), glow = []; for (let i = 3; i < pm.c.length; i += 4) glow.push(pm.c[i]);
+	const ringCols = Object.keys(S.PAD).map(z => S.PAD[z].light.map(v => +v.toFixed(2)).join());
+	ok('19. ...lit: the pads\' rings glow in their size\'s colour (S blue, M amber, L red, XL violet, capital rose), and so do windows and lights', glow.some(a => a == 1) && glow.some(a => a > 0.5 && a < 1) && new Set(ringCols).size == 5);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

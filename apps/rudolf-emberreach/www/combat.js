@@ -152,7 +152,7 @@ function fire(cs, s, t, target, out, only) {
 	if (cs.hot || !M.works(cs.fit, 'weapons') || !M.works(cs.fit, 'power')) return 0;
 	const nose = Fl.forward(s); let n = 0;
 	for (const g of cs.load.guns) {
-		if (only && !only.includes(g.kind)) continue;
+		if (only && !(typeof only == 'function' ? only(g) : only.includes(g.kind))) continue;
 		const W = WEAPONS[g.kind];
 		if (g.cool > 0 || W.homing || W.charge || (g.ammo != null && g.ammo <= 0)) continue;
 		shoot(cs, s, g, W, aimOf(cs, s, g, target).dir, out);
@@ -168,7 +168,7 @@ function railStep(cs, s, t, target, out, holding, dt) {
 	for (const g of cs.load.guns) {
 		const W = WEAPONS[g.kind]; if (!W.charge) continue;
 		if (!able || (g.ammo != null && g.ammo <= 0)) { g.charge = 0; continue }
-		if (holding && g.cool <= 0) { g.charge = (g.charge || 0) + dt; if (g.charge > W.charge) cs.heat += W.holdHeat * dt; continue }
+		if ((typeof holding == 'function' ? holding(g) : holding) && g.cool <= 0) { g.charge = (g.charge || 0) + dt; if (g.charge > W.charge) cs.heat += W.holdHeat * dt; continue }
 		if (!g.charge) continue;
 		const k = Math.min(1, g.charge / W.charge); g.charge = 0;
 		if (k < W.minCharge) continue;
@@ -177,6 +177,9 @@ function railStep(cs, s, t, target, out, holding, dt) {
 	}
 	return n;
 }
+/* fire groups (0.3.4): a gun's group, 1 (primary: the left mouse button) or 2 (secondary: the right). Lasers are
+   primary, guns that fire rounds (gatlings, the mass driver) secondary, unless the fit says otherwise (g.group) */
+const groupOf = g => g.group || (WEAPONS[g.kind].hitscan ? 1 : 2);
 /* whether the mass drivers are at full charge (AI pilots let go then) */
 const railReady = cs => cs.load.guns.some(g => WEAPONS[g.kind].charge && g.charge >= WEAPONS[g.kind].charge);
 /* the heat a target runs at stretches a lock: range and speed times (1 + heat) */
@@ -326,6 +329,6 @@ function missing(ship, k) {
 }
 function refill(ship, k) { const full = loadout(ship); return {hull: k && typeof k.hull == 'number' ? k.hull : 1, ammo: full.guns.map(g => g.ammo), missiles: full.missiles, flares: full.flares} }
 
-const EmberCombat = {GIMBALLED, gunOf, gimbalFor, track, aimOf, railStep, railReady, heatK, GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
+const EmberCombat = {groupOf, GIMBALLED, gunOf, gimbalFor, track, aimOf, railStep, railReady, heatK, GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
 if (isNode) module.exports = EmberCombat; else root.EmberCombat = EmberCombat;
 })(typeof window != 'undefined' ? window : this);
