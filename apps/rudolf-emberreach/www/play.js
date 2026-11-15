@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.10'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.11'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -626,6 +626,96 @@ function nearestHostile() {
 }
 /* ---------------- the traffic controllers (L2.4: traffic.js) ----------------
    one for each port of the system, space or surface, made when first asked (its NPC traffic already under way) */
+/* ---------------- traffic (L2.6, 0.3.11) ----------------
+   The controllers' NPC arrivals and departures, at ports within 15 km of you, are flown: an arrival from 5 to 7 km
+   out on its Autopilot Computer to its pad (into the mouth of a space port, down onto a pad on the ground), gone
+   once it's down; a departure out of the mouth or up off its pad and away, gone at 11 km. Four at most in sight at
+   once (the rest come and go unseen, as before). Fired on, one flies as any trader would */
+const TRAFFIC = {near: 15000, max: 4, spawn: [5000, 7000], gone: 11000, life: 420, who: ['trader', 'courier', 'passenger', 'miner', 'colonist', 'prospector']};
+function trafficHull(size) {
+	const ok = S.ships().filter(x => !x.precursor && x.who.some(w => TRAFFIC.who.includes(w)) && Atc.classOf(x) == size);
+	return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
+}
+function trafficEvent(portId, e) {
+	if (!s || game.docked || game.jump || game.npcs.filter(n => n.traffic).length >= TRAFFIC.max) return;
+	const at = portsNear().find(x => x.port.id == portId); if (!at || at.d > TRAFFIC.near) return;
+	const hull = trafficHull(e.size); if (!hull) return;
+	const surface = !!at.port.surface, owner = surface ? at.port.owner : game.port && game.port.owner, rnd = Math.random;
+	let p, q, away = null;
+	if (!surface) {
+		if (!st) return;
+		const D = st.def.dock;
+		if (e.k == 'npcIn') { const a = rnd() * 2 * Math.PI, r = 800 + rnd() * 2500, L = [Math.cos(a) * r, Math.sin(a) * r, D.z + TRAFFIC.spawn[0] + rnd() * (TRAFFIC.spawn[1] - TRAFFIC.spawn[0])]; p = Sc.toWorldPt(st, L); q = Sc.lookRotation(norm(sub(st.c, p)), st.y) }
+		else { p = Sc.toWorldPt(st, [0, 0, D.z - 30]); q = Sc.lookRotation(st.axis, st.y) }
+	} else {
+		const P = padWorld(at.sp, e.pad), e0 = Math.abs(P.up[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], h0 = norm(sub(e0, mul(P.up, dot(e0, P.up)))), h1 = cross(P.up, h0), a = rnd() * 2 * Math.PI;
+		away = add(mul(h0, Math.cos(a)), mul(h1, Math.sin(a)));
+		if (e.k == 'npcIn') { const d = TRAFFIC.spawn[0] + rnd() * (TRAFFIC.spawn[1] - TRAFFIC.spawn[0]); p = add(P.p, add(mul(away, d), mul(P.up, 1500))); q = Sc.lookRotation(norm(mul(away, -1)), P.up) }
+		else { p = add(P.p, mul(P.up, Ld.lowest(hull, true, 0).d + 0.5)); q = Sc.lookRotation(away, P.up) }
+	}
+	const n = {role: 'trader', faction: owner || null, ship: hull, where: 'arrival', range: 1, ai: 'hold', traffic: {port: portId, pad: e.pad, size: e.size, way: e.k == 'npcIn' ? 'in' : 'out', surface, sp: at.sp, away, born: game.t}};
+	place([n]);
+	n.s.p = p; n.s.q = q; n.s.v = [0, 0, 0]; n.home = p; n.pos = n.s.p;
+}
+function trafficFly(n, dt) {
+	const T = n.traffic;
+	if (game.t - T.born > TRAFFIC.life) { n.gone = true; return }
+	n.s.grav = Sc.gravityAt(scene, n.s.p);
+	if (!T.surface) {
+		if (!st) { n.gone = true; return }
+		if (T.way == 'in') {
+			const r = Ap.dockStation(n.s, st, null, Sc); Fl.step(n.s, r.input, dt, r.frame);
+			const dk = Sc.dockCheck(st, n.s, game.t, true); if (dk && dk.ok === true) n.gone = true;
+		} else { const r = Ap.departStation(n.s, st, Sc); Fl.step(n.s, r.input, dt, r.frame); if (r.out > TRAFFIC.gone) n.gone = true }
+	} else {
+		const sp = T.sp, P = padWorld(sp, T.pad), wf = Sc.worldFrame(sp.body), gv = Fl.frameAt(wf, n.s.p).v, frame = Sc.gravityWell(scene, n.s.p) ? wf : null;
+		if (T.way == 'in') {
+			const r = Ap.dockGround(n.s, P.p, P.up, gv, frame, Ld.TOUCH[Ld.padFor(n.ship.size)].vz, Ld.lowest(n.ship, true, 0).d);
+			Fl.step(n.s, r.input, dt, frame); if (r.h <= 0.3) n.gone = true;
+		} else { const r = Ap.departGround(n.s, P.p, P.up, gv, frame, T.away); Fl.step(n.s, r.input, dt, frame); if (len(sub(n.s.p, P.p)) > TRAFFIC.gone) n.gone = true }
+	}
+	n.pos = n.s.p;
+}
+
+/* ---------------- a forward base's turrets (L2.6, 0.3.11) ----------------
+   Two on each forward base within 20 km of you, on its site: they turn (90° a second) and fire their fixed guns (a
+   pulse laser and a light gatling each) at the holder's enemies within 4 km: pirates, the other side of its war,
+   and you if you're its enemy or wanted in its coin. They can be shot down */
+const TURRET = {per: 2, near: 20000, keep: 25000, range: 4000, turn: Math.PI / 2, aim: 3 * Math.PI / 180, up: 14, spread: 60,
+	hull: {id: 'turret', name: 'Defence turret', size: 'S', role: 'turret', hull: 900, shield: 400, speed: 0, agility: 0, cargo: 0, jump: 0, hard: [2, 0, 0, 0], length: 8, value: 0, who: [], maker: 'turret', makerName: 'Base defences'}};
+function turretSite(n) { const at = surfacePortAt(n.base), E0 = at.rot.slice(0, 3); return add(at.pos, add(mul(at.up, TURRET.up), mul(E0, n.slot * TURRET.spread - TURRET.spread / 2))) }
+function turretsNear() {
+	if (!s || game.docked) return;
+	for (const sp of game.surfacePorts || []) {
+		if (sp.q.kind != 'base') continue;
+		const d = len(sub(s.p, surfacePortAt(sp).pos)), have = game.npcs.filter(n => n.role == 'turret' && n.base == sp);
+		if (d > TURRET.keep) { for (const n of have) n.gone = true; continue }
+		if (d > TURRET.near || have.length) continue;
+		for (let k = 0; k < TURRET.per; k++) {
+			const n = {role: 'turret', faction: sp.q.owner || null, war: true, ship: TURRET.hull, where: 'arrival', range: 1, ai: 'hold', base: sp, slot: k, cargo: []};
+			place([n]); n.s.p = turretSite(n); n.s.q = Sc.lookRotation(norm(sub(s.p, n.s.p)), surfacePortAt(sp).up); n.pos = n.s.p; n.home = n.s.p;
+			n.name = sp.q.name + ' turret ' + 'AB'[k];
+		}
+	}
+}
+function turretStep(n, dt) {
+	const P = game.P, at = surfacePortAt(n.base);
+	n.s.p = turretSite(n); n.s.v = Fl.frameAt(Sc.worldFrame(n.base.body), n.s.p).v; n.s.w = [0, 0, 0]; n.pos = n.s.p;
+	if (game.t >= n.next) {
+		n.next = game.t + 0.5;
+		let best = null, bd = TURRET.range;
+		if (En.hostile(P, n)) { const d = len(sub(s.p, n.s.p)); if (d < bd) { bd = d; best = ME } }
+		for (const o of game.npcs) if (o != n && !o.cs.dead && o.role != 'turret' && En.enemies(n, o, P)) { const d = len(sub(o.s.p, n.s.p)); if (d < bd) { bd = d; best = o } }
+		n.foe = best;
+	}
+	const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, a: s.acc, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, a: f.s.acc, id: f.id} : null;
+	if (!tgt) return;
+	/* turn towards it, at most 90° a second, and fire when it's in line */
+	const want = norm(sub(tgt.p, n.s.p)), fw = Fl.forward(n.s), ang = Math.acos(Math.max(-1, Math.min(1, dot(fw, want)))), k = ang > 1e-6 ? Math.min(1, TURRET.turn * dt / ang) : 1;
+	const nf = norm(add(mul(fw, 1 - k), mul(want, k)));
+	n.s.q = Sc.lookRotation(nf, Math.abs(dot(nf, at.up)) > 0.98 ? norm(cross(nf, [0.3, 0.2, 0.9])) : at.up);
+	if (ang < TURRET.aim + TURRET.turn * dt && len(sub(tgt.p, n.s.p)) < TURRET.range && !inZone(n.s.p)) { const shot = C.fire(n.cs, n.s, game.t, tgt, game.shots); if (shot && len(sub(s.p, n.s.p)) < 3000) Snd.cue(gunCue(n.cs)) }
+}
 function atcOf(port) {
 	game.atc = game.atc || {};
 	if (!game.atc[port.id]) { const sp = (game.surfacePorts || []).find(x => x.q.id == port.id); game.atc[port.id] = Atc.make(port, sp ? (sp.layout || (sp.layout = window.EmberSurface.layout(port.kind, port.seed))) : null, {t: game.t, seed: game.star.id + ':' + game.day}) }
@@ -676,7 +766,10 @@ function cleared(at, r, oid) {
 const ord = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 /* the controllers' news for you each step: a pad from the queue, a place moved up, a clearance revoked */
 function atcStep() {
+	/* (0.3.11) the ports near you keep their controllers running, so their traffic comes and goes in sight */
+	for (const x of portsNear()) if (x.d < TRAFFIC.near) atcOf(x.port);
 	for (const id in game.atc || {}) for (const e of Atc.tick(game.atc[id], game.t)) {
+		if (e.k == 'npcIn' || e.k == 'npcOut') { trafficEvent(id, e); continue }
 		if (e.who != 'me') continue;
 		const at = portsNear().find(x => x.port.id == id) || {port: {id}, name: 'The port'}, oid = at.port.surface ? at.port.owner : owner() && owner().id;
 		if (e.k == 'cleared') cleared(at, e, oid);
@@ -1066,6 +1159,9 @@ function combat(dt) {
 		if (n.cs.dead) continue;
 		C.tick(n.cs, game.t, dt);
 		if (n.role == 'depot') continue;
+		/* (0.3.11) traffic on its autopilot, until someone fires on it; a forward base's turrets */
+		if (n.traffic && !n.provoked && n.cs.lastHit < 0) { trafficFly(n, dt); continue }
+		if (n.role == 'turret') { turretStep(n, dt); continue }
 		if (game.t >= n.next) {
 			n.next = game.t + 0.7 + Math.random() * 0.6;
 			let best = null, bd = 25000;
@@ -1099,6 +1195,8 @@ function combat(dt) {
 			if (C.updateLock(n.cs, n.s, tgt, dt) && c.missile && Math.random() < dt * 0.12) { if (C.launch(n.cs, n.s, tgt, game.shots) && tgt.id == 'me') { say('Missile launched at you by ' + n.name + ': B for flares', '#e5484d'); Snd.cue('incoming') } }
 		}
 	}
+	if (game.npcs.some(n => n.gone)) game.npcs = game.npcs.filter(n => !n.gone);
+	turretsNear();
 	/* your guns */
 	for (const a of C.tick(pc, game.t, dt)) moduleAlert(a);
 	if (pc.hot && !game.wasHot) say('Weapons overheated: guns locked until they cool', '#f2a33a');
@@ -1166,7 +1264,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },

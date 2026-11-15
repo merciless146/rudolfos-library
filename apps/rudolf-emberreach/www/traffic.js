@@ -8,7 +8,7 @@
    - Five minutes: once a pad is given, the ship has 5 minutes to dock (or land on it). Miss that and the
      clearance is revoked: the pad goes to the next in the queue, and the ship must ask again.
    - NPC traffic is simulated here (ships arriving, sitting on a pad a while, leaving), so the pads and the queue
-     are shared with them. Pure functions and plain data; the game's own clock (t, seconds).
+     are shared with them. Each arrival and departure is told ('npcIn', 'npcOut'), and near the pilot it is flown. Pure functions and plain data; the game's own clock (t, seconds).
    Refusals for who the pilot is (wanted, at war) stay with the caller (play.js), as before. GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -74,10 +74,10 @@ function release(C, who) { const p = C.pads.find(x => x.who == who); if (p) { p.
 function tick(C, t) {
 	const ev = [], dt = Math.max(0, t - C.t); C.t = t;
 	for (const p of C.pads) if (p.who && !p.docked && t > p.until) { ev.push({k: 'revoked', who: p.who, pad: p.n}); p.who = null }
-	for (const p of C.pads) if (p.who && p.docked && String(p.who).startsWith('npc') && t > p.until) p.who = null;
+	for (const p of C.pads) if (p.who && p.docked && String(p.who).startsWith('npc') && t > p.until) { ev.push({k: 'npcOut', who: p.who, pad: p.n, size: p.size}); p.who = null }
 	/* NPC arrivals: each asks like anyone (and waits its turn); a cleared NPC is down on its pad a little later */
 	let k = dt / 60 * C.npcRate; while (k > 0) { if (C.r() < Math.min(1, k)) { const cls = ['S', 'S', 'M', 'M', 'L', 'XL'][Math.floor(C.r() * 6)], who = 'npc' + (++C.npc); if (canEverLand(C, cls)) { const r = request(C, who, cls, t); if (r.ok) settleNpc(C, who, t) } } k -= 1 }
-	ev.push(...C.events.splice(0), ...serve(C, t));
+	const sv = serve(C, t); ev.push(...C.events.splice(0), ...sv);
 	return ev;
 }
 /* the queue, in order: the first whose pad is free gets it; the rest move up */
@@ -92,8 +92,9 @@ function serve(C, t) {
 	C.queue.forEach((q, i) => { if (q.place != i + 1) { if (q.place && !String(q.who).startsWith('npc')) ev.push({k: 'moved', who: q.who, place: i + 1, of: C.queue.length}); q.place = i + 1 } });
 	return ev;
 }
-/* an NPC cleared for a pad: down on it within a minute, then sits a while */
-function settleNpc(C, who, t) { const p = C.pads.find(x => x.who == who); if (p) { p.docked = true; p.until = t + 30 + dwell(C) } }
+/* an NPC cleared for a pad: down on it within a minute, then sits a while (0.3.11: the controller says so, and
+   when it leaves, so that play.js can fly the ones near the pilot in and out: 'npcIn' and 'npcOut' events) */
+function settleNpc(C, who, t) { const p = C.pads.find(x => x.who == who); if (p) { p.docked = true; p.until = t + 30 + dwell(C); C.events.push({k: 'npcIn', who, pad: p.n, size: p.size}) } }
 
 const EmberTraffic = {ATC, SIZES, STATION_PADS, classOf, allowed, padsOf, make, request, status, docked, release, tick};
 if (typeof module != 'undefined' && module.exports) module.exports = EmberTraffic; else root.EmberTraffic = EmberTraffic;

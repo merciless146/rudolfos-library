@@ -335,6 +335,30 @@ async function frame(pg, test) {
 			await new Promise(z => setTimeout(z, 1500)); r.o2 = ft.o2 < ft.o2Max; r.chip = g.hudData.reboot > 0 && !!g.hudData.o2; ft.reboot = 0.2; await new Promise(z => setTimeout(z, 600));
 			r.back = EmberModules.works(ft, 'sensors'); r.said = g.msgs.some(m => /^Reboot complete: Sensors back/.test(m.text)); return r });
 		ok('9y. a reboot (radial menu): weapons and thrust off and the air reserve drawn while it runs; after it the broken sensors work again', rb.on && !rb.weapons && !rb.thrust && rb.o2 && rb.chip && rb.back && rb.said, rb);
+		/* 0.3.11 (L2.6): traffic flown in and out of the port; a forward base's turrets */
+		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberDebug.scene.station; g.route = null; g.jump = null; g.npcs = []; s.p = st.c.map((v, i) => v + st.axis[i] * 3000 + st.x[i] * 2500); s.v = [0, 0, 0];
+			EmberDebug.trafficEvent('orbital', {k: 'npcOut', who: 'npcT1', pad: 1, size: 'S'}); EmberDebug.trafficEvent('orbital', {k: 'npcIn', who: 'npcT2', pad: 2, size: 'S'}) });
+		const tf0 = await f.evaluate(() => { const st = EmberDebug.scene.station, L = p => EmberScene.toLocal(st, p); return EmberDebug.game.npcs.filter(n => n.traffic).map(n => ({way: n.traffic.way, z: L(n.s.p)[2], d: Math.hypot(...n.s.p.map((v, i) => v - st.c[i]))})) });
+		await sleep(6000);
+		const tf1 = await f.evaluate(() => { const st = EmberDebug.scene.station, L = p => EmberScene.toLocal(st, p); return EmberDebug.game.npcs.filter(n => n.traffic).map(n => ({way: n.traffic.way, z: L(n.s.p)[2], d: Math.hypot(...n.s.p.map((v, i) => v - st.c[i])), name: n.name})) });
+		const o0 = tf0.find(x => x.way == 'out'), o1 = tf1.find(x => x.way == 'out'), i0 = tf0.find(x => x.way == 'in'), i1 = tf1.find(x => x.way == 'in');
+		ok('9z. L2.6: NPC traffic is flown: a departure comes out of the mouth along the axis, an arrival closes on the port', o0 && o1 && i0 && i1 && o1.z > o0.z + 100 && i1.d < i0.d - 50, {tf0, tf1});
+		await pg.screenshot({path: path.join(W, 'traffic.png')});
+		const base = await f.evaluate(async () => {
+			const g = EmberDebug.game; let home = null;
+			for (const m of EmberFactions.majors()) { if (EmberTravel.portsAt(m.star, Math.floor(g.day)).some(q => q.surface && q.kind == 'base')) { home = m; break } }
+			if (!home) return {none: true};
+			EmberDebug.go(home.star); await new Promise(r => setTimeout(r, 300));
+			const sp = g.surfacePorts.find(x => x.q.kind == 'base'), at = EmberDebug.surfacePortAt(sp), s = EmberDebug.s; g.npcs = [];
+			s.p = at.pos.map((v, i) => v + at.up[i] * 1500 + at.rot[i] * 600); s.v = [0, 0, 0]; s.fa = true; g.throttle = 0;
+			const code = EmberFactions.byId(sp.q.owner).currency.code; g.P.bounties[code] = 5000;
+			const sh0 = g.pcs.shield + g.pcs.hull;
+			await new Promise(r => setTimeout(r, 5000));
+			const tur = g.npcs.filter(n => n.role == 'turret');
+			const r = {base: sp.q.name, turrets: tur.length, onMe: tur.filter(n => n.foe && n.foe.player).length, hurt: sh0 - (g.pcs.shield + g.pcs.hull)};
+			delete g.P.bounties[code]; return r });
+		ok('9z2. L2.6: a forward base has two turrets; wanted in its coin, they turn on you and fire', !base.none && (base.turrets == 2 && base.onMe == 2 && base.hurt > 0), base);
+		await f.evaluate(() => { EmberDebug.game.npcs = [] });
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
 		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(15000);

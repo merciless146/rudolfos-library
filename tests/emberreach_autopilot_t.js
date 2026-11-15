@@ -84,6 +84,22 @@ try {
 	ok('11. touching the stick hands over; the autopilot\'s own small corrections don\'t count', Ap.touched({pitch: 0.6, yaw: 0, roll: 0, strafe: [0, 0]}, 0) && Ap.touched({pitch: 0, yaw: 0, roll: 0, strafe: [0, 0]}, 1) && !Ap.touched({pitch: 0.1, yaw: -0.05, roll: 0, strafe: [0, 0.1]}, 0));
 	ok('12. the Autopilot Computer: an internal module, size 1, sold at ports', O.CAT.autopilot.cat == 'internal' && O.CAT.autopilot.sizes.join() == '1,1' && O.derive(wren, Object.assign(O.stock(wren), {internal: [{id: 'autopilot', size: 1, grade: 'C'}]})).autopilot === true && !O.derive(wren).autopilot);
 
+	/* ---- (0.3.11) traffic leaving: out of a port's mouth, and up off a pad ---- */
+	const outRun = (cls, ship) => {
+		const sc2 = Sc.build(home.star, {day: 200, port: cls, portWorld: home.home.name}), st2 = sc2.station, s = Fl.create(ship, {p: Sc.toWorldPt(st2, [0, 0, st2.def.dock.z - 30]), q: Sc.lookRotation(st2.axis, st2.y)}); s.radius = ship.length / 2;
+		for (let t = 0; t < 400; t += DT) { const r = Ap.departStation(s, st2, Sc); Fl.step(s, r.input, DT, r.frame); const hit = Sc.collide(sc2, s, t); if (hit && hit.kind == 'station') return {ok: false, t, hit: hit.part}; if (r.out > 11000) return {ok: true, t} }
+		return {ok: false, why: 'time', L: Sc.toLocal(st2, s.p)};
+	};
+	const outs = ['trefoil', 'bloom', 'lantern', 'halo'].map(c => Object.assign({c}, outRun(c, wren)));
+	ok('16a. NPC traffic leaves a port out of its mouth along the axis, touching nothing, and is 11 km out within a few minutes', outs.every(r => r.ok), outs);
+	const upRun = (() => { const up = [0, 0, 1], s = Fl.create(wren, {p: [0, 0, Ld.lowest(wren, true, 0).d + 0.5]}); s.radius = 4; let maxDown = 0;
+		for (let t = 0; t < 300; t += DT) { s.grav = [0, 0, -9.81 * 0.4]; const r = Ap.departGround(s, [0, 0, 0], up, [0, 0, 0], null, [1, 0, 0]); Fl.step(s, r.input, DT, null); if (s.p[2] < 0) return {ok: false, t}; if (Math.hypot(s.p[0], s.p[1], s.p[2]) > 11000) return {ok: true, t, h: s.p[2]} }
+		return {ok: false, p: s.p} })();
+	ok('16b. ...and lifts straight off a pad on the ground, then flies away climbing', upRun.ok && upRun.h > 500, upRun);
+	const Atc = require(path.join(DIR, 'traffic.js')), C0 = Atc.make({cls: 'halo', id: 'orbital'}, null, {t: 0, busy: 0.3}), evs = [];
+	for (let t = 10; t < 1200; t += 10) evs.push(...Atc.tick(C0, t));
+	ok('16c. the traffic controller tells its NPC arrivals and departures (for play.js to fly the ones in sight)', evs.some(e => e.k == 'npcIn' && e.pad && e.size) && evs.some(e => e.k == 'npcOut' && e.pad));
+
 	/* ---- reboot ---- */
 	const f = M.fit(Object.assign({}, big, {hard: [1, 0, 0, 0]}));
 	for (const id of ['power', 'canopy', 'weapons']) M.get(f, id).hp = 0;
