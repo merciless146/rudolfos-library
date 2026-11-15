@@ -175,14 +175,17 @@ function derive(ship, fit) {
 
 /* ---- the outfitting market ---- */
 /* what a port sells: sizes and grades by its class (and a colony's tier); alien boosters never */
+/* what a port's outfitters stock (0.3.8: hangar.js services, by the port's kind; none at a camp, a surface outpost
+   or a forward base) */
 function stocks(port) {
-	const cls = port && port.cls, max = cls == 'halo' ? 7 : cls == 'lantern' || cls == 'bloom' ? 5 : 3, grades = cls == 'halo' || cls == 'lantern' ? 'CBA' : 'CB';
-	return {maxSize: max, grades};
+	const Hg = typeof require != 'undefined' ? require('./hangar.js') : root.EmberHangar, o = Hg && Hg.services(port).outfit;
+	return o ? {maxSize: o.maxSize, grades: o.grades, some: o.some || 0} : {maxSize: 0, grades: '', some: 0};
 }
 /* the modules on offer for a slot: [{id, size, grade, price}] */
-function offers(ship, slot, port) {
-	const L = layout(ship), st = stocks(port), out = [];
-	const add = (id, size) => { for (const gr of CAT[id].grades) if (st.grades.includes(gr) && !CAT[id].ruins && !CAT[id].precursor && (size || 1) <= st.maxSize + (id == 'cargo' ? 1 : 0)) out.push({id, size, grade: gr, price: price({id, size, grade: gr})}) };
+function offers(ship, slot, port, starId) {
+	const L = layout(ship), st = stocks(port), out = [], Hg = typeof require != 'undefined' ? require('./hangar.js') : root.EmberHangar;
+	/* (an outpost station carries about half the range: hangar.js carries) */
+	const add = (id, size) => { for (const gr of CAT[id].grades) if (st.grades.includes(gr) && !CAT[id].ruins && !CAT[id].precursor && (size || 1) <= st.maxSize + (id == 'cargo' ? 1 : 0) && (!st.some || Hg.carries(port, starId || '', {id, size}))) out.push({id, size, grade: gr, price: price({id, size, grade: gr})}) };
 	if (slot.cat == 'core') add(slot.key, L.coreSize);
 	else if (slot.cat == 'internal') { const cap = L.internal[slot.i]; for (const id of Object.keys(CAT).filter(k => CAT[k].cat == 'internal')) { const [a, b] = CAT[id].sizes; for (let s = a; s <= Math.min(b, cap); s++) add(id, s) } }
 	else if (slot.cat == 'external') { const cap = L.external[slot.i]; for (const id of Object.keys(CAT).filter(k => CAT[k].cat == 'external')) if (CAT[id].sizes[0] <= cap) add(id, CAT[id].sizes[0]) }

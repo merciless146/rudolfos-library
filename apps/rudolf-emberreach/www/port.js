@@ -17,7 +17,7 @@
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel, Hg = window.EmberHangar;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -37,6 +37,8 @@ function open(e) {
 	const myCol = env.port && env.port.colony ? Co.colonyAt(env.P, env.star.id) : null;
 	/* (0.3.7) this port's own market: its kind and world, its people, and the trades you've made there */
 	mkt = E.market(env.star, env.day, Object.assign({port: env.port, P: env.P}, myCol ? {holder: env.port.owner, econ: Co.economy(myCol, env.star), people: myCol.pop || 0} : {}));
+	/* (0.3.8) modules kept before storage had places are taken in here */
+	if (env.place && Hg.services(env.port).storage) Hg.adopt(env.P, env.place);
 	screen = 'station'; sel = {good: Object.keys(mkt.prices)[0], ship: null};
 	const codes = Object.keys(env.P.wallet).filter(c => env.P.wallet[c] > 0);
 	ex = {from: mkt.currency != 'SU' && env.P.wallet[mkt.currency] > 0 ? mkt.currency : codes[0], to: mkt.currency != 'SU' ? mkt.currency : codes[0], amount: ''};
@@ -251,17 +253,19 @@ function effect(m) {
 	return c.text;
 }
 function outfitting() {
-	const me = P(), sh = env.ship, pw = sh.power, rows = slotsOf(ofTab), cur = here(), rate = rateHere();
+	const me = P(), sh = env.ship, pw = sh.power, rows = slotsOf(ofTab), cur = here(), rate = rateHere(), svc = Hg.services(env.port);
+	if (!svc.outfit) return h1('Outfitting', sh.name) + '<section class="pt-card pt-narrow"><p>No outfitters at a port this size: outpost stations and larger fit modules and keep them in storage.</p></section>';
 	if (!ofSlot || ofSlot.cat != ofTab || !rows.some(r => (r.key || r.i) == (ofSlot.key || ofSlot.i))) ofSlot = rows[0] ? {cat: rows[0].cat, key: rows[0].key, i: rows[0].i} : null;
 	const tabs = '<div class="pt-tabs" role="tablist">' + TABS.map(([k, t]) => '<button role="tab" data-oftab="' + k + '" class="' + (k == ofTab ? 'on' : '') + '" aria-selected="' + (k == ofTab) + '">' + t + '</button>').join('') + '</div>';
 	const list = rows.map(r => '<button class="pt-row pt-row3' + (ofSlot && (r.key || r.i) == (ofSlot.key || ofSlot.i) ? ' on' : '') + '" data-ofslot="' + (r.key != null ? r.key : r.i) + '"><span class="muted">' + esc(r.label) + '</span><b>' + esc(gname(r.m)) + '</b><span class="num">' + (r.m ? fmt(O.drawOf(r.m), 1) + ' MW' : '') + '</span></button>').join('');
 	let side = '<p class="muted">Pick a slot.</p>';
 	if (ofSlot) {
-		const cur0 = O.at(me.ship.fit, ofSlot), offers = O.offers(env.hullShip, ofSlot, env.port), stored = (me.stored || []).map((m, j) => ({m, j})).filter(x => O.CAT[x.m.id].cat == ofSlot.cat);
+		const cur0 = O.at(me.ship.fit, ofSlot), offers = O.offers(env.hullShip, ofSlot, env.port, env.star.id), stored = Hg.modulesAt(me, env.place, env.day).filter(x => O.CAT[x.m.id].cat == ofSlot.cat), away = Hg.modulesElsewhere(me, env.place, env.day).filter(x => O.CAT[x.m.id].cat == ofSlot.cat);
 		side = '<span class="pt-label">' + esc(ofSlot.cat == 'core' ? 'Core' : ofSlot.cat == 'internal' ? 'Internal' : ofSlot.cat == 'external' ? 'External' : 'Utility') + '</span><div class="pt-big">' + esc(gname(cur0)) + '</div>'
 			+ (cur0 ? '<p class="small">' + esc(effect(cur0)) + ' · sells for ' + money(O.price(cur0) * 0.8 * rate, cur) + '</p>' + (ofSlot.cat != 'core' ? '<div class="pt-btns"><button class="pt-ghost" data-act="ofstore">Take out (store)</button><button class="pt-ghost" data-act="ofsell">Take out and sell</button></div>' : '') : '')
 			+ (cur0 && cur0.id == 'decoder' ? langLoader(cur0) : '')
 			+ (stored.length ? '<h3>In storage</h3>' + stored.map(x => '<div class="pt-claim"><span>' + esc(gname(x.m)) + ' · ' + esc(effect(x.m)) + '</span><span><button class="pt-ghost" data-act="offitstore" data-j="' + x.j + '">Fit</button> ' + (O.CAT[x.m.id].ruins ? '' : '<button class="pt-ghost" data-act="ofsellstore" data-j="' + x.j + '">Sell · ' + money(O.price(x.m) * 0.8 * rate, cur) + '</button> ') + '<button class="pt-ghost" data-act="ofrecycle" data-j="' + x.j + '" title="' + esc(recycleText(x.m)) + '">Recycle</button></span></div>').join('') + '<p class="muted small">Recycling: ' + recycleNote() + '</p>' : '')
+			+ (away.length ? '<h3>Stored elsewhere</h3>' + away.map(x => { const q = Hg.moduleQuote(me, x.j, env.place, env.day); return '<div class="pt-claim"><span>' + esc(gname(x.m)) + ' · ' + esc(x.m.at ? (Hg.ready(x.m, env.day) ? 'at ' + x.m.at.name : 'arrives ' + (Hg.samePlace(x.m.at, env.place) ? 'here' : 'at ' + x.m.at.name) + ' on day ' + x.m.ready) : '') + '</span><span>' + (q.ok ? '<button class="pt-ghost" data-act="ofsend" data-j="' + x.j + '">Transfer here · ' + esc(transferText(q)) + '</button>' : '') + '</span></div>' }).join('') : '')
 			+ '<h3>For sale here</h3>' + (offers.length ? offers.map((o, j) => { const ck = O.install(env.hullShip, me.ship.fit, ofSlot, o); return '<div class="pt-claim"><div><b>' + esc(gname(o)) + '</b><span class="muted small">' + esc(effect(o)) + ' · ' + fmt(O.drawOf(o), 1) + ' MW</span></div><button class="pt-ghost" data-act="ofbuy" data-j="' + j + '"' + (ck.ok ? '' : ' disabled title="' + esc(ck.why) + '"') + '>Buy and fit · ' + money(o.price * rate, cur) + '</button>' + (ck.ok ? '' : '<span class="bad small">' + esc(ck.why) + '</span>') + '</div>' }).join('') : '<p class="muted small">Nothing for this slot here.</p>');
 	}
 	return h1('Outfitting', sh.name + ' · power ' + pw.draw.toFixed(1) + ' / ' + pw.out.toFixed(1) + ' MW')
@@ -285,19 +289,41 @@ function outfittingOld() {
 		+ '<section class="pt-card"><h2>Fittings</h2><p>Every hardpoint carries its size\'s standard weapon: pulse lasers (small), mass drivers with a missile pylon (medium), heavy lasers (large), torpedo racks (huge). Swapping modules arrives with the module catalogue.</p></section></div>';
 }
 
+/* ---- the shipyard (0.3.8: hangar.js): ships for sale by the port's size, and your stored ships, here and elsewhere ---- */
+const kept = (m) => Object.assign(m, {at: Object.assign({}, env.place), ready: 0});
+const transferCost = q => q.su * (here() == 'SU' ? 1 : E.rate(here(), env.day));
+const transferText = q => q.local ? money(transferCost(q), here()) + ', at once (same system)' : money(transferCost(q), here()) + ' · ' + q.days + (q.days == 1 ? ' day' : ' days') + ' · ' + q.d.toFixed(1) + ' pc';
+function hangarList() {
+	const me = P(), d = env.day, svc = Hg.services(env.port), list = me.hangar || [];
+	if (!list.length) return '<h2>Your stored ships</h2><p class="muted small">' + (svc.storage ? 'None. Buy a ship and store yours here, or keep one here for later.' : 'None.') + '</p>';
+	return '<h2>Your stored ships · ' + list.length + '</h2>' + list.map(x => {
+		const h = S.hull(x.ship.model), here0 = Hg.samePlace(x.at, env.place), ok = Hg.ready(x, d), hold = Object.values(x.cargo || {}).reduce((a, b) => a + b, 0);
+		let act = '';
+		if (here0 && ok) act = '<button class="pt-ghost" data-act="hgswap" data-id="' + x.id + '">Fly this one</button>' + (svc.yard ? ' <button class="pt-ghost" data-act="hgsell" data-id="' + x.id + '">Sell</button>' : '');
+		else if (!ok) act = '<span class="muted small">Arrives ' + (here0 ? 'here' : 'at ' + esc(x.at.name)) + ' on day ' + x.ready + '</span>';
+		else if (!svc.storage) act = '<span class="muted small">No storage at this port</span>';
+		else { const q = Hg.quote('ship', x, env.place, d); act = q.ok ? '<button class="pt-ghost" data-act="hgsend" data-id="' + x.id + '">Transfer here · ' + esc(transferText(q)) + '</button>' : '<span class="muted small">' + esc(q.why) + '</span>' }
+		return '<div class="pt-claim"><div><b>' + esc(h ? h.name : x.ship.model) + '</b><span class="muted small">' + esc((h ? h.size + ' ' + h.role : '') + ' · ' + (here0 ? 'here' : 'at ' + x.at.name) + (hold ? ' · ' + hold + ' t aboard' : '') + ' · fuel ' + Math.round((x.fuel == null ? 1 : x.fuel) * 100) + '%') + '</span></div><span>' + act + '</span></div>';
+	}).join('');
+}
 function shipyard() {
-	const list = Tr.yard(env.port.cls, env.star, env.day), cur = list[0] ? list[0].price.currency : here();
+	const svc = Hg.services(env.port);
+	if (!svc.yard && !svc.storage) return h1('Shipyard') + '<section class="pt-card pt-narrow"><p>No shipyard and no storage at a port this size: outpost stations and larger keep them.</p>' + hangarList() + '</section>';
+	const list = Tr.yard(env.port, env.star, env.day), cur = list[0] ? list[0].price.currency : here();
 	if (!sel.ship || !list.some(x => x.ship.id == sel.ship)) sel.ship = (list.find(x => x.ship.id != env.ship.id) || list[0] || {ship: {}}).ship.id;
 	const x = list.find(y => y.ship.id == sel.ship), ti = Tr.tradeIn(env.ship, env.star, env.day);
-	const rows = list.map(y => '<button class="pt-row pt-row4' + (y.ship.id == sel.ship ? ' on' : '') + '" data-ship="' + y.ship.id + '"><b>' + esc(y.ship.name) + '</b><span>' + y.ship.size + ' ' + esc(y.ship.role) + '</span><span class="muted">' + esc(y.ship.makerName) + '</span><span class="num">' + fmt(y.price.low) + ' – ' + fmt(y.price.high) + '</span></button>').join('');
-	let side = '<p class="muted">Nothing for sale.</p>';
+	const rows = list.map(y => '<button class="pt-row pt-row4' + (y.ship.id == sel.ship ? ' on' : '') + '" data-ship="' + y.ship.id + '"><b>' + esc(y.ship.name) + '</b><span>' + y.ship.size + ' ' + esc(y.ship.role) + '</span><span class="muted">' + esc(y.ship.makerName) + '</span><span class="num">' + fmt(y.price.low) + '</span></button>').join('');
+	let side = '<p class="muted">' + (svc.yard ? 'Nothing for sale.' : 'No ships for sale at an outpost station: it keeps your ships and modules in storage, and sends for them.') + '</p>';
 	if (x) {
-		const s = x.ship, cost = (x.price.low + x.price.high) / 2 - (ti.currency == x.price.currency ? ti.amount : 0), owned = s.id == env.ship.id, tooBig = Tr.held(P()) > s.cargo;
-		side = '<span class="pt-label">' + esc(s.size + ' ' + s.role) + '</span><div class="pt-big">' + esc(s.name) + '</div><dl><dt>Yard</dt><dd>' + esc(s.makerName) + '</dd><dt>Quote</dt><dd>' + fmt(x.price.low) + ' – ' + fmt(x.price.high) + ' ' + x.price.currency + '</dd><dt>Hull / shields</dt><dd>' + fmt(s.hull) + ' / ' + fmt(s.shield) + '</dd><dt>Speed, turn</dt><dd>' + s.speed + ' m/s, ' + s.agility + '°/s</dd><dt>Cargo</dt><dd>' + fmt(s.cargo) + ' t</dd><dt>Jump</dt><dd>' + (s.jump ? s.jump + ' pc' : 'no drive') + '</dd><dt>Your ' + esc(env.ship.name) + '</dt><dd>' + fmt(ti.amount) + ' ' + ti.currency + ' in part-exchange</dd></dl>'
-			+ '<p class="small">' + (owned ? 'This is your ship.' : tooBig ? 'Your ' + Tr.held(P()) + ' t of cargo won\'t fit its hold.' : 'You pay ' + fmt(Math.max(0, cost)) + ' ' + x.price.currency + (cost < 0 ? ' (you get ' + fmt(-cost) + ' back)' : '') + '.') + '</p>'
-			+ '<button class="pt-primary" data-act="buyship"' + (owned || tooBig || (cost > 0 && (P().wallet[x.price.currency] || 0) < cost) ? ' disabled' : '') + '>Buy and transfer cargo</button>';
+		const s = x.ship, mid = (x.price.low + x.price.high) / 2, cost = mid - (ti.currency == x.price.currency ? ti.amount : 0), owned = s.id == env.ship.id, tooBig = Tr.held(P()) > s.cargo, purse = P().wallet[x.price.currency] || 0;
+		side = '<span class="pt-label">' + esc(s.size + ' ' + s.role) + '</span><div class="pt-big">' + esc(s.name) + '</div><dl><dt>Yard</dt><dd>' + esc(s.makerName) + '</dd><dt>Quote</dt><dd>' + fmt(x.price.low) + ' – ' + fmt(x.price.high) + ' ' + x.price.currency + '</dd><dt>Hull / shields</dt><dd>' + fmt(s.hull) + ' / ' + fmt(s.shield) + '</dd><dt>Hold</dt><dd>' + fmt(s.cargo) + ' t</dd><dt>Jump</dt><dd>' + (s.jump ? s.jump.toFixed(1) + ' pc' : 'none') + '</dd></dl>'
+			+ '<p class="small">' + (owned ? 'This is your ship.' : tooBig ? 'Your ' + Tr.held(P()) + ' t of cargo won\'t fit its hold.' : 'Trading yours in, you pay ' + fmt(Math.max(0, cost)) + ' ' + x.price.currency + (cost < 0 ? ' (you get ' + fmt(-cost) + ' back)' : '') + '; keeping yours here in storage, ' + fmt(mid) + '.') + '</p>'
+			+ '<div class="pt-btns"><button class="pt-primary" data-act="buyship"' + (owned || tooBig || (cost > 0 && purse < cost) ? ' disabled' : '') + '>Buy, trading yours in</button>'
+			+ (svc.storage ? '<button class="pt-ghost" data-act="buystore"' + (owned || tooBig || purse < mid ? ' disabled' : '') + '>Buy, and store yours here</button>' : '') + '</div>';
 	}
-	return h1('Shipyard', 'Showroom · prices in ' + cur + ', low to high quote') + '<div class="pt-split"><section class="pt-card pt-table" role="list"><div class="pt-thead pt-row4"><span>Ship</span><span>Class</span><span>Yard</span><span class="num">Price ' + cur + '</span></div>' + rows + '</section><aside class="pt-card pt-side">' + side + '</aside></div>';
+	return h1('Shipyard', svc.yard ? 'Showroom · ships up to ' + svc.yard + ' · prices in ' + cur + ', low to high quote' : 'Storage and transfers · no ships for sale here')
+		+ '<div class="pt-split"><section class="pt-card pt-table" role="list"><div class="pt-thead pt-row4"><span>Ship</span><span>Class</span><span>Yard</span><span class="num">Price ' + cur + '</span></div>' + (rows || '<p class="muted small" style="padding:8px 14px">None here.</p>') + '</section><aside class="pt-card pt-side">' + side + '</aside></div>'
+		+ '<section class="pt-card">' + hangarList() + '<p class="muted small">A stored ship keeps its fit, its modules\' health, its fuel and anything in its hold. Transfers need an empty hold: a flat ' + money(Hg.HANGAR.local * (here() == 'SU' ? 1 : E.rate(here(), env.day)), here()) + ' at once within a system; from further, half its insurance premium plus a charge by distance and size, and a day plus a day per 5 pc.</p></section>';
 }
 function contacts() {
 	const me = P(), o = holder(), d = env.day;
@@ -362,6 +388,30 @@ function click(e) {
 	if (act == 'buy') { const n = t.dataset.n == 'max' ? Tr.canBuy(me, env.ship, mkt, sel.good, d) : 1, r = Tr.buy(me, env.ship, mkt, sel.good, n, d); if (r.ok) { env.say('Bought ' + r.qty + ' t ' + sel.good + ' for ' + money(r.paid.amount, r.paid.code)); env.cue('tick') } }
 	if (act == 'sell') { const n = t.dataset.n == 'all' ? Tr.canSell(me, mkt, sel.good) : 1, r = Tr.sell(me, mkt, sel.good, n, d); if (r.ok) { env.say('Sold ' + r.qty + ' t ' + sel.good + ' for ' + money(r.got.amount, r.got.code) + (Math.abs(r.profit) > 0.5 ? ' (' + (r.profit > 0 ? '+' : '') + fmt(r.profit) + ' SU)' : '')); env.cue('tick') } }
 	if (act == 'buyship') { const extra = O.extra(env.hullShip, me.ship.fit), r = Tr.buyShip(me, env.ship.id, sel.ship, env.star, d); if (r.ok) { if (extra > 0) Tr.receive(me, extra * 0.8 * rateHere(), here(), d); env.onShip(sel.ship); env.say('Bought a ' + env.ship.name + ': paid ' + fmt(Math.max(0, r.cost)) + ' ' + r.currency); env.cue('docked') } else env.say(r.why == 'hold' ? 'Your cargo won\'t fit its hold' : 'Not enough ' + (r.code || '') + ' for that ship') }
+	/* (0.3.8) buying and keeping the old ship here; flying a stored one; selling one; sending for one */
+	if (act == 'buystore') {
+		const x = Tr.yard(env.port, env.star, d).find(y => y.ship.id == sel.ship); if (!x) return;
+		const mid = (x.price.low + x.price.high) / 2;
+		if (Tr.held(me) > x.ship.cargo) { env.say('Your cargo won\'t fit its hold'); env.cue('refused'); return }
+		const p = Tr.pay(me, mid, x.price.currency, d); if (!p.ok) { env.say('Not enough ' + p.code); env.cue('refused'); return }
+		const old = S.hull(me.ship.model), st = Hg.storeShip(me, env.state(), env.place, d); if (!st.ok) { Tr.receive(me, mid, x.price.currency, d); env.say(st.why); env.cue('refused'); return }
+		st.item.cargo = {}; st.item.cost = {};   /* (the cargo comes with you to the new ship) */
+		me.ship = {model: x.ship.id, build: me.ship.build, sensors: me.ship.sensors}; env.onShip(x.ship.id);
+		env.say('Bought a ' + x.ship.name + ' for ' + money(mid, x.price.currency) + '. Your ' + (old ? old.name : 'ship') + ' is stored here.'); env.cue('clearance'); return;
+	}
+	if (act == 'hgswap') { const r = Hg.swap(me, t.dataset.id, env.state(), env.place, d); if (!r.ok) { env.say(r.why); env.cue('refused'); return } env.onSwap(r); env.say('You take out your ' + (S.hull(me.ship.model) || {name: 'ship'}).name + '; the ' + ((S.hull(r.stored.ship.model) || {}).name || 'other') + ' is stored here'); env.cue('clearance'); return }
+	if (act == 'hgsell') {
+		const x = (me.hangar || []).find(y => y.id == t.dataset.id), h = x && S.hull(x.ship.model); if (!h) return;
+		const ti = Tr.tradeIn(h, env.star, d), extra = x.ship.fit ? O.extra(h, x.ship.fit) * 0.8 * (ti.currency == 'SU' ? 1 : E.rate(ti.currency, d)) : 0, r = Hg.sellShip(me, x.id, env.place, d);
+		if (!r.ok) { env.say(r.why); env.cue('refused'); return }
+		Tr.receive(me, ti.amount + extra, ti.currency, d); env.say('Sold your stored ' + h.name + ' for ' + money(ti.amount + extra, ti.currency)); env.cue('docked');
+	}
+	if (act == 'hgsend') {
+		const x = (me.hangar || []).find(y => y.id == t.dataset.id), q = x ? Hg.quote('ship', x, env.place, d) : {ok: false, why: 'No such ship.'};
+		if (!q.ok) { env.say(q.why); env.cue('refused'); return }
+		const p = Tr.pay(me, transferCost(q), here(), d); if (!p.ok) { env.say('Not enough ' + p.code + ' for the transfer'); env.cue('refused'); return }
+		Hg.transfer('ship', x, env.place, d); env.say('Transfer ordered: your ' + (S.hull(x.ship.model) || {name: 'ship'}).name + (q.local ? ' is here now' : ' arrives on day ' + x.ready) + ' (' + money(p.amount, p.code) + ')'); env.cue('clearance');
+	}
 	if (act == 'restock') { const c = restockCost(), r = Tr.pay(me, c.cost, here(), d); if (r.ok) { me.combat = C.refill(env.ship, me.combat); env.say('Restocked: ' + fmt(c.tons, 1) + ' t of munitions for ' + money(r.amount, r.code)); env.cue('clearance') } else env.say('Not enough ' + r.code + ' to restock') }
 	if (act == 'accept') { const m = En.offers(me, env.port, d).find(x => x.id == t.dataset.m), r = m ? En.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Mission accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'acceptx') { const m = X.offers(me, env.star, env.port, d).find(x => x.id == t.dataset.m), r = m ? X.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Contract accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
@@ -400,28 +450,33 @@ function outfitAct(act, t, me, d) {
 	const sh = env.hullShip, rate = rateHere(), cur = here(), done = (msg, fit) => { if (fit) me.ship.fit = fit; env.onRefit(); env.say(msg); env.cue('clearance') };
 	const holdOk = fit => Tr.held(me) <= O.holdOf(sh, fit);
 	if (act == 'ofbuy') {
-		const o = O.offers(sh, ofSlot, env.port)[+t.dataset.j]; if (!o) return;
+		const o = O.offers(sh, ofSlot, env.port, env.star.id)[+t.dataset.j]; if (!o) return;
 		const m = {id: o.id, size: o.size, grade: o.grade}; if (m.id == 'decoder') m.langs = [];
 		const r = O.install(sh, me.ship.fit, ofSlot, m); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
 		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
 		const p = Tr.pay(me, o.price * rate, cur, d); if (!p.ok) { env.say('Not enough ' + p.code + ' for it'); env.cue('refused'); return }
-		if (r.old) (me.stored = me.stored || []).push(r.old);
+		if (r.old) (me.stored = me.stored || []).push(kept(r.old));
 		done('Fitted: ' + gname(m) + ' for ' + money(p.amount, p.code) + (r.old ? '. ' + gname(r.old) + ' went to storage.' : ''), r.fit);
 	}
 	if (act == 'ofstore' || act == 'ofsell') {
 		const r = O.remove(sh, me.ship.fit, ofSlot); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
 		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
-		if (act == 'ofstore') { (me.stored = me.stored || []).push(r.old); done(gname(r.old) + ' taken out and stored', r.fit) }
+		if (act == 'ofstore') { (me.stored = me.stored || []).push(kept(r.old)); done(gname(r.old) + ' taken out and stored', r.fit) }
 		else { Tr.receive(me, O.price(r.old) * 0.8 * rate, cur, d); done(gname(r.old) + ' sold for ' + money(O.price(r.old) * 0.8 * rate, cur), r.fit) }
 	}
 	if (act == 'offitstore') {
-		const j = +t.dataset.j, m = me.stored[j], r = O.install(sh, me.ship.fit, ofSlot, m); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
+		const j = +t.dataset.j, m0 = me.stored[j]; if (!m0 || !Hg.samePlace(m0.at, env.place) || !Hg.ready(m0, d)) { env.say('That module isn\'t here'); env.cue('refused'); return }
+		const m = Object.assign({}, m0); delete m.at; delete m.ready;
+		const r = O.install(sh, me.ship.fit, ofSlot, m); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
 		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
-		me.stored.splice(j, 1); if (r.old) me.stored.push(r.old);
+		me.stored.splice(j, 1); if (r.old) me.stored.push(kept(r.old));
 		done('Fitted from storage: ' + gname(m), r.fit);
 	}
 	if (act == 'ofrecycle') { const r = O.recycle(me, +t.dataset.j, env.star.id, d, env.ship.cargo); if (!r.ok) { env.say(r.why); env.cue('refused'); return } done('Recycled ' + gname(r.module) + ': ' + (Object.entries(r.goods).map(([g, n]) => n + ' t ' + g).join(', ') || 'nothing worth keeping') + (r.blueprint ? ', and the blueprint back' : '')); return }
-	if (act == 'ofsellstore') { const j = +t.dataset.j, m = me.stored[j]; me.stored.splice(j, 1); Tr.receive(me, O.price(m) * 0.8 * rate, cur, d); done(gname(m) + ' sold for ' + money(O.price(m) * 0.8 * rate, cur)) }
+	if (act == 'ofsellstore') { const j = +t.dataset.j, m = me.stored[j]; if (!m || !Hg.samePlace(m.at, env.place) || !Hg.ready(m, d)) return; me.stored.splice(j, 1); Tr.receive(me, O.price(m) * 0.8 * rate, cur, d); done(gname(m) + ' sold for ' + money(O.price(m) * 0.8 * rate, cur)) }
+	if (act == 'ofsend') { const j = +t.dataset.j, q = Hg.moduleQuote(me, j, env.place, d); if (!q.ok) { env.say(q.why); env.cue('refused'); return }
+		const p = Tr.pay(me, transferCost(q), cur, d); if (!p.ok) { env.say('Not enough ' + p.code + ' for the transfer'); env.cue('refused'); return }
+		const m = me.stored[j]; Hg.sendModule(me, j, env.place, d); done(gname(m) + (q.local ? ' brought over: here now' : ' sent for: here on day ' + m.ready) + ' (' + money(p.amount, p.code) + ')') }
 	if (act == 'oflang') {
 		const m = O.at(me.ship.fit, ofSlot), l = ofLang || (root.querySelector('[data-oflang]') || {}).value; if (!m || m.id != 'decoder' || !l) return;
 		if ((m.langs || []).length >= O.DECODER[m.grade]) { env.say('That decoder is full'); env.cue('refused'); return }

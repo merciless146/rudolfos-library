@@ -62,7 +62,7 @@ const Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTe
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.7'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.8'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -1494,6 +1494,16 @@ function openPort() {
 		onLaunch: () => { if (onGround) undockGround(); else { persist(); launch(false) } hud.focus() },
 		onRefit: () => { const old = fit; ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); for (const m of fit.modules) { const o = old.modules.find(x => x.id == m.id); if (o) m.hp = Math.min(m.max, o.hp / o.max * m.max) } env.ship = ship; arm(); persist() },
 		onShip: id => { baseShip = S.hull(id); game.P.ship.fit = O.stock(baseShip); ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); env.ship = ship; env.hullShip = baseShip; game.fuel = 1; game.P.combat = C.refill(ship, {hull: 1}); arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist() },
+		/* (0.3.8) storage and transfers (hangar.js): where this port is, the ship's state to store with it, and taking
+		   out a stored one */
+		place: window.EmberHangar.placeOf(game.star, dp, onGround ? dp.name : st.name),
+		state: () => ({modules: Object.fromEntries(fit.modules.map(m => [m.id, m.hp])), fuel: game.fuel, o2: fit.o2}),
+		onSwap: r => {
+			baseShip = S.hull(game.P.ship.model); if (!game.P.ship.fit || !O.valid(baseShip, game.P.ship.fit)) game.P.ship.fit = O.stock(baseShip);
+			ship = O.derive(baseShip, game.P.ship.fit); fit = Sv.restoreModules(M.fit(ship), r.modules || {}); if (r.o2 != null) fit.o2 = Math.min(fit.o2Max, r.o2);
+			game.fuel = r.fuel == null ? 1 : r.fuel; if (!game.P.combat) game.P.combat = C.refill(ship, {hull: 1});
+			env.ship = ship; env.hullShip = baseShip; env.fit = fit; arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist();
+		},
 		say: t => say(t), cue: k => Snd.cue(k)};
 	Port.open(env);
 }

@@ -551,7 +551,35 @@ or surface, keeps its own market:
   port's economy and the people it serves.
 
 Tested in `tests/emberreach_markets_t.js` (19 checks), the trade and colony tests, and the browser test's 3a.
-Still to come in L2.5: the services by kind and the surface bulletin contracts below.
+Still to come in L2.5: the surface bulletin contracts below.
+
+**Done, second part** (0.3.8): **shipyards, outfitters, storage and transfers** (`hangar.js`). This replaces the
+services table below for shipyards and outfitters.
+- **By port:**
+
+  | Port | Ships for sale | Outfitters | Storage |
+  |---|---|---|---|
+  | Outpost station (trefoil) | none | about half the range (its own half), grade C, up to size 2 | yes |
+  | Bloom station, settlement | up to M | up to size 4, grades C and B | yes |
+  | Surface starport | up to L | up to size 5, C and B | yes |
+  | Heavy landing field | up to XL | up to size 5, C and B | yes |
+  | Living-world station (lantern), capital (halo) | everything | up to size 7, C to A (the most advanced) | yes |
+  | Mining camp, surface outpost, forward base | none | none | no |
+  | Precursor anchorage | none | an outpost station's | yes |
+
+- **Storage:** ships and modules are kept where they were left.
+  - **A stored ship** keeps its fit, its modules' health, its fuel, its air and its hold.
+  - **Buying:** a ship can be bought by trading yours in, or by storing yours here.
+  - **Flying one:** taking out a stored ship stores the one you came in.
+  - **Old saves:** modules stored before 0.3.8 are taken in by the first port with storage you dock at.
+- **Transfers** are sent for from the port where you want the item.
+  - **The hold:** only with an empty hold. Passengers will count too, once ships carry them.
+  - **Same system:** a flat 100 SU (in the port's coin), at once.
+  - **From another system:** half the item's weekly insurance premium (5% of its value), plus 25 SU a parsec for
+    each step of its size class. A module counts 1 a size; a ship counts XS 1, S 2, M 4, L 8, XL 16, Capital 32.
+    It takes a day, plus a day for every 5 pc, rounded up.
+
+Tested in `tests/emberreach_hangar_t.js` (19 checks), the trade test, and the browser test's 3b.
 
 - **Markets** take the system's market and give each kind its twist:
   - **Mining camps** sell their world's ores at 70% and buy food, water and machinery at 120%.
