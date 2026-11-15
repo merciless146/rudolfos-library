@@ -253,28 +253,46 @@ function canMake(leg, range, fuel) {
 	return {ok: true, cost};
 }
 
-/* ---------- what the HUD says of a system (0.3.6): its government, the superpower that holds it, its people ----------
-   Government: the holder's own word (a great power's name ends in it: Republic, Hegemony, Throne...; a small
-   faction's too), or Anarchy where nobody holds it or pirates do. Superpower: the great power holding it, if one
-   does. Population: an estimate drawn for each port by its kind (seeded, so it stays put), plus a player's colony
-   (colonies.js: c.pop); with no port and no colony, nobody */
-const POP = {halo: [2e9, 9e9], lantern: [4e7, 1.5e9], trefoil: [300, 6000], camp: [40, 600], outpost: [150, 3000], settlement: [2e4, 4e5], starport: [5e5, 2e7], maw: [800, 2500]};
+/* ---------- what the HUD says of a system (0.3.6): its government, the superpower, its people ----------
+   A system with no port of any kind (space port, surface port, outpost, camp; and so no nav beacon) is wild:
+   uninhabited and, whoever's claim it lies in, an anarchy. Its superpower is still the great power whose space it is
+   in, if any: wild systems outside every power's space and every contested zone are the ones a player can colonise
+   (colonies.js: through a colonial office). With ports, the government is the holder's own word (a great power's name
+   ends in it: Republic, Hegemony, Throne...; a small faction's too), or Anarchy where pirates hold it.
+   Population (0.3.6, a formula): each port's base, by its kind (the bigger and more complex the port, the more
+   people), times the system's worlds: a multiplier of 1, plus 0.6 for each living world, 0.25 for each world with
+   traces of life, 0.1 for each other habitable one (in the zone, or a good ESI), and 0.02 for each barren world or gas
+   giant. Each port's base varies by up to 30% either way, seeded, so a system's count stays put. A player's colony
+   adds its own people (colonies.js: c.pop). No port and no colony: nobody */
+const POP = {
+	ports: {halo: 3e9, lantern: 2.5e8, bloom: 6e5, trefoil: 4000, maw: 1500, starport: 6e6, field: 3e4, settlement: 1.2e5, base: 2000, outpost: 1200, camp: 250},
+	worlds: {base: 1, alive: 0.6, life: 0.25, habitable: 0.1, barren: 0.02}, spread: 0.3};
+/* the worlds' multiplier, and how many of each kind */
+function worldsOf(star) {
+	const W = POP.worlds, n = {alive: 0, life: 0, habitable: 0, barren: 0};
+	for (const p of G.system(star).planets) n[p.alive ? 'alive' : p.life ? 'life' : !p.gas && (p.inHZ || (p.esi || 0) > 0.6) ? 'habitable' : 'barren']++;
+	return {k: W.base + W.alive * n.alive + W.life * n.life + W.habitable * n.habitable + W.barren * n.barren, n};
+}
+const wildAt = (star, day) => !portsAt(star, day).length;
 function government(star, day) {
-	const o = ownerOf(star, day), m = o.owner ? F.byId(o.owner) : null;
-	if (!m || (m.kind == 'minor' && m.type == 'criminal')) return {government: 'Anarchy', anarchy: true, superpower: null};
-	const word = m.name.replace(/^The /, '').split(' ').pop();
-	return {government: word, anarchy: false, superpower: m.kind == 'major' ? m.name.replace(/^The /, '') : null, contested: o.contested};
+	const o = ownerOf(star, day), m = o.owner ? F.byId(o.owner) : null, wild = wildAt(star, day), sup = m && m.kind == 'major' ? m.name.replace(/^The /, '') : null;
+	if (wild || !m || (m.kind == 'minor' && m.type == 'criminal')) return {government: 'Anarchy', anarchy: true, wild, superpower: sup, contested: !!o.contested};
+	return {government: m.name.replace(/^The /, '').split(' ').pop(), anarchy: false, wild: false, superpower: sup, contested: !!o.contested};
 }
 function population(star, day, colonyPop) {
-	let n = 0;
-	for (const q of portsAt(star, day)) {
+	const ports = portsAt(star, day);
+	let base = 0;
+	for (const q of ports) {
 		if (q.anchorage && !q.maw) continue;   /* (a Precursor anchorage runs itself: nobody aboard) */
-		const k = q.maw ? 'maw' : q.surface ? q.kind : q.cls, R = POP[k]; if (!R) continue;
+		const b = POP.ports[q.maw ? 'maw' : q.surface ? q.kind : q.cls]; if (!b) continue;
 		const u = G.rng(G.hashStr('pop:' + star.id + ':' + q.id))();
-		n += Math.round(Math.exp(Math.log(R[0]) + u * (Math.log(R[1]) - Math.log(R[0]))));
+		base += b * (1 + POP.spread * (2 * u - 1));
 	}
-	return n + (colonyPop || 0);
+	return Math.round(base * (base ? worldsOf(star).k : 0)) + (colonyPop || 0);
 }
+/* a system a player could colonise, as the HUD and the map tell it: wild, and outside every power's space and every
+   contested zone (claims inside a power's space are still filed, with its charter: colonies.js) */
+function colonisable(star, day) { if (star.heart || !wildAt(star, day) || !G.system(star).planets.length) return false; const o = ownerOf(star, day); return !o.owner && !o.contested }
 /* a head count as people read it: 2.4 billion, 380 million, 41,000 */
 function fmtPop(n) {
 	if (n >= 1e9) return (n / 1e9).toFixed(n < 1e10 ? 1 : 0) + ' billion';
@@ -282,6 +300,6 @@ function fmtPop(n) {
 	const p = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, n))) - 1));
 	return (Math.round(n / p) * p).toLocaleString('en-US');
 }
-const EmberTravel = {POP, government, population, fmtPop, ORBITAL, PORT_ID, portsAt, portById, HAVENS, havens, ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
+const EmberTravel = {POP, worldsOf, wildAt, colonisable, government, population, fmtPop, ORBITAL, PORT_ID, portsAt, portById, HAVENS, havens, ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
 if (isNode) module.exports = EmberTravel; else root.EmberTravel = EmberTravel;
 })(typeof window != 'undefined' ? window : this);

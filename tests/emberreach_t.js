@@ -305,7 +305,7 @@ async function frame(pg, test) {
 		await pg.screenshot({path: path.join(W, 'jump-aligned.png')});
 		await pg.keyboard.press('KeyJ'); await sleep(150); await f.evaluate(() => { EmberDebug.game.route = null; EmberDebug.game.jump = null });
 		ok('9x. a jump needs the nose on the system\'s star: refused facing away (the card gives distance, government, superpower, population), and charges once lined up, the open reticle on the star mid-screen',
-			!j0.jump && /^Align with /.test(j0.said) && j0.sys && j0.sys.rows.length == 4 && !j0.sys.aligned && !j0.sys.on && j1.jump && j1.sys.aligned && j1.sys.on, {jl, j0, j1});
+			!j0.jump && /^Align with /.test(j0.said) && j0.sys && j0.sys.rows.length >= 4 && !j0.sys.aligned && !j0.sys.on && j1.jump && j1.sys.aligned && j1.sys.on, {jl, j0, j1});
 		const rb = await f.evaluate(async () => { const g = EmberDebug.game, ft = EmberDebug.fit; EmberModules.damage(ft, 'sensors', 1e6); EmberDebug.reboot(); const r = {on: ft.reboot > 0, weapons: EmberModules.status(ft).weapons, thrust: EmberModules.status(ft).output.main};
 			await new Promise(z => setTimeout(z, 1500)); r.o2 = ft.o2 < ft.o2Max; r.chip = g.hudData.reboot > 0 && !!g.hudData.o2; ft.reboot = 0.2; await new Promise(z => setTimeout(z, 600));
 			r.back = EmberModules.works(ft, 'sensors'); r.said = g.msgs.some(m => /^Reboot complete: Sensors back/.test(m.text)); return r });

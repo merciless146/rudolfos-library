@@ -1693,7 +1693,9 @@ function sysCard(leg, cam) {
 			[tr('DISTANCE'), d < 1000 ? d.toFixed(d < 10 ? 2 : 1) + ' pc' : Math.round(d).toLocaleString('en-US') + ' pc'],
 			[tr('GOVERNMENT'), gv.anarchy ? tr('Anarchy') : gv.government],
 			[tr('SUPERPOWER'), gv.superpower || tr('None')],
-			[tr('POPULATION'), pop > 0 ? T.fmtPop(pop) : tr('Uninhabited')]]};
+			[tr('POPULATION'), pop > 0 ? T.fmtPop(pop) : tr('Uninhabited')],
+			/* a wild system outside every power's space and every front: a colonial office will file a claim on it */
+			...(T.colonisable(x, game.day) && !col ? [[tr('COLONY'), tr('Open to claim')]] : [])]};
 	}
 	return {name: x.name, x: pr.x, y: pr.y, dx: pr.dx, dy: pr.dy, on: pr.z > 0 && pr.x > 0 && pr.x < W && pr.y > 0 && pr.y < Hh, off, aligned: off <= JUMP.align, rows: game.sysInfo.rows,
 		note: off <= JUMP.align ? tr('ALIGNED') : Math.round(off) + '°'};
