@@ -37,6 +37,8 @@ function pack(g) {
 		player: g.player ? packPlayer(g.player) : null,
 		p: r(g.s.p), scale: 12, vel: r(g.s.v), q: r(g.s.q), w: r(g.s.w), fa: !!g.s.fa, throttle: +(+g.throttle || 0).toFixed(3),
 		modules: Object.fromEntries(g.fit.modules.map(m => [m.id, +m.hp.toFixed(2)])),
+		/* (0.3.6) the air in the life support's reserve (s), and a reboot under way (s left) */
+		o2: g.fit.o2 != null && g.fit.o2 < g.fit.o2Max ? +g.fit.o2.toFixed(1) : undefined, reboot: g.fit.reboot > 0 ? +g.fit.reboot.toFixed(2) : undefined,
 		/* landed (L1.2): the world, and the ship's place and heading in its turning axes */
 		landed: g.landed ? {world: g.landed.world, dir: r(g.landed.dir), h: +g.landed.h.toFixed(3), f: r(g.landed.f), u: r(g.landed.u)} : undefined, gear: g.gear ? true : undefined,
 		/* the settings (settings.js), kept clean */
@@ -87,7 +89,8 @@ function unpack(raw, known) {
 		star: raw.v >= 2 ? star(raw.star) : null, fuel: raw.v >= 2 ? raw.fuel : 1, at: raw.docked ? (raw.v >= 4 ? portId(raw.at) : 'orbital') : null, lastPort: raw.v >= 2 ? withPort(star(raw.lastPort), raw.v >= 4 && raw.lastPort ? raw.lastPort.port : null) : null, routeTo: raw.v >= 2 ? star(raw.routeTo) : null, version: raw.v, player,
 		p: raw.scale == 12 ? raw.p : raw.p.map(x => x / 12), v: raw.vel, q: raw.q.map(c => c / qn), w: raw.w, fa: raw.fa !== false, throttle: num(raw.throttle) ? Math.max(-1, Math.min(1, raw.throttle)) : 0,
 		modules: raw.modules, settings: St ? St.sanitise(set, null, I18 && I18.LANGS.map(l => l[0])) : set,
-		landed: landed(raw.landed), gear: raw.gear === true};
+		landed: landed(raw.landed), gear: raw.gear === true,
+		o2: num(raw.o2) && raw.o2 >= 0 ? raw.o2 : null, reboot: num(raw.reboot) && raw.reboot > 0 ? raw.reboot : null};
 }
 /* a landed ship's place, if it's sound (older saves have none) */
 function landed(x) { return x && typeof x == 'object' && typeof x.world == 'string' && vec(x.dir, 3) && num(x.h) && x.h >= 0 && vec(x.f, 3) && vec(x.u, 3) ? {world: x.world, dir: x.dir, h: x.h, f: x.f, u: x.u} : null }

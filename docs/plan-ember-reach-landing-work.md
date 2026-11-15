@@ -426,7 +426,7 @@ Tested in `tests/emberreach_surface_t.js` 18-19 and the browser test's 9s.
     reaching a pad within its time on a station and on the ground.
   - **Browser:** request, land and dock at an outpost; the port's screens open; launch and lift-off.
 
-**Done, first part** (0.3.5; the Autopilot Computer comes next, as 0.3.6):
+**Done, first part** (0.3.5):
 - **`traffic.js`:** one controller per port, space or surface, made when first asked, with its NPC traffic already
   under way.
   - **Pads:** a space port has 24 (S to XL, no capital berth); a surface port has its layout's.
@@ -452,6 +452,50 @@ Tested in `tests/emberreach_surface_t.js` 18-19 and the browser test's 9s.
   the space port's own pad.
 
 Tested in `tests/emberreach_traffic_t.js` (15 checks) and the browser test's 9u.
+
+**Done, second part** (0.3.6):
+- **The Autopilot Computer** (`autopilot.js`; an internal module, size 1, 3,500 SU). It flies through flight assist
+  with a pilot's limits. Touching the stick hands control back; **N**, or **Autopilot** on the radial menu, hands it
+  over again.
+  - **Docking in space:** it takes over once you're cleared. It flies out round the port if it has to, onto the
+    axis in front of the mouth, and in along it. It flies in space's frame until the run in, then the port's, so it
+    turns with a spinning port.
+  - **Docking on the ground:** it flies to your pad down a glide slope to a 350 m hover, then lets down under the
+    touchdown limits for its pad size. It lowers the gear on the way.
+  - **Cruise assist:** in cruise it turns onto the navigation target and sets the speed so you arrive at the edge
+    of the target's mass lock (a port's 10 km, a world's Kármán line) and drop out normally. It also slows for the
+    Kármán line of any world it is closing on near its path.
+  - **Jumps:** it turns onto the system's star, and holds it there while the drive charges.
+- **Two kinds of target:**
+  - **Navigation** (. Period): the port, surface ports, worlds and stars, plus the system picked on the map or the
+    route's next leg. Cruise, surveys, jumps and black-hole phasing use it.
+  - **Instance** (T): ships, canisters, asteroids, mining sites, deposits, the beacon, a colony site. Guns, scans and
+    prospecting use it.
+  - **The HUD:** the card shows the instance target (or the navigation target if there's none). A cyan diamond
+    marks the navigation target.
+- **Mass locks:** a space port's drops from 20 km to 10 km. Surface ports get a 10 km lock of their own. A world
+  locks cruise and jumps below its Kármán line (before, half a radius up when that was lower). The landing
+  altimeter shows below the Kármán line, and not above it (before, below 30 km).
+- **Jumping** needs the nose within 5° of the target system's star in the sky, held within 12° while the drive
+  charges. The HUD draws an open reticle round that star (green when lined up, an arrow at the edge when it's off
+  screen). The panel on the right gives:
+  - the distance, as the star map shows it;
+  - the government (the holder's own word, or Anarchy where nobody or pirates hold it);
+  - the superpower;
+  - the population (an estimate seeded per port by its kind, plus a colony's), or Uninhabited.
+- **Reboot** (radial menu):
+  - **While it runs (20 s):** weapons, thrusters and life support are off.
+  - **At the end:** every inoperable module comes back to working order (a tenth of its pool), critical modules
+    first. The cost comes from many working modules at random, at most 4% of each one's pool (a point on the
+    smallest), never leaving one below a point.
+- **Oxygen:** the life support keeps a reserve.
+  - **Size:** 15 minutes stock; 24 at grade B, 33 at grade A.
+  - **Drawn on** when the unit is broken, unpowered or rebooting, or the canopy is broken.
+  - **Refills** in 2 minutes, and to full on docking.
+  - **Warnings** at 5 minutes and at 1 minute. At empty the ship is lost.
+- **Not changed:** NPCs don't yet fly their own approaches with it (L2.6).
+
+Tested in `tests/emberreach_autopilot_t.js` (24 checks) and the browser test's 9v to 9y.
 
 ### L2.5 What surface ports trade
 

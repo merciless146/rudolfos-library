@@ -253,6 +253,35 @@ function canMake(leg, range, fuel) {
 	return {ok: true, cost};
 }
 
-const EmberTravel = {ORBITAL, PORT_ID, portsAt, portById, HAVENS, havens, ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
+/* ---------- what the HUD says of a system (0.3.6): its government, the superpower that holds it, its people ----------
+   Government: the holder's own word (a great power's name ends in it: Republic, Hegemony, Throne...; a small
+   faction's too), or Anarchy where nobody holds it or pirates do. Superpower: the great power holding it, if one
+   does. Population: an estimate drawn for each port by its kind (seeded, so it stays put), plus a player's colony
+   (colonies.js: c.pop); with no port and no colony, nobody */
+const POP = {halo: [2e9, 9e9], lantern: [4e7, 1.5e9], trefoil: [300, 6000], camp: [40, 600], outpost: [150, 3000], settlement: [2e4, 4e5], starport: [5e5, 2e7], maw: [800, 2500]};
+function government(star, day) {
+	const o = ownerOf(star, day), m = o.owner ? F.byId(o.owner) : null;
+	if (!m || (m.kind == 'minor' && m.type == 'criminal')) return {government: 'Anarchy', anarchy: true, superpower: null};
+	const word = m.name.replace(/^The /, '').split(' ').pop();
+	return {government: word, anarchy: false, superpower: m.kind == 'major' ? m.name.replace(/^The /, '') : null, contested: o.contested};
+}
+function population(star, day, colonyPop) {
+	let n = 0;
+	for (const q of portsAt(star, day)) {
+		if (q.anchorage && !q.maw) continue;   /* (a Precursor anchorage runs itself: nobody aboard) */
+		const k = q.maw ? 'maw' : q.surface ? q.kind : q.cls, R = POP[k]; if (!R) continue;
+		const u = G.rng(G.hashStr('pop:' + star.id + ':' + q.id))();
+		n += Math.round(Math.exp(Math.log(R[0]) + u * (Math.log(R[1]) - Math.log(R[0]))));
+	}
+	return n + (colonyPop || 0);
+}
+/* a head count as people read it: 2.4 billion, 380 million, 41,000 */
+function fmtPop(n) {
+	if (n >= 1e9) return (n / 1e9).toFixed(n < 1e10 ? 1 : 0) + ' billion';
+	if (n >= 1e6) return (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + ' million';
+	const p = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, n))) - 1));
+	return (Math.round(n / p) * p).toLocaleString('en-US');
+}
+const EmberTravel = {POP, government, population, fmtPop, ORBITAL, PORT_ID, portsAt, portById, HAVENS, havens, ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
 if (isNode) module.exports = EmberTravel; else root.EmberTravel = EmberTravel;
 })(typeof window != 'undefined' ? window : this);

@@ -61,7 +61,7 @@ function triangle(ctx, x, y, col) {
 }
 
 /* H: the HUD state from play.js (see draw's reads below) */
-/* the surface panel (landing L1.1), in the speed panel's place below 30 km: the altitude large, the vertical speed
+/* the surface panel (landing L1.1), in the speed panel's place below the world's Kármán line (0.3.6: before, below 30 km): the altitude large, the vertical speed
    (an arrow, red when it's past the touchdown limit for this ship's pad), an altitude tape, and a horizon with a
    pitch ladder that banks and pitches with the ship */
 function surfacePanel(ctx, bx, by, bw, bh, sf) {
@@ -135,6 +135,24 @@ function draw(ctx, W, H, h, t) {
 			ctx.fillStyle = T.hostile ? C.red : C.amber; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 12, y + Math.sin(a) * 12); ctx.lineTo(x + Math.cos(a + 2.5) * 10, y + Math.sin(a + 2.5) * 10); ctx.lineTo(x + Math.cos(a - 2.5) * 10, y + Math.sin(a - 2.5) * 10); ctx.closePath(); ctx.fill();
 		}
 	}
+	/* the navigation target, where the card shows an instance target: a small cyan diamond and its name */
+	if (h.navMark && h.navMark.on) {
+		const N = h.navMark; ctx.strokeStyle = C.cyan; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(N.x, N.y - 8); ctx.lineTo(N.x + 8, N.y); ctx.lineTo(N.x, N.y + 8); ctx.lineTo(N.x - 8, N.y); ctx.closePath(); ctx.stroke();
+		text(ctx, N.name + ' · ' + fmtDist(N.dist), N.x + 12, N.y + 4, {col: C.cyan, size: 11});
+	}
+	/* (0.3.6) the system the next jump goes to: an open reticle round its star (four arcs), green once the nose is
+	   within the jump's tolerance; off screen, a cyan arrow at the edge */
+	if (h.system) {
+		const Y = h.system, col = Y.aligned ? C.green : C.cyan;
+		if (Y.on) {
+			const r = 18; ctx.strokeStyle = col; ctx.lineWidth = 1.6;
+			for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(Y.x, Y.y, r, i * Math.PI / 2 + 0.3, (i + 1) * Math.PI / 2 - 0.3); ctx.stroke() }
+			text(ctx, Y.name + ' · ' + Y.note, Y.x + r + 8, Y.y + 4, {col, size: 11, weight: 600});
+		} else {
+			const a = Math.atan2(Y.dy, Y.dx), rr = Math.min(W, H) * 0.38, x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+			ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.moveTo(x + Math.cos(a) * 9, y + Math.sin(a) * 9); ctx.lineTo(x + Math.cos(a) * 17, y + Math.sin(a) * 17); ctx.stroke();
+		}
+	}
 	/* fixed guns' points of aim: where to put the crosshair so the shots meet the target (S and F: the slower and the
 	   faster shot, when there are two) */
 	if (h.target && h.target.leads) for (const L of h.target.leads) { if (!L.on) continue; ctx.strokeStyle = C.red; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(L.x, L.y - 6); ctx.lineTo(L.x + 6, L.y); ctx.lineTo(L.x, L.y + 6); ctx.lineTo(L.x - 6, L.y); ctx.closePath(); ctx.stroke(); if (L.label) text(ctx, L.label, L.x + 9, L.y + 4, {mono: true, size: 10, weight: 700, col: C.red}) }
@@ -204,6 +222,9 @@ function draw(ctx, W, H, h, t) {
 	if (h.nv) chips.push([TT('NV'), C.green]);
 	if (h.cruise) chips.push([TT('CRUISE'), C.cyan]); else if (h.charging) chips.push([TT('CHARGING') + ' ' + Math.ceil(h.charging), C.cyan]); else if (h.massLocked) chips.push([TT('MASS LOCKED'), C.muted]);
 	if (h.jumpCharge) chips.push([TT('JUMP') + ' ' + Math.ceil(h.jumpCharge), C.cyan]);
+	if (h.ap) chips.push([h.ap, C.cyan]);
+	if (h.reboot) chips.push([TT('REBOOTING') + ' ' + Math.ceil(h.reboot), C.amber]);
+	if (h.o2) chips.push([h.o2.text, h.o2.low ? C.red : C.amber]);
 	if (h.fuel != null) chips.push([TT('FUEL') + ' ' + Math.round(h.fuel * 100) + '%', h.fuel < 0.25 ? C.amber : C.muted]);
 	if (h.gFelt != null) chips.push([h.gFelt.toFixed(1) + ' g', h.gFelt > 4 ? C.amber : C.muted]);
 	let chx = bx + 12;
@@ -269,6 +290,14 @@ function draw(ctx, W, H, h, t) {
 		ctx.fillStyle = 'rgba(3,6,12,0.8)'; ctx.fillRect(lx, y, lw, ch);
 		msgs.forEach((m, i) => { ctx.globalAlpha = Math.min(1, (MT - (t - m.t)) / 1.5); text(ctx, '> ' + m.text, lx + 10, y + 20 + i * 20, {mono: true, size: 12, col: pal(m.col) || C.green}) });
 		ctx.globalAlpha = 1;
+	}
+	/* ---- right: the system the next jump goes to (0.3.6): distance, government, superpower, population ---- */
+	if (h.system && h.system.rows) {
+		const Y = h.system, w = small2 ? 200 : 236, x = W - w - 16, sysH = h.showSystems && h.modules ? 34 + h.modules.length * 26 + 12 : 0, y0 = Math.max(16 + sysH, Math.round(H * 0.3)), ph = 40 + Y.rows.length * 20;
+		box(ctx, x, y0, w, ph);
+		text(ctx, Y.name, x + 12, y0 + 22, {size: 14, weight: 600, col: Y.aligned ? C.green : C.cyan});
+		text(ctx, Y.note, x + w - 12, y0 + 22, {mono: true, size: 11, col: Y.aligned ? C.green : C.muted, align: 'right'});
+		Y.rows.forEach(([k, v], i) => { const yy = y0 + 42 + i * 20; text(ctx, k, x + 12, yy, {mono: true, size: 10, col: C.muted}); text(ctx, v, x + w - 12, yy, {size: 12, align: 'right'}) });
 	}
 	/* ---- right: internal systems ---- */
 	if (h.showSystems && h.modules) {
