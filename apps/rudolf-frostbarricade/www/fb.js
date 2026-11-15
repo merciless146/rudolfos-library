@@ -1,4 +1,4 @@
-/* ===== 25 Days (formerly Frost Barricade): hold the barricade for twenty-five nights (for older players: a darker game of the Rudolf OS
+/* ===== Holiday Holdout (formerly 25 Days, and before that Frost Barricade; renamed again in 1.3.1): hold the barricade for twenty-five nights (for older players: a darker game of the Rudolf OS
    Library, docs/plan-games.md). An original game: the corrupted elves come out of the woods each night; aim and shoot
    (point and click, keys, a controller or touch); by day spend twelve hours on repairs, searching for weapons, ammo and
    survivors, and training; a weather radio tells what the night will bring. On the twenty-fifth night, in the great
@@ -564,9 +564,9 @@ function hud(x) {
 }
 function fakeHorde(x) { for (let i = 0; i < 6; i++) { const e = {id: i + 1, kind: ['shambler', 'sprinter', 'mugger', 'bloater', 'crawler', 'shambler'][i], x: 520 + i * 84 + Math.sin(T * .3 + i) * 6, lane: [2, 9, 5, 12, 7, 13][i], walk: T * 2 + i, chill: 0, burn: 0, hitT: 0}; A.elf(x, e, T, save.set.reduceFlash) } }
 function titleText(x) {
-	x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '900 54px Impact,"Arial Black",system-ui,sans-serif'; x.lineWidth = 8; x.strokeStyle = 'rgba(0,0,0,.85)'; x.strokeText('25 DAYS', W / 2, 66);
-	const g = x.createLinearGradient(0, 40, 0, 92); g.addColorStop(0, '#e8e2d8'); g.addColorStop(1, '#8a1622'); x.fillStyle = g; x.fillText('25 DAYS', W / 2, 66);
-	x.fillStyle = 'rgba(40,6,12,.8)'; for (let i = 0; i < 7; i++) { const dx = W / 2 - 100 + A.hash(i, 51) * 200, dl = 6 + A.hash(i, 52) * 16; x.fillRect(dx, 84, 2, dl); x.beginPath(); x.arc(dx + 1, 84 + dl, 1.8, 0, 7); x.fill() }
+	x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '900 54px Impact,"Arial Black",system-ui,sans-serif'; x.lineWidth = 8; x.strokeStyle = 'rgba(0,0,0,.85)'; x.strokeText('HOLIDAY HOLDOUT', W / 2, 66);
+	const g = x.createLinearGradient(0, 40, 0, 92); g.addColorStop(0, '#e8e2d8'); g.addColorStop(1, '#8a1622'); x.fillStyle = g; x.fillText('HOLIDAY HOLDOUT', W / 2, 66);
+	x.fillStyle = 'rgba(40,6,12,.8)'; for (let i = 0; i < 7; i++) { const dx = W / 2 - 200 + A.hash(i, 51) * 400,   /* (drips under the whole of the longer name) */  dl = 6 + A.hash(i, 52) * 16; x.fillRect(dx, 84, 2, dl); x.beginPath(); x.arc(dx + 1, 84 + dl, 1.8, 0, 7); x.fill() }
 	x.font = '13px system-ui,sans-serif'; x.fillStyle = '#c9c2bd'; x.lineWidth = 5; x.strokeText('Twenty-five days. One barricade.', W / 2, 112); x.fillText('Twenty-five days. One barricade.', W / 2, 112);
 }
 

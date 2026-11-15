@@ -1,4 +1,4 @@
-/* 25 Days (formerly Frost Barricade) in Chromium (Playwright), as the Rudolf OS desktop opens it: shooting (mouse, keys, a controller,
+/* Holiday Holdout (formerly 25 Days, and Frost Barricade) in Chromium (Playwright), as the Rudolf OS desktop opens it: shooting (mouse, keys, a controller,
    touch), the weapons' effects, the barricade, day planning, losing and retrying a night, the weather radio and the weather, the wendigo, the last night's rescue, saves.
      node tests/frostbarricade_t.js [PORT] */
 const {chromium} = require('playwright');
@@ -320,7 +320,7 @@ async function open(pg) {
 			/* faster elves, sprinters most */
 			__fb.spawn('sprinter'); out.sprint = N.elves.at(-1).sp; __fb.spawn('shambler'); out.shamb = N.elves.at(-1).sp;
 			return out });
-		ok('27. 25 Days: the new name, a wider field', d25.title == '25 Days' && d25.W > 1000, [d25.title, d25.W]);
+		ok('27. Holiday Holdout (1.3.1, formerly 25 Days): the new name, a wider field', d25.title == 'Holiday Holdout' && d25.W > 1000, [d25.title, d25.W]);
 		ok('28. W/S move Rudolf up and down behind the barricade, quickly', d25.moved > 3, d25.moved);
 		ok('29. the aim stops at 15 degrees up and down', Math.abs(Math.abs(d25.aimUp) - Math.PI / 12) < .001 && Math.abs(d25.aimDown - Math.PI / 12) < .001, [d25.aimUp, d25.aimDown]);
 		ok('30. a shot flies on past the crosshair and hits an elf behind it', d25.past, d25);

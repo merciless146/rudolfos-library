@@ -1,4 +1,4 @@
-/* ===== 25 Days (formerly Frost Barricade): the art, drawn in Canvas each frame (no image files). GPL-2.0-or-later.
+/* ===== Holiday Holdout (formerly 25 Days, and before that Frost Barricade): the art, drawn in Canvas each frame (no image files). GPL-2.0-or-later.
    A gritty look, like the old violent Flash games: dark and washed-out colours, heavy outlines, film grain and a
    vignette, smoke and spent casings, and the corrupted elves bursting in dark ichor that stains the snow all night.
    The corrupted elves follow Night Flight's corruption: jagged dark silhouettes, dark skin and clothes, narrow glowing
