@@ -55,14 +55,14 @@
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
-const Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
+const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
 	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.9'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.10'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -448,6 +448,8 @@ function dockGround(sp) {
 	Atc.docked(atcOf(sp.q), 'me');
 	game.docked = true; game.dockPort = sp.q; game.lastPort = game.star; game.portId = game.lastPortId = sp.q.id;
 	game.P.combat = C.keep(game.pcs); game.npcs = []; game.shots = []; game.booms = [];
+	/* (0.3.10) surface deliveries due here are handed over, before the missions settle */
+	for (const m of Ct.deliverAt(game.P, game.star.id, sp.q.id)) say('Delivered ' + m.tons + ' t of ' + m.good + ' to ' + sp.q.name, '#7fd1a8');
 	En.tick(game.P, game.star.id, 0, true); settle(); chartsNear();
 	talk(sp.q.owner, sp.q.name + ': clamps locked on pad ' + game.clearance.pad + '. Welcome down.', '#7fd1a8'); Snd.cue('docked');
 	persist(); openPort();
@@ -489,6 +491,7 @@ function groundScan(dt, cruising) {
 	game.gscan = null; game.gscanAt = {world: sf.world, dir: here};
 	const b = sf.body, list = X.deposits(b, b.src, here, GSCAN.range);
 	game.deposits = list.map(d => ({kind: 'deposit', dep: d, world: b, radius: 30, name: d.res + ' deposit', get pos() { const bf = Sc.bodyFrame(b, Sc.turnOf(b, game.day, game.t)), w = add(add(mul(bf.x, d.dir[0]), mul(bf.y, d.dir[1])), mul(bf.z, d.dir[2])); return add(b.pos, mul(w, b.radius + Sc.heightAt(b, d.dir) + 2)) }}));
+	for (const m of Ct.scanned(game.P, game.star.id, b.name)) say('Ground survey done for the contract: ' + pname(b) + ' · dock anywhere to be paid', '#7fd1a8');   /* (0.3.10) */
 	if (!list.length) say('Ground scan of ' + pname(b) + ': no deposits within 5 km', '#9fb0cc');
 	else { const by = {}; for (const d of list) by[d.res] = (by[d.res] || 0) + 1; say('Ground scan: ' + list.length + (list.length == 1 ? ' deposit' : ' deposits') + ' within 5 km (' + Object.entries(by).map(([r, n]) => r + (n > 1 ? ' ×' + n : '')).join(', ') + '). T to target them', '#c9a46a') }
 	/* a lone surface port on this world, found (L2.2) */

@@ -551,7 +551,7 @@ or surface, keeps its own market:
   port's economy and the people it serves.
 
 Tested in `tests/emberreach_markets_t.js` (19 checks), the trade and colony tests, and the browser test's 3a.
-Still to come in L2.5: the surface bulletin contracts below.
+(The surface bulletin contracts below followed in 0.3.10.)
 
 **Done, second part** (0.3.8): **shipyards, outfitters, storage and transfers** (`hangar.js`). This replaces the
 services table below for shipyards and outfitters.
@@ -582,6 +582,20 @@ services table below for shipyards and outfitters.
     of the module's), within a system too. The days aren't capped.
 
 Tested in `tests/emberreach_hangar_t.js` (19 checks), the trade test, and the browser test's 3b.
+
+**Done, third part** (0.3.10): **surface contracts** on the bulletin (`contracts.js`). A great power's port posts
+them for its own system and others within 8 pc. Each board changes daily.
+- **Deliveries:** bring 5, 10, 20 or 40 t of food, machinery, water or medicine to a surface port. Dock on one of
+  its pads with the load aboard.
+  - **Pay:** the goods' base value 1.8 to 2 times over for food and machinery, 1.5 to 1.7 times for water and
+    medicine, plus 250 SU and 120 SU a parsec.
+  - **Handing over:** the load leaves the hold as you dock, and the contract pays there.
+- **Ground surveys:** land on a world you can land on and let the ground scan run. 800 SU plus 150 SU a parsec,
+  paid at the next port you dock at.
+- **Terms:** in the issuer's coin, due in 12 days, counted among the three missions you can hold, and settled
+  (with standing) like the cartographers' contracts.
+
+Tested in `tests/emberreach_contracts_t.js` (17 checks) and the browser test's 9u2. L2.5 is done.
 
 - **Markets** take the system's market and give each kind its twist:
   - **Mining camps** sell their world's ores at 70% and buy food, water and machinery at 120%.
