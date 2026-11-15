@@ -578,6 +578,8 @@ services table below for shipyards and outfitters.
   - **From another system:** half the item's weekly insurance premium (5% of its value), plus 25 SU a parsec for
     each step of its size class. A module counts 1 a size; a ship counts XS 1, S 2, M 4, L 8, XL 16, Capital 32.
     It takes a day, plus a day for every 5 pc, rounded up.
+  - **The cap** (0.3.9): never more than 5 weeks' insurance on it (50% of the ship's whole value with its fit, or
+    of the module's), within a system too. The days aren't capped.
 
 Tested in `tests/emberreach_hangar_t.js` (19 checks), the trade test, and the browser test's 3b.
 
