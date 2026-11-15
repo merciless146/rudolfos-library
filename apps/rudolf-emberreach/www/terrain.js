@@ -89,12 +89,15 @@ function height(b, d, minWave) {
 	/* plains: the low, smooth lowlands of a large world */
 	if (p.maria) { const m = smooth(0.56, 0.66, noise(d, 1.5, p.seed + 91)); if (m > 0) h = h * (1 - m) + m * (-0.35 * p.A + 0.08 * p.A * relief(p, d, Math.max(mw, p.R * 0.02))) }
 	h += craters(p, d, mw);
-	/* flats: levelled discs, with their ramps */
+	/* flats: levelled discs, with their ramps. The ramps first, then the discs, so a disc stays level even where a
+	   neighbour's ramp reaches into it (a surface starport and its landing field, 8 km apart) */
+	let core = null;
 	for (const fl of p.flats) {
 		const a = Math.acos(Math.max(-1, Math.min(1, dot(d, fl.dir)))) * p.R; if (a > fl.r + fl.ramp) continue;
-		const t = a <= fl.r ? 1 : 1 - smooth(fl.r, fl.r + fl.ramp, a); h = h * (1 - t) + fl.h * t;
+		if (a <= fl.r) { core = fl; continue }
+		const t = 1 - smooth(fl.r, fl.r + fl.ramp, a); h = h * (1 - t) + fl.h * t;
 	}
-	return h;
+	return core ? core.h : h;
 }
 /* a levelled disc (L2's port sites): at dir, r metres across with a ramp, at the height the ground has there */
 function addFlat(b, dir, r, ramp) { const p = params(b), d = nrm(dir); const h = height(b, d); p.flats.push({dir: d, r, ramp: ramp || r * 0.5, h}); return h }

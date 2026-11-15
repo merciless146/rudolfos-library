@@ -139,8 +139,9 @@ async function frame(pg, test) {
 		await pg.keyboard.down('Semicolon'); await sleep(500); await pg.keyboard.up('Semicolon');
 		const an = await f.evaluate(() => ({mode: EmberDebug.game.mode, shots: EmberDebug.game.shots.filter(x => x.owner == 'me' && x.kind != 'mining').length}));
 		await pg.keyboard.press('KeyM'); await sleep(200);
+		await f.evaluate(() => { window.__fired = 0; const g = EmberDebug.game; window.__fw = setInterval(() => { window.__fired += g.shots.filter(x => x.owner == 'me').length + g.beams.length }, 30) });
 		await pg.keyboard.down('Semicolon'); await sleep(500); await pg.keyboard.up('Semicolon');
-		const cb = await f.evaluate(() => ({mode: EmberDebug.game.mode, shots: EmberDebug.game.shots.filter(x => x.owner == 'me').length}));
+		const cb = await f.evaluate(() => { clearInterval(window.__fw); return {mode: EmberDebug.game.mode, shots: window.__fired} });
 		ok('9i. M switches Combat and Analysis mode: in Analysis the weapons are safe, in Combat they fire', an.mode == 'analysis' && an.shots == 0 && cb.mode == 'combat' && cb.shots > 0, {an, cb});
 		await pg.keyboard.down('Backquote'); await sleep(250); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowRight'); await sleep(250);
 		const rOpen = await f.evaluate(() => ({open: !!EmberDebug.game.radial, sel: EmberDebug.game.radial && EmberDebug.game.radial.sel}));
@@ -210,16 +211,28 @@ async function frame(pg, test) {
 			const place = () => { n.s.p = s.p.map((v, i) => v + (fw[i] * Math.cos(k) + up[i] * Math.sin(k)) * 1200); n.s.v = s.v.slice() };
 			place(); g.tgt = n; await sl(300); place();
 			const hd = g.hudData, out = {circle: hd.gimbal && hd.gimbal.r, track: !!(hd.target && hd.target.track), leads: hd.target && hd.target.leads ? hd.target.leads.length : -1};
-			let charge = 0, beams = 0; g.mouseFire = true;
+			let charge = 0, beams = 0; (RG.mouse(0, true), RG.mouse(2, true));
 			for (let i = 0; i < 8; i++) { await sl(60); place(); charge = Math.max(charge, (g.hudData.gimbal || {}).charge || 0); beams = Math.max(beams, g.beams.length) }
 			window.__wp = {out, charge, beams}; return null });
 		await pg.screenshot({path: path.join(W, 'weapons.png')});
 		const wp = await f.evaluate(async () => { const g = EmberDebug.game, sl = ms => new Promise(r => setTimeout(r, ms)), {out, charge, beams} = window.__wp;
-			out.ammoHeld = g.pcs.load.guns[1].ammo; g.mouseFire = false; await sl(150);
+			out.ammoHeld = g.pcs.load.guns[1].ammo; (RG.mouse(0, false), RG.mouse(2, false)); await sl(150);
 			out.ammoAfter = g.pcs.load.guns[1].ammo; out.charge = charge; out.beams = beams; out.gatling = g.pcs.load.guns[0].ammo < 1500;
-			g.npcs = []; g.shots = []; g.mouseFire = false; return out;
+			g.npcs = []; g.shots = []; (RG.mouse(0, false), RG.mouse(2, false)); return out;
 		});
 		ok('9q. weapons: the gimballed gatling\'s circle shows and tracks a pirate 8° off the nose; the fixed mass driver has its point of aim, charges while the trigger is held and fires on letting go; lasers draw beams', wp.circle > 50 && wp.track && wp.leads == 1 && wp.charge > 0.3 && wp.ammoHeld == 150 && wp.ammoAfter == 149 && wp.beams > 0 && wp.gatling, wp);
+		/* 0.3.4: the mouse buttons as bindings: the left fires the primary guns (lasers), the right the secondary (gatlings);
+		   the wheel is a binding too */
+		const mb = await f.evaluate(async () => {
+			const g = EmberDebug.game, hud = document.getElementById('hud'), sl = ms => new Promise(r => setTimeout(r, ms)), kinds = () => g.shots.map(x => x.kind).concat(g.beams.map(b => b.kind));
+			g.mode = 'combat'; g.npcs = []; g.shots = []; g.beams = []; g.pcs.hot = false; g.pcs.heat = 0;
+			g.pcs.load.guns = [{kind: 'pulse', mount: 'fixed', cool: 0, ammo: null}, {kind: 'gatling', mount: 'fixed', cool: 0, ammo: 1500}];
+			const click = async b => { g.shots = []; g.beams = []; hud.dispatchEvent(new MouseEvent('mousedown', {button: b, bubbles: true})); const seen = new Set(); for (let i = 0; i < 15; i++) { await sl(20); kinds().forEach(k => seen.add(k)) } const k = [...seen]; dispatchEvent(new MouseEvent('mouseup', {button: b, bubbles: true})); await sl(100); return k };
+			const left = await click(0), right = await click(2), middle = await click(1);
+			const menu = !hud.dispatchEvent(new MouseEvent('contextmenu', {button: 2, bubbles: true, cancelable: true}));
+			RG.rebind('dbgRoute', 'wheel:up'); RG.wheel(-120); const wheel = RG.pressed('dbgRoute') && RG.down('dbgRoute'); RG.frame(); const after = RG.down('dbgRoute');
+			return {left, right, middle, menu, wheel, after, binds: {fire: RG.bindings().fire, fire2: RG.bindings().fire2}} });
+		ok('9t. 0.3.4: the left mouse button fires the lasers, the right the gatling, the middle nothing (unbound); no right-click menu; the wheel works as a binding for one update', mb.left.join() == 'pulse' && mb.right.join() == 'gatling' && mb.middle.length == 0 && mb.menu && mb.wheel && !mb.after && mb.binds.fire.includes('mouse:0') && mb.binds.fire2.includes('mouse:2'), mb);
 		await setDown(2, -60); await sleep(1500);
 		const cr = await f.evaluate(() => { const g = EmberDebug.game; return {lost: g.msgs.some(m => /Ship destroyed: a crash on/.test(m.text)), landed: !!g.landed} });
 		ok('9f. coming down at 60 m/s is a crash: the ship is lost and the insurer takes over', cr.lost && !cr.landed, cr);
@@ -229,6 +242,19 @@ async function frame(pg, test) {
 		const cp = await f.evaluate(async () => { const m = EmberFactions.majors()[0]; EmberDebug.go(m.star); EmberDebug.game.npcs = []; await new Promise(r => setTimeout(r, 300)); const g = EmberDebug.game, q = g.ports.filter(x => x.surface), spt = q.find(x => x.kind == 'starport'), b = spt && EmberDebug.scene.bodies.find(x => x.name == spt.world);
 			return {star: g.star.name, kinds: q.map(x => x.kind), flats: b ? EmberTerrain.params(b).flats.length : 0, owner: q.every(x => x.owner == g.port.owner)} });
 		ok('9r. L2.2: at the first capital, a surface starport and its landing field among its surface ports, held by the capital\'s power, the starport\'s site levelled', cp.kinds.includes('starport') && cp.kinds.includes('field') && cp.flats >= 1 && cp.owner, cp);
+		/* L2.3: the starport's model on its levelled ground: 1.5 km above it, looking down at it; then 100 km off, not drawn */
+		const pv = await f.evaluate(async () => {
+			const g = EmberDebug.game, s = EmberDebug.s, sp = g.surfacePorts.find(x => x.q.kind == 'starport'), at = EmberDebug.surfacePortAt(sp), up = at.up, east = at.rot.slice(0, 3);
+			const sl = ms => new Promise(r => setTimeout(r, ms)), place = h => { s.p = at.pos.map((v, i) => v + up[i] * h - east[i] * h * 0.8); s.v = EmberFlight.frameAt(EmberScene.worldFrame(sp.body), s.p).v; s.q = EmberScene.lookRotation(at.pos.map((v, i) => v - s.p[i]).map((v, _, a) => v / Math.hypot(...a)), up) };
+			g.landed = null; g.gear = false; g.npcs = []; g.chase = false; g.settings.hud.lead = false;
+			place(1500); await sl(2500); place(1500); await sl(600);
+			const near = g.lod.ports, Ly = sp.layout, R = sp.body.radius, d = sp.dir, e0 = [-d[1], d[0], 0], el = Math.hypot(...e0), e = e0.map(x => x / el), n = [d[1] * e[2] - d[2] * e[1], d[2] * e[0] - d[0] * e[2], d[0] * e[1] - d[1] * e[0]];
+			const padH = Ly.pads.map(p => { const v = d.map((x, i) => x * R + e[i] * p.c[0] + n[i] * p.c[1]), l = Math.hypot(...v); return EmberTerrain.height(sp.body, v.map(x => x / l)) - sp.h });
+			window.__pv = {near, pads: Ly.pads.length, level: Math.max(...padH.map(Math.abs))};
+			return null });
+		await pg.screenshot({path: path.join(W, 'surface-port.png')});
+		const pv2 = await f.evaluate(async () => { const g = EmberDebug.game, s = EmberDebug.s, sp = g.surfacePorts.find(x => x.q.kind == 'starport'), at = EmberDebug.surfacePortAt(sp); s.p = at.pos.map((v, i) => v + at.up[i] * 1e5); await new Promise(r => setTimeout(r, 600)); return Object.assign(window.__pv, {far: g.lod.ports}) });
+		ok('9s. L2.3: the surface starport\'s model is drawn from 1.5 km (and its field), every pad on level ground (within 0.5 m); from 100 km up it isn\'t drawn (the world stands in)', pv2.near >= 1 && pv2.pads >= 10 && pv2.level < 0.5 && pv2.far == 0, pv2);
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
 		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(15000);

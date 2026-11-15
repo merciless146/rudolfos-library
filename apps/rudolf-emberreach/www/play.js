@@ -20,7 +20,8 @@
    20 km, a simple one to 500 km, and a sprite beyond; ships are always drawn in full at the graphics setting.
    - Combat (M4): the system's cast (encounters.js) flies the same flight model under AI pilots (combat.js): port
      patrols and traders, pirates, war wings on the fronts, small factions' flagships, and what your war missions bring.
-     L or the left mouse button fires (lasers heat, mass drivers use rounds), K launches a missile at a locked target,
+     ; or the left mouse button fires the primary guns (lasers), ' or the right the secondary (gatlings, mass drivers;
+     0.3.4: mouse buttons and the wheel are bindings, gamekit 1.2.0), K launches a missile at a locked target,
      B drops a flare, U targets the nearest hostile. Shields soak hits and come back; the hull's damage reaches the
      modules; at no hull the ship is lost. Kills pay bounties, anger factions or count as war effort; war missions
      taken at a bulletin board are settled as you go.
@@ -61,7 +62,7 @@ const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconom
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.3'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.4'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -74,7 +75,7 @@ const KEYS = {
 	strafeL: ['KeyQ', 'pad:14'], strafeR: ['KeyE', 'pad:15'], strafeU: ['Space', 'pad:12'], strafeD: ['ShiftLeft', 'pad:13'],
 	fa: ['KeyZ', 'pad:1'], cruise: ['KeyC', 'pad:3'], target: ['KeyT', 'Tab', 'pad:2'], dock: ['KeyN'], view: ['KeyV', 'pad:11'],
 	map: ['KeyG', 'pad:8'], jump: ['KeyJ', 'pad:10'], route: ['Enter', 'NumpadEnter'], home: ['Home', 'KeyY'],
-	hatch: ['KeyI'], fire: ['Semicolon', 'pad:7'], gear: ['KeyL'], missile: ['KeyK', 'pad:6'], flare: ['KeyB'], hostile: ['KeyU'],
+	hatch: ['KeyI'], fire: ['Semicolon', 'pad:7', 'mouse:0'], fire2: ['Quote', 'mouse:2'], gear: ['KeyL'], missile: ['KeyK', 'pad:6'], flare: ['KeyB'], hostile: ['KeyU'],
 	systems: ['KeyO'], lights: ['Digit1'], nightVision: ['Digit2'], mode: ['KeyM'], radial: ['Backquote'], mouse: [], help: ['KeyH', 'F1'], pause: ['KeyP', 'Escape', 'pad:9'],
 	dbgPirates: ['Digit6'], dbgBreak: ['Digit9'], dbgCanopy: ['Digit0'], dbgNear: ['Digit7'], dbgRoute: ['Digit8']};
 /* the controls help: every action with its keys as bound now (Settings rebinds them), in the chosen language */
@@ -85,7 +86,7 @@ let baseShip = null, W = 1, Hh = 1, view = null, R = null, scene = null, st = nu
 const game = {t: 0, day: 200, star: null, port: null, fuel: 1, route: null, jump: null, lastPort: null, mapOpen: false,
 	cruise: {on: false, v: 0, charge: 0}, throttle: 0, target: 0, clearance: null, docked: false, chase: false, systems: false, mouseFly: false, msgs: [], vision: null, gFelt: null, lastStep: null,
 	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: {stick: null, dx: 0, dy: 0, thr: null, fire: null, msl: false},
-	tgt: null, npcs: [], shots: [], beams: [], booms: [], cans: [], hatch: false, spill: {}, fields: [], field: null, rocks: [], sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, visits: 0, mouseFire: false, own: null};
+	tgt: null, npcs: [], shots: [], beams: [], booms: [], cans: [], hatch: false, spill: {}, fields: [], field: null, rocks: [], sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, visits: 0, own: null};
 const say = (text, col) => { game.msgs.push({text, col, t: game.t}); if (game.msgs.length > 12) game.msgs.shift() };
 const at = x => [x.x, x.y, x.z];
 const owner = () => game.port ? F.byId(game.port.owner) : null;
@@ -167,7 +168,13 @@ async function start() {
 	/* sound starts on the first touch, click or key (browsers insist) */
 	const unlock = () => Snd.unlock();
 	addEventListener('keydown', unlock); addEventListener('pointerdown', unlock);
-	hud.addEventListener('wheel', e => { if (!game.mapOpen) return; e.preventDefault(); map.zoom(Math.exp(e.deltaY * 0.0015)) }, {passive: false});
+	/* the mouse wheel zooms the open map; in flight it's bindable (0.3.4: 'wheel:up', 'wheel:down') */
+	hud.addEventListener('wheel', e => { e.preventDefault(); if (game.mapOpen) { map.zoom(Math.exp(e.deltaY * 0.0015)); return } if (!game.docked) RG.wheel(e.deltaY) }, {passive: false});
+	/* mouse buttons in flight, bindable (0.3.4: left fires the primary guns, right the secondary): from the HUD only,
+	   not on the map or while docked; each button on its own (pointer events miss a second button held with a first) */
+	hud.addEventListener('mousedown', e => { if (!game.mapOpen && !game.docked) RG.mouse(e.button, true) });
+	addEventListener('mouseup', e => RG.mouse(e.button, false));
+	hud.addEventListener('contextmenu', e => { if (!game.mapOpen) e.preventDefault() });
 	RG.on('pause', () => { Snd.hold(true); persist() }); RG.on('resume', () => Snd.hold(false));
 	say('Rendering with ' + (R.kind == 'webgl' ? 'WebGL 2' : 'Canvas 2D (fallback)'), '#9fb0cc');
 	say('Press H for the controls, G for the star map', '#9fb0cc');
@@ -185,8 +192,12 @@ function enterSystem(star) {
 	game.ports = T.portsAt(star, game.day, capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day));
 	game.port = T.portById(game.ports, T.ORBITAL);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
-	/* the surface ports' sites, levelled into their worlds' ground (L2.2) */
+	/* the surface ports' sites, levelled into their worlds' ground (L2.2), and their models (L2.3: uploaded when first
+	   near, dropped on leaving) */
 	if (window.EmberSurface) window.EmberSurface.level(scene.bodies, game.ports);
+	for (const k of game.portMeshes || []) R.drop(k);
+	game.portMeshes = new Set();
+	game.surfacePorts = window.EmberSurface ? game.ports.filter(q => q.surface).map(q => ({q, body: scene.bodies.find(b => b.name == q.world), dir: window.EmberSurface.siteDir(q)})).filter(x => x.body) : [];
 	st = scene.station;
 	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null; game.deposits = []; game.gscan = null;
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
@@ -866,15 +877,19 @@ function combat(dt) {
 	const hasMsl = pc.load.missiles > 0 || pc.load.guns.some(g => g.kind == 'torpedo' && g.ammo > 0);
 	const wasLocked = game.locked; game.locked = hasMsl && C.updateLock(pc, s, foe, dt); if (!hasMsl) pc.lock = {id: null, t: 0};
 	if (game.locked && !wasLocked) Snd.cue('lock');
-	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned, trigger = RG.down('fire') || game.mouseFire || game.touch.fire != null;
+	/* the triggers (0.3.4): Fire (the left mouse button) the primary guns, Fire secondary (the right) the secondary; with
+	   guns in only one group, either fires them; touch's FIRE, and a gamepad's trigger, fire every gun */
+	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned;
+	const allG = game.touch.fire != null || (RG.lastInput == 'pad' && RG.down('fire')), t1 = RG.down('fire') || allG, t2 = RG.down('fire2') || allG;
+	const oneGroup = new Set(pc.load.guns.filter(g => !C.WEAPONS[g.kind].homing).map(C.groupOf)).size < 2, heldG = g => oneGroup ? t1 || t2 : C.groupOf(g) == 1 ? t1 : t2, trigger = heldG;
 	/* the mass drivers: held, they charge; let go, they fire (combat mode only; out of it, the charge is lost) */
 	if (!can || game.mode == 'analysis') { for (const g of pc.load.guns) g.charge = 0 }
 	else if (C.railStep(pc, s, game.t, foe, game.shots, trigger, dt)) Snd.cue('driver');
-	if (zoned && (RG.down('fire') || game.mouseFire || game.touch.fire != null || RG.pressed('missile')) && (!game.zoneSaid || game.t - game.zoneSaid > 4)) { game.zoneSaid = game.t; say('No-fire zone: the Interstellar Marshals\' anchorage. Your weapons are locked within ' + H.fmtDist(En.MARSHALS.zone) + ' of it.', '#f2a33a'); Snd.cue('refused') }
-	if (can && (RG.down('fire') || game.mouseFire || game.touch.fire != null)) {
+	if (zoned && (t1 || t2 || RG.pressed('missile')) && (!game.zoneSaid || game.t - game.zoneSaid > 4)) { game.zoneSaid = game.t; say('No-fire zone: the Interstellar Marshals\' anchorage. Your weapons are locked within ' + H.fmtDist(En.MARSHALS.zone) + ' of it.', '#f2a33a'); Snd.cue('refused') }
+	if (can && (t1 || t2)) {
 		if (!pc.load.guns.length) { if (!game.saidUnarmed) { game.saidUnarmed = true; say('The ' + ship.name + ' carries no weapons', '#f2a33a') } }
 		else if (game.mode == 'analysis' && !pc.load.guns.some(g => g.kind == 'mining')) { if (!game.saidSafe2 || game.t - game.saidSafe2 > 4) { game.saidSafe2 = game.t; say('Analysis mode: weapons safe. No mining laser to fire (M for Combat mode)', '#9fb0cc') } }
-		else { const k = C.fire(pc, s, game.t, foe, game.shots, game.mode == 'analysis' ? ['mining'] : null); if (k) Snd.cue(gunCue(pc)) }
+		else { const k = C.fire(pc, s, game.t, foe, game.shots, game.mode == 'analysis' ? g => g.kind == 'mining' : heldG); if (k) Snd.cue(gunCue(pc)) }
 	} else game.saidUnarmed = false;
 	if (game.mode == 'analysis' && (RG.pressed('missile') || game.touch.msl)) { game.touch.msl = false; scanNow() }
 	else if (can && (RG.pressed('missile') || game.touch.msl)) {
@@ -921,7 +936,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -1311,6 +1326,16 @@ function terrainItems(b, items, bf, sun) {
 	return true;
 }
 const mat3 = (x, y, z) => [x[0], x[1], x[2], y[0], y[1], y[2], z[0], z[1], z[2]];
+/* where a surface port stands now: on its world (turning), at its site's levelled ground; its axes x east, y north,
+   z up (surface.js's model axes) */
+const SURF_LOD = {far: 5e4, hi: 8000};
+function surfacePortAt(sp) {
+	const b = sp.body, d = sp.dir, bf = Sc.bodyFrame(b, Sc.turnOf(b, game.day, game.t)), W = v => add(add(mul(bf.x, v[0]), mul(bf.y, v[1])), mul(bf.z, v[2]));
+	if (sp.h == null) sp.h = Te.height(b, d);
+	const e0 = Math.hypot(d[0], d[1]) > 1e-6 ? [-d[1], d[0], 0] : [1, 0, 0], el = Math.hypot(...e0), e = e0.map(x => x / el), n = [d[1] * e[2] - d[2] * e[1], d[2] * e[0] - d[0] * e[2], d[0] * e[1] - d[1] * e[0]];
+	const up = W(d);
+	return {pos: add(b.pos, mul(up, b.radius + sp.h)), up, rot: mat3(W(e), W(n), up)};
+}
 /* the 3D view's resolution: the screen's, times the Resolution setting, times the automatic resolution's scale */
 function sizeCanvas() {
 	const v = game.lastView; if (!v) return;
@@ -1381,6 +1406,15 @@ function draw() {
 				items.push({id: 'station:' + det + ':' + sp, pos: st.c, rot: mat3(add(mul(st.x, c), mul(st.y, sn)), add(mul(st.x, -sn), mul(st.y, c)), st.axis), light: sl, amb: 0.12});
 			}
 		}
+	}
+	/* surface ports (L2.3): their models on their levelled sites, upright to the local up; within 50 km (beyond, the
+	   world's sphere stands in), in full detail within 8 km */
+	game.lod.ports = 0;
+	for (const sp of game.surfacePorts || []) {
+		const at = surfacePortAt(sp), d = len(sub(at.pos, cam.p)); if (d > SURF_LOD.far) continue;
+		const det = d < SURF_LOD.hi ? 'hi' : 'lo', id = 'port:' + sp.q.id + ':' + det;
+		if (!game.portMeshes.has(id)) { game.portMeshes.add(id); R.upload(id, window.EmberSurface.meshes(sp.layout || (sp.layout = window.EmberSurface.layout(sp.q.kind, sp.q.seed)), det)) }
+		items.push({id, pos: at.pos, rot: at.rot, light: norm(sub(sun.pos, at.pos)), amb: 0.12}); game.lod.ports++;
 	}
 	if (game.chase) items.push({id: 'ship', pos: s.p, rot: mat3(B.r, B.u, B.f), light: norm(sub(sun.pos, s.p)), amb: 0.15});
 	/* other ships, always in full; bolts and missiles as glows; explosions as growing glows */
@@ -1518,7 +1552,7 @@ function pointers() {
 		RG.lastInput = e.pointerType == 'touch' ? 'touch' : 'mouse';
 		try { hud.setPointerCapture(e.pointerId) } catch (x) {}
 		if (game.mapOpen) { const act = map.down(p); if (act) mapAct(act); return }
-		if (e.pointerType != 'touch') { if (e.button == 0 && !game.docked) game.mouseFire = true; return }
+		if (e.pointerType != 'touch') return;   /* (mouse buttons: mousedown, below) */
 		const u = touchLayout();
 		const b = u.buttons.find(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
 		if (b && b.act == 'fire') { Tt.fire = e.pointerId; return }
@@ -1527,7 +1561,7 @@ function pointers() {
 		if (p.x >= u.vert.x - 8 && p.x <= u.vert.x + u.vert.w + 8 && p.y >= u.vert.y - 20 && p.y <= u.vert.y + u.vert.h + 20) { Tt.vertId = e.pointerId; vertMove(p); return }
 		if (p.x >= u.thr.x - 20 && p.x <= u.thr.x + u.thr.w + 20 && p.y >= u.thr.y - 20 && p.y <= u.thr.y + u.thr.h + 20) { Tt.thrId = e.pointerId; thrMove(p) }
 	});
-	const up = e => { if (e.pointerType != 'touch' && e.button == 0) game.mouseFire = false; if (Tt.fire == e.pointerId) Tt.fire = null; if (game.mapOpen) { map.up(pt(e)); return } if (Tt.stick && Tt.stick.id == e.pointerId) { Tt.stick = null; Tt.dx = Tt.dy = 0 } if (Tt.vertId == e.pointerId) { Tt.vertId = null; Tt.vert = 0 } if (Tt.thrId == e.pointerId) Tt.thrId = null };
+	const up = e => { if (Tt.fire == e.pointerId) Tt.fire = null; if (game.mapOpen) { map.up(pt(e)); return } if (Tt.stick && Tt.stick.id == e.pointerId) { Tt.stick = null; Tt.dx = Tt.dy = 0 } if (Tt.vertId == e.pointerId) { Tt.vertId = null; Tt.vert = 0 } if (Tt.thrId == e.pointerId) Tt.thrId = null };
 	hud.addEventListener('pointerup', up); hud.addEventListener('pointercancel', up);
 	function stickMove(p) { const u = touchLayout().stick; let dx = (p.x - u.x) / u.r, dy = (p.y - u.y) / u.r; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l } Tt.dx = dx; Tt.dy = dy }
 	function vertMove(p) { const u = touchLayout().vert; Tt.vert = Math.max(-1, Math.min(1, 1 - 2 * (p.y - u.y) / u.h)) }

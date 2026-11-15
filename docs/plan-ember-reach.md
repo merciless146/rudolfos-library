@@ -1266,6 +1266,18 @@ test's 9q):
 - **Heat gives you away:** missile and torpedo locks on a hot ship reach further and come sooner, up to twice as far
   in half the time at full heat.
 
+**0.3.2 to 0.3.4** began surface ports (L2): many ports to a system, ports placed on worlds, and their models. 0.3.4
+also arms the first ships and adds fire groups:
+- **Armed starters:** the starter hulls have external slots now (the Dodo one, the Jackalope and the Hippocamp two).
+  Stock fits put pulse lasers and light gatlings turn about in small slots, so a first ship has a pulse laser, and
+  with two slots a light gatling too.
+- **Fire groups:** Fire (; and the left mouse button) fires the primary guns (lasers), Fire secondary (' and the right
+  button) the secondary (gatlings, mass drivers). With guns in one group only, either fires them; touch's FIRE and a
+  gamepad's trigger fire every gun.
+- **Mouse bindings:** mouse buttons (left, middle, right, the side buttons) and the wheel (up, down) can be bound in
+  Settings (gamekit 1.2.0, `RG.mouse` and `RG.wheel`). A save whose Fire was rebound before keeps the left button on
+  it.
+
 Still to come: surface ports (L2), mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
 Surface ports are planned in `docs/plan-ember-reach-landing.md`; their model is `www/surface.js`.
 

@@ -30,13 +30,20 @@ try {
 	ok('7. defaults: high quality, full resolution, 70° view, sound on, HUD at 100%, three messages for 8 s, flashing as Rudolf OS says', D.graphics.quality == 'high' && D.graphics.res == 100 && D.graphics.fov == 70 && D.audio.on && D.hud.size == 100 && D.hud.messages == 3 && D.hud.msgTime == 8 && D.a11y.flash == 'os');
 	const bad = St.sanitise({graphics: {quality: 'ultra', res: 5, fov: 400, glow: 'yes'}, audio: {master: -3, effects: 250}, hud: {size: 900, messages: 50}, controls: {keys: {fire: ['KeyF', 42, '<script>'], bogus: ['KeyA']}, deadzone: 99}, lang: 'tlh', a11y: {palette: 'neon', flash: 'maybe'}}, acts, I.LANGS.map(l => l[0]));
 	ok('8. anything out of range or unknown is clamped or dropped (a hand-edited save can\'t break it)', bad.graphics.quality == 'high' && bad.graphics.res == 50 && bad.graphics.fov == 100 && bad.graphics.glow === true && bad.audio.master == 0 && bad.audio.effects == 100 && bad.hud.size == 150 && bad.hud.messages == 8
-		&& JSON.stringify(bad.controls.keys) == '{"fire":["KeyF"]}' && bad.controls.deadzone == 40 && bad.lang == 'os' && bad.a11y.palette == 'off' && bad.a11y.flash == 'os', bad);
+		&& JSON.stringify(bad.controls.keys) == '{"fire":["KeyF","mouse:0"]}' && bad.controls.deadzone == 40 && bad.lang == 'os' && bad.a11y.palette == 'off' && bad.a11y.flash == 'os', bad);
 	const old = St.sanitise({quality: 'low', sound: false});
 	ok('9. older saves\' settings carry over (quality, sound)', old.graphics.quality == 'low' && old.audio.on === false);
 	/* keys */
 	const KEYS = {fire: ['Semicolon', 'pad:7'], gear: ['KeyL'], fa: ['KeyZ', 'pad:1'], missile: ['KeyK', 'pad:6']};
 	const S = St.DEFAULTS();
-	ok('10. the gear is on L and fire on ; by default (the game\'s own map)', /gear: \['KeyL'\]/.test(PLAY) && /fire: \['Semicolon', 'pad:7'\]/.test(PLAY));
+	ok('10. the gear is on L, fire on ; and the left mouse button, fire secondary on \' and the right, by default (the game\'s own map)', /gear: \['KeyL'\]/.test(PLAY) && /fire: \['Semicolon', 'pad:7', 'mouse:0'\]/.test(PLAY) && /fire2: \['Quote', 'mouse:2'\]/.test(PLAY));
+	/* 0.3.4: mouse buttons and the wheel as bindings */
+	const mz = St.sanitise({controls: {mice: 1, keys: {fire2: ['mouse:1', 'wheel:up', 'mouse:x', 'wheel:sideways'], fire: ['KeyF']}}}, acts, ['en']);
+	ok('10a. mouse buttons and the wheel can be bound and are kept (anything else like them dropped); a save from 0.3.4 on is not changed', JSON.stringify(mz.controls.keys) == '{"fire2":["mouse:1","wheel:up"],"fire":["KeyF"]}', mz.controls.keys);
+	ok('10b. they read as Left click, Right click, Middle click, Wheel up and Wheel down; Fire secondary is on the Controls page (both schemes)', St.keyName('mouse:0') == '🖱 Left click' && St.keyName('mouse:2') == '🖱 Right click' && St.keyName('mouse:1') == '🖱 Middle click' && St.keyName('wheel:up') == '🖱 Wheel up' && St.keyName('wheel:down') == '🖱 Wheel down' && St.GROUPS.some(g => g[1].includes('fire2')) && St.SIMPLE.includes('fire2') && St.ACTION.fire2 == 'Fire secondary');
+	const D2m = St.DEFAULTS(), S2m = JSON.parse(JSON.stringify(D2m)), defs = {fire: ['Semicolon', 'pad:7', 'mouse:0'], fire2: ['Quote', 'mouse:2'], strafeU: ['Space', 'pad:12']};
+	const tookM = St.rebind(defs, S2m, 'strafeU', 1, 'mouse:2');
+	ok('10c. binding a mouse button takes it from the action that had it', tookM.join() == 'fire2' && S2m.controls.keys.strafeU.includes('mouse:2') && !S2m.controls.keys.fire2.includes('mouse:2'), S2m.controls.keys);
 	let took = St.rebind(KEYS, S, 'fire', 1, 'KeyL'), B = St.bindings(KEYS, S);
 	ok('11. binding a key that\'s taken moves it, and says from which action', took.join() == 'gear' && B.fire.join() == 'Semicolon,KeyL,pad:7' && B.gear.length == 0);
 	St.rebind(KEYS, S, 'missile', 2, 'pad:7'); B = St.bindings(KEYS, S);

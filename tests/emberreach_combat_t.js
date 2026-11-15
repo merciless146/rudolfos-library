@@ -9,7 +9,7 @@ const {add, sub, mul, len} = C.v, DT = 1 / 60;
 const seeded = s => () => { s = (s * 16807) % 2147483647; return s / 2147483647 };
 try {
 	const L = S.ships(), kestrel = L.find(s => s.id == 'kestrel'), pike = L.find(s => s.id == 'pike'), wren = L.find(s => s.id == 'wren');
-	ok('1. loadouts follow the hardpoints: a Kestrel\'s pulse laser and light gatling (gimballed, as AI ships have them); a Pike adds mass drivers and missile pylons; a Wren is unarmed', C.loadout(kestrel).guns.length == 2 && C.loadout(kestrel).guns.map(g => g.kind).join() == 'pulse,gatling' && C.loadout(kestrel).guns.every(g => g.mount == 'gimbal') && C.loadout(pike).guns.some(g => g.kind == 'driver') && C.loadout(pike).missiles == 8 && C.loadout(wren).guns.length == 0);
+	ok('1. loadouts follow the hardpoints: a Kestrel\'s pulse laser and light gatling (gimballed, as AI ships have them); a Pike adds mass drivers and missile pylons; a Wren (0.3.4) has one small gun', C.loadout(kestrel).guns.length == 2 && C.loadout(kestrel).guns.map(g => g.kind).join() == 'pulse,gatling' && C.loadout(kestrel).guns.every(g => g.mount == 'gimbal') && C.loadout(pike).guns.some(g => g.kind == 'driver') && C.loadout(pike).missiles == 8 && C.loadout(wren).guns.length == 1 && C.loadout(wren).guns[0].kind == 'pulse');
 	const cs = C.state(kestrel);
 	C.damage(cs, 10, 'pulse', 0);
 	ok('2. shields take the hits first (lasers 1.2× against them); the hull is untouched while they hold', cs.shield == kestrel.shield - 12 && cs.hull == kestrel.hull);
@@ -99,5 +99,14 @@ try {
 	ok('25. heat: a cold target locks in 2 s within 7 km and not at 10 km; a hot one (full heat) in 1 s, and at 10 km', Math.abs(lockAt(0, 5000) - 2) < 0.05 && lockAt(0, 10000) == null && Math.abs(lockAt(1, 5000) - 1) < 0.05 && lockAt(1, 10000) != null);
 	const O = require(path.join(DIR, 'outfit.js'));
 	ok('26. the outfitters sell each laser, gatling and needle fixed and gimballed (half again the price); the mass driver is still the mass driver', ['pulse', 'heavy', 'gatling', 'gatlingM', 'gatlingL', 'needle'].every(k => O.CAT[k + 'G'] && O.CAT[k + 'G'].price == O.CAT[k].price * 1.5 && C.gunOf(k + 'G').kind == k && C.gunOf(k + 'G').mount == 'gimbal') && O.CAT.driver.name == 'Mass driver' && !O.CAT.driverG && !O.CAT.lanceG);
+	/* 0.3.4: the first ships are armed; fire groups */
+	const Tr = require(path.join(DIR, 'trade.js')), Fa = require(path.join(DIR, 'factions.js')), starters = [...new Set(Fa.majors().map(m => Tr.newPlayer(m.id).ship.model))].map(id => S.hull(id));
+	const sfit = h => O.stock(h).external.map(x => x && x.id);
+	ok('27. 0.3.4: every first ship has a pulse laser; one with two small hardpoints (the Jackalope, the Hippocamp) a light gatling too; the stock fits alternate them', starters.length >= 3 && starters.every(h => sfit(h)[0] == 'pulse') && starters.filter(h => h.hard[0] >= 2).every(h => sfit(h)[1] == 'gatling') && starters.some(h => h.hard[0] >= 2), starters.map(h => h.name + ':' + sfit(h).join('+')));
+	const gl = C.loadout(Object.assign({}, kestrel, {guns: ['pulse', 'gatling', 'driver', 'needleG', 'gatlingMG']})).guns;
+	ok('28. fire groups: lasers primary (the left mouse button), guns that fire rounds secondary (the right)', gl.map(C.groupOf).join() == '1,2,2,1,2', gl.map(g => g.kind + ':' + C.groupOf(g)));
+	const two = C.state(Object.assign({}, kestrel, {guns: ['pulse', 'gatling']})); two.id = 'me'; const s28 = Fl.create(kestrel); s28.radius = 6; const o1 = [], o2 = [];
+	C.fire(two, s28, 0, null, o1, g => C.groupOf(g) == 1); two.load.guns.forEach(g => g.cool = 0); C.fire(two, s28, 0, null, o2, g => C.groupOf(g) == 2);
+	ok('29. each trigger fires only its own group', o1.length == 1 && o1[0].kind == 'pulse' && o2.length == 1 && o2[0].kind == 'gatling', [o1.map(x => x.kind), o2.map(x => x.kind)]);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
