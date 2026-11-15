@@ -2,7 +2,9 @@
    - Fields: every ringed planet's rings (stone or ice), and asteroid belts (none, one or two a system, between the
      planets' orbits; rocky, or metallic around metal-rich stars). Each field has a mining site, a point a pilot can
      target and drop out of cruise at.
-   - At a site, 64 asteroids (96 in a densely strewn ring) (30 to 240 m across) lie in a flattened swarm 15 km wide, the same every visit.
+   - A ring is made of asteroids (0.4.1, rings.js): its site is its known hotspot, and the asteroids there are
+     the ring's own, in its bands. A belt's site holds 64 asteroids (96 in a dense one), 30 to 240 m across,
+     in a flattened swarm 15 km wide, the same every visit.
      Each holds two or three goods in proportions, and a yield of tonnes that mining runs down (kept in the save).
    - A mining laser (an external module) chips an asteroid: every few hits an ore chunk breaks off, a fraction of a
      tonne of one of its goods, drifting away. A resource scanner (a utility mount) reads an asteroid's contents.
@@ -13,7 +15,7 @@
 (function (root) {
 'use strict';
 const isNode = typeof module != 'undefined';
-const G = isNode ? require('./galaxy.js') : root.EmberGalaxy;
+const G = isNode ? require('./galaxy.js') : root.EmberGalaxy, Rg = isNode ? require('./rings.js') : root.EmberRings;
 const MINE = {site: 15000, rocks: 64, sizes: [30, 60, 120, 240], hitsPerChunk: 6, chunk: [0.25, 0.6], laserRange: 600, scanRange: 3000, scanTime: 3, tractor: 600, tractorSpeed: 40, AU: 1.495978707e11 / 12};   /* at the world scale (galaxy.js WORLD_SCALE) */
 /* what each kind of field holds: goods and weights */
 const KINDS = {
@@ -35,8 +37,9 @@ function fields(scene, star) {
 	const out = [], sun = scene.bodies[0], planets = scene.bodies.filter(b => b.kind == 'planet');
 	for (const b of planets) {
 		if (!b.ring) continue;
-		const r = G.rng(G.hashStr('ring:' + b.name)), ax = norm(b.axis || [0, 0, 1]), e1 = norm(cross(ax, Math.abs(ax[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = cross(ax, e1), th = r() * 6.283;
-		out.push({id: 'ring:' + b.name, name: b.name + ' rings', kind: b.ring, rift: !!star.rift, density: b.ringDensity || 'moderate', pos: add(b.pos, mul(add(mul(e1, Math.cos(th)), mul(e2, Math.sin(th))), b.radius * 1.8)), normal: ax, body: b.name});
+		/* (0.4.1) a ring is made of asteroids (rings.js): its mining site is its known hotspot, in one of its bands */
+		const ring = Rg.ringOf(b, star), h = ring.hotspots[0]; if (!h) continue;
+		out.push({id: 'ring:' + b.name, name: b.name + ' rings', kind: b.ring, rift: !!star.rift, density: b.ringDensity || 'moderate', pos: h.pos, normal: ring.ax, body: b.name, ring, hot: h});
 	}
 	/* belts: in the gaps between planets' orbits, or out past the last */
 	const r = G.rng(G.hashStr('belts:' + star.id)), n = star.heart ? 0 : r() < 0.35 ? 0 : r() < 0.75 ? 1 : 2, orbits = planets.map(b => len(sub(b.pos, sun.pos))).sort((a, b) => a - b);
@@ -49,6 +52,7 @@ function fields(scene, star) {
 }
 /* the asteroids at a field's site: the same every visit; `mined` (P.mined) holds the tonnes already taken */
 function rocks(field, mined) {
+	if (field.ring) return Rg.rocksAround(field.ring, field.pos, MINE.site / 2, mined);
 	const fk = field.fieldKind || field.kind, K0 = KINDS[fk] || KINDS.rocky, K = field.rift ? {name: K0.name, goods: Object.assign({}, K0.goods, RIFT_ORE[fk] || RIFT_ORE.rocky)} : K0;
 	const r = G.rng(G.hashStr('rocks:' + field.id)), out = [];
 	const e1 = norm(cross(field.normal, Math.abs(field.normal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = cross(field.normal, e1);

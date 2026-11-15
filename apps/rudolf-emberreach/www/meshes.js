@@ -125,11 +125,13 @@ function starColour(T) {
 }
 /* a planet's rings: flat bands between 1.35 and 2.3 radii (unit radius), with gaps; both faces lit. Ice is pale,
    stone is brown and grey */
+/* (0.4.1: the bands and gaps come from rings.js, which fills the same bands with asteroids) */
+const Rg = () => typeof require != 'undefined' && typeof window == 'undefined' ? require('./rings.js') : root.EmberRings;
 function rings(kind, seed, quality) {
-	const m = new Mesh(), seg = quality == 'low' ? 48 : 96, bands = 14, base = kind == 'Ice' ? [0.82, 0.86, 0.9] : kind == 'Metal' ? [0.6, 0.6, 0.64] : [0.55, 0.48, 0.4];
-	for (let b = 0; b < bands; b++) {
-		const n = hash3(b, 3, 7, seed); if (n < 0.22) continue;   /* gaps */
-		const r0 = 1.35 + 0.95 * b / bands, r1 = 1.35 + 0.95 * (b + 1) / bands, k = 0.7 + 0.45 * n, col = [base[0] * k, base[1] * k, base[2] * k, 0];
+	const m = new Mesh(), seg = quality == 'low' ? 48 : 96, base = kind == 'Ice' ? [0.82, 0.86, 0.9] : kind == 'Metal' ? [0.6, 0.6, 0.64] : [0.55, 0.48, 0.4];
+	for (const B of Rg().bands(seed)) {
+		if (B.gap) continue;
+		const r0 = B.r0, r1 = B.r1, k = B.k, col = [base[0] * k, base[1] * k, base[2] * k, 0];
 		for (let i = 0; i < seg; i++) {
 			const a0 = i / seg * 2 * Math.PI, a1 = (i + 1) / seg * 2 * Math.PI, P = (r, a) => [r * Math.cos(a), r * Math.sin(a), 0];
 			m.tri(P(r0, a0), P(r1, a0), P(r1, a1), col, [0, 0, 1], [0, 0, 1], [0, 0, 1]).tri(P(r0, a0), P(r1, a1), P(r0, a1), col, [0, 0, 1], [0, 0, 1], [0, 0, 1]);

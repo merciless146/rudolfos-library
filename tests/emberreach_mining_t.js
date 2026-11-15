@@ -18,7 +18,8 @@ try {
 	const fs2 = Mi.fields(Sc.build(star, {day: 200, port: null}), star);
 	ok('2. the same fields every time; belts in some systems', JSON.stringify(fs.map(f => f.pos.map(Math.round))) == JSON.stringify(fs2.map(f => f.pos.map(Math.round))) && (() => { let b = 0, n = 0; for (const s of G.starsNear(home.star.x, home.star.y, home.star.z, 6).filter(x => x.kind == 'star').slice(0, 60)) { n++; if (Mi.fields(Sc.build(s, {day: 200, port: null}), s).some(f => f.id.startsWith('belt:'))) b++ } return b > n * 0.4 && b < n * 0.9 })());
 	const rocks = Mi.rocks(ring, {});
-	ok('3. a site holds 64 asteroids (96 in a dense ring), 30-240 m, each with two or three goods and a yield', rocks.length == (ring.density == 'dense' ? 96 : 64) && rocks.every(r => r.radius >= 30 && r.radius <= 240 && Object.keys(r.comp).length >= 1 && r.yield > 0) && rocks.every(r => len([r.pos[0] - ring.pos[0], r.pos[1] - ring.pos[1], r.pos[2] - ring.pos[2]]) < Mi.MINE.site));
+	/* (0.4.1: a ring's site is a stretch of the ring itself: its asteroids are the ring's, rings.js, tested in emberreach_rings_t.js) */
+	ok('3. a ring\'s site holds the ring\'s own asteroids within 7.5 km (dozens of them), 30-240 m, each with two or three goods and a yield', rocks.length >= 20 && rocks.length <= 400 && rocks.every(r => r.radius >= 30 && r.radius <= 240 && Object.keys(r.comp).length >= 1 && r.yield > 0) && rocks.every(r => len([r.pos[0] - ring.pos[0], r.pos[1] - ring.pos[1], r.pos[2] - ring.pos[2]]) < Mi.MINE.site));
 	ok('4. ice rings hold water; stone rings ores', ring.kind == 'Ice' ? rocks.some(r => r.comp.Water) : rocks.some(r => r.comp.Iron || r.comp.Copper));
 	/* chipping */
 	const r0 = rocks[0], mined = {}, from = [r0.pos[0] + 500, r0.pos[1], r0.pos[2]], rnd = seeded(3); let chunks = [];

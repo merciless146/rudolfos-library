@@ -359,6 +359,17 @@ async function frame(pg, test) {
 			delete g.P.bounties[code]; return r });
 		ok('9z2. L2.6: a forward base has two turrets; wanted in its coin, they turn on you and fire', !base.none && (base.turrets == 2 && base.onMe == 2 && base.hurt > 0), base);
 		await f.evaluate(() => { EmberDebug.game.npcs = [] });
+		/* 0.4.1 (L3.1): a ring's mining site is a stretch of the ring itself, its asteroids the ring's own */
+		const rg = await f.evaluate(async () => {
+			const g = EmberDebug.game; let star = null;
+			for (const m of EmberFactions.majors()) { for (const x of EmberGalaxy.starsNear(m.star.x, m.star.y, m.star.z, 6)) if (x.kind == 'star' && EmberGalaxy.system(x).planets.some(p => p.ring)) { star = x; break } if (star) break }
+			EmberDebug.go(star); await new Promise(r => setTimeout(r, 300));
+			const fd = g.fields.find(x => x.ring), s = EmberDebug.s; g.npcs = [];
+			s.p = fd.pos.map((v, i) => v + fd.ring.ax[i] * 900 + fd.ring.e1[i] * 1200); s.v = [0, 0, 0]; s.q = EmberScene.lookRotation(fd.ring.e2, fd.ring.ax); g.cruise = {on: false, v: 0, charge: 0};
+			await new Promise(r => setTimeout(r, 1500));
+			return {ring: fd.name, rocks: g.rocks.length, own: g.rocks.every(r => r.id.startsWith(fd.ring.id + '#')), inBands: g.rocks.every(r => { const L = EmberRings.locate(fd.ring, r.pos); return L.band && !L.band.gap }), fps: Math.round(g.fps || 0)} });
+		await pg.screenshot({path: path.join(W, 'ring.png')});
+		ok('9z3. L3.1: at a ring\'s mining site, the asteroids are the ring\'s own, in its bands', rg.rocks >= 20 && rg.own && rg.inBands, rg);
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
 		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(15000);

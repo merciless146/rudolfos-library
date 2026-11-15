@@ -679,6 +679,21 @@ the deposits the ground scan marks can be mined. Then colonies come down to the 
 - **Tests:** the bands match the drawn ring; cells are the same every visit; gaps are empty; ids are unique; the
   mix by band; hotspots.
 
+**Done** (0.4.1, `rings.js`):
+- **One shape:** the bands come from one function, used by `meshes.js` (the drawn ring, unchanged to look at) and
+  by mining.
+- **The rocks:** cells about 3 km across, seeded by place. Dense bands hold 6 to 10 a cell, moderate 3 to 5,
+  sparse 1 or 2, and gaps none. They lie in a sheet 400 m thick.
+  - **A densely strewn ring's** bands are a step denser.
+  - **Each asteroid** has its own id, so what's mined is remembered.
+  - **The mix** leans metallic in the inner bands and icy in the outer ones; Rift rings carry the Rift's ores.
+- **Hotspots:** 2 or 3 a ring, 5 km across, in its bands, where one good's share doubles. The first is known: it's
+  the ring's mining site now, and the asteroids there are the ring's own (`mining.js` fields and rocks). Finding
+  the others with a resource scanner is L3.2's.
+- **Belts:** unchanged (L3.3).
+
+Tested in `tests/emberreach_rings_t.js` (14 checks), the mining test's 3, and the browser test's 9z3.
+
 ### L3.2 Flying in a ring
 
 - **Drawing:** within 8 km of the ship the ring's cells are made and drawn as asteroids (the rock meshes in use
