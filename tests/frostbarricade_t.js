@@ -53,7 +53,10 @@ async function open(pg) {
 		let p = await toPage(head.e.x, head.e.y); await pg.mouse.move(fb.x + p.x, fb.y + p.y); await sleep(50);
 		const cr = await f.evaluate(() => ({x: __fb.cross.x, y: __fb.cross.y}));
 		ok('4. the mouse moves the crosshair', Math.abs(cr.x - head.e.x) < 2 && Math.abs(cr.y - head.e.y) < 2, cr);
+		/* (the pistol's spread held at nothing for this: a stray shot on the body would make the kill a body shot now and then) */
+		const spread0 = await f.evaluate(() => { const s = __fb.WEP.icicle.spread; __fb.WEP.icicle.spread = 0; return s });
 		for (let i = 0; i < 4; i++) { await pg.mouse.click(fb.x + p.x, fb.y + p.y); await sleep(300) }
+		await f.evaluate(s => { __fb.WEP.icicle.spread = s }, spread0);
 		const k1 = await f.evaluate(() => ({kills: __fb.G.kills, heads: __fb.G.heads, mag: __fb.G.wp.icicle.mag}));
 		ok('5. clicks on its glowing eyes bring it down (shots at the eyes count as such)', k1.kills == 1 && k1.heads == 1 && k1.mag <= 8, k1);
 		await f.focus('#cv'); await pg.keyboard.press('KeyR'); await sleep(1400);
