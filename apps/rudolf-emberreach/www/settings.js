@@ -26,18 +26,18 @@ const DEFAULTS = () => ({
 /* the actions on the Controls page, in groups (the debug keys aren't listed) */
 const GROUPS = [
 	['Flight', ['pitchDown', 'pitchUp', 'rollLeft', 'rollRight', 'yawLeft', 'yawRight', 'faster', 'slower', 'stop', 'strafeL', 'strafeR', 'strafeU', 'strafeD', 'fa', 'gear']],
-	['Combat and analysis', ['mode', 'fire', 'fire2', 'missile', 'flare', 'target', 'hostile']],
+	['Combat and analysis', ['mode', 'fire', 'fire2', 'missile', 'flare', 'target', 'navTarget', 'hostile']],
 	['Navigation', ['cruise', 'jump', 'dock', 'map', 'route', 'home']],
 	['Ship', ['hatch', 'lights', 'nightVision', 'systems']],
 	['Interface', ['radial', 'view', 'mouse', 'help', 'pause']]];
 /* the Simple scheme lists only these; the rest are in the radial menu (~), and still work if bound */
 const SIMPLE = ['pitchDown', 'pitchUp', 'rollLeft', 'rollRight', 'yawLeft', 'yawRight', 'faster', 'slower', 'stop', 'strafeL', 'strafeR', 'strafeU', 'strafeD',
-	'mode', 'fire', 'fire2', 'missile', 'target', 'hostile', 'cruise', 'jump', 'dock', 'map', 'route', 'radial', 'view', 'help', 'pause'];
+	'mode', 'fire', 'fire2', 'missile', 'target', 'navTarget', 'hostile', 'cruise', 'jump', 'dock', 'map', 'route', 'radial', 'view', 'help', 'pause'];
 /* picking a scheme sets the assists to its defaults (each can be changed after) */
 function applyScheme(S, scheme) { const on = scheme == 'simple'; Object.assign(S.controls, {scheme, autoGear: true, autoLights: on, landAssist: on, autoRoute: on}) }
 const ACTION = {pitchDown: 'Pitch down', pitchUp: 'Pitch up', rollLeft: 'Roll left', rollRight: 'Roll right', yawLeft: 'Yaw left', yawRight: 'Yaw right', faster: 'Throttle up', slower: 'Throttle down', stop: 'Throttle to zero',
 	strafeL: 'Strafe left', strafeR: 'Strafe right', strafeU: 'Strafe up', strafeD: 'Strafe down', fa: 'Flight assist', gear: 'Landing gear', lights: 'Spotlights', nightVision: 'Night vision', mode: 'Combat / analysis mode', radial: 'Radial menu', fire: 'Fire', fire2: 'Fire secondary', missile: 'Missile', flare: 'Flare', target: 'Next target', hostile: 'Nearest hostile',
-	cruise: 'Cruise', jump: 'Jump', dock: 'Request docking', map: 'Star map', route: 'Plot route', home: 'Map: back to you', hatch: 'Cargo hatch', systems: 'Internal systems', view: 'Camera view', mouse: 'Mouse flight', help: 'Controls help', pause: 'Pause'};
+	navTarget: 'Next navigation target', cruise: 'Cruise', jump: 'Jump', dock: 'Request docking', map: 'Star map', route: 'Plot route', home: 'Map: back to you', hatch: 'Cargo hatch', systems: 'Internal systems', view: 'Camera view', mouse: 'Mouse flight', help: 'Controls help', pause: 'Pause'};
 
 /* how a key or gamepad button reads */
 const PAD = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'L-stick', 'R-stick', 'D-pad ↑', 'D-pad ↓', 'D-pad ←', 'D-pad →'];

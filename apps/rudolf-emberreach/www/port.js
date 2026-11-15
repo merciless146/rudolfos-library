@@ -243,6 +243,7 @@ function effect(m) {
 	if (m.id == 'refinery') return (m.size + 1) + ' bins';
 	if (m.id == 'power') return O.powerOf(sh, m).toFixed(1) + ' MW';
 	if (m.id == 'decoder') return O.DECODER[m.grade] + ' languages';
+	if (m.id == 'life') return Math.round(15 * (1 + (O.GRADE[m.grade].k - 1) * 4)) + ' min of air in reserve';
 	return c.text;
 }
 function outfitting() {

@@ -181,7 +181,7 @@ async function frame(pg, test) {
 		/* cruise toward a targeted world you can land on drops out at its line, or 4.2 km up */
 		await f.evaluate(() => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0], s = EmberDebug.s;
 			g.landed = null; const u = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...u), U = u.map(v => v / n); s.p = b.pos.map((v, i) => v + U[i] * (b.radius + 3e5)); s.v = [0, 0, 0];
-			s.q = EmberScene.lookRotation(U.map(v => -v), Math.abs(U[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); g.tgt = b; g.gear = false; g.cruise = {on: true, v: 3000, charge: 0}; g.throttle = 1 });
+			s.q = EmberScene.lookRotation(U.map(v => -v), Math.abs(U[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); g.nav = b; g.gear = false; g.cruise = {on: true, v: 3000, charge: 0}; g.throttle = 1 });
 		let cd = null; for (let i = 0; i < 60 && !cd; i++) { await sleep(500); cd = await f.evaluate(() => { const g = EmberDebug.game; if (g.cruise.on) return null; const st = EmberScene.surfaceState(EmberDebug.scene, EmberDebug.s, g.t, EmberDebug.ship); const b = EmberDebug.scene.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0]; return {alt: EmberScene.groundAt(EmberDebug.scene, b, EmberDebug.s.p, g.t).alt, drop: EmberScene.dropRange(b), said: g.msgs.slice(-3).map(m => m.text)} }) }
 		ok('9o. cruising at a targeted world you can land on drops you out above it, at its line or 4.2 km up', cd && cd.alt > 0.4 * cd.drop && cd.alt < 1.2 * cd.drop, cd);
 		/* L1.5: touch has a GEAR button and a VERT slider (vertical thrust, back to the middle when let go); help has the landing controls */
@@ -279,6 +279,37 @@ async function frame(pg, test) {
 		await f.evaluate(() => { const b = [...document.querySelectorAll('#port button')].find(x => /^Launch/.test(x.textContent) && x.dataset.act == 'launch') || document.querySelector('#port [data-act="launch"]'); b && b.click() }); await sl4(400);
 		const out = await f.evaluate(async () => { const g = EmberDebug.game, r = {docked: g.docked, landed: !!g.landed, port: !document.getElementById('port').hidden, padFree: g.atc && Object.values(g.atc).every(C => !C.pads.some(p => p.who == 'me'))}; EmberDebug.s.fa = true; g.throttle = 0.5; await new Promise(r => setTimeout(r, 800)); r.lifted = !g.landed; g.throttle = 0; return r });
 		ok('9u. L2.4: N at a surface starport gives a pad; setting down on another pad is refused (clamps open); inside your own the clamps lock, docked, and the port opens; Launch frees the pad and you lift off', cl0 && cl0.pad && cl0.port.startsWith('surface:') && other.landed && !other.docked && other.cl && other.cl.pad != other.pad && mine.landed && mine.docked && mine.port && !out.docked && !out.port && out.padFree && out.lifted, {cl0, other, mine, out});
+		/* 0.3.6: navigation and instance targets, the 10 km port lock, lining up for a jump, the system card, a reboot */
+		await f.evaluate(() => { EmberDebug.go(EmberDebug.game.home.star); EmberDebug.game.npcs = []; EmberDebug.game.cans = [] }); await sleep(800);
+		const put = d => f.evaluate(d => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberDebug.scene.station; g.landed = null; g.docked = false; g.cruise = {on: false, v: 0, charge: 0}; g.jump = null; s.p = st.c.map((v, i) => v + st.axis[i] * d); s.v = [0, 0, 0]; s.w = [0, 0, 0]; g.npcs = [] }, d);
+		await put(15000); await f.focus('#hud');
+		const nav0 = await f.evaluate(() => EmberDebug.navTarget().name);
+		await pg.keyboard.press('KeyT'); await sleep(150); const t0 = await f.evaluate(() => { const g = EmberDebug.game; return {tgt: g.tgt && g.tgt.kind, nav: EmberDebug.navTarget().name, card: g.hudData && g.hudData.target.name, mark: g.hudData && g.hudData.navMark && g.hudData.navMark.name} });
+		await pg.keyboard.press('Period'); await sleep(150);
+		const nav1 = await f.evaluate(() => ({name: EmberDebug.navTarget().name, kind: EmberDebug.navTarget().kind || 'port', tgt: EmberDebug.game.tgt && EmberDebug.game.tgt.kind}));
+		ok('9v. T picks an instance target (the beacon here) and leaves the navigation target, which the HUD still marks; . (Period) steps through the navigation targets and leaves the instance one', ['beacon', 'ship', 'canister', 'asteroid', 'field', 'deposit', 'site'].includes(t0.tgt) && t0.nav == nav0 && t0.mark == nav0 && nav1.name != nav0 && ['planet', 'star', 'port'].includes(nav1.kind) && nav1.tgt == t0.tgt, {t0, nav0, nav1});
+		await put(9000); await pg.keyboard.press('KeyC'); await sleep(150);
+		const lk = await f.evaluate(() => ({charge: EmberDebug.game.cruise.charge, said: EmberDebug.game.msgs.slice(-1)[0].text}));
+		await put(11000); await pg.keyboard.press('KeyC'); await sleep(150);
+		const lk2 = await f.evaluate(() => EmberDebug.game.cruise.charge); await pg.keyboard.press('KeyC'); await sleep(100);
+		ok('9w. a port\'s mass lock reaches 10 km: cruise is refused at 9 km and charges at 11 km', !lk.charge && /10 km clear/.test(lk.said) && lk2 > 0, {lk, lk2});
+		await put(60000);
+		const jl = await f.evaluate(() => { const g = EmberDebug.game, x = EmberGalaxy.starsNear(g.star.x, g.star.y, g.star.z, 3).find(y => y.kind == 'star' && y.id != g.star.id); g.route = {legs: [{kind: 'jump', star: x, d: Math.hypot(x.x - g.star.x, x.y - g.star.y, x.z - g.star.z)}], toStar: x}; g.fuel = 1;
+			const d = EmberDebug.sysDir(x), s = EmberDebug.s; s.q = EmberScene.lookRotation(d.map(v => -v), Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); return x.name });
+		await pg.keyboard.press('KeyJ'); await sleep(300);
+		const j0 = await f.evaluate(() => { const g = EmberDebug.game, h = g.hudData; return {jump: !!g.jump, said: g.msgs.slice(-1)[0].text, sys: h.system && {rows: h.system.rows, aligned: h.system.aligned, on: h.system.on}} });
+		await f.evaluate(() => { const g = EmberDebug.game, d = EmberDebug.sysDir(g.route.legs[0].star), s = EmberDebug.s; s.q = EmberScene.lookRotation(d, Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); s.w = [0, 0, 0] });
+		await sleep(300); await pg.keyboard.press('KeyJ'); await sleep(300);
+		const j1 = await f.evaluate(() => { const g = EmberDebug.game, h = g.hudData; return {jump: !!g.jump, sys: h.system && {aligned: h.system.aligned, on: h.system.on, x: h.system.x, y: h.system.y}} });
+		await f.evaluate(() => { const s = EmberDebug.s, d = EmberDebug.sysDir(EmberDebug.game.route.legs[0].star); s.q = EmberScene.lookRotation(EmberScene.v.norm(d.map((v, i) => v + [0.05, 0.03, 0.02][i])), Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]) }); await sleep(400);
+		await pg.screenshot({path: path.join(W, 'jump-aligned.png')});
+		await pg.keyboard.press('KeyJ'); await sleep(150); await f.evaluate(() => { EmberDebug.game.route = null; EmberDebug.game.jump = null });
+		ok('9x. a jump needs the nose on the system\'s star: refused facing away (the card gives distance, government, superpower, population), and charges once lined up, the open reticle on the star mid-screen',
+			!j0.jump && /^Align with /.test(j0.said) && j0.sys && j0.sys.rows.length == 4 && !j0.sys.aligned && !j0.sys.on && j1.jump && j1.sys.aligned && j1.sys.on, {jl, j0, j1});
+		const rb = await f.evaluate(async () => { const g = EmberDebug.game, ft = EmberDebug.fit; EmberModules.damage(ft, 'sensors', 1e6); EmberDebug.reboot(); const r = {on: ft.reboot > 0, weapons: EmberModules.status(ft).weapons, thrust: EmberModules.status(ft).output.main};
+			await new Promise(z => setTimeout(z, 1500)); r.o2 = ft.o2 < ft.o2Max; r.chip = g.hudData.reboot > 0 && !!g.hudData.o2; ft.reboot = 0.2; await new Promise(z => setTimeout(z, 600));
+			r.back = EmberModules.works(ft, 'sensors'); r.said = g.msgs.some(m => /^Reboot complete: Sensors back/.test(m.text)); return r });
+		ok('9y. a reboot (radial menu): weapons and thrust off and the air reserve drawn while it runs; after it the broken sensors work again', rb.on && !rb.weapons && !rb.thrust && rb.o2 && rb.chip && rb.back && rb.said, rb);
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
 		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(15000);

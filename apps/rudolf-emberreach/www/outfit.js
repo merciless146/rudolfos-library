@@ -43,6 +43,7 @@ const CAT = {
 	refinery: {cat: 'internal', name: 'Refinery', grades: 'C', sizes: [1, 6], price: 6000, draw: 0.4, text: 'Refines mined ore into tonnes of cargo'},
 	relay: {cat: 'internal', name: 'Relay booster', grades: 'CBA', sizes: [1, 5], price: 9000, draw: 0.6, text: 'More hyperdrive range'},
 	alien: {cat: 'internal', name: 'Alien relay booster', grades: 'A', sizes: [2, 4], price: 0, value: 400000, draw: 0.3, ruins: true, text: 'Far more range: built from a ruin\'s blueprint'},
+	autopilot: {cat: 'internal', name: 'Autopilot Computer', grades: 'C', sizes: [1, 1], price: 3500, draw: 0.1, text: 'Docks the ship once cleared, in space or on a pad, and assists cruise to the navigation target'},
 	phaser: {cat: 'internal', name: 'Alien dimensional phaser', grades: 'A', sizes: [3, 3], price: 0, value: 300000, draw: 1.5, ruins: true, text: 'Lets the ship pass through a black hole\'s wormhole: built from a ruin\'s blueprint'},
 	/* external: size is the smallest hardpoint it fits (1 small ... 4 huge) */
 	/* (weapons: fixed fire along the nose, gimballed track a target within a circle of the screen for 15% less damage
@@ -164,6 +165,7 @@ function derive(ship, fit) {
 	out.mining = fit.external.filter(m => m && m.id == 'mining').length; out.tractor = fit.external.filter(m => m && m.id == 'tractor').length;
 	out.refinery = ints.filter(m => m.id == 'refinery').reduce((t, m) => t + m.size + 1, 0);
 	out.phaser = ints.some(m => m.id == 'phaser');
+	out.autopilot = ints.some(m => m.id == 'autopilot');
 	out.utility = Object.fromEntries(ut.map(m => [m.id, true]));
 	out.langs = [...new Set(ut.filter(m => m.id == 'decoder').flatMap(m => m.langs || []))];
 	out.power = power(ship, fit);
