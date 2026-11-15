@@ -1278,8 +1278,27 @@ also arms the first ships and adds fire groups:
   Settings (gamekit 1.2.0, `RG.mouse` and `RG.wheel`). A save whose Fire was rebound before keeps the left button on
   it.
 
-Still to come: surface ports (L2), mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
-Surface ports are planned in `docs/plan-ember-reach-landing.md`; their model is `www/surface.js`.
+**0.3.5 to 0.3.11** finished surface ports (L2); the details are in `docs/plan-ember-reach-landing-work.md`:
+- **0.3.5:** the traffic controller: pads by size, a first-come, first-served queue shared with NPC traffic, five
+  minutes to dock, and docking on a surface port's pad.
+- **0.3.6:**
+  - **The Autopilot Computer:** it docks in space and on pads, and assists cruise.
+  - **Targets:** navigation targets and instance targets.
+  - **Mass locks:** ports' locks of 10 km, and a world's lock at its Kármán line.
+  - **Jumps:** a jump needs the nose on the system's star, with a panel for it (distance, government,
+    superpower, population).
+  - **The ship:** a reboot on the radial menu, and an oxygen reserve.
+  - **Systems:** a population formula, and wild systems. A power's uninhabited systems stay uninhabited.
+- **0.3.7:** markets: each port's own, from its kind, its world and its people, with stock and demand that drift
+  and recover.
+- **0.3.8 and 0.3.9:** shipyards and outfitters by port size, ship and module storage, and transfers (capped at 5
+  weeks' insurance).
+- **0.3.10:** surface contracts: deliveries to surface ports and ground surveys.
+- **0.3.11:** NPC traffic flown in and out of pads, and forward bases' turrets.
+
+**Released: 0.4.0, surface ports** (L2), with all of the above.
+
+Still to come: mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
 
 ## Open questions
 
