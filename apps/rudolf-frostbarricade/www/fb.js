@@ -7,25 +7,35 @@
    behind the barricade) and aims within 15 degrees of level; shots fly on past the crosshair to the end of the field
    unless an elf or a shield stops them (the Ornament Launcher still bursts at the crosshair); unlimited ammunition,
    quicker reloads, faster elves; the survivors shoot each in their own time, wild until trained, and panic below 5%.
+   Holiday Holdout 1.4: aim within 8 degrees of level; training to 120; survivors turn up in many places; the wendigo
+   has a health bar, and its blows (and its screech reaching him) hurt Rudolf 10 and stun him for 3 s; sprinters run
+   all the way; fewer shielders, but from Night 12 the white-eyed pick up fallen shields far more often; looters dodge
+   the gunfire and steal a weapon (a survivor's crossbow, else one of Rudolf's) for the night, found again by the
+   next day's search; new magazines and reloads (the shotgun loads shell by shell and is racked after each shot); an
+   interrupted reload starts again from nothing (but the shells already in the shotgun stay).
    Uses the game kit (gamekit.js) and the art (fbart.js). GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
 const W = 1040, H = 440, DT = 1 / 60, PI = Math.PI, LAST = 25, SLEIGH_AT = 150;
 const $ = s => document.querySelector(s), A = window.FBART, cv = $('#cv');
-const AIM_MAX = 15 * Math.PI / 180, R_SPEED = 13, RELOAD_K = .6, ELF_SPEED = 1.3;
+const AIM_MAX = 8 * Math.PI / 180, R_SPEED = 13, RELOAD_K = .6, ELF_SPEED = 1.3;
 const DIFF = {easy: {name: 'Easy', count: .75, hp: .8, dmg: .65}, normal: {name: 'Normal', count: 1, hp: 1, dmg: 1}, hard: {name: 'Hard', count: 1.25, hp: 1.2, dmg: 1.3}};
 /* the weapons: each better than the last, or with a way of its own */
 const WEP = {
 	icicle: {name: 'Icicle Pistol', dmg: 14, rps: 4, mag: 10, reload: 1.1, spread: .02, mode: 'semi', night: 0, desc: 'Reliable, and never runs out of shots.'},
-	cane: {name: 'Candy-Cane Carbine', dmg: 17, rps: 10, mag: 24, reload: 1.6, spread: .018, mode: 'burst', night: 1, desc: 'Three-shot bursts, very steady.'},
-	flurry: {name: 'Flurry SMG', dmg: 9, rps: 13, mag: 40, reload: 1.8, spread: .06, mode: 'auto', night: 2, fx: 'chill', desc: 'Fully automatic; its frost can slow them.'},
-	snowplow: {name: 'Snowplow Shotgun', dmg: 11, pellets: 7, rps: 1.3, mag: 6, reload: 2.4, spread: .07, mode: 'semi', night: 3, fx: 'knock', desc: 'Seven pellets that push them back.'},
-	hail: {name: 'Hailstorm Rifle', dmg: 70, rps: 1.4, mag: 5, reload: 2.2, spread: .004, mode: 'semi', night: 5, pierce: 3, desc: 'Goes through three of them.'},
+	cane: {name: 'Candy-Cane Carbine', dmg: 17, rps: 10, mag: 18, reload: 1.6, spread: .018, mode: 'burst', night: 1, desc: 'Three-shot bursts, very steady.'},
+	flurry: {name: 'Flurry SMG', dmg: 9, rps: 13, mag: 24, reload: 1.8, spread: .06, mode: 'auto', night: 5, fx: 'chill', desc: 'Fully automatic; its frost can slow them.'},
+	snowplow: {name: 'Snowplow Shotgun', dmg: 11, pellets: 7, rps: 1.3, mag: 5, shell: .4, spread: .07, mode: 'semi', night: 3, fx: 'knock', pump: .38, desc: 'Seven pellets that push them back; racked after each shot, loaded a shell at a time.'},
+	hail: {name: 'Hailstorm Rifle', dmg: 70, rps: 1.4, mag: 5, rt: 2, spread: .004, mode: 'semi', night: 5, pierce: 3, desc: 'Goes through three of them.'},
 	bauble: {name: 'Ornament Launcher', dmg: 80, rps: .9, mag: 4, reload: 2.8, spread: .03, mode: 'semi', night: 7, fx: 'boom', desc: 'Bursting baubles: everything nearby is caught.'},
-	hearth: {name: 'Hearthfire Thrower', dmg: 6, rps: 20, mag: 80, reload: 3, spread: 0, mode: 'auto', night: 9, fx: 'fire', desc: 'A short reach of fire; they keep burning.'},
-	aurora: {name: 'Aurora Lance', dmg: 150, rps: .7, mag: 3, reload: 3, spread: 0, mode: 'semi', night: 11, pierce: 99, fx: 'stun', desc: 'A beam of northern light through the whole line; it stuns.'},
-	bells: {name: 'Sleigh-Bell Gatling', dmg: 15, rps: 18, mag: 150, reload: 4, spread: .05, mode: 'auto', night: 13, fx: 'spin', desc: 'Winds up, then does not stop.'}};
+	hearth: {name: 'Hearthfire Thrower', dmg: 6, rps: 20, mag: 150, rt: 3, spread: 0, mode: 'auto', night: 9, fx: 'fire', desc: 'A short reach of fire; they keep burning.'},
+	aurora: {name: 'Aurora Lance', dmg: 420, head: 4, rps: .7, mag: 1, rt: 1.5, spread: 0, mode: 'semi', night: 11, pierce: 99, fx: 'stun', desc: 'One devastating beam of northern light through the whole line (deadliest through the eyes); it stuns. Reload after every shot.'},
+	bells: {name: 'Sleigh-Bell Gatling', dmg: 15, rps: 18, mag: 300, rt: 8, spread: .05, mode: 'auto', night: 13, fx: 'spin', desc: 'Winds up, then does not stop.'}};
 const ORDER = Object.keys(WEP);
+/* a reload's time: rt is in seconds as it is; reload is scaled by RELOAD_K (the quicker reloads of 1.3); training takes
+   up to 30% off either (shell: a shotgun shell's time) */
+const SKILL_MAX = 120, skillK = () => Math.min(1, (G ? G.skill : 0) / SKILL_MAX);
+const reloadTime = w => (w.shell != null ? w.shell : w.rt != null ? w.rt : w.reload * RELOAD_K) * (1 - .3 * skillK());
 for (const k of ORDER) WEP[k].inf = true;   /* (25 Days: every weapon has unlimited ammunition) */
 const ELF = {
 	/* white eyes: the ordinary ones */
@@ -37,8 +47,8 @@ const ELF = {
 	   weapon (both from wildChance, below, not the weights) */
 	sprinter: {hp: 34, sp: 38, dps: 6, from: 2, w: 0},
 	/* cyan eyes: shielders, tougher than most, behind a shield that stops shots (not blows or blasts) */
-	shielder: {hp: 80, sp: 19, dps: 7, from: 5, w: 3},
-	mugger: {hp: 42, sp: 14, dps: 4, from: 3, w: 0},
+	shielder: {hp: 80, sp: 19, dps: 7, from: 5, w: 1.2},
+	mugger: {hp: 42, sp: 16, dps: 4, from: 3, w: 0},   /* (1.4: a little faster, and they dodge Rudolf's fire) */
 	spitter: {hp: 55, sp: 20, dps: 0, from: 6, w: 3},
 	brute: {hp: 260, sp: 14, dps: 20, from: 7, w: 2},
 	foreman: {hp: 1600, sp: 9, dps: 45, from: 99, w: 0},
@@ -63,6 +73,8 @@ function makeWeather(seed) {
 const wxOf = n => (G.wx || (G.wx = makeWeather(G.seed)))[Math.max(1, Math.min(LAST, n))];
 const NAMES = ['Juniper', 'Bramble', 'Clove', 'Sorrel', 'Thistle', 'Hazel', 'Rowan', 'Fennel', 'Wren', 'Birch', 'Moss', 'Sleet'];
 const KINDS = ['bunny', 'badger', 'fox', 'hare', 'otter', 'owl'];
+/* where a survivor is found, searching (1.4: not only the old mill) */
+const HIDING = ['hiding in the old mill', 'in the root cellar of the burnt-out farmhouse', 'up in the chapel’s bell tower', 'under an overturned sleigh by the frozen creek', 'in the hayloft of the empty stables', 'barricaded in the ranger’s hut on the ridge', 'in an ice-fishing shack out on the lake', 'in the back room of the boarded-up toy workshop', 'up a tall pine, half frozen', 'in the signal box by the snowed-in railway', 'in the old lighthouse keeper’s cottage', 'in a snow cave dug under the drifts'];
 const ROLES = {guard: 'Guard (shoots from the barricade)', repair: 'Repairs (+50 to the barricade a day)', scout: 'Scouts (an extra hour of searching)'};
 
 let save = {v: 1, set: {diff: 'normal', music: true, sfx: true, reduceFlash: false, assist: false}, run: null, best: 0, wins: 0, seenHelp: 0, stats: {kills: 0, heads: 0}};
@@ -73,10 +85,19 @@ const R = () => N.rng();
 /* ---------- a run ---------- */
 function newRun(diff) {
 	const wp = {}; ORDER.forEach(k => wp[k] = {have: k == 'icicle', mag: WEP[k].mag, res: k == 'icicle' ? 0 : 0});
-	G = {diff, night: 1, plan: {repair: 0, search: 8, train: 4}, seed: String(Date.now()) + ':' + Math.floor(Math.random() * 1e9), bar: 1000, barMax: 1000, hp: 100, wp, cur: 'icicle', skill: 0, surv: [], kills: 0, heads: 0, shots: 0, hits: 0, letter: false};
+	G = {v14: true, lost: [], diff, night: 1, plan: {repair: 0, search: 8, train: 4}, seed: String(Date.now()) + ':' + Math.floor(Math.random() * 1e9), bar: 1000, barMax: 1000, hp: 100, wp, cur: 'icicle', skill: 0, surv: [], kills: 0, heads: 0, shots: 0, hits: 0, letter: false};
 	G.wx = makeWeather(G.seed);
 }
 const snapshot = () => JSON.parse(JSON.stringify(G));
+/* a run saved before 1.4: training was out of 30 (now 120: the same aim, four times the steps), and magazines were
+   larger (none fuller than its weapon now holds); a run's morning too */
+function fixRun(r) {
+	if (!r || r.v14) return r;
+	r.v14 = true; r.skill = Math.min(SKILL_MAX, Math.round((r.skill || 0) * 4)); r.lost = r.lost || [];
+	for (const k of ORDER) if (r.wp && r.wp[k]) r.wp[k].mag = Math.min(r.wp[k].mag, WEP[k].mag);
+	if (r.morning) fixRun(r.morning);
+	return r;
+}
 
 /* ---------- the night ---------- */
 function startNight() {
@@ -84,8 +105,8 @@ function startNight() {
 	N = {night: n, wx: wxOf(n), t: 0, rl: 7, rv: 0, rwalk: 0, drops: [], gibs: [], smoke: [], panic: false, rng: RG.rng(G.seed + ':night:' + n), shields: [], waves: [], rstun: 0, deafT: -1, bashCd: 0, elves: [], slush: [], fx: [], spits: [], q: [], over: false, won: false, id: 0, barHit: 0, hurt: 0, recoil: 0, cd: 0, burst: 0, spin: 0, reload: 0, msg: null, sleigh: null, dawn: 0, beam: 0, flame: 0};
 	const total = n == LAST ? 9999 : nightCount(n, D), len = 46 + n * 3.5;
 	if (n < LAST) for (let i = 0; i < total; i++) N.q.push([2 + (i / total) * len + R() * 2, pickKind(n)]);
-	/* survivors come back to the barricade armed and rested each night (a stolen weapon is back by then) */
-	G.surv.forEach((s, i) => { s.disarmed = false; s.out = false; s.fled = false; s.stun = 0; s.runX = null; s.hp = 40; s.cd = .6 + R() * 2.4 + i * .3 });
+	/* survivors come back to the barricade rested each night, armed unless a looter's taken their crossbow (1.4) */
+	G.surv.forEach((s, i) => { s.disarmed = !!s.lost; s.out = false; s.fled = false; s.stun = 0; s.runX = null; s.hp = 40; s.cd = .6 + R() * 2.4 + i * .3 });
 	if (n == 10 || n == 15 || n == 20) N.q.push([len * .6, 'foreman']);
 	if (n == LAST) N.q.push([60, 'foreman'], [110, 'foreman']);
 	/* wendigos: one under the full moon; one on Night 24 and two on Night 25, in the great blizzard; a screech first */
@@ -146,19 +167,20 @@ function nightStep() {
 		/* changing lanes: now and then a new lane up to three away, crossed gradually */
 		if (e.changer && !e.attacking && e.stun <= 0) { e.lcT -= DT; if (e.lcT <= 0) { e.lcT = 2 + R() * 3; e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + (R() < .5 ? -1 : 1) * (1 + Math.floor(R() * 3)))) } }
 		/* muggers weave: back and forth across two or three lanes, quickly */
-		if (e.mugger && !e.attacking && e.stun <= 0) { e.lcT -= DT; if (e.lcT <= 0) { e.lcT = .4 + R() * .3; let dir = e.wdir = -(e.wdir || 1); const step = 2 + Math.floor(R() * 2); if (Math.round(e.lane) + dir * step < 0 || Math.round(e.lane) + dir * step > A.LANES - 1) dir = e.wdir = -dir; e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + dir * step)) } }
+		/* looters (1.4) dodge Rudolf's fire: with his aim across them while he shoots, they leap two or three lanes away */
+		if (e.mugger && !e.attacking && e.stun <= 0 && e.loot < 0 && dodge(e)) {}
+		else if (e.mugger && !e.attacking && e.stun <= 0) { e.lcT -= DT; if (e.lcT <= 0) { e.lcT = .4 + R() * .3; let dir = e.wdir = -(e.wdir || 1); const step = 2 + Math.floor(R() * 2); if (Math.round(e.lane) + dir * step < 0 || Math.round(e.lane) + dir * step > A.LANES - 1) dir = e.wdir = -dir; e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + dir * step)) } }
 		if (e.lane != e.tl && !(e.kind == 'wendigo' && e.wmode == 'charge')) { const d = e.tl - e.lane; e.lane += Math.sign(d) * Math.min(Math.abs(d), (e.mugger ? 6 : e.kind == 'wendigo' ? .3 : 1.3) * DT) }
 		if (e.kind == 'wendigo') wendigoStep(e);
-		/* shields: a shielder (from Night 10) goes back for its own; from Night 18 an ordinary elf may take up one whose
-		   shielder has fallen */
+		/* shields: a shielder (from Night 10) goes back for its own; from Night 12 an ordinary elf (white eyes) will
+		   usually take up one whose shielder has fallen (1.4: from 18, half the time, before) */
 		if (!e.shield && N.shields.length) shieldStep(e);
-		/* sprinters: dashes for the barricade, again and again */
-		if (e.sprint > 0) e.sprint -= DT;
-		else if (e.sprinter && !e.attacking && N.wx != 'blizzard') { e.spT -= DT; if (e.spT <= 0) { e.sprint = 1.1 + R() * 1.2; e.spT = 1.6 + R() * 2.2 } }
+		/* sprinters (1.4): they run the whole way to the barricade, without stopping (not in a blizzard: nothing runs) */
+		e.sprint = e.sprinter && !e.attacking && N.wx != 'blizzard' ? 1 : 0;
 		const sp = e.sp * (e.chill > 0 ? .45 : 1) * (e.stun > 0 ? 0 : 1) * (e.sprint > 0 ? 3.2 : 1) * (e.wmode == 'charge' || e.pickT > 0 ? 0 : 1);
 		/* a mugger with a weapon runs for the woods; out of sight, the weapon is gone until the next night */
 		if (e.loot >= 0) { e.x += 80 * (e.chill > 0 ? .45 : 1) * (e.stun > 0 ? 0 : 1) * DT; e.walk += DT * 5; e.attacking = false;
-			if (e.x > W + 30) { e.dead = true; e.escaped = true; const sv = G.surv[e.loot]; if (sv) N.fx.push({k: 'txt', x: W - 160, y: 120, s: 'The mugger got away with ' + sv.name + '’s crossbow', t: 0, long: true}); AU.sfx('lost') }
+			if (e.x > W + 30) { e.dead = true; e.escaped = true; N.fx.push({k: 'txt', x: W - 160, y: 120, s: 'The looter got away with ' + e.lootName, t: 0, long: true}); AU.sfx('lost') }
 			continue }
 		if (e.kind == 'spitter' && e.x <= e.stop) {
 			e.attacking = false; e.spitT -= DT;
@@ -171,7 +193,9 @@ function nightStep() {
 			e.attacking = true; e.walk += DT * 4;
 			if (e.mugger && steal(e)) continue;
 			if (e.stun > 0) continue;
-			if (G.bar > 0) hitBar(ELF[e.kind].dps * D.dmg * DT); else hurtRudolf(ELF[e.kind].dps * .5 * D.dmg * DT);
+			if (G.bar > 0) hitBar(ELF[e.kind].dps * D.dmg * DT);
+			else if (e.kind == 'wendigo') { e.blowT = (e.blowT || 0) - DT; if (e.blowT <= 0) { e.blowT = WEND_HIT.every; wendigoHit(); AU.sfx('bash') } }
+			else hurtRudolf(ELF[e.kind].dps * .5 * D.dmg * DT);
 		}
 	}
 	wavesStep();
@@ -187,7 +211,7 @@ function nightStep() {
 		if (s.role != 'guard' || s.disarmed || s.out) return; s.cd = (s.cd == null ? .6 + R() * 2.4 : s.cd) - DT; s.fire = Math.max(0, (s.fire || 0) - DT);
 		if (s.cd <= 0) { const tg = N.elves.filter(e => e.x < W - 10).sort((a, b) => (!!a.shield - !!b.shield) || a.x - b.x)[Math.floor(R() * 2)] || N.elves.find(e => e.x < W - 10); if (tg) { s.cd = 1.3 + R() * 1.7; s.fire = .12; const sp = survPos(i);
 			/* the chance to hit: about 40% untrained, 85% fully trained; in a blizzard little more than half that; a shield stops them */
-			const hitP = (.4 + .45 * G.skill / 30) * (N.wx == 'blizzard' ? .55 : 1), miss = R() > hitP;
+			const hitP = (.4 + .45 * skillK()) * (N.wx == 'blizzard' ? .55 : 1), miss = R() > hitP;
 			if (!miss && !tg.shield) damage(tg, (8 + G.night * .6), false); else if (miss) s.missed = (s.missed || 0) + 1; else s.blocked = (s.blocked || 0) + 1;
 			const mx = miss ? (R() - .5) * 90 : 0, my = miss ? (R() - .5) * 70 : 0;
 			N.fx.push({k: 'bolt', x0: sp.x + 16, y0: sp.y - 18, x1: tg.x + mx, y1: A.laneY(tg.lane) - 22 * ELF_S(tg) + my, t: 0}); AU.sfx('bolt') } else s.cd = .3 + R() * .5 }
@@ -230,15 +254,20 @@ function wavesStep() {
 		v.t += DT; v.x -= WAVE_SPEED * DT;
 /* a survivor in its path is stunned for a while (not hurt) */
 		G.surv.forEach((s, i) => { const p = survPos(i); if (!v.hit['s' + i] && v.x <= p.x + 10 && Math.abs(SURV_LANES[i % 6] - v.lane) <= WAVE_REACH && !s.out && !s.fled) { v.hit['s' + i] = 1; s.stun = 3; N.fx.push({k: 'txt', x: p.x + 50, y: p.y - 34, s: s.name + ' is stunned by the screech', t: 0, long: true}) } });
-		if (!v.hit.r && v.x <= A.RX + 10 && Math.abs(N.rl - v.lane) <= WAVE_REACH) { v.hit.r = 1; N.rstun = 1.2; N.deafT = 0; N.burst = 0; AU.sfx('ring') }
+		if (!v.hit.r && v.x <= A.RX + 10 && Math.abs(N.rl - v.lane) <= WAVE_REACH) { v.hit.r = 1; wendigoHit(); N.deafT = 0; AU.sfx('ring') }
 	}
 	/* it dies away just past Rudolf's place */
 	N.waves = N.waves.filter(v => v.x > A.RX - 40);
 }
+/* the wendigo hitting Rudolf (1.4: its screech reaching him, or its blows once the barricade is down): 10 off his
+   health, whatever the difficulty, and stunned for 3 s, unable to fire */
+const WEND_HIT = {dmg: 10, stun: 3, every: 3.5};
+function wendigoHit() { hurtRudolf(WEND_HIT.dmg); N.rstun = Math.max(N.rstun, WEND_HIT.stun); N.burst = 0; N.fx.push({k: 'txt', x: A.RX + 60, y: A.laneY(N.rl) - 80, s: 'Stunned!', t: 0, long: true}) }
 /* how deafened and blurred, 0..1: full for 3 s, then fading out */
 const deafK = () => N.deafT < 0 ? 0 : N.deafT < DEAF_FULL ? 1 : Math.max(0, 1 - (N.deafT - DEAF_FULL) / DEAF_FADE);
 /* shields */
-const isRegular = e => e.kind == 'shambler' || e.kind == 'brute' || e.kind == 'spitter';
+const isRegular = e => (e.kind == 'shambler' || e.kind == 'crawler' || e.kind == 'brute' || e.kind == 'spitter') && !e.sprinter;
+const SHIELD_PICK = {from: 12, p: .9};
 function dropShield(e, knock) {
 	if (!e.shield) return;
 	const s = ELF_S(e); e.shield = false; e.x += knock; e.stun = Math.max(e.stun, .5);
@@ -251,7 +280,7 @@ function shieldStep(e) {
 	for (const sh of N.shields) {
 		if (Math.abs(sh.lane - e.lane) > 1 || Math.abs(sh.x - e.x) > 8) continue;
 		const own = sh.owner == e.id, ownerDead = !N.elves.some(x => x.id == sh.owner && !x.dead);
-		if ((own && e.kind == 'shielder' && n >= 10) || (n >= 18 && isRegular(e) && ownerDead && !(e.tried || (e.tried = {}))[sh.owner] && ((e.tried[sh.owner] = 1), R() < .5))) { e.pickT = .6; e.pickS = sh; return }
+		if ((own && e.kind == 'shielder' && n >= 10) || (n >= SHIELD_PICK.from && isRegular(e) && ownerDead && !(e.tried || (e.tried = {}))[sh.owner] && ((e.tried[sh.owner] = 1), R() < SHIELD_PICK.p))) { e.pickT = .6; e.pickS = sh; return }
 	}
 	/* a shielder (from Night 10) walks to its own shield, wherever it fell */
 	if (e.kind == 'shielder' && n >= 10) { const sh = N.shields.find(x => x.owner == e.id); if (sh) { e.tl = sh.lane; if (sh.x > e.x + 4) { e.x += e.sp * .8 * DT; e.walk += DT * 3 } } }
@@ -298,12 +327,35 @@ function drawVision(x) {
 	/* the nose's warm light */
 	x.globalCompositeOperation = 'lighter'; x.fillStyle = 'rgba(255,110,100,.05)'; x.beginPath(); x.moveTo(o.x, o.y); x.lineTo(o.x + Math.cos(a - v.half) * v.len, o.y + Math.sin(a - v.half) * v.len); x.lineTo(o.x + Math.cos(a + v.half) * v.len, o.y + Math.sin(a + v.half) * v.len); x.closePath(); x.fill(); x.globalCompositeOperation = 'source-over';
 }
-/* a mugger at the barricade takes a survivor's crossbow (a guard's first) */
+/* a looter at the barricade (1.4) takes a random survivor's crossbow, or, with none to take, one of Rudolf's weapons
+   (never his last); either is gone for the rest of the night, until a day's search finds it among the bodies in
+   front of the fort (G.lost: {who: a survivor's name or 'Rudolf', wep: 'crossbow' or a weapon}) */
 function steal(e) {
-	const order = G.surv.map((s, i) => i).filter(i => !G.surv[i].disarmed && !G.surv[i].out && !G.surv[i].fled).sort((a, b) => (G.surv[b].role == 'guard') - (G.surv[a].role == 'guard'));
-	if (!order.length) return false;
-	const i = order[0], s = G.surv[i]; s.disarmed = true; e.loot = i; e.attacking = false; e.tl = e.lane;
-	N.fx.push({k: 'txt', x: e.x, y: A.laneY(e.lane) - 60, s: 'Stolen: ' + s.name + '’s crossbow!', t: 0, long: true}); AU.sfx('steal');
+	const S = G.surv.map((s, i) => i).filter(i => !G.surv[i].disarmed && !G.surv[i].out && !G.surv[i].fled && !G.surv[i].lost);
+	G.lost = G.lost || [];
+	if (S.length) {
+		const i = S[Math.floor(R() * S.length)], s = G.surv[i]; s.disarmed = true; s.lost = true; G.lost.push({who: s.name, wep: 'crossbow'});
+		e.lootName = s.name + '’s crossbow';
+	} else {
+		const mine = ORDER.filter(k => G.wp[k].have); if (mine.length < 2) return false;
+		const k = mine[Math.floor(R() * mine.length)]; G.wp[k].have = false; G.wp[k].lost = true; G.lost.push({who: 'Rudolf', wep: k});
+		if (G.cur == k) { G.cur = ORDER.find(q => G.wp[q].have); N.reload = 0; N.burst = 0; N.spin = 0; N.pump = 0 } bar();
+		e.lootName = 'Rudolf’s ' + WEP[k].name;
+	}
+	e.loot = 1; e.attacking = false; e.tl = e.lane;
+	N.fx.push({k: 'txt', x: e.x, y: A.laneY(e.lane) - 60, s: 'Stolen: ' + e.lootName + '!', t: 0, long: true}); AU.sfx('steal');
+	return true;
+}
+/* a looter dodging: Rudolf's aim line across it (within about its height) while he is shooting, and it leaps away
+   from the line, two or three lanes, at most every 0.6 s */
+function dodge(e) {
+	if (e.dodgeT > 0) { e.dodgeT -= DT; return false }
+	if (!(fireHeld || N.cd > 0) || G.hp <= 0) return false;
+	const s = shoulder(), a = aimAngle(), b = bodyOf(e), y = s.y + Math.tan(a) * (b.x - s.x), off = b.y - y;
+	if (Math.abs(off) > 34 * ELF_S(e) + 6) return false;
+	let dir = off >= 0 ? 1 : -1; const step = 2 + Math.floor(R() * 2);
+	if (Math.round(e.lane) + dir * step < 0 || Math.round(e.lane) + dir * step > A.LANES - 1) dir = -dir;
+	e.tl = Math.max(0, Math.min(A.LANES - 1, Math.round(e.lane) + dir * step)); e.dodgeT = .6; e.lcT = .5;
 	return true;
 }
 /* a bloater bursting: the barricade, other elves, the survivors and Rudolf, each hurt more the nearer it is */
@@ -325,7 +377,7 @@ function damage(e, d, head, quiet) {
 		const ly = A.laneY(e.lane); if (N.slush.length > 140) N.slush.shift(); N.slush.push({x: e.x, y: ly - 2, r: 14 * ELF_S(e), t: 0, id: e.id});
 		splat(e.x, ly - 20 * ELF_S(e), 18, ly); burst(e.x, ly - 20 * ELF_S(e), 8, '#b04dff', ly); gibs(e);
 		if (e.kind == 'bloater') bloaterBlast(e);
-		if (e.loot >= 0 && !e.escaped) { const sv = G.surv[e.loot]; if (sv) { sv.disarmed = false; N.fx.push({k: 'txt', x: e.x, y: ly - 60, s: 'Recovered ' + sv.name + '’s crossbow', t: 0, long: true}); AU.sfx('ready') } e.loot = -1 }
+		/* (a looter's weapon is lost for the rest of the night even so: it is found by the next day's search) */
 		AU.sfx(e.kind == 'foreman' || e.kind == 'brute' ? 'fallbig' : 'fall');
 	}
 }
@@ -344,9 +396,20 @@ function aimAngle() { const s = shoulder(); let a = Math.atan2(cross.y - s.y, Ma
 function weaponStep() {
 	const w = WEP[G.cur], st = G.wp[G.cur];
 	if (N.cd > 0) N.cd -= DT;
-	if (N.rstun > 0) { firePressed = false; return }   /* (stunned by a screech) */
-	if (N.reload > 0) { N.reload -= DT; if (N.reload <= 0) { const need = w.mag - st.mag, got = w.inf ? need : Math.min(need, st.res); st.mag += got; if (!w.inf) st.res -= got; AU.sfx('ready') } return }
-	if (st.mag <= 0) { if (w.inf || st.res > 0) startReload(); firePressed = false; return }
+	/* the shotgun's rack after a shot: the pump back and forward, and its sound a moment after the blast */
+	if (N.pump > 0) N.pump -= DT; if (N.rackT > 0) { N.rackT -= DT; if (N.rackT <= 0) AU.sfx('rack') }
+	/* stunned (a screech, the wendigo's blow): no firing, and a reload under way is lost (the shotgun keeps its shells) */
+	if (N.rstun > 0) { firePressed = false; N.burst = 0; N.reload = 0; return }
+	if (N.reload > 0) {
+		/* the shotgun loads a shell at a time; firing stops the loading, with the shells already in */
+		if (w.shell != null && (firePressed || fireHeld) && st.mag > 0) N.reload = 0;
+		else {
+			N.reload -= DT;
+			if (N.reload <= 0) { if (w.shell != null) { st.mag++; if (st.mag < w.mag) { N.reload = reloadTime(w); AU.sfx('shell') } else AU.sfx('ready') } else { st.mag = w.mag; AU.sfx('ready') } }
+			return;
+		}
+	}
+	if (st.mag <= 0) { startReload(); firePressed = false; return }
 	if (w.mode == 'auto') {
 		if (w.fx == 'spin') N.spin = fireHeld ? Math.min(1, N.spin + DT) : Math.max(0, N.spin - DT * 2);
 		const rps = w.fx == 'spin' ? 3 + w.rps * N.spin : w.rps;
@@ -355,10 +418,12 @@ function weaponStep() {
 	} else if (w.mode == 'burst') {
 		if (firePressed && N.cd <= 0 && N.burst <= 0) N.burst = 3;
 		if (N.burst > 0 && N.cd <= 0 && st.mag > 0) { fire(w, st); N.burst--; N.cd = N.burst ? .07 : .32 }
-	} else if (firePressed && N.cd <= 0) { fire(w, st); N.cd = 1 / w.rps }
+	} else if (firePressed && N.cd <= 0 && !(N.pump > 0)) { fire(w, st); N.cd = 1 / w.rps; if (w.pump) { N.pump = w.pump; N.rackT = .14 } }
 	firePressed = false;
 }
-function startReload() { const w = WEP[G.cur], st = G.wp[G.cur]; if (N.reload > 0 || st.mag >= w.mag || (!w.inf && st.res <= 0)) return; N.reload = w.reload * RELOAD_K * (1 - G.skill * .01); AU.sfx('reload') }
+/* a reload always starts from nothing: one that was interrupted (another weapon picked, a stun) is lost, except the
+   shells already in the shotgun */
+function startReload() { const w = WEP[G.cur], st = G.wp[G.cur]; if (N.reload > 0 || st.mag >= w.mag) return; N.reload = reloadTime(w); AU.sfx(w.shell != null ? 'shell' : 'reload') }
 function fire(w, st) {
 	st.mag--; G.shots++; N.recoil = 1;
 	const s = shoulder(), sc = A.rudolfScale(N.rl), a0 = aimAngle(), m = (A.MUZZLE[G.cur] || 30) * sc, mx = s.x + Math.cos(a0) * m, my = s.y + Math.sin(a0) * m;
@@ -369,7 +434,7 @@ function fire(w, st) {
 	if (w.fx == 'fire') { flame(w, mx, my, a0); return }
 	/* the Ornament Launcher lobs its bauble to burst at the crosshair (in front of the barricade) */
 	if (w.fx == 'boom') { const bx = Math.max(A.BX + 70, cross.x) + (R() - .5) * w.spread * 300, by = cross.y + (R() - .5) * w.spread * 200; N.fx.push({k: 'lob', x0: mx, y0: my, x1: bx, y1: by, t: 0}); N.lobs = N.lobs || []; N.lobs.push({x: bx, y: by, t: .28, dmg: w.dmg}); return }
-	const pel = w.pellets || 1, spr = w.spread * (1 - G.skill * .015);
+	const pel = w.pellets || 1, spr = w.spread * (1 - .45 * skillK());
 	let hitAny = false;
 	for (let p = 0; p < pel; p++) {
 		/* the shot leaves along the aim, a little off by the spread, and flies on to the end of the field */
@@ -381,7 +446,7 @@ function fire(w, st) {
 			const hx = mx + dx * h.t, hy = my + dy * h.t;
 			/* a shield stops a shot, and anything that would have gone through */
 			if (h.blocked) { burst(hx, hy, 6, '#bff6ff', hy + 30); N.fx.push({k: 'txt', x: hx, y: hy - 10, s: 'blocked', t: 0}); AU.sfx('clang'); break }
-			damage(h.e, w.dmg * (h.head ? 2.5 : 1), h.head);
+			damage(h.e, w.dmg * (h.head ? w.head || 2.5 : 1), h.head);
 			splat(hx, hy, h.head ? 9 : 5, A.laneY(h.e.lane));
 			if (h.head) N.fx.push({k: 'txt', x: h.e.x, y: A.laneY(h.e.lane) - 50 * ELF_S(h.e), s: 'eyes!', t: 0});
 			if (w.fx == 'chill' && R() < .3) h.e.chill = 2;
@@ -488,7 +553,7 @@ function draw() {
 		for (const d of N.drops) A.dropped(x, d.x, d.y);
 		/* the survivors and Rudolf, far to near */
 		const ppl = G.surv.map((s, i) => ({l: SURV_LANES[i % 6], f: () => { const p = survPos(i); A.survivor(x, s.kind, (s.fled ? s.runX : p.x) - board * 10, s.fled ? T * 4 : T, s.fire > 0, p.y, !s.disarmed && !s.fled, s.out, s.stun > 0) }}));
-		ppl.push({l: N.rl + .01, f: () => A.rudolf(x, aimAngle(), G.cur, T, N.recoil, N.hurt, N.rl, N.rwalk)});
+		ppl.push({l: N.rl + .01, f: () => A.rudolf(x, aimAngle(), G.cur, T, N.recoil, N.hurt, N.rl, N.rwalk, N.pump > 0 && WEP[G.cur].pump ? 1 - N.pump / WEP[G.cur].pump : 0)});
 		ppl.sort((a, b) => a.l - b.l).forEach(o => o.f());
 		x.globalAlpha = 1;
 	}
@@ -497,6 +562,8 @@ function draw() {
 	for (const sh of N.shields) A.shieldDown(x, sh.x, A.laneY(sh.lane), A.depth(sh.lane) * sh.s);
 	for (const e of es) {
 		A.elf(x, e, T, rf);
+		/* the wendigo's health, over its head (1.4) */
+		if (e.kind == 'wendigo' && !e.dead) { const h = headOf(e), bw = 64, bx = h.x - bw / 2, by = h.y - h.r - 26, k = Math.max(0, e.hp / e.hp0); x.fillStyle = 'rgba(5,4,10,.75)'; x.fillRect(bx - 2, by - 2, bw + 4, 9); x.fillStyle = k > .5 ? '#c43a3a' : k > .25 ? '#e08a2a' : '#ffd23a'; x.fillRect(bx, by, bw * k, 5); x.strokeStyle = 'rgba(255,255,255,.5)'; x.lineWidth = 1; x.strokeRect(bx - .5, by - .5, bw + 1, 6) }
 		/* a wendigo drawing in its screech */
 		if (e.kind == 'wendigo' && e.wmode == 'charge') { const h = headOf(e), k = 1 - e.chT / CHARGE; x.strokeStyle = `rgba(150,255,120,${.3 + .5 * k})`; x.lineWidth = 2; for (let i = 0; i < 3; i++) { const r = 6 + ((T * 30 + i * 9) % 26) * (1 - k * .5); x.beginPath(); x.arc(h.x - 6, h.y + 6, r, PI * .6, PI * 1.4); x.stroke() } }
 	}
@@ -532,13 +599,13 @@ function draw() {
 	hud(x);
 	/* the crosshair: its gap shows the spread */
 	if (!N.sleigh) {
-		const w = WEP[G.cur], gap = 5 + (w.spread * (1 - G.skill * .015) + (w.pellets ? .02 : 0)) * 200;
+		const w = WEP[G.cur], gap = 5 + (w.spread * (1 - .45 * skillK()) + (w.pellets ? .02 : 0)) * 200;
 		x.strokeStyle = N.reload > 0 ? 'rgba(255,200,120,.9)' : 'rgba(255,255,255,.9)'; x.lineWidth = 1.5;
 		x.beginPath(); for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { x.moveTo(cross.x + a * gap, cross.y + b * gap); x.lineTo(cross.x + a * (gap + 6), cross.y + b * (gap + 6)) } x.stroke();
 		x.fillStyle = '#fff'; x.fillRect(cross.x - 1, cross.y - 1, 2, 2);
 			/* the shot's line: where it will cross the crosshair's column (it differs when the aim is at its limit) */
 			if (w.fx != 'boom') { const sh = shoulder(), a = aimAngle(), ty = sh.y + Math.tan(a) * Math.max(8, cross.x - sh.x); if (Math.abs(ty - cross.y) > 3) { x.strokeStyle = 'rgba(255,90,90,.85)'; x.lineWidth = 1.5; x.beginPath(); x.arc(cross.x, ty, 4, 0, 7); x.stroke(); x.setLineDash([2, 4]); x.beginPath(); x.moveTo(cross.x, cross.y); x.lineTo(cross.x, ty); x.stroke(); x.setLineDash([]) } }
-		if (N.reload > 0) { const k = 1 - N.reload / (w.reload * RELOAD_K * (1 - G.skill * .01)); x.strokeStyle = '#ffd36e'; x.lineWidth = 2; x.beginPath(); x.arc(cross.x, cross.y, gap + 10, -PI / 2, -PI / 2 + k * PI * 2); x.stroke() }
+		if (N.reload > 0) { const k = 1 - N.reload / reloadTime(w); x.strokeStyle = '#ffd36e'; x.lineWidth = 2; x.beginPath(); x.arc(cross.x, cross.y, gap + 10, -PI / 2, -PI / 2 + k * PI * 2); x.stroke() }
 	}
 	x.restore();
 }
@@ -592,6 +659,9 @@ const AU = (() => {
 		case 'aurora': tone(out, t, 300, .6, 'sawtooth', .1, 1200); tone(out, t, 600, .6, 'sine', .1, 2400); break;
 		case 'bells': nz(out, t, .06, .2, 2500); tone(out, t, 2093, .12, 'sine', .03); break;
 		case 'reload': tone(out, t, 700, .04, 'square', .05); tone(out, t + .12, 500, .04, 'square', .05); break;
+		/* the shotgun: its pump racked back and forward (two hard clacks), and a shell pushed in */
+		case 'rack': nz(out, t, .05, .35, 2600); tone(out, t, 260, .04, 'square', .07, 180); nz(out, t + .13, .05, .4, 2200); tone(out, t + .13, 320, .04, 'square', .08, 220); break;
+		case 'shell': nz(out, t, .04, .25, 3200); tone(out, t + .02, 520, .03, 'square', .04); break;
 		case 'ready': tone(out, t, 900, .05, 'square', .05); break;
 		case 'boom': nz(out, t, .7, .7, 500); tone(out, t, 90, .6, 'sine', .4, 30); break;
 		case 'fall': nz(out, t, .25, .12, 400); tone(out, t, 160, .25, 'sawtooth', .04, 60); break;
@@ -668,9 +738,10 @@ function dayScreen() {
 	let html = `<h2>Day ${G.night} · before Night ${G.night}</h2>` + radio() + `<p>The barricade: <b>${Math.round(G.bar)} / ${G.barMax}</b>. Rudolf: <b>${Math.round(G.hp)}</b>. ${12 - used} of 12 hours left to plan.</p>` +
 		row('repair', 'Repair', '+70 to the barricade an hour') +
 		row('search', 'Search', noSearch ? 'not in a blizzard' : wx == 'fog' ? 'slow and risky in the fog' : wx == 'clear' ? 'weapons, scrap, survivors; quicker today' : 'weapons, scrap, survivors', noSearch) +
-		row('train', 'Train', 'steadier aim and faster reloads, for Rudolf and the survivors (' + G.skill + '/30)');
+		row('train', 'Train', 'steadier aim and faster reloads, for Rudolf and the survivors (' + G.skill + '/' + SKILL_MAX + ')');
 	if (G.surv.length) html += '<h3>Survivors</h3>' + G.surv.map((s, i) => `<div class="hrow"><span><b>${s.name}</b><small>a ${s.kind}</small></span><button data-s="${i}" class="role">${ROLES[s.role].split(' (')[0]}</button></div>`).join('');
 	html += `<p class="small">Carrying: ${owned}.</p>`;
+	if (G.lost && G.lost.length) html += `<p class="small">Missing (taken by looters; searching today finds them): ${G.lost.map(L => L.who == 'Rudolf' ? 'Rudolf’s ' + WEP[L.wep].name : L.who + '’s crossbow').join(', ')}.</p>`;
 	if (G.night == LAST - 1 && !G.letter) html += '<p class="note">A snowy owl lands on the barricade with a note tied to its leg: <i>“Hold on through the storm, to the end of the twenty-fifth night. I am coming for all of you. — Captain Quill”</i></p>';
 	dialog(html, [['Spend the day', runDay, 1], ['Save and quit', toTitle, 0, 1]], 'day');
 	document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { const k = b.dataset.h, d = +b.dataset.d, u = p.repair + p.search + p.train; if (d > 0 && u >= 12) return; if (k == 'search' && noSearch) return; p[k] = Math.max(0, p[k] + d); AU.sfx('ok'); dayScreen(); const nb = document.querySelector(`[data-h="${k}"][data-d="${d}"]`); nb && nb.focus() });
@@ -693,21 +764,33 @@ function runDay() {
 	const wx = wxOf(G.night), scouts = G.surv.filter(s => s.role == 'scout');
 	let hours = wx == 'blizzard' ? 0 : p.search + scouts.length;
 	if (wx == 'blizzard') out.push('The blizzard kept everyone inside: no searching today.');
+	/* weapons the looters took (1.4): found the first day anyone searches, among the bodies in front of the fort, by
+	   Rudolf (if he searched) or a scout */
+	if (hours > 0 && G.lost && G.lost.length) {
+		const finders = (p.search > 0 ? ['Rudolf'] : []).concat(scouts.filter(s => G.surv.includes(s)).map(s => s.name));
+		for (const L of G.lost) {
+			const by = finders.length ? finders[Math.floor(rng() * finders.length)] : 'Rudolf', whose = L.who == by ? (by == 'Rudolf' ? 'his own missing ' : 'their own missing ') : L.who + '’s missing ';
+			if (L.who == 'Rudolf') { G.wp[L.wep].have = true; G.wp[L.wep].lost = false; G.wp[L.wep].mag = WEP[L.wep].mag }
+			else { const sv = G.surv.find(s => s.name == L.who); if (sv) { sv.lost = false; sv.disarmed = false } }
+			out.push('Among the bodies in front of the fort, <b>' + by + '</b> found ' + whose + (L.wep == 'crossbow' ? 'crossbow' : WEP[L.wep].name) + '.');
+		}
+		G.lost = [];
+	}
 	/* clear days: searching goes quicker (about a third more done); fog: less is found, and scouts may not come back */
 	if (wx == 'clear') hours += Math.floor(hours * .3 + rng());
 	const f = wx == 'fog' ? .55 : 1;
 	if (wx != 'blizzard') for (const sc of scouts) if (rng() < (wx == 'fog' ? .12 : .03)) { G.surv.splice(G.surv.indexOf(sc), 1); out.push('<b>' + sc.name + '</b> went out to search and did not come back' + (wx == 'fog' ? ' from the fog.' : '.')) }
 	for (let h = 0; h < hours; h++) {
 		const r = rng();
-		const next = ORDER.find(k => !G.wp[k].have && WEP[k].night <= G.night);
+		const next = ORDER.find(k => !G.wp[k].have && !G.wp[k].lost && WEP[k].night <= G.night);
 		const pw = next ? (.12 + Math.min(G.night, 15) * .02) * f : 0, pa = pw + .28 * f, ps = pa + .12 * f, pb = ps + .13;
 		if (next && r < pw) { G.wp[next].have = true; G.wp[next].mag = WEP[next].mag; out.push('<b>Found the ' + WEP[next].name + '!</b> ' + WEP[next].desc) }
 		else if (r < pa) { const n = Math.round(30 + rng() * 40), b0 = G.bar; G.bar = Math.min(G.barMax, G.bar + n); out.push(G.bar > b0 ? 'Scrap wood and nails from the sheds: the barricade +' + Math.round(G.bar - b0) + '.' : 'Scrap from the sheds, but the barricade is whole.') }
-		else if (r < ps && G.surv.length < 6) { const used = new Set(G.surv.map(s => s.name)), free = NAMES.filter(n => !used.has(n)), nm = free[Math.floor(rng() * free.length)]; const kind = KINDS[Math.floor(rng() * KINDS.length)]; G.surv.push({name: nm, kind, role: 'guard'}); out.push('<b>' + nm + '</b>, a ' + kind + ', was hiding in the old mill and joins the barricade.') }
+		else if (r < ps && G.surv.length < 6) { const used = new Set(G.surv.map(s => s.name)), free = NAMES.filter(n => !used.has(n)), nm = free[Math.floor(rng() * free.length)]; const kind = KINDS[Math.floor(rng() * KINDS.length)]; G.surv.push({name: nm, kind, role: 'guard'}); out.push('<b>' + nm + '</b>, a ' + kind + ', was ' + HIDING[Math.floor(rng() * HIDING.length)] + ' and joins the barricade.') }
 		else if (r < pb) { G.hp = Math.min(100, G.hp + 15); out.push('Found bandages and a flask of cocoa: Rudolf +15.') }
 		else out.push(wx == 'fog' ? 'Searched blind in the fog: nothing found.' : 'Searched the woods’ edge: nothing but snow.');
 	}
-	if (p.train) { const s0 = G.skill; G.skill = Math.min(30, G.skill + p.train); if (G.skill > s0) out.push('Practised at the barricade, everyone: aim ' + G.skill + '/30.') }
+	if (p.train) { const s0 = G.skill; G.skill = Math.min(SKILL_MAX, G.skill + p.train); if (G.skill > s0) out.push('Practised at the barricade, everyone: aim ' + G.skill + '/' + SKILL_MAX + '.') }
 	G.morning = null; persist(true);
 	dialog('<h2>The day</h2>' + out.map(s => '<p>' + s + '</p>').join(''), [['Night ' + G.night + ' falls…', () => { closeDialog(); G.morning = snapshot(); persist(true); startNight() }, 1]], 'day');
 }
@@ -748,7 +831,7 @@ function menuOptions() {
 	dialog('<h2>Options</h2>', [[o(s.music) + 'Music', () => { s.music = !s.music; if (!s.music) AU.stop(); else AU.music('title'); persist(); menuOptions() }, 1],
 		[o(s.sfx) + 'Sounds', () => { s.sfx = !s.sfx; persist(); menuOptions() }], [o(s.reduceFlash) + 'Reduce flashing', () => { s.reduceFlash = !s.reduceFlash; RG.reduceFlash = s.reduceFlash; persist(); menuOptions() }],
 		[o(s.assist) + 'Aim assist (shots find a head near the crosshair)', () => { s.assist = !s.assist; persist(); menuOptions() }],
-		['Export save…', () => { RG.exportSave(); menuOptions() }], ['Import save…', async () => { try { const d = await RG.importSave(); if (d && d.v == 1) { save = Object.assign(save, d); dialog('<h2>Save imported</h2>', [['OK', toTitle, 1]], 'title') } } catch (e) { dialog('<h2>Not imported</h2><p>' + String(e.message).replace(/</g, '&lt;') + '</p>', [['OK', menuOptions, 1]], 'title') } }],
+		['Export save…', () => { RG.exportSave(); menuOptions() }], ['Import save…', async () => { try { const d = await RG.importSave(); if (d && d.v == 1) { save = Object.assign(save, d); if (save.run) fixRun(save.run); dialog('<h2>Save imported</h2>', [['OK', toTitle, 1]], 'title') } } catch (e) { dialog('<h2>Not imported</h2><p>' + String(e.message).replace(/</g, '&lt;') + '</p>', [['OK', menuOptions, 1]], 'title') } }],
 		['Back', toTitle, 0, 1]], 'title');
 }
 function help(back) {
@@ -757,8 +840,10 @@ function help(back) {
 		'<p><b>Reload:</b> R, right-click, X on a controller, or the Reload button. <b>Weapons:</b> 1–9, Q and E, the bumpers, or the buttons below the field.</p>' +
 		'<p><b>By day</b> plan twelve hours: repair the barricade, search for weapons, scrap and survivors, or train (training steadies everyone’s aim: survivors miss a lot until they have trained). Survivors can guard, repair or scout. If the barricade falls below 5%, they panic, drop their crossbows and run until morning.</p>' +
 		'<p><b>The weather radio</b> on each day’s plan tells tonight’s weather and tomorrow’s. <b>Clear:</b> searching goes quicker. <b>Fog:</b> you only see what Rudolf’s nose lights, towards the crosshair; out of the light they show as ripples of sound; searching is slow and risky. <b>Blizzard:</b> even less to see, no ripples, no searching, the survivors’ aim suffers, but nothing sprints. <b>Full moon:</b> once a game; bright, but every white-eyed elf turns red-eyed and runs, and a wendigo comes.</p>' +
-		'<p><b style="color:#3ff0ff">Cyan eyes</b>: shielders, behind a shield that stops every shot; aim for their lower legs, or knock the shield loose with a blast or a <b>Bash</b> (F, Y on a controller, the middle button, or ✊ Bash) when they reach the barricade. From Night 10 they go back for their shields; from Night 18 other elves may take up a fallen shielder’s.</p>' +
-		'<p>A <b>screech</b> from the woods means a <b>wendigo</b>: something like a huge, corrupted Rudolf with green eyes and a frothing mouth, very hard to bring down, slowly coming for Rudolf’s lane. When it stops and draws a long breath (about a second and a half), its screech runs down its lane to the barricade and beyond: survivors in its path are stunned, and if it reaches Rudolf his sight blurs and his ears ring for a few seconds. It does not harm the barricade. Move Rudolf out of its lane.</p>' +
+		'<p><b style="color:#3ff0ff">Cyan eyes</b>: shielders, behind a shield that stops every shot; aim for their lower legs, or knock the shield loose with a blast or a <b>Bash</b> (F, Y on a controller, the middle button, or ✊ Bash) when they reach the barricade. From Night 10 they go back for their shields; from Night 12 white-eyed elves will usually take up a fallen shielder’s.</p>' +
+		'<p><b style="color:#ff5a4a">Red eyes</b>: sprinters, running all the way to the barricade. <b style="color:#7dff5a">Green eyes</b>: looters, quick and weaving out of Rudolf’s line of fire. At the barricade one steals a weapon, a survivor’s crossbow or else one of Rudolf’s, for the rest of the night; the next day’s search finds it among the bodies in front of the fort.</p>' +
+		'<p><b>Reloading</b> starts again from nothing if it is interrupted (another weapon, a stun), except the Snowplow Shotgun’s: it loads one shell at a time and keeps the shells already in, and you can fire it before it is full.</p>' +
+		'<p>A <b>screech</b> from the woods means a <b>wendigo</b>: something like a huge, corrupted Rudolf with green eyes and a frothing mouth, very hard to bring down, slowly coming for Rudolf’s lane. When it stops and draws a long breath (about a second and a half), its screech runs down its lane to the barricade and beyond: survivors in its path are stunned, and if it reaches Rudolf it hurts him and stuns him for 3 seconds (he cannot shoot), and his sight blurs and his ears ring for a few seconds more. Its blows do the same once the barricade is down. It does not harm the barricade. Its health shows above its head. Move Rudolf out of its lane.</p>' +
 		'<p>Hold out for twenty-five days and nights.</p>', [['OK', back || null, 1, 1]], 'title');
 }
 function menuPause() {
@@ -848,6 +933,7 @@ function update() {
 async function start() {
 	await RG.init('frost-barricade');
 	const s = await RG.load(); if (s && s.v == 1) save = Object.assign(save, s, {set: Object.assign(save.set, s.set || {}), stats: Object.assign(save.stats, s.stats || {})});
+	if (save.run) fixRun(save.run);
 	if (save.set.reduceFlash) RG.reduceFlash = true; else save.set.reduceFlash = !!RG.reduceFlash;
 	bindings();
 	view = RG.fit(cv, () => ({w: W, h: H}));
@@ -857,7 +943,7 @@ async function start() {
 	toTitle();
 	if (!save.seenHelp) { save.seenHelp = 1; persist(); help(toTitle) }
 	RG.loop(update, draw, {whilePaused: true});
-	window.__fb = {W, H, LAST, VIS, aimAngle, shoulder, bash, dropShield, shieldBox, legsOf, deafK, CHARGE, headOf, bodyOf, nightCount, hpMul, wildChance, pickKind, survPos, BLOAT_R, makeWeather, wxOf, seen, radio, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
+	window.__fb = {closeDialog, fixRun, reloadTime, startReload, SKILL_MAX, HIDING, WEND_HIT, SHIELD_PICK, W, H, LAST, VIS, aimAngle, shoulder, bash, dropShield, shieldBox, legsOf, deafK, CHARGE, headOf, bodyOf, nightCount, hpMul, wildChance, pickKind, survPos, BLOAT_R, makeWeather, wxOf, seen, radio, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
 		run(n) { for (let i = 0; i < n && N && !N.over; i++) { inputStep(); nightStep() } return N && {t: N.t, elves: N.elves.length, q: N.q.length, bar: G.bar, hp: G.hp, kills: G.kills} }};
 }
 start();

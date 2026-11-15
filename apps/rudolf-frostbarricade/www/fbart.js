@@ -155,7 +155,7 @@ function stag(x, pal, t, walk, bob) {
 		for (let i = 0; i < 2; i++) { const d = ((t * (1.2 + i * .5) + i * .4) % 1) * 12; x.globalAlpha = 1 - d / 12; x.beginPath(); x.ellipse(hx + 7 + i * 4, hy + 8 + d, 1, 1.6, 0, 0, 7); x.fill(); x.globalAlpha = 1 }
 	}
 }
-A.rudolf = function (x, aim, weapon, t, recoil, hurtT, l, walk) {
+A.rudolf = function (x, aim, weapon, t, recoil, hurtT, l, walk, pump) {
 	const s = A.rudolfScale(l), bob = Math.sin(t * 2) * .6;
 	x.save(); x.translate(A.RX, A.laneY(l)); x.scale(s, s);
 	if (hurtT > 0 && Math.floor(t * 20) % 2) x.globalAlpha = .6;
@@ -166,19 +166,22 @@ A.rudolf = function (x, aim, weapon, t, recoil, hurtT, l, walk) {
 	x.fillStyle = '#b8913a'; for (let i = 0; i < 4; i++) x.fillRect(-6 + i * 3.8, -38 + i * 4.3 + bob, 1.6, 2.6);
 	/* the arm and the weapon, turned to the aim */
 	x.translate(6, -34); x.rotate(aim); x.translate(-recoil * 4, 0);
-	A.weapon(x, weapon);
+	A.weapon(x, weapon, pump || 0);
 	x.beginPath(); x.moveTo(-2, -3); x.lineTo(8, -3); x.lineTo(9, 3); x.lineTo(-1, 4); x.closePath(); x.fillStyle = '#f2f4f8'; x.fill(); x.strokeStyle = '#0a0c14'; x.lineWidth = 1.1; x.stroke();
 	x.restore();
 };
 /* the weapons, each its own shape and colours (drawn pointing right from the shoulder) */
 A.MUZZLE = {icicle: 26, cane: 34, flurry: 32, snowplow: 38, hail: 44, bauble: 36, hearth: 38, aurora: 42, bells: 40};
-A.weapon = function (x, w) {
+/* pump: the shotgun's rack, 0..1 (its fore-end slides back and forward again) */
+A.weapon = function (x, w, pump) {
 	const R = (X, Y, ww, h, c, s) => { x.fillStyle = c; x.fillRect(X, Y, ww, h); if (s) { x.strokeStyle = s; x.lineWidth = 1; x.strokeRect(X + .5, Y + .5, ww - 1, h - 1) } };
 	switch (w) {
 	case 'icicle': R(6, -2, 12, 6, '#5d7a99', '#2a3a50'); x.fillStyle = '#bfe8ff'; x.beginPath(); x.moveTo(17, -2); x.lineTo(27, 1); x.lineTo(17, 3); x.closePath(); x.fill(); R(8, 3, 4, 6, '#3d4f66'); break;
 	case 'cane': R(4, -2, 30, 5, '#f4f4f4', '#7a1a20'); for (let i = 0; i < 6; i++) { x.fillStyle = '#d42a35'; x.beginPath(); x.moveTo(6 + i * 5, -2); x.lineTo(9 + i * 5, -2); x.lineTo(7 + i * 5, 3); x.lineTo(4 + i * 5, 3); x.fill() } x.strokeStyle = '#d42a35'; x.lineWidth = 3; x.beginPath(); x.arc(5, 4, 4, PI * .5, PI * 1.5, false); x.stroke(); R(14, 3, 4, 6, '#7a1a20'); break;
 	case 'flurry': R(4, -3, 26, 7, '#7fa9c9', '#2a3a50'); R(12, 4, 5, 9, '#2a3a50'); for (let i = 0; i < 3; i++) { x.fillStyle = '#e6f6ff'; circ(x, 10 + i * 6, 0, 1.5); x.fill() } R(28, -1, 5, 3, '#bfe8ff'); break;
-	case 'snowplow': R(4, -4, 34, 8, '#c94b2a', '#4a1a10'); R(28, -5, 10, 10, '#e8e0d0', '#4a1a10'); R(6, 4, 10, 4, '#6b4a2f'); break;
+	case 'snowplow': { R(4, -4, 34, 8, '#c94b2a', '#4a1a10'); R(28, -5, 10, 10, '#e8e0d0', '#4a1a10'); R(6, 4, 10, 4, '#6b4a2f');
+		/* the pump under the barrel: racked back (up to 8) and forward again */
+		const pb = Math.sin(Math.min(1, pump || 0) * PI) * 8; R(18 - pb, 3, 11, 5, '#3a2418', '#1a0c06'); x.fillStyle = '#5a3a26'; for (let i = 0; i < 3; i++) x.fillRect(20 - pb + i * 3, 4, 1, 3); break }
 	case 'hail': R(2, -2, 42, 5, '#3b4a5e', '#141c28'); R(12, -7, 14, 5, '#8fb8d8', '#141c28'); R(4, 3, 8, 5, '#5c3f28'); break;
 	case 'bauble': R(4, -5, 30, 10, '#2f6b4a', '#123020'); circ(x, 36, 0, 6); fl(x, '#d4af37', '#5a4a10'); R(10, 5, 5, 7, '#123020'); break;
 	case 'hearth': R(4, -4, 30, 8, '#6b4a2f', '#2a1a10'); R(30, -3, 8, 6, '#3a2a20'); x.drawImage(A.fire, 30, -10, 16, 16); R(10, -10, 8, 6, '#b5462a', '#2a1a10'); break;

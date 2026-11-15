@@ -118,17 +118,25 @@ async function open(pg) {
 		const mg = await f.evaluate(() => { const G = __fb.G, N = __fb.N; G.bar = 1000; G.surv = [{name: 'Hazel', kind: 'bunny', role: 'guard', hp: 40}, {name: 'Moss', kind: 'badger', role: 'repair', hp: 40}];
 			N.q = [[1e9, 'shambler']]; N.elves = []; __fb.spawn('mugger'); const m = N.elves[0]; m.lane = m.tl = 7; m.x = 600; const lanes = []; for (let i = 0; i < 180; i++) { __fb.run(1); lanes.push(m.lane) }
 			const flips = lanes.filter((v, i) => i > 1 && Math.sign(v - lanes[i - 1]) != Math.sign(lanes[i - 1] - lanes[i - 2]) && v != lanes[i - 1]).length, span = Math.max(...lanes) - Math.min(...lanes), walked = 600 - m.x;
-			m.x = FBART.front(m.lane) - 1; __fb.run(3); const stole = {loot: m.loot, hazel: G.surv[0].disarmed, moss: G.surv[1].disarmed};
+			m.x = FBART.front(m.lane) - 1; __fb.run(3); const stole = {loot: m.loot, n: G.surv.filter(s => s.disarmed).length, lost: G.lost.length};
 			const x1 = m.x; __fb.run(30); const fled = m.x - x1;
-			m.hp = .01; m.burn = 1; __fb.run(1); const back = !G.surv[0].disarmed;
-			/* a second one gets away */
-			N.elves = []; __fb.spawn('mugger'); const m2 = N.elves[0]; m2.lane = m2.tl = 7; m2.x = FBART.front(7) - 1; __fb.run(3); const took = G.surv[0].disarmed; m2.x = __fb.W + 20; __fb.run(20); const lost = G.surv[0].disarmed && m2.dead;
-			N.elves = []; return {flips, span, walked, stole, fled, back, took, lost} });
+			m.hp = .01; m.burn = 1; __fb.run(1); const back = G.surv.some(s => !s.disarmed) && G.surv.filter(s => s.disarmed).length == 1;
+			/* (1.4) a second takes the other crossbow; a third, with none left, one of Rudolf's (never his last) */
+			N.elves = []; __fb.spawn('mugger'); const m2 = N.elves[0]; m2.lane = m2.tl = 7; m2.x = FBART.front(7) - 1; __fb.run(3); const took = G.surv.every(s => s.disarmed);
+			Object.keys(G.wp).forEach(k => G.wp[k].have = k == 'icicle' || k == 'cane'); G.cur = 'cane'; N.elves = []; __fb.spawn('mugger'); const m3 = N.elves[0]; m3.lane = m3.tl = 7; m3.x = FBART.front(7) - 1; __fb.run(3); const rud = G.lost.find(L => L.who == 'Rudolf'), had = ORDER0 => ORDER0.filter(k => G.wp[k].have).length;
+			const rudolf = {wep: rud && rud.wep, nowHas: had(Object.keys(G.wp)), cur: G.cur, curHave: G.wp[G.cur].have};
+			N.elves = []; __fb.spawn('mugger'); const m4 = N.elves[0]; m4.lane = m4.tl = 7; m4.x = FBART.front(7) - 1; __fb.run(3); const lastKept = had(Object.keys(G.wp)) == 1 && G.lost.length == 3;
+			N.elves = []; return {flips, span, walked, stole, fled, back, took, rudolf, lastKept} });
 		ok('11i. a mugger comes on slowly, shifting lanes quickly back and forth', mg.flips >= 3 && mg.span >= 2 && mg.walked < 80, mg);   /* (25 Days: elves are 30% faster) */
-		ok('11j. at the barricade it steals a survivor’s weapon (a guard’s first) and runs for the woods', mg.stole.loot == 0 && mg.stole.hazel && !mg.stole.moss && mg.fled > 30, mg);
-		ok('11k. brought down before it gets away: the weapon is back; if it escapes: gone for the night', mg.back && mg.took && mg.lost, mg);
-		const nn = await f.evaluate(() => { __fb.G.wx = Array(26).fill('clear'); __fb.G.night = 7; __fb.startNight(); return __fb.G.surv.every(s => !s.disarmed && !s.out) });
-		ok('11l. the next night every survivor is armed again', nn);
+		ok('11j. at the barricade a looter steals a random survivor’s crossbow and runs for the woods', mg.stole.loot >= 0 && mg.stole.n == 1 && mg.stole.lost == 1 && mg.fled > 30, mg);
+		ok('11k. (1.4) brought down, the crossbow stays lost for the night; with every crossbow gone, it takes one of Rudolf’s weapons (the one in his hands: he changes to another), never his last', !mg.back ? false : mg.took && mg.rudolf.wep && mg.rudolf.nowHas == 1 && mg.rudolf.curHave && mg.lastKept, mg);
+		const nn = await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 7; __fb.startNight(); const still = G.surv.every(s => s.disarmed);
+			/* a day with no searching keeps them lost; the next day anyone searches finds them, each with its message */
+			G.plan = {repair: 12, search: 0, train: 0}; G.surv.forEach(s => s.role = 'guard'); __fb.runDay(); const kept = G.lost.length == 3; __fb.closeDialog();
+			G.plan = {repair: 0, search: 4, train: 0}; __fb.runDay(); const text = document.getElementById('ovBody').textContent; __fb.closeDialog();
+			const back0 = G.surv.every(s => !s.disarmed && !s.lost) && G.lost.length == 0; Object.keys(G.wp).forEach(k => { G.wp[k].have = true; G.wp[k].lost = false });   /* (as the checks after these had it: every weapon) */
+			return {still, kept, back: back0, text: text.slice(0, 400), msgs: (text.match(/Among the bodies in front of the fort, Rudolf found (Hazel|Moss)’s missing crossbow\./g) || []).length, mine: /Among the bodies in front of the fort, Rudolf found his own missing [A-Z][\w-]+ [\w-]+\./.test(text)} });
+		ok('11l. (1.4) the next night the robbed survivors are still unarmed; a day without searching doesn\'t find their weapons; the next day anyone searches does: “Among the bodies in front of the fort, Rudolf found Hazel’s missing crossbow”, and Rudolf his own', nn.still && nn.kept && nn.back && nn.msgs == 2 && nn.mine, nn);
 		await f.evaluate(() => { const G = __fb.G; G.night = 1; G.surv = []; __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [] });
 		/* ---------- the weather ---------- */
 		const sch = await f.evaluate(() => { const bad = [], moonDays = {}; let n = 0;
@@ -173,8 +181,8 @@ async function open(pg) {
 			/* the blizzard: narrower; no ripples; no sprints; the survivors' bolts go astray */
 			G.wx[G.night] = 'blizzard'; G.surv = [{name: 'G1', kind: 'fox', role: 'guard'}]; __fb.startNight(); const N3 = __fb.N; N3.q = [[1e9, 'shambler']]; N3.elves = [];
 			__fb.spawn('sprinter'); const sp = N3.elves[0]; sp.x = 800; sp.spT = 0; sp.hp = sp.hp0 = 1e6; let sprinted = false;
-			for (let i = 0; i < 400; i++) { __fb.run(1); if (sp.sprint > 0) sprinted = true }
-			out.bliz = {rips: N3.fx.filter(f => f.k == 'rip').length, sprinted, missed: G.surv[0].missed || 0, far: __fb.seen(700, 280)};
+			for (let i = 0; i < 900; i++) { __fb.run(1); if (sp.sprint > 0) sprinted = true }
+			out.bliz = {rips: N3.fx.filter(f => f.k == 'rip').length, sprinted, missed: G.surv[0].missed || 0, far: __fb.seen(700, 280), fired: (G.surv[0].missed || 0) + (G.surv[0].blocked || 0)};
 			G.surv = []; return out });
 		ok('W9. fog: only what lies in the nose’s light is seen; out of it, an elf shows as ripples of sound', fog.seenA !== fog.seenB && (fog.seenA ? fog.ripB && !fog.ripA : fog.ripA && !fog.ripB), fog);
 		ok('W10. a blizzard: a shorter, narrower view, no ripples, no sprinting, and bolts go astray', !fog.bliz.far && fog.bliz.rips == 0 && !fog.bliz.sprinted && fog.bliz.missed > 0, fog.bliz);
@@ -207,7 +215,7 @@ async function open(pg) {
 		ok('W16. the screech stuns survivors in its lane (unhurt), not the barricade, and not those out of it', wg.lane3.inLane && !wg.lane3.away && wg.lane3.bar == 0 && !wg.lane3.rudolf, wg.lane3);
 		ok('W17. in Rudolf’s lane: stunned (no shooting), sight blurred and ears ringing for 3 s, then fading to nothing', wg.stun && !wg.firedWhileStunned && wg.k[0] == 1 && wg.k[1] > 0 && wg.k[1] < 1 && wg.k[2] == 0, wg);
 		/* ---------- shielders ---------- */
-		const sh = await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 8; G.surv = []; G.skill = 30; __fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = [];
+		const sh = await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 8; G.surv = []; G.skill = 120; __fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = [];
 			const mk = (k, x, lane) => { __fb.spawn(k); const e = N.elves.at(-1); e.x = x; e.lane = e.tl = lane; e.sp = 0; e.changer = false; return e };
 			const a = mk('shielder', 500, 7), base = {eye: FBART.ELF.shielder.eye, hp: a.hp0, sham: (() => { const s = mk('shambler', 800, 2); const h = s.hp0; s.dead = true; return h })()};
 			const shoot = (x, y, k) => { __fb.pick(k || 'icicle'); const st = G.wp[k || 'icicle']; st.have = true; st.mag = 99; __fb.cross.x = x; __fb.cross.y = y; N.cd = 0; N.reload = 0; __fb.fire(); __fb.run(1) };
@@ -239,13 +247,13 @@ async function open(pg) {
 			/* Night 18: an ordinary elf may take up a dead shielder's shield; it keeps white eyes and its own health; not before 18 */
 			const take = n => { let took = 0, hpOk = true; const seed = G.seed; for (let k = 0; k < 12; k++) { G.seed = 'take' + n + ':' + k; const N = setup(n); const s = mk(N, 'shielder', 600, 7); __fb.dropShield(s, 0); s.dead = true; N.elves = N.elves.filter(e => !e.dead);
 				const r = mk(N, 'shambler', 640, 7); r.sp = 20; for (let i = 0; i < 200; i++) __fb.run(1); if (r.shield) { took++; if (r.hp0 != __fb.hpMul(n) * 44 * 1 && Math.abs(r.hp0 - r.hp0) > 0) hpOk = false; out.eye = FBART.ELF[r.kind].eye; out.kind = r.kind; out.hp = [r.hp0, __fb.hpMul(n) * 44 * {easy: .8, normal: 1, hard: 1.2}[G.diff]] } } G.seed = seed; return {took, hpOk} };
-			out.n17 = take(17); out.n18 = take(18);
+			out.n17 = take(11); out.n18 = take(12);
 			/* a living shielder's shield is not taken */
-			{ const N = setup(18); const s = mk(N, 'shielder', 900, 2); s.sp = 0; __fb.dropShield(s, 0); N.shields[0].x = 600; N.shields[0].lane = 7; const r = mk(N, 'shambler', 640, 7); r.sp = 20; for (let i = 0; i < 200; i++) __fb.run(1); out.alive = !r.shield }
+			{ const N = setup(12); const s = mk(N, 'shielder', 900, 2); s.sp = 0; __fb.dropShield(s, 0); N.shields[0].x = 600; N.shields[0].lane = 7; const r = mk(N, 'shambler', 640, 7); r.sp = 20; for (let i = 0; i < 200; i++) __fb.run(1); out.alive = !r.shield }
 			return out });
 		ok('S5. Bash knocks a shield loose at the barricade and pushes the shielder back; it has a short wait', sb.bash.hit && sb.bash.dropped && sb.bash.back > 20 && sb.cooldown, sb.bash);
 		ok('S6. Night 9: a shielder leaves its shield; from Night 10 it goes back for it', !sb.n9 && sb.n10, {n9: sb.n9, n10: sb.n10});
-		ok('S7. from Night 18 an ordinary elf may take up a fallen shielder’s shield (white eyes, its own health); not on Night 17, not a living one’s', sb.n17.took == 0 && sb.n18.took >= 2 && sb.n18.took < 12 && sb.eye == '#eef2ff' && sb.kind == 'shambler' && sb.hp && Math.abs(sb.hp[0] - sb.hp[1]) < sb.hp[1] * .16 && sb.alive, sb);
+		ok('S7. from Night 12 an ordinary elf usually takes up a fallen shielder’s shield (white eyes, its own health); not on Night 11, not a living one’s (1.4)', sb.n17.took == 0 && sb.n18.took >= 8 && sb.eye == '#eef2ff' && sb.kind == 'shambler' && sb.hp && Math.abs(sb.hp[0] - sb.hp[1]) < sb.hp[1] * .16 && sb.alive, sb);
 		await f.evaluate(() => { __fb.G.skill = 0 });
 		await f.evaluate(() => { const G = __fb.G; G.wx = Array(26).fill('clear'); G.night = 1; G.surv = []; __fb.startNight(); __fb.N.q = [[1e9, 'shambler']]; __fb.N.elves = [] });
 		/* the night ends: the day's plan */
@@ -313,7 +321,7 @@ async function open(pg) {
 			out.stagger = firstShot;
 			G.skill = 0; G.surv.forEach(sv => { sv.missed = 0 }); let shots = 0; for (let t = 0; t < 60 * 60; t++) { G.surv.forEach(sv => { if (sv.fire == .12) shots++ }); __fb.run(1) }
 			const missed0 = G.surv.reduce((a, sv) => a + (sv.missed || 0), 0);
-			G.skill = 30; G.surv.forEach(sv => { sv.missed = 0 }); for (let t = 0; t < 60 * 60; t++) __fb.run(1);
+			G.skill = 120; G.surv.forEach(sv => { sv.missed = 0 }); for (let t = 0; t < 60 * 60; t++) __fb.run(1);
 			const missed30 = G.surv.reduce((a, sv) => a + (sv.missed || 0), 0); out.miss = [missed0, missed30];
 			/* below 5% the survivors panic, drop their crossbows and run */
 			G.bar = G.barMax * .04; __fb.run(2); out.panic = {fled: G.surv.every(sv => sv.fled), drops: N.drops.length}; __fb.run(120); out.gone = G.surv.every(sv => sv.runX < 0);
@@ -322,7 +330,7 @@ async function open(pg) {
 			return out });
 		ok('27. Holiday Holdout (1.3.1, formerly 25 Days): the new name, a wider field', d25.title == 'Holiday Holdout' && d25.W > 1000, [d25.title, d25.W]);
 		ok('28. W/S move Rudolf up and down behind the barricade, quickly', d25.moved > 3, d25.moved);
-		ok('29. the aim stops at 15 degrees up and down', Math.abs(Math.abs(d25.aimUp) - Math.PI / 12) < .001 && Math.abs(d25.aimDown - Math.PI / 12) < .001, [d25.aimUp, d25.aimDown]);
+		ok('29. the aim stops at 8 degrees up and down (1.4)', Math.abs(Math.abs(d25.aimUp) - 8 * Math.PI / 180) < .001 && Math.abs(d25.aimDown - 8 * Math.PI / 180) < .001, [d25.aimUp, d25.aimDown]);
 		ok('30. a shot flies on past the crosshair and hits an elf behind it', d25.past, d25);
 		ok('31. unlimited ammunition, quicker reloads', d25.inf && d25.reload > 0 && d25.reload < 1.1 * .7, [d25.inf, d25.reload]);
 		ok('32. the survivors fire each in their own time', new Set(d25.stagger).size == 3 && d25.stagger.every(v => v != null), d25.stagger);
@@ -343,6 +351,42 @@ async function open(pg) {
 		ok('37. the full moon: every white-eyed elf a red-eyed sprinter (the foreman too); bloaters, shielders and muggers keep theirs', d25b.moon.filter(m => ['shambler', 'crawler', 'brute', 'spitter', 'foreman'].includes(m[0])).every(m => m[1] == '#ff3b3b' && m[2]) && d25b.moon.filter(m => ['bloater', 'shielder', 'mugger'].includes(m[0])).every(m => m[1] == null), d25b.moon);
 		ok('38. the screech dies away past Rudolf', d25b.wavesLeft == 0, d25b.wavesLeft);
 		ok('35. the elves are faster, the sprinters most of all', d25.sprint > 38 * .85 && d25.shamb > 22 * .85 * 1.2, [d25.sprint, d25.shamb]);
+		/* ---------- Holiday Holdout 1.4 ---------- */
+		const v14 = await o2.f.evaluate(() => {
+			__fb.newRun('normal'); const out = {}, G = __fb.G, W_ = __fb.WEP; G.night = 14; G.wx = Array(26).fill('clear'); G.surv = []; Object.keys(G.wp).forEach(k => { G.wp[k].have = true; G.wp[k].mag = W_[k].mag });
+			__fb.startNight(); const N = __fb.N; N.q = [[1e9, 'shambler']]; N.elves = [];
+			out.mags = Object.fromEntries(Object.keys(W_).map(k => [k, W_[k].mag])); G.skill = 0;
+			out.reloads = Object.fromEntries(['cane', 'flurry', 'snowplow', 'hail', 'hearth', 'aurora', 'bells'].map(k => [k, +__fb.reloadTime(W_[k]).toFixed(3)]));
+			out.flurryNight = W_.flurry.night; out.aurora = {dmg: W_.aurora.dmg, head: W_.aurora.head};
+			/* a reload interrupted (another weapon) starts again from nothing */
+			const reloadFor = (k, frames) => { __fb.pick(k); N.cd = 0; G.wp[k].mag = 0; __fb.startReload(); for (let i = 0; i < frames; i++) __fb.run(1) };
+			reloadFor('bells', 240); const left1 = N.reload; __fb.pick('hail'); __fb.pick('bells'); G.wp.bells.mag = 0; __fb.startReload(); out.bellsReset = {left1: +left1.toFixed(2), fresh: +N.reload.toFixed(2)};
+			/* the shotgun: a shell each 0.4 s; firing stops the loading with the shells already in; racked after each shot */
+			reloadFor('snowplow', Math.round(60 * 1.0)); out.shells = G.wp.snowplow.mag; __fb.fire(); __fb.run(2); out.afterFire = {mag: G.wp.snowplow.mag, reload: N.reload, pump: N.pump > 0};
+			for (let i = 0; i < 20; i++) __fb.run(1); out.pumpMid = __fb.N.pump;
+			/* the wendigo's blow with the barricade down: 10 off Rudolf, stunned 3 s, no firing */
+			__fb.pick('icicle'); G.bar = 0; G.hp = 100; N.rstun = 0; __fb.spawn('wendigo'); const w = N.elves[N.elves.length - 1]; w.x = FBART.RX + 20; w.lane = w.tl = Math.round(N.rl); w.wmode = 'walk'; w.wT = 99;
+			let hpBefore = G.hp; for (let i = 0; i < 6; i++) __fb.run(1); out.wHit = {dmg: +(hpBefore - G.hp).toFixed(2), stun: +N.rstun.toFixed(2)};
+			const mag0 = G.wp.icicle.mag; for (let i = 0; i < 60; i++) { __fb.fire(); __fb.run(1) } out.firedStunned = G.wp.icicle.mag != mag0; out.bar = {hp0: w.hp0, hp: w.hp};
+			N.elves = []; G.bar = 1000; N.rstun = 0;
+			/* sprinters run the whole way */
+			__fb.spawn('sprinter'); const sp = N.elves[0]; sp.x = 900; sp.hp = sp.hp0 = 1e9; let walkFrames = 0, frames = 0; while (!sp.attacking && frames < 900) { __fb.run(1); frames++; if (!sp.attacking && !(sp.sprint > 0)) walkFrames++ } out.sprint = {walkFrames, frames}; N.elves = [];
+			/* a looter dodges Rudolf's fire */
+			__fb.spawn('mugger'); const m = N.elves[0]; m.x = 700; m.lane = m.tl = Math.round(N.rl); m.lcT = 99; m.hp = m.hp0 = 1e9; const b = __fb.bodyOf(m); __fb.cross.x = b.x; __fb.cross.y = b.y; __fb.hold(true); let moved = false; for (let i = 0; i < 40; i++) { __fb.run(1); if (m.tl != Math.round(N.rl)) moved = true } __fb.hold(false); out.dodged = moved; out.looterSp = __fb.ELF ? null : null; N.elves = [];
+			/* where survivors turn up */
+			out.hiding = __fb.HIDING.length; const seen = new Set(); for (let d = 0; d < 400 && seen.size < 4; d++) { G.surv = []; G.night = 3; G.wx = Array(26).fill('clear'); G.plan = {repair: 0, search: 12, train: 0}; G.seed = 'hide' + d; __fb.runDay(); const t = document.getElementById('ovBody').textContent; __fb.closeDialog(); (t.match(/a \w+, was (.+?) and joins/g) || []).forEach(x => seen.add(x.replace(/^a \w+, was /, ''))) } out.places = [...seen];
+			/* training to 120; an older run's 30 becomes 120 */
+			out.old = __fb.fixRun({skill: 30, wp: {cane: {mag: 24, have: true}}}); out.skillMax = __fb.SKILL_MAX;
+			return out });
+		ok('39. 1.4 magazines: carbine 18, SMG 24 (found from Day 5), shotgun 5, flamethrower 150, Aurora Lance 1, gatling 300', v14.mags.cane == 18 && v14.mags.flurry == 24 && v14.flurryNight == 5 && v14.mags.snowplow == 5 && v14.mags.hearth == 150 && v14.mags.aurora == 1 && v14.mags.bells == 300, v14.mags);
+		ok('40. 1.4 reloads (untrained): carbine and SMG as before, a shotgun shell 0.4 s, sniper 2 s, flamethrower 3 s, lance 1.5 s, gatling 8 s; the lance much stronger, most of all through the eyes', Math.abs(v14.reloads.cane - 1.6 * .6) < .01 && Math.abs(v14.reloads.flurry - 1.8 * .6) < .01 && v14.reloads.snowplow == .4 && v14.reloads.hail == 2 && v14.reloads.hearth == 3 && v14.reloads.aurora == 1.5 && v14.reloads.bells == 8 && v14.aurora.dmg >= 400 && v14.aurora.head >= 4, v14.reloads);
+		ok('41. an interrupted reload starts again from nothing (8 s for the gatling, not what was left)', v14.bellsReset.left1 < 5 && v14.bellsReset.fresh == 8, v14.bellsReset);
+		ok('42. the shotgun loads shell by shell (2 in a second), fires before it is full (keeping the rest), and is racked after the shot', v14.shells == 2 && v14.afterFire.mag == 1 && v14.afterFire.reload == 0 && v14.afterFire.pump && v14.pumpMid > 0, [v14.shells, v14.afterFire, v14.pumpMid]);
+		ok('43. the wendigo\'s blow takes 10 off Rudolf and stuns him for 3 s, with no firing; it has health to show', Math.abs(v14.wHit.dmg - 10) < .01 && v14.wHit.stun > 2.8 && !v14.firedStunned && v14.bar.hp0 > 0, v14.wHit);
+		ok('44. a sprinter runs the whole way to the barricade, never walking', v14.sprint.walkFrames == 0 && v14.sprint.frames < 900, v14.sprint);
+		ok('45. a looter leaps out of Rudolf\'s line of fire', v14.dodged);
+		ok('46. survivors turn up in many places, not just the old mill', v14.hiding >= 8 && v14.places.length >= 4, v14.places);
+		ok('47. training goes to 120; a run from before 1.4 keeps its aim (30 of 30 is now 120 of 120) and no magazine over its new size', v14.skillMax == 120 && v14.old.skill == 120 && v14.old.wp.cane.mag == 18, v14.old);
 		/* a phone on its side, and upright */
 		const ph = await br.newContext({viewport: {width: 740, height: 360}, hasTouch: true, isMobile: true});
 		const pp = await ph.newPage(); const m = await open(pp); await m.f.click('#ovBtns button');
