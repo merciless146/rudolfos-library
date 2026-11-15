@@ -426,6 +426,33 @@ Tested in `tests/emberreach_surface_t.js` 18-19 and the browser test's 9s.
     reaching a pad within its time on a station and on the ground.
   - **Browser:** request, land and dock at an outpost; the port's screens open; launch and lift-off.
 
+**Done, first part** (0.3.5; the Autopilot Computer comes next, as 0.3.6):
+- **`traffic.js`:** one controller per port, space or surface, made when first asked, with its NPC traffic already
+  under way.
+  - **Pads:** a space port has 24 (S to XL, no capital berth); a surface port has its layout's.
+  - **Assignment:** a ship's own class first, then larger, never smaller; capital ships only to a heavy field's
+    berth.
+  - **The queue:** first come, first served, shared with simulated NPC traffic (arriving, sitting on a pad a while,
+    leaving). You're told your place, and your pad when it frees.
+  - **The five minutes:** a revoked pad goes to the next in the queue.
+- **`requestDock`:** N asks the nearest port within 10 km, space or surface (lone ones once found). Refusals:
+  wanted, at war, or no pad here for the ship's size. A ship that doesn't speak the controller's language is still
+  given its pad, with the untranslated note, as before: a refusal would shut players without a decoder out of
+  every foreign port.
+- **Targets:** surface ports can be targeted.
+- **On the ground:**
+  - **The cleared pad:** a ring of light in the pad's size colour, over the pad (the mesh's own rings don't
+    change).
+  - **Docking:** a touchdown inside your own pad's circle locks the clamps (a hard landing too) and opens the
+    port's screens for that port. Someone else's pad, or no clearance, keeps them open, and the port asks you to
+    leave.
+  - **Launch:** frees the pad, and you lift off as from open ground.
+  - **Saves:** a game saved while docked on the ground comes back docked there.
+- **Not changed:** hangars are the starport's S pads, with no corridor of their own yet. Space docking now needs
+  the space port's own pad.
+
+Tested in `tests/emberreach_traffic_t.js` (15 checks) and the browser test's 9u.
+
 ### L2.5 What surface ports trade
 
 - **Markets** take the system's market and give each kind its twist:
