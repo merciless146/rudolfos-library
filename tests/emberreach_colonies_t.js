@@ -9,17 +9,22 @@ const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; c
 const sum = o => Object.values(o).reduce((t, v) => t + v, 0);
 try {
 	const day = 200, JUMP = 6;
-	/* a power whose capital has unclaimed space within a jump, or else its own space (needing a charter) */
-	const home = F.majors()[5], office = {star: home.star, owner: home.id}, pl = Tr.newPlayer(home.id), cur = home.currency.code;
+	/* (0.3.6: claims go only to unclaimed space, so the office is one of the power's ports on its border: the first
+	   found walking out from its capital with unclaimed systems within a jump) */
+	const home = F.majors()[5], pl = Tr.newPlayer(home.id), cur = home.currency.code;
+	const office = (() => { for (let k = 0; k < 12; k++) { const a = k * 2.4, b = Math.sin(k * 1.7) * 0.3, dir = [Math.cos(a) * Math.cos(b), Math.sin(a) * Math.cos(b), Math.sin(b)];
+		for (let r = home.claim * 0.5; r < home.claim * 1.5; r += home.claim * 0.04) { const p = home.at.map((v, i) => v + dir[i] * r);
+			for (const x of G.starsNear(p[0], p[1], p[2], 3).filter(y => y.kind == 'star').slice(0, 6)) { const pf = T.portFor(x, 200); if (pf && pf.owner == home.id && Co.candidates(Tr.newPlayer(home.id), {star: x, owner: home.id}, 200, 6, 3).length >= 3) return {star: x, owner: home.id} } } } })();
 	pl.wallet[cur] = 1e9;
 	ok('1. the primary ports\' goods: about 1,500 t for an outpost, 8,000 for a station, 25,000 for a great port', Math.abs(sum(Co.PORTS.outpost.goods) - 1500) <= 1 && Math.abs(sum(Co.PORTS.station.goods) - 9000) <= 1000 && Math.abs(sum(Co.PORTS.great.goods) - 25000) <= 1000);
-	const near = G.starsNear(home.star.x, home.star.y, home.star.z, JUMP).filter(s => s.kind == 'star' && s.id != home.star.id);
-	const bare = near.find(s => !G.system(s).planets.length), far = G.starsNear(home.star.x, home.star.y, home.star.z, 12).find(s => s.d > JUMP + 1 && G.system(s).planets.length);
+	const near = G.starsNear(office.star.x, office.star.y, office.star.z, JUMP).filter(s => s.kind == 'star' && s.id != home.star.id);
+	const bare = near.find(s => !G.system(s).planets.length), far = G.starsNear(office.star.x, office.star.y, office.star.z, 12).find(s => s.d > JUMP + 1 && G.system(s).planets.length);
 	ok('2. no claims beyond one jump, or on a system with no planets, or on the capital itself', (!bare || !Co.canClaim(pl, office, bare, 'outpost', day, JUMP).ok) && !Co.canClaim(pl, office, far, 'outpost', day, JUMP).ok && !Co.canClaim(pl, office, home.star, 'outpost', day, JUMP).ok);
 	const cands = Co.candidates(pl, office, day, JUMP, 6), s1 = cands[0];
 	ok('3. the planner finds claimable systems within a jump', cands.length > 0 && cands.every(s => s.d <= JUMP && G.system(s).planets.length), cands.length + ' found');
 	const inside = !!F.claimAt([s1.x, s1.y, s1.z]).owner, low = Tr.newPlayer(home.id); low.wallet[cur] = 1e9; low.rep[home.id] = 50;
-	ok('4. inside a power\'s own space a claim needs its charter (Friendly)', !inside || (!Co.canClaim(low, office, s1, 'outpost', day, JUMP).ok && Co.canClaim(pl, office, s1, 'outpost', day, JUMP).ok));
+	const own = near.find(x => G.system(x).planets.length && F.claimAt([x.x, x.y, x.z]).owner == home.id && !F.claimAt([x.x, x.y, x.z]).contested && T.wildAt(x, day));
+	ok('4. (0.3.6) no claims inside a power\'s space, even its own, even Friendly: its uninhabited systems stay so; the planner offers only unclaimed space', !inside && own && !Co.canClaim(pl, office, own, 'outpost', day, JUMP).ok && /stay uninhabited/.test(Co.canClaim(pl, office, own, 'outpost', day, JUMP).why) && cands.every(x => !F.claimAt([x.x, x.y, x.z]).owner), own && own.name);
 	const enemy = F.majors().find(m => F.relation(home.id, m.id) < 0), core = {x: 0, y: 0, z: 10, id: 'core', name: 'core'};
 	ok('5. never in the Core, nor through an office that isn\'t a great power\'s', !Co.canClaim(pl, {star: core, owner: home.id}, core, 'outpost', day, 50).ok && !Co.canClaim(pl, {star: home.star, owner: 'freeport0'}, s1, 'outpost', day, JUMP).ok);
 	/* claim, beacon, build */
@@ -32,7 +37,7 @@ try {
 	const g = Co.deliver(pl, c, day + 2);
 	ok('9. delivering hands over only what the build needs', g.gave.Iron == 250 && g.gave.Food == 30 && !g.gave.Gold && pl.cargo.Gold == 5 && !pl.cargo.Iron);
 	/* haulage */
-	const mkt = E.market(home.star, day), q = Co.haulQuote(office, mkt, c, 'Aluminum', 300, day + 2), wB = pl.wallet[cur];
+	const mkt = E.market(office.star, day), q = Co.haulQuote(office, mkt, c, 'Aluminum', 300, day + 2), wB = pl.wallet[cur];
 	const h = Co.postHaul(pl, office, mkt, c, 'Aluminum', 300, day + 2);
 	ok('10. haulers charge 10-25% over the market (more far out), paid up front', h.ok && q.cost > mkt.prices.Aluminum.price * 300 * 1.1 - 1 && q.cost < mkt.prices.Aluminum.price * 300 * (1.25 + 0.004 * 7) + 1 && Math.abs(wB - pl.wallet[cur] - q.cost) < 1e-6);
 	ok('11. ...and can\'t be over-ordered', !Co.postHaul(pl, office, mkt, c, 'Aluminum', 1, day + 2).ok);
@@ -110,7 +115,7 @@ try {
 	const wild = G.starsNear(3000 * 0 + home.star.x, home.star.y, home.star.z, 40).find(x => x.kind == 'star' && G.system(x).planets.length && !F.claimAt([x.x, x.y, x.z]).owner && !F.claimAt([x.x, x.y, x.z]).contested && !T.portFor(x, day) && G.mRad(x.x, x.y, x.z) > 30);
 	const io = {star: wild, owner: home.id};
 	const ic = wild && Co.claim(pi, io, wild, 'outpost', day, 50, true).colony;
-	ok('38. an independent claim: unclaimed space only, no sponsor, its own scrip pegged near 1 SU', ic && ic.independent && !ic.sponsor && /^X[A-Z]{2}$/.test(ic.scrip) && Math.abs(E.rate(ic.scrip, day) - 1) < 0.2 && !Co.canClaim(pi, office, s1, 'outpost', day, JUMP, true, true).ok);
+	ok('38. an independent claim: unclaimed space only, no sponsor, its own scrip pegged near 1 SU', ic && ic.independent && !ic.sponsor && /^X[A-Z]{2}$/.test(ic.scrip) && Math.abs(E.rate(ic.scrip, day) - 1) < 0.2 && !Co.canClaim(pi, office, own, 'outpost', day, JUMP, true, true).ok);
 	Co.beacon(pi, ic, day); for (const [gd, t] of Object.entries(Co.left(ic))) pi.cargo[gd] = t; Co.deliver(pi, ic, day);
 	const nI = Co.turn(pi, ic.opens + 30);
 	ok('39. it pays in its scrip, warns of low security, and a second low season loses it to a syndicate', (pi.wallet[ic.scrip] || 0) > 0 && nI.some(n => /security is low/.test(n.text)) && (Co.turn(pi, ic.opens + 60), ic.stage == 'lost') && !Co.colonyAt(pi, wild.id));
