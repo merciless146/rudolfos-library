@@ -255,6 +255,30 @@ async function frame(pg, test) {
 		await pg.screenshot({path: path.join(W, 'surface-port.png')});
 		const pv2 = await f.evaluate(async () => { const g = EmberDebug.game, s = EmberDebug.s, sp = g.surfacePorts.find(x => x.q.kind == 'starport'), at = EmberDebug.surfacePortAt(sp); s.p = at.pos.map((v, i) => v + at.up[i] * 1e5); await new Promise(r => setTimeout(r, 600)); return Object.assign(window.__pv, {far: g.lod.ports}) });
 		ok('9s. L2.3: the surface starport\'s model is drawn from 1.5 km (and its field), every pad on level ground (within 0.5 m); from 100 km up it isn\'t drawn (the world stands in)', pv2.near >= 1 && pv2.pads >= 10 && pv2.level < 0.5 && pv2.far == 0, pv2);
+		/* L2.4: at the surface starport: ask for clearance (N), get a pad; set down on someone else's pad: refused;
+		   set down inside your own: docked, the port's screens open; launch: the clamps let go, and lift off */
+		const sl4 = ms => new Promise(r => setTimeout(r, ms));
+		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, sp = g.surfacePorts.find(x => x.q.kind == 'starport'), at = EmberDebug.surfacePortAt(sp); g.clearance = null; g.landed = null; g.gear = false; g.npcs = []; s.p = at.pos.map((v, i) => v + at.up[i] * 1500); s.v = EmberFlight.frameAt(EmberScene.worldFrame(sp.body), s.p).v; s.q = EmberScene.lookRotation(at.rot.slice(0, 3), at.up); g.atc = {} });
+		await pg.keyboard.press('KeyN'); await sl4(300);
+		const set = async which => f.evaluate(async which => {
+			const g = EmberDebug.game, s = EmberDebug.s, sp = g.surfacePorts.find(x => x.q.kind == 'starport'), at = EmberDebug.surfacePortAt(sp), Ly = sp.layout, cl = g.clearance;
+			const pad = which == 'mine' ? Ly.pads.find(p => p.n == cl.pad) : Ly.pads.find(p => p.n != cl.pad && p.size == 'S');
+			const ex = at.rot.slice(0, 3), ny = at.rot.slice(3, 6), low = EmberLanding.lowest(EmberDebug.ship, true, 0).d, gee = sp.body.g * 9.81, h = low + Math.min(1.2, 2 / gee);
+			const P = at.pos.map((v, i) => v + ex[i] * pad.c[0] + ny[i] * pad.c[1] + at.up[i] * h);
+			g.landed = null; g.gear = true; s.fa = false; s.p = P; s.v = EmberFlight.frameAt(EmberScene.worldFrame(sp.body), P).v; s.w = [0, 0, 0]; s.q = EmberScene.lookRotation(ex, at.up); g.throttle = 0;
+			for (let i = 0; i < 100 && !g.landed; i++) await new Promise(r => setTimeout(r, 30));
+			await new Promise(r => setTimeout(r, 300));
+			return {landed: !!g.landed, docked: g.docked, port: !document.getElementById('port').hidden, msg: g.msgs.slice(-2).map(m => m.text).join(' | '), cl: g.clearance && {pad: g.clearance.pad, port: g.clearance.port}, pad: pad.n};
+		}, which);
+		const cl0 = await f.evaluate(() => EmberDebug.game.clearance);
+		const other = await set('other');
+		await f.evaluate(() => { const g = EmberDebug.game; g.landed = null; EmberDebug.s.fa = true });
+		const mine = await set('mine');
+		await pg.screenshot({path: path.join(W, 'surface-docked.png')});
+		await f.evaluate(() => { const b = [...document.querySelectorAll('#port [data-screen]')].find(x => x.dataset.screen == 'launch'); b && b.click() }); await sl4(300);
+		await f.evaluate(() => { const b = [...document.querySelectorAll('#port button')].find(x => /^Launch/.test(x.textContent) && x.dataset.act == 'launch') || document.querySelector('#port [data-act="launch"]'); b && b.click() }); await sl4(400);
+		const out = await f.evaluate(async () => { const g = EmberDebug.game, r = {docked: g.docked, landed: !!g.landed, port: !document.getElementById('port').hidden, padFree: g.atc && Object.values(g.atc).every(C => !C.pads.some(p => p.who == 'me'))}; EmberDebug.s.fa = true; g.throttle = 0.5; await new Promise(r => setTimeout(r, 800)); r.lifted = !g.landed; g.throttle = 0; return r });
+		ok('9u. L2.4: N at a surface starport gives a pad; setting down on another pad is refused (clamps open); inside your own the clamps lock, docked, and the port opens; Launch frees the pad and you lift off', cl0 && cl0.pad && cl0.port.startsWith('surface:') && other.landed && !other.docked && other.cl && other.cl.pad != other.pad && mine.landed && mine.docked && mine.port && !out.docked && !out.port && out.padFree && out.lifted, {cl0, other, mine, out});
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
 		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(15000);

@@ -55,14 +55,14 @@
    GPL-2.0-or-later. ===== */
 (function () {
 'use strict';
-const Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
+const Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
 	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.4'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.3.5'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6};
@@ -161,7 +161,7 @@ async function start() {
 	else {
 		/* a new game starts docked at the capital, in the starport */
 		launch(true); game.lastPort = game.star; game.lastPortId = T.ORBITAL;
-		if (st && !Q.has('spawn')) { game.docked = true; game.clearance = {pad: 1 + Math.floor(Math.random() * 24), until: Infinity}; say('Welcome to ' + st.name + '. Your ' + ship.name + ' is ready.') }
+		if (st && !Q.has('spawn')) { game.docked = true; game.dockPort = game.port; { const C = atcOf(game.port), r = Atc.request(C, 'me', Atc.classOf(baseShip), game.t); Atc.docked(C, 'me'); game.clearance = {port: T.ORBITAL, pad: r.pad || 1, until: Infinity} } say('Welcome to ' + st.name + '. Your ' + ship.name + ' is ready.') }
 	}
 	if (ok && sv.routeTo) game.pendingRoute = sv.routeTo;
 	$('load').remove();
@@ -199,7 +199,7 @@ function enterSystem(star) {
 	game.portMeshes = new Set();
 	game.surfacePorts = window.EmberSurface ? game.ports.filter(q => q.surface).map(q => ({q, body: scene.bodies.find(b => b.name == q.world), dir: window.EmberSurface.siteDir(q)})).filter(x => x.body) : [];
 	st = scene.station;
-	game.tgt = null; game.clearance = null; game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null; game.deposits = []; game.gscan = null;
+	game.tgt = null; game.clearance = null; game.atc = {}; game.dockPort = null; game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null; game.deposits = []; game.gscan = null;
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
 	site(); beaconAt();
@@ -244,7 +244,8 @@ function launch(first) {
 	}
 	s.radius = Math.max(2, ship.length / 2);
 	fit = fit || M.fit(ship); pilot = Pi.create(); M.apply(fit, s); arm();
-	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = first ? 0 : 0.2; game.docked = false; game.tgt = null; game.hatch = false; game.gear = false; game.clearance = null; game.jump = null;
+	if (game.clearance && game.atc && game.atc[game.clearance.port]) Atc.release(game.atc[game.clearance.port], 'me');
+	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = first ? 0 : 0.2; game.docked = false; game.dockPort = null; game.tgt = null; game.hatch = false; game.gear = false; game.clearance = null; game.jump = null;
 	populate();
 	if (!first) { say('Launched from ' + st.name + '. Fly safe.'); Snd.cue('launch') }
 	else if (st) say('Holding 2.5 km off ' + st.name + '. Press N for docking clearance.');
@@ -255,11 +256,15 @@ function resume(sv) {
 	s = Fl.create(ship, {p: sv.p, v: sv.v, q: sv.q, w: sv.w, fa: sv.fa}); s.radius = Math.max(2, ship.length / 2);
 	fit = Sv.restoreModules(M.fit(ship), sv.modules); pilot = Pi.create(); M.apply(fit, s); arm();
 	if (!sv.docked) populate();
-	game.t = sv.t; game.throttle = sv.throttle; game.docked = !!(sv.docked && st && T.portById(game.ports, sv.at)); game.portId = game.docked ? sv.at : null;
+	/* docked at the space port, or (L2.4) on a surface port's pad, landed there */
+	const dp = sv.docked ? T.portById(game.ports, sv.at) : null, onGround = !!(dp && dp.surface && sv.landed);
+	game.t = sv.t; game.throttle = sv.throttle; game.docked = !!(dp && (onGround || (st && !dp.surface))); game.portId = game.docked ? sv.at : null; game.dockPort = game.docked ? dp : null;
 	/* landed where it was (L1.2): back on the ground at its place on the turning world */
-	if (sv.landed && !game.docked && scene.bodies.some(b => b.name == sv.landed.world)) { game.landed = sv.landed; game.gear = true; landedStep(null) } else game.gear = !!sv.gear; game.clearance = game.docked && sv.pad ? {pad: sv.pad, until: Infinity} : null;
+	if (sv.landed && (!game.docked || onGround) && scene.bodies.some(b => b.name == sv.landed.world)) { game.landed = sv.landed; game.gear = true; landedStep(null) } else game.gear = !!sv.gear;
+	game.clearance = game.docked && sv.pad ? {port: dp.id, pad: sv.pad, until: Infinity} : null;
+	if (game.docked) { const C = atcOf(dp); if (sv.pad) { const p = C.pads.find(x => x.n == sv.pad); if (p) { p.who = 'me'; p.docked = true; p.until = Infinity } } }
 	if (!game.lastPort) game.lastPort = st ? game.star : game.home.star;
-	say(game.docked ? 'Welcome back: docked at ' + st.name : st ? 'Welcome back, ' + H.fmtDist(len(sub(s.p, st.c))) + ' from ' + st.name : 'Welcome back, in the ' + game.star.name + ' system');
+	say(game.docked ? 'Welcome back: docked at ' + (onGround ? dp.name : st.name) : st ? 'Welcome back, ' + H.fmtDist(len(sub(s.p, st.c))) + ' from ' + st.name : 'Welcome back, in the ' + game.star.name + ' system');
 }
 /* save now (gamekit keeps it); quietly, at most once a second */
 function persist() {
@@ -276,7 +281,7 @@ function persist() {
 		.then(() => { setTimeout(() => { game.saving = false; if (game.savePending) persist() }, 1000) });
 }
 const nearRocks = () => game.rocks.filter(r => len(sub(r.pos, s.p)) < 5000).sort((a, b) => len(sub(a.pos, s.p)) - len(sub(b.pos, s.p))).slice(0, 5);
-const targets = () => [...(st ? [st] : []), ...(game.beacon ? [game.beacon] : []), ...(game.deposits || []), ...nearRocks(), ...game.fields, ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
+const targets = () => [...(st ? [st] : []), ...(game.surfacePorts || []).filter(sp => !sp.q.lone || X.found(game.P, game.star.id, sp.q.id)).map(sp => sp.tgt || (sp.tgt = surfaceTarget(sp))), ...(game.beacon ? [game.beacon] : []), ...(game.deposits || []), ...nearRocks(), ...game.fields, ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans, ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
 /* the target is kept by reference (ships come and go); a lost one falls back to the port, or the first body */
 function curTarget() { const L = targets(); if (!L.includes(game.tgt)) game.tgt = L[0]; return game.tgt }
 const posOf = x => x.pos || x.c;
@@ -398,8 +403,45 @@ function touch() {
 	if (L0.new) say((L0.first ? 'First landing on ' : 'Landing recorded: ') + pname(sf.body) + ' · landing data worth ' + Math.round(L0.value).toLocaleString('en-US') + ' SU to cartographers', L0.first ? '#7fd1a8' : '#6cc9e8');
 	game.cruise = {on: false, v: 0, charge: 0}; game.jump = null; game.throttle = 0;
 	landedStep(null);
+	/* on a surface port's pad (L2.4): with that pad's clearance the clamps lock and it is docking (a hard landing
+	   too); on someone else's pad, or without clearance, they stay open and the port asks you to leave */
+	const on = padUnder(sf.body);
+	if (on) {
+		const cl = game.clearance;
+		if (cl && cl.port == on.sp.q.id && cl.pad == on.pad.n) { dockGround(on.sp); return true }
+		talk(on.sp.q.owner, on.sp.q.name + ': ' + (cl && cl.port == on.sp.q.id && cl.pad ? 'that is not your pad (yours is ' + cl.pad + ')' : 'you have no clearance for pad ' + on.pad.n) + '. The clamps stay open: lift off, and request clearance (N).', '#e5484d'); Snd.cue('refused');
+	}
 	persist();
 	return true;
+}
+/* the pad under the ship on a world, if any: {sp, pad} (the pad's circle, in the port's own east-north metres) */
+function padUnder(b) {
+	const ld = Sc.localDir(scene, b, norm(sub(s.p, b.pos)), game.t);
+	for (const sp of game.surfacePorts || []) {
+		if (sp.body !== b) continue;
+		const d = sp.dir, e0 = Math.hypot(d[0], d[1]) > 1e-6 ? [-d[1], d[0], 0] : [1, 0, 0], el = Math.hypot(...e0), e = e0.map(x => x / el), n = [d[1] * e[2] - d[2] * e[1], d[2] * e[0] - d[0] * e[2], d[0] * e[1] - d[1] * e[0]];
+		if (dot(ld, d) < Math.cos(10000 / b.radius)) continue;
+		const x = dot(ld, e) * b.radius, y = dot(ld, n) * b.radius, Ly = sp.layout || (sp.layout = window.EmberSurface.layout(sp.q.kind, sp.q.seed));
+		const pad = Ly.pads.find(p => Math.hypot(x - p.c[0], y - p.c[1]) <= p.r);
+		if (pad) return {sp, pad};
+	}
+	return null;
+}
+/* docked on the ground: the port's screens open, as in space; the ship stays landed on its pad */
+function dockGround(sp) {
+	Atc.docked(atcOf(sp.q), 'me');
+	game.docked = true; game.dockPort = sp.q; game.lastPort = game.star; game.portId = game.lastPortId = sp.q.id;
+	game.P.combat = C.keep(game.pcs); game.npcs = []; game.shots = []; game.booms = [];
+	En.tick(game.P, game.star.id, 0, true); settle(); chartsNear();
+	talk(sp.q.owner, sp.q.name + ': clamps locked on pad ' + game.clearance.pad + '. Welcome down.', '#7fd1a8'); Snd.cue('docked');
+	persist(); openPort();
+}
+/* leaving a surface port: the clamps let go and the pad is freed; the ship is still on the ground, to lift off */
+function undockGround() {
+	const dp = game.dockPort; if (dp) Atc.release(atcOf(dp), 'me');
+	game.docked = false; game.dockPort = null; game.clearance = null; game.tgt = null;
+	if (!game.pcs) arm(); populate();
+	say('Clamps released at ' + (dp ? dp.name : 'the port') + ': lift off with vertical thrust or the throttle. Fly safe.', '#7fd1a8'); Snd.cue('launch'); persist();
 }
 /* landed: fixed to the ground, turning with the world; vertical thrust (or the throttle past 10%) lifts off */
 function landedStep(input) {
@@ -556,23 +598,62 @@ function nearestHostile() {
 	if (!h) { say('No hostiles on the scanner'); Snd.cue('tick'); return }
 	game.tgt = h; say('Target: ' + h.name + ' · ' + H.fmtDist(len(sub(h.s.p, s.p))), '#e5484d'); Snd.cue('tick');
 }
+/* ---------------- the traffic controllers (L2.4: traffic.js) ----------------
+   one for each port of the system, space or surface, made when first asked (its NPC traffic already under way) */
+function atcOf(port) {
+	game.atc = game.atc || {};
+	if (!game.atc[port.id]) { const sp = (game.surfacePorts || []).find(x => x.q.id == port.id); game.atc[port.id] = Atc.make(port, sp ? (sp.layout || (sp.layout = window.EmberSurface.layout(port.kind, port.seed))) : null, {t: game.t, seed: game.star.id + ':' + game.day}) }
+	return game.atc[port.id];
+}
+/* the ports within reach and how far: the space port (its centre) and the surface ports (their sites) */
+function portsNear() {
+	const out = [];
+	if (st && game.port) out.push({port: game.port, name: st.name, d: len(sub(s.p, st.c))});
+	for (const sp of game.surfacePorts || []) { if (sp.q.lone && !X.found(game.P, game.star.id, sp.q.id)) continue; const at = surfacePortAt(sp); out.push({port: sp.q, name: sp.q.name, d: len(sub(s.p, at.pos)), sp}) }
+	return out.sort((a, b) => a.d - b.d);
+}
+const padWord = z => ({S: 'small', M: 'medium', L: 'large', XL: 'extra-large', C: 'capital'})[z] || z;
 function requestDock() {
 	if (!st && Co.colonyAt(game.P, game.star.id)) { colonyAct(); return }
-	if (!st) { say('There is no port in this system', '#f2a33a'); Snd.cue('refused'); return }
-	const d = len(sub(s.p, st.c));
-	if (d > 10000) { say('Docking clearance is given within 10 km of the port (' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
-	if (game.clearance) { say('Clearance already granted: pad ' + game.clearance.pad); return }
-	const o = owner();
-	if (game.port && game.port.maw && En.marshalsWant(game.P, game.day)) { say(st.name + ': Interstellar Marshals. Docking denied: you are wanted. Surrender is the only clearance we give you.', '#e5484d'); Snd.cue('refused'); return }
-	if (o && game.P.bounties[o.currency.code] > 0 && game.npcs.some(n => n.role == 'patrol' && !n.cs.dead && n.faction == o.id)) { talk(o.id, st.name + ': docking denied. You are wanted here: ' + Math.round(game.P.bounties[o.currency.code]).toLocaleString('en-US') + ' ' + o.currency.code + '.', '#e5484d'); Snd.cue('refused'); return }
-	if (o && o.id != game.home.id && F.relation(game.home.id, o.id) < 0) { talk(o.id, st.name + ': docking denied. ' + o.name.replace(/^The /, '') + ' is at war with you.', '#e5484d'); Snd.cue('refused'); return }
-	/* the traffic controller's rule: five minutes to dock, or the clearance is revoked (ask again) */
-	game.clearance = {pad: 1 + Math.floor(Math.random() * 24), until: game.t + 300};
-	game.tgt = st;
-	const D = st.def.dock;
-	talk(owner() && owner().id, st.name + ': clearance granted, pad ' + game.clearance.pad + '. Approach along the axis' + (D.spins ? ', and match our spin.' : '.'), '#7fd1a8'); Snd.cue('clearance');
-	if (owner() && !O.understands(game.P, ship, owner().id)) say('(Untranslated, but the docking computer has the pad: ' + game.clearance.pad + ')', '#9fb0cc');
+	const near = portsNear();
+	if (!near.length) { say('There is no port in this system', '#f2a33a'); Snd.cue('refused'); return }
+	const at = near[0], d = at.d;
+	if (d > Atc.ATC.range) { say('Docking clearance is given within 10 km of a port (' + at.name + ': ' + H.fmtDist(d) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
+	const cl = game.clearance;
+	if (cl && cl.port == at.port.id) { say(cl.queued ? at.name + ': you are ' + ord(cl.queued) + ' in the queue for a pad' : 'Clearance already granted: pad ' + cl.pad + ' at ' + at.name); return }
+	if (cl) { const C0 = game.atc && game.atc[cl.port]; if (C0) Atc.release(C0, 'me'); game.clearance = null }
+	const o = at.port.surface ? (at.port.owner ? F.byId(at.port.owner) : null) : owner(), stn = at.name, stName = stn;
+	if (!at.port.surface && game.port && game.port.maw && En.marshalsWant(game.P, game.day)) { say(stName + ': Interstellar Marshals. Docking denied: you are wanted. Surrender is the only clearance we give you.', '#e5484d'); Snd.cue('refused'); return }
+	if (o && game.P.bounties[o.currency.code] > 0 && game.npcs.some(n => n.role == 'patrol' && !n.cs.dead && n.faction == o.id)) { talk(o.id, stName + ': docking denied. You are wanted here: ' + Math.round(game.P.bounties[o.currency.code]).toLocaleString('en-US') + ' ' + o.currency.code + '.', '#e5484d'); Snd.cue('refused'); return }
+	if (o && o.id != game.home.id && F.relation(game.home.id, o.id) < 0) { talk(o.id, stName + ': docking denied. ' + o.name.replace(/^The /, '') + ' is at war with you.', '#e5484d'); Snd.cue('refused'); return }
+	/* the controller: a pad of the ship's class (or larger), a place in the queue, or no pad here for it at all;
+	   five minutes to dock once a pad is given, or the clearance is revoked (ask again) */
+	const C = atcOf(at.port), cls = Atc.classOf(baseShip), r = Atc.request(C, 'me', cls, game.t), oid = o && o.id;
+	if (r.why == 'size') { talk(oid, stn + ': we have no pad for a ship your size (' + padWord(cls) + '). ' + (cls == 'C' ? 'Capital ships set down at a heavy landing field.' : 'Try a larger port.'), '#f2a33a'); Snd.cue('refused'); return }
+	if (r.queued) { game.clearance = {port: at.port.id, queued: r.queued, of: r.of}; talk(oid, stn + ': every pad that takes your ship is taken. You are ' + ord(r.queued) + ' in the queue; hold within 10 km and we will call you.', '#6cc9e8'); Snd.cue('clearance'); return }
+	cleared(at, r, oid);
 }
+/* a pad given: told, and the five-minute clock started */
+function cleared(at, r, oid) {
+	game.clearance = {port: at.port.id, pad: r.pad, size: r.size, until: r.until};
+	if (at.port.surface) { game.tgt = at.sp.tgt || (at.sp.tgt = surfaceTarget(at.sp)); talk(oid, at.name + ': cleared to land, pad ' + r.pad + ' (' + padWord(r.size) + '). Set down inside its ring; five minutes.', '#7fd1a8') }
+	else { game.tgt = st; const D = st.def.dock; talk(oid, at.name + ': clearance granted, pad ' + r.pad + '. Approach along the axis' + (D.spins ? ', and match our spin.' : '.'), '#7fd1a8') }
+	Snd.cue('clearance');
+	if (oid && !O.understands(game.P, ship, oid)) say('(Untranslated, but the docking computer has the pad: ' + r.pad + ')', '#9fb0cc');
+}
+const ord = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+/* the controllers' news for you each step: a pad from the queue, a place moved up, a clearance revoked */
+function atcStep() {
+	for (const id in game.atc || {}) for (const e of Atc.tick(game.atc[id], game.t)) {
+		if (e.who != 'me') continue;
+		const at = portsNear().find(x => x.port.id == id) || {port: {id}, name: 'The port'}, oid = at.port.surface ? at.port.owner : owner() && owner().id;
+		if (e.k == 'cleared') cleared(at, e, oid);
+		else if (e.k == 'moved' && game.clearance && game.clearance.port == id) { game.clearance.queued = e.place; game.clearance.of = e.of; talk(oid, at.name + ': you are now ' + ord(e.place) + ' in the queue.', '#6cc9e8') }
+		else if (e.k == 'revoked' && game.clearance && game.clearance.port == id && !game.docked) { game.clearance = null; say('Docking clearance revoked: not down on the pad within 5 minutes. Request again (N).', '#f2a33a'); Snd.cue('refused') }
+	}
+}
+/* a surface port as a target (its site, turning with its world) */
+function surfaceTarget(sp) { return {kind: 'port', surface: true, sp, name: sp.q.name, radius: Atc.ATC && 50, get pos() { return surfacePortAt(sp).pos }} }
 function toggleCruise() {
 	const cz = game.cruise;
 	if (cz.on) { const r = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say(r.emergency ? 'Emergency drop out: the drive took a knock' : 'Dropped out of cruise', r.emergency ? '#f2a33a' : undefined); Snd.cue(r.emergency ? 'emergency' : 'drop'); if (r.emergency) damage(25); return }
@@ -685,7 +766,7 @@ function update(dt) {
 	game.nvK = Math.max(0, Math.min(1, (game.nvK || 0) + (game.nv ? 1 : -1) * dt * 4));
 	/* the route's next jump, by itself (an assist) */
 	if (game.autoJumpAt != null && game.t >= game.autoJumpAt) { game.autoJumpAt = null; if (!game.jump && !game.landed && game.route && game.route.legs.length) requestJump() }   /* (night vision fades in and out over a quarter of a second) */
-	if (game.clearance && game.t > game.clearance.until) { game.clearance = null; say('Docking clearance revoked: not docked within 5 minutes. Request again (N).', '#f2a33a') }
+	atcStep();
 	M.apply(fit, s);
 	s.hatch = hatchOpen();
 	/* a jump: charging (flying on), then the tunnel (the ship out of normal space) */
@@ -726,7 +807,7 @@ function update(dt) {
 		game.wasOut = !pilot.conscious;
 		/* docking */
 		if (st) {
-			const dk = Sc.dockCheck(st, s, game.t, !!game.clearance);
+			const dk = Sc.dockCheck(st, s, game.t, !!(game.clearance && game.clearance.port == T.ORBITAL && game.clearance.pad));
 			if (dk && dk.ok === true) { docked(); return }
 			if (dk && dk.ok === false) {
 				const why = {clearance: 'no docking clearance (press N)', speed: 'too fast (' + Math.round(dk.speed) + ' m/s, under ' + Sc.DOCK.speed + ')', align: 'nose not along the axis', spin: 'not turning with the port: match its spin'}[dk.why];
@@ -1252,7 +1333,8 @@ function chartsNear() {
 	if (n) say('The cartographer\'s charts mark ' + n + (n == 1 ? ' surface outpost' : ' surface outposts') + ' within ' + CHARTS.pc + ' pc, with no port above (the star map shows them)', '#9fb0cc');
 }
 function docked() {
-	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.lastPort = game.star; game.portId = game.lastPortId = game.port ? game.port.id : T.ORBITAL;
+	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.lastPort = game.star; game.portId = game.lastPortId = game.port ? game.port.id : T.ORBITAL; game.dockPort = game.port;
+	if (game.port) Atc.docked(atcOf(game.port), 'me');
 	game.P.combat = C.keep(game.pcs); game.npcs = []; game.shots = []; game.booms = [];
 	En.tick(game.P, game.star.id, 0, true); settle(); chartsNear();
 	Snd.cue('docked'); Snd.update({main: 0, rcs: 0, speed: 0, cruise: 0, strain: 0, conscious: true, docked: true});
@@ -1261,8 +1343,9 @@ function docked() {
 }
 /* the starport, while docked */
 function openPort() {
-	const env = {P: game.P, ship, hullShip: baseShip, fit, fuel: () => game.fuel, setFuel: f => { game.fuel = f; persist() }, star: game.star, port: game.port, stationName: st.name, day: game.day,
-		onLaunch: () => { persist(); launch(false); hud.focus() },
+	const dp = game.dockPort || game.port, onGround = !!(dp && dp.surface);
+	const env = {P: game.P, ship, hullShip: baseShip, fit, fuel: () => game.fuel, setFuel: f => { game.fuel = f; persist() }, star: game.star, port: dp, stationName: onGround ? dp.name : st.name, day: game.day,
+		onLaunch: () => { if (onGround) undockGround(); else { persist(); launch(false) } hud.focus() },
 		onRefit: () => { const old = fit; ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); for (const m of fit.modules) { const o = old.modules.find(x => x.id == m.id); if (o) m.hp = Math.min(m.max, o.hp / o.max * m.max) } env.ship = ship; arm(); persist() },
 		onShip: id => { baseShip = S.hull(id); game.P.ship.fit = O.stock(baseShip); ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); env.ship = ship; env.hullShip = baseShip; game.fuel = 1; game.P.combat = C.refill(ship, {hull: 1}); arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist() },
 		say: t => say(t), cue: k => Snd.cue(k)};
@@ -1415,6 +1498,11 @@ function draw() {
 		const det = d < SURF_LOD.hi ? 'hi' : 'lo', id = 'port:' + sp.q.id + ':' + det;
 		if (!game.portMeshes.has(id)) { game.portMeshes.add(id); R.upload(id, window.EmberSurface.meshes(sp.layout || (sp.layout = window.EmberSurface.layout(sp.q.kind, sp.q.seed)), det)) }
 		items.push({id, pos: at.pos, rot: at.rot, light: norm(sub(sun.pos, at.pos)), amb: 0.12}); game.lod.ports++;
+		/* (L2.4) the pad you're cleared for: a ring of light in its size's colour, over the pad */
+		const cl = game.clearance;
+		if (cl && cl.pad && cl.port == sp.q.id) { const Ly = sp.layout, pd = Ly && Ly.pads.find(p => p.n == cl.pad), Su = window.EmberSurface;
+			if (pd) { const ex = at.rot.slice(0, 3), ny = at.rot.slice(3, 6), col = (Su.PAD[pd.size] || Su.PAD.S).light, k = 0.6 + 0.4 * Math.sin(game.t * 4);
+				for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; glows.push({pos: add(add(add(at.pos, mul(ex, pd.c[0] + Math.cos(a) * pd.r)), mul(ny, pd.c[1] + Math.sin(a) * pd.r)), mul(at.up, 3)), radius: Math.max(2, pd.r * 0.06), col, alpha: k, scale: 3, min: 0.004}) } } }
 	}
 	if (game.chase) items.push({id: 'ship', pos: s.p, rot: mat3(B.r, B.u, B.f), light: norm(sub(sun.pos, s.p)), amb: 0.15});
 	/* other ships, always in full; bolts and missiles as glows; explosions as growing glows */
@@ -1525,7 +1613,9 @@ function hudDraw(cam) {
 }
 function dockCues(rel) {
 	const d = len(sub(s.p, st.c));
-	if (!game.clearance) return d < 10000 ? {line1: 'Press N for docking clearance', col: '#f2a33a'} : {line1: 'Docking: clearance within 10 km', col: '#9fb0cc'};
+	const cl = game.clearance && game.clearance.port == T.ORBITAL ? game.clearance : null;
+	if (cl && cl.queued) return {line1: 'Queued for a pad: ' + ord(cl.queued) + ' of ' + cl.of, line2: 'Hold within 10 km', col: '#6cc9e8'};
+	if (!cl) return d < 10000 ? {line1: 'Press N for docking clearance', col: '#f2a33a'} : {line1: 'Docking: clearance within 10 km', col: '#9fb0cc'};
 	const L = Sc.toLocal(st, s.p), off = Math.hypot(L[0], L[1]), nose = -dot(Fl.forward(s), st.axis), sp = len(rel.v), D = st.def.dock;
 	const tips = [];
 	if (L[2] < D.z) tips.push('get in front of the mouth');
