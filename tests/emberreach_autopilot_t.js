@@ -117,6 +117,16 @@ try {
 	const wild = G.starsNear(home.star.x, home.star.y, home.star.z, 400).find(x => x.kind == 'star' && !T.ownerOf(x, 200).owner);
 	const wg = wild && T.government(wild, 200);
 	ok('23. nobody\'s system: Anarchy, no superpower, and nobody living there unless a port or a colony is', wg && wg.anarchy && wg.government == 'Anarchy' && !wg.superpower && (T.portsAt(wild, 200).length || T.population(wild, 200) == 0) && T.population(wild, 200, 120) >= 120, wild && wild.name);
+	const inSpace = G.starsNear(home.star.x, home.star.y, home.star.z, 30).find(x => x.kind == 'star' && T.ownerOf(x, 200).owner == home.id && !T.ownerOf(x, 200).contested && T.wildAt(x, 200)), ig = inSpace && T.government(inSpace, 200);
+	ok('23a. a system with no port of any kind is wild even inside a power\'s space: Anarchy, uninhabited, the superpower still named, and not open to claim', ig && ig.anarchy && ig.wild && ig.superpower == home.name.replace(/^The /, '') && T.population(inSpace, 200) == 0 && !T.colonisable(inSpace, 200), inSpace && inSpace.name);
+	ok('23b. a wild system outside every power\'s space (with worlds) is open to claim; one with a port of any kind isn\'t', wild && (G.system(wild).planets.length ? T.colonisable(wild, 200) : !T.colonisable(wild, 200)) && !T.colonisable(home.star, 200));
+	/* the formula: ports' bases times the worlds' multiplier */
+	const withPorts = G.starsNear(home.star.x, home.star.y, home.star.z, 60).filter(x => x.kind == 'star' && !T.wildAt(x, 200)).slice(0, 40);
+	const fits = withPorts.every(x => { const b = T.portsAt(x, 200).reduce((t, q) => { const v = T.POP.ports[q.anchorage ? 'maw' : q.surface ? q.kind : q.cls] || 0; return [t[0] + v * 0.7, t[1] + v * 1.3] }, [0, 0]), k = T.worldsOf(x).k, n = T.population(x, 200); return n >= b[0] * k - 1 && n <= b[1] * k + 1 });
+	const one = withPorts[0], W0 = T.worldsOf(one);
+	ok('23c. population: each port\'s base by its kind (within 30%), times the worlds: +0.6 a living world, +0.25 traces of life, +0.1 other habitable, +0.02 barren', fits && Math.abs(W0.k - (1 + 0.6 * W0.n.alive + 0.25 * W0.n.life + 0.1 * W0.n.habitable + 0.02 * W0.n.barren)) < 1e-9 && T.POP.ports.halo > T.POP.ports.lantern && T.POP.ports.lantern > T.POP.ports.starport && T.POP.ports.starport > T.POP.ports.settlement && T.POP.ports.outpost > T.POP.ports.camp);
+	const Co = require(path.join(DIR, 'colonies.js')), surfOnly = G.starsNear(home.star.x, home.star.y, home.star.z, 200).find(x => x.kind == 'star' && !T.portFor(x, 200) && T.portsAt(x, 200).length);
+	ok('23d. a colonial office won\'t file a claim on a system with only a surface port or outpost', !surfOnly || /already has a port/.test(Co.canClaim({rep: {[home.id]: 1000}, colonies: []}, {star: home.star, owner: home.id}, surfOnly, 'outpost', 200, 1e9).why || ''), surfOnly && surfOnly.name);
 	const pc = T.population(home.star, 200);
 	ok('24. a capital\'s population runs to billions, and the estimate stays put', pc >= 2e9 && pc == T.population(home.star, 200) && /billion$/.test(T.fmtPop(pc)) && T.fmtPop(41234) == '41,000' && T.fmtPop(380e6) == '380 million');
 } catch (e) { N++; console.log('FAIL (threw) ' + e.stack) }

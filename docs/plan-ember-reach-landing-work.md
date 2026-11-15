@@ -481,8 +481,35 @@ Tested in `tests/emberreach_traffic_t.js` (15 checks) and the browser test's 9u.
   screen). The panel on the right gives:
   - the distance, as the star map shows it;
   - the government (the holder's own word, or Anarchy where nobody or pirates hold it);
-  - the superpower;
-  - the population (an estimate seeded per port by its kind, plus a colony's), or Uninhabited.
+  - the superpower (the great power whose space it is, even for a wild system);
+  - the population, or Uninhabited;
+  - "Open to claim" for a system a player could colonise.
+- **Wild systems:** a system with no port of any kind (space port, surface port, outpost or camp, and so no nav
+  beacon) is wild: Anarchy and Uninhabited, inside a power's space or not. Wild systems outside every power's
+  space and every contested zone are open to claim at a colonial office, and they are the only ones: a power's
+  uninhabited systems stay uninhabited (the charter that let a Friendly pilot claim inside a power's own space is
+  gone). A colonial office no longer files a claim on a system with only a surface port or outpost. Every great
+  power still has border ports with unclaimed systems within a jump.
+- **Population formula:**
+  - **Port bases**, by kind (each varies up to 30% either way, seeded):
+
+    | Port | Base population |
+    |---|---|
+    | Great port (capital) | 3 billion |
+    | Station at a living world | 250 million |
+    | Surface starport | 6 million |
+    | Bloom station | 600,000 |
+    | Settlement | 120,000 |
+    | Heavy landing field | 30,000 |
+    | Outpost station | 4,000 |
+    | Forward base | 2,000 |
+    | Marshals' anchorage | 1,500 |
+    | Outpost | 1,200 |
+    | Mining camp | 250 |
+
+  - **World multiplier:** 1, plus 0.6 for each living world, 0.25 for each world with traces of life, 0.1 for each
+    other habitable world, and 0.02 for each barren world or gas giant.
+  - **Population** = the sum of the port bases × the world multiplier, plus a colony's own people.
 - **Reboot** (radial menu):
   - **While it runs (20 s):** weapons, thrusters and life support are off.
   - **At the end:** every inoperable module comes back to working order (a tenth of its pool), critical modules
@@ -495,9 +522,36 @@ Tested in `tests/emberreach_traffic_t.js` (15 checks) and the browser test's 9u.
   - **Warnings** at 5 minutes and at 1 minute. At empty the ship is lost.
 - **Not changed:** NPCs don't yet fly their own approaches with it (L2.6).
 
-Tested in `tests/emberreach_autopilot_t.js` (24 checks) and the browser test's 9v to 9y.
+Tested in `tests/emberreach_autopilot_t.js` (28 checks) and the browser test's 9v to 9y.
 
 ### L2.5 What surface ports trade
+
+**Done, first part** (0.3.7): **markets**, the foundation of the galaxy's trade (`economy.js`). Every port, space
+or surface, keeps its own market:
+- **Its economy:** a mix from its kind, blended with its world's.
+  - **By kind:** a capital's great port runs high tech and industry. A station at a living world adds tourism. An
+    outpost station refines, a camp extracts, and a forward base is military.
+  - **By world:** a gas giant refines fuel and a living world farms. Barren or desert rock is mined, and ice gives
+    water. Ruins sell artefacts and draw tourists.
+  - **A colony's** facilities set its port's mix.
+  - **The system's economy** is its ports' mixes, weighed by their people. The jump panel shows it.
+- **Supply and demand:** each economy makes some goods and uses others. People everywhere use food, water and
+  medicine. A good both made and used is netted. Amounts are measured against the port's people: about
+  25 × log10(people)² tonnes each way.
+- **Prices:**
+  - **The base:** a good's base value, moved a little by the stock (a full stock up to 22% under) and the demand (a
+    full demand up to 25% over).
+  - **People:** a slight premium where more people live (1.5% per power of ten).
+  - **Trade:** a port sells only from its stock, and buys only up to its demand.
+  - **Kept as before:** the war front and the Rift rules.
+- **The calendar:** stock and demand wander slowly round their level (45 to 135-day cycles, seeded per port and
+  good). A player's trades move them, and that comes back by itself at 5% of the gap a day, about half in two
+  weeks. Only the player's changes are saved (`P.markets`).
+- **The market screen** lists what the port sells first, with its stock, then what it wants. Its header names the
+  port's economy and the people it serves.
+
+Tested in `tests/emberreach_markets_t.js` (19 checks), the trade and colony tests, and the browser test's 3a.
+Still to come in L2.5: the services by kind and the surface bulletin contracts below.
 
 - **Markets** take the system's market and give each kind its twist:
   - **Mining camps** sell their world's ores at 70% and buy food, water and machinery at 120%.

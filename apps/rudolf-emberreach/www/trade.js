@@ -56,9 +56,13 @@ function receive(P, amount, code, day) {
 
 /* ---- the market ---- */
 /* how many tonnes you could buy: the hold's free space and what you can pay */
+/* a trade moves the port's market (economy.js record), and the market is priced again from it */
+function settleMarket(P, mkt, good, qty, sold, day) { if (!mkt.key) return; E.record(P, mkt, good, qty, sold, day); if (mkt.again) Object.assign(mkt, mkt.again(P)) }
+/* how much a port will take of a good now (what you hold, up to its demand) */
+const canSell = (P, mkt, good) => { const q = mkt.prices[good]; return !q || !q.buy ? 0 : Math.min(P.cargo[good] || 0, q.demand == null ? Infinity : q.demand) };
 function canBuy(P, ship, mkt, good, day) {
 	const q = mkt.prices[good]; if (!q || q.none) return 0;
-	const space = free(P, ship); if (space <= 0) return 0;
+	const space = Math.min(free(P, ship), q.stock == null ? Infinity : q.stock); if (space <= 0) return 0;
 	let money;
 	if (mkt.currency != 'SU') money = (P.wallet[mkt.currency] || 0) / q.price;
 	else { const c = Object.entries(P.wallet).sort((a, b) => b[1] / rate(b[0], day) - a[1] / rate(a[0], day))[0]; money = c ? c[1] / rate(c[0], day) * (1 - TRADE.freeCut) / q.price : 0 }
@@ -70,12 +74,14 @@ function buy(P, ship, mkt, good, qty, day) {
 	qty = Math.floor(qty);
 	if (qty <= 0) return {ok: false, why: 'qty'};
 	if (qty > free(P, ship)) return {ok: false, why: 'hold', free: free(P, ship)};
+	if (q.stock != null && qty > q.stock) return {ok: false, why: 'stock', stock: q.stock};   /* (0.3.7: the port's stock) */
 	const p = pay(P, qty * q.price, mkt.currency, day);
 	if (!p.ok) return p;
 	const was = P.cargo[good] || 0;
 	P.cost[good] = ((P.cost[good] || 0) * was + q.su * qty) / (was + qty);
 	P.cargo[good] = was + qty;
 	if (mkt.holder) R.act(P, 'trade', mkt.holder, {amount: qty * q.su / 1000});
+	settleMarket(P, mkt, good, qty, false, day);
 	return {ok: true, qty, paid: p};
 }
 function sell(P, mkt, good, qty, day) {
@@ -84,9 +90,11 @@ function sell(P, mkt, good, qty, day) {
 	qty = Math.floor(qty);
 	const have = P.cargo[good] || 0;
 	if (qty <= 0 || qty > have) return {ok: false, why: 'qty', have};
+	if (q.demand != null && qty > q.demand) return {ok: false, why: 'demand', demand: q.demand};   /* (0.3.7: what the port still wants) */
 	const got = receive(P, qty * q.price, mkt.currency, day), profit = (q.su - (P.cost[good] || q.su)) * qty;
 	P.cargo[good] = have - qty; if (!P.cargo[good]) { delete P.cargo[good]; delete P.cost[good] }
 	if (mkt.holder) R.act(P, 'trade', mkt.holder, {amount: qty * q.su / 1000});
+	settleMarket(P, mkt, good, qty, true, day);
 	return {ok: true, qty, got, profit};
 }
 
@@ -137,6 +145,6 @@ function buyShip(P, currentId, newId, star, day) {
 	return {ok: true, cost, currency: p.currency, tradeIn: ti.amount};
 }
 
-const EmberTrade = {TRADE, YARD, newPlayer, held, free, walletSU, worth, pay, receive, canBuy, buy, sell, exchange, tank, refuelCost, repairCost, yard, tradeIn, buyShip, rate};
+const EmberTrade = {canSell, TRADE, YARD, newPlayer, held, free, walletSU, worth, pay, receive, canBuy, buy, sell, exchange, tank, refuelCost, repairCost, yard, tradeIn, buyShip, rate};
 if (isNode) module.exports = EmberTrade; else root.EmberTrade = EmberTrade;
 })(typeof window != 'undefined' ? window : this);

@@ -2,7 +2,8 @@
    port and its goods, and haulage contracts.
    - The claim: at a great power's colonial office (any of its ports), a system within one jump of that port: one with
      planets, outside the Core, not contested, with no port of its own. Unclaimed space is open to any power you're
-     at least Neutral with; inside a power's own space you need its charter (Friendly, at its own office). The fee
+     at least Neutral with; a power's own space is not (0.3.6: before, by its charter): its uninhabited systems
+     stay uninhabited. The fee
      depends on the primary port (outpost, station, great port), paid in the sponsor's coin at the day's rate.
    - One open claim at a time, and a colony budget by standing: one to start, one more per 100 reputation above
      Friendly with the sponsor.
@@ -94,25 +95,26 @@ function canClaim(P, office, star, kind, day, jumpRange, plan, independent) {
 	if (G.mRad(p[0], p[1], p[2]) < COL.core) return {ok: false, why: 'Nothing can be built in the Core.'};
 	if (!G.system(star).planets.length) return {ok: false, why: star.name + ' has no planets: nowhere to put a port.'};
 	if (colonyAt(P, star.id)) return {ok: false, why: 'You already hold a claim there.'};
-	if (F.majors().some(m => m.star.id == star.id) || T.portFor(star, day)) return {ok: false, why: star.name + ' already has a port.'};
+	if (F.majors().some(m => m.star.id == star.id) || !T.wildAt(star, day)) return {ok: false, why: star.name + ' already has a port.'};
 	const c = F.claimAt(p);
 	if (c.contested) return {ok: false, why: star.name + ' is contested: no civilian colonies on a front (a forward base, with a commission).'};
-	if (c.owner && c.owner != sp.id) return {ok: false, why: star.name + ' is the ' + short(c.owner) + '\'s: claim it through their office.'};
-	if (c.owner && (P.rep[sp.id] || 0) < COL.charter) return {ok: false, why: 'A charter in ' + short(sp.id) + ' space needs Friendly standing.'};
+	/* (0.3.6) a power's own space stays as it is: its wild systems are left uninhabited, by every office */
+	if (c.owner) return {ok: false, why: star.name + ' lies in ' + short(c.owner) + ' space: its uninhabited systems stay uninhabited. Claims go only to unclaimed space.'};
 	if ((P.rep[sp.id] || 0) < COL.neutral) return {ok: false, why: 'The ' + short(sp.id) + ' won\'t sponsor an Unfriendly pilot.'};
 	if (!plan && open(P)) return {ok: false, why: 'You already have a claim in progress at ' + open(P).star.name + '.'};
 	if (!plan && held(P) >= budget(P, sp.id)) return {ok: false, why: 'Your standing with the ' + short(sp.id) + ' allows ' + budget(P, sp.id) + (budget(P, sp.id) == 1 ? ' colony' : ' colonies') + '.'};
 	const old = list(P).find(x => x.star.id == star.id && x.stage == 'lapsed'), salvage = !!old;
-	return {ok: true, fee: Math.round(K.fee * (salvage ? 1 - COL.salvage : 1) * E.rate(sp.currency.code, day)), currency: sp.currency.code, salvage, inside: !!c.owner};
+	return {ok: true, fee: Math.round(K.fee * (salvage ? 1 - COL.salvage : 1) * E.rate(sp.currency.code, day)), currency: sp.currency.code, salvage, inside: false};
 }
-/* the checks every claim shares: one jump, not the Core, planets, no port, not yours already */
+/* the checks every claim shares: one jump, not the Core, planets, no port (0.3.6: of any kind, surface ports and
+   outposts too: only a wild system, travel.js wildAt), not yours already */
 function common(P, office, star, day, jumpRange) {
 	const p = at(star);
 	if (dist(p, at(office.star)) > jumpRange) return star.name + ' is more than one jump (' + jumpRange + ' pc) from here.';
 	if (G.mRad(p[0], p[1], p[2]) < COL.core) return 'Nothing can be built in the Core.';
 	if (!G.system(star).planets.length) return star.name + ' has no planets: nowhere to put a port.';
 	if (colonyAt(P, star.id)) return 'You already hold a claim there.';
-	if (F.majors().some(m => m.star.id == star.id) || T.portFor(star, day)) return star.name + ' already has a port.';
+	if (F.majors().some(m => m.star.id == star.id) || !T.wildAt(star, day)) return star.name + ' already has a port.';
 	return null;
 }
 const limits = (P, plan, b) => !plan && open(P) ? 'You already have a claim in progress at ' + open(P).star.name + '.' : !plan && held(P) >= b ? 'Your standing allows ' + b + (b == 1 ? ' colony' : ' colonies') + '.' : null;

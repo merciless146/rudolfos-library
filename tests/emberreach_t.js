@@ -45,6 +45,13 @@ async function frame(pg, test) {
 		for (const sc of ['station', 'market', 'bulletin', 'shipyard', 'outfitting', 'contacts', 'carto', 'status']) { await f.click('[data-screen="' + sc + '"]'); await sleep(120) }
 		ok('3. every starport screen opens', errs.length == 0, errs);
 		await pg.screenshot({path: path.join(W, 'port.png')});
+		/* 0.3.7: this port's own market: what it sells from its stock, what it wants, and a purchase taken from the stock */
+		await f.click('[data-screen="market"]'); await sleep(150);
+		const mk0 = await f.evaluate(() => { const rows = [...document.querySelectorAll('#port [data-good]')], head = document.querySelector('#port .pt-thead').textContent, sub = document.querySelector('#port h1 + *, #port .pt-sub') ? document.body.innerText : ''; return {rows: rows.length, first: rows[0].dataset.good, cell: rows[0].children[3].textContent, head, econ: /economy · serves/.test(document.getElementById('port').innerText)} });
+		await f.click('[data-good="' + mk0.first + '"]'); await sleep(100); await f.click('[data-act="buy"][data-n="1"]'); await sleep(150);
+		const mk1 = await f.evaluate(g => document.querySelector('#port [data-good="' + g + '"]').children[3].textContent, mk0.first);
+		await pg.screenshot({path: path.join(W, 'market.png')});
+		ok('3a. the market lists what this port sells first, with its stock and what it wants; buying takes from the stock', mk0.rows > 10 && /Stock \/ demand/.test(mk0.head) && mk0.econ && /^\d+ t$/.test(mk0.cell) && parseInt(mk1) == parseInt(mk0.cell) - 1, {mk0, mk1});
 		await f.click('[data-screen="launch"]'); await sleep(200); await f.click('[data-act="launch"]'); await sleep(1500);
 		const fly = await f.evaluate(() => ({docked: EmberDebug.game.docked, v: Math.hypot(...EmberDebug.s.v)}));
 		await f.focus('#hud'); await pg.keyboard.down('KeyW'); await sleep(1500); await pg.keyboard.up('KeyW');
@@ -305,7 +312,7 @@ async function frame(pg, test) {
 		await pg.screenshot({path: path.join(W, 'jump-aligned.png')});
 		await pg.keyboard.press('KeyJ'); await sleep(150); await f.evaluate(() => { EmberDebug.game.route = null; EmberDebug.game.jump = null });
 		ok('9x. a jump needs the nose on the system\'s star: refused facing away (the card gives distance, government, superpower, population), and charges once lined up, the open reticle on the star mid-screen',
-			!j0.jump && /^Align with /.test(j0.said) && j0.sys && j0.sys.rows.length == 4 && !j0.sys.aligned && !j0.sys.on && j1.jump && j1.sys.aligned && j1.sys.on, {jl, j0, j1});
+			!j0.jump && /^Align with /.test(j0.said) && j0.sys && j0.sys.rows.length >= 4 && !j0.sys.aligned && !j0.sys.on && j1.jump && j1.sys.aligned && j1.sys.on, {jl, j0, j1});
 		const rb = await f.evaluate(async () => { const g = EmberDebug.game, ft = EmberDebug.fit; EmberModules.damage(ft, 'sensors', 1e6); EmberDebug.reboot(); const r = {on: ft.reboot > 0, weapons: EmberModules.status(ft).weapons, thrust: EmberModules.status(ft).output.main};
 			await new Promise(z => setTimeout(z, 1500)); r.o2 = ft.o2 < ft.o2Max; r.chip = g.hudData.reboot > 0 && !!g.hudData.o2; ft.reboot = 0.2; await new Promise(z => setTimeout(z, 600));
 			r.back = EmberModules.works(ft, 'sensors'); r.said = g.msgs.some(m => /^Reboot complete: Sensors back/.test(m.text)); return r });
