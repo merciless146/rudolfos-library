@@ -292,7 +292,7 @@ function outfittingOld() {
 /* ---- the shipyard (0.3.8: hangar.js): ships for sale by the port's size, and your stored ships, here and elsewhere ---- */
 const kept = (m) => Object.assign(m, {at: Object.assign({}, env.place), ready: 0});
 const transferCost = q => q.su * (here() == 'SU' ? 1 : E.rate(here(), env.day));
-const transferText = q => q.local ? money(transferCost(q), here()) + ', at once (same system)' : money(transferCost(q), here()) + ' · ' + q.days + (q.days == 1 ? ' day' : ' days') + ' · ' + q.d.toFixed(1) + ' pc';
+const transferText = q => q.local ? money(transferCost(q), here()) + ', at once (same system)' : money(transferCost(q), here()) + (q.capped ? ' (the cap)' : '') + ' · ' + q.days + (q.days == 1 ? ' day' : ' days') + ' · ' + q.d.toFixed(1) + ' pc';
 function hangarList() {
 	const me = P(), d = env.day, svc = Hg.services(env.port), list = me.hangar || [];
 	if (!list.length) return '<h2>Your stored ships</h2><p class="muted small">' + (svc.storage ? 'None. Buy a ship and store yours here, or keep one here for later.' : 'None.') + '</p>';
@@ -323,7 +323,7 @@ function shipyard() {
 	}
 	return h1('Shipyard', svc.yard ? 'Showroom · ships up to ' + svc.yard + ' · prices in ' + cur + ', low to high quote' : 'Storage and transfers · no ships for sale here')
 		+ '<div class="pt-split"><section class="pt-card pt-table" role="list"><div class="pt-thead pt-row4"><span>Ship</span><span>Class</span><span>Yard</span><span class="num">Price ' + cur + '</span></div>' + (rows || '<p class="muted small" style="padding:8px 14px">None here.</p>') + '</section><aside class="pt-card pt-side">' + side + '</aside></div>'
-		+ '<section class="pt-card">' + hangarList() + '<p class="muted small">A stored ship keeps its fit, its modules\' health, its fuel and anything in its hold. Transfers need an empty hold: a flat ' + money(Hg.HANGAR.local * (here() == 'SU' ? 1 : E.rate(here(), env.day)), here()) + ' at once within a system; from further, half its insurance premium plus a charge by distance and size, and a day plus a day per 5 pc.</p></section>';
+		+ '<section class="pt-card">' + hangarList() + '<p class="muted small">A stored ship keeps its fit, its modules\' health, its fuel and anything in its hold. Transfers need an empty hold: a flat ' + money(Hg.HANGAR.local * (here() == 'SU' ? 1 : E.rate(here(), env.day)), here()) + ' at once within a system; from further, half its insurance premium plus a charge by distance and size, never more than 5 weeks\' insurance on it, and a day plus a day per 5 pc.</p></section>';
 }
 function contacts() {
 	const me = P(), o = holder(), d = env.day;

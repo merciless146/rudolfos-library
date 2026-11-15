@@ -44,9 +44,13 @@ try {
 	const local = Hg.quote('ship', g, capField, day);
 	ok('10. within a system: a flat 100 SU, at once', local.ok && local.su == 100 && local.days == 0);
 	const q = Hg.quote('ship', g, away, day), d = Hg.distPc(g.at, away), value = S.value(S.hull('gnat')), mass = Hg.HANGAR.mass[S.hull('gnat').size];
-	ok('11. from another system: half its insurance premium plus 25 SU a parsec per size class; a day plus a day per 5 pc', q.ok && Math.abs(q.su - (0.5 * I.INSURE.weekly * value + 25 * d * mass)) < 1e-6 && q.days == 1 + Math.ceil(d / 5), {q, d});
+	ok('11. from another system: half its insurance premium plus 25 SU a parsec per size class (to the cap); a day plus a day per 5 pc', q.ok && Math.abs(q.su - Math.min(0.5 * I.INSURE.weekly * value + 25 * d * mass, 5 * I.INSURE.weekly * value)) < 1e-6 && q.days == 1 + Math.ceil(d / 5), {q, d});
 	const bigQ = Hg.quote('ship', Object.assign({}, g, {ship: {model: S.ships().find(s => s.size == 'Capital').id}}), away, day);
 	ok('12. a bigger ship costs more to move the same way', bigQ.ok && bigQ.su > q.su);
+	/* (0.3.9) the cap: 5 weeks' insurance on the ship with its fit, or on the module; the days aren't capped */
+	const farAway = {star: 'far', p: [home.star.x + 1500, home.star.y, home.star.z], port: 'orbital', name: 'far'}, fitted = Object.assign({}, g, {ship: {model: 'gnat', fit: Object.assign(O.stock(S.hull('gnat')), {})}});
+	const qf = Hg.quote('ship', fitted, farAway, day), cap5 = 5 * I.shipValue(S.hull('gnat'), fitted.ship.fit) * I.INSURE.weekly, df = Hg.distPc(g.at, farAway);
+	ok('11a. never more than 5 weeks\' insurance on the ship and what\'s fitted, however far; the days still grow with the distance', qf.ok && qf.capped && Math.abs(qf.su - cap5) < 1e-6 && qf.days == 1 + Math.ceil(df / 5) && qf.days > 250, {su: qf.su, cap5, days: qf.days, df});
 	const full = Object.assign({}, g, {cargo: {Food: 2}});
 	ok('13. never with anything in the hold (or passengers aboard)', !Hg.quote('ship', full, away, day).ok && /hold/.test(Hg.quote('ship', full, away, day).why) && !Hg.quote('ship', Object.assign({}, g, {passengers: 2}), away, day).ok);
 	const tr = Hg.transfer('ship', g, away, day);
@@ -56,7 +60,9 @@ try {
 	pl.stored = [{id: 'shield', size: 2, grade: 'B'}, {id: 'pulse', size: 1, grade: 'C'}];
 	ok('16. modules kept before storage had places are taken in by the first port docked at', Hg.adopt(pl, capHalo) == 2 && Hg.modulesAt(pl, capHalo, day).length == 2 && Hg.adopt(pl, away) == 0);
 	const mq = Hg.moduleQuote(pl, 0, away, day), mv = O.price(pl.stored[0]);
-	ok('17. a module\'s transfer: half its insurance (5% of its price) plus 25 SU a parsec per size', mq.ok && Math.abs(mq.su - (0.05 * mv + 25 * mq.d * 2)) < 1e-6 && Hg.moduleQuote(pl, 1, capField, day).su == 100);
+	ok('17. a module\'s transfer: half its insurance (5% of its price) plus 25 SU a parsec per size, to 5 weeks\' insurance on it', mq.ok && Math.abs(mq.su - Math.min(0.05 * mv + 25 * mq.d * 2, 0.5 * mv)) < 1e-6 && Hg.moduleQuote(pl, 1, capField, day).su == Math.min(100, 0.5 * O.price(pl.stored[1])));
+	const cheap = {id: 'cargo', size: 1, grade: 'C', at: capHalo}; pl.stored.push(cheap);
+	ok('17a. the cap holds within a system too: a cheap module never costs more than half its price to move', Hg.moduleQuote(pl, pl.stored.length - 1, capField, day).su == Math.min(100, 0.5 * O.price(cheap)) && Hg.moduleQuote(pl, pl.stored.length - 1, farAway, day).su <= 0.5 * O.price(cheap) + 1e-9); pl.stored.pop();
 	Hg.sendModule(pl, 0, away, day);
 	ok('18. sent modules are on their way, then there', Hg.modulesAt(pl, away, day).length == 0 && Hg.modulesAt(pl, away, day + mq.days).length == 1 && Hg.modulesAt(pl, capHalo, day).length == 1);
 	/* ---- the save ---- */

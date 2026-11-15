@@ -16,13 +16,15 @@
    - from another system: half the item's insurance premium (5% of its value: insurance.js) plus 25 SU a parsec for
      each step of its size class (a module 1 a size, a ship XS 1 to a capital ship 32), and a day plus a day for
      every 5 parsecs, rounded up. It arrives on that day.
+   - never more than 5 weeks' insurance on it (0.3.9): 50% of the ship's whole value with what's fitted, or of the
+     module's; the days have no such cap.
    GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
 const isNode = typeof module != 'undefined';
 const req = (n, g) => isNode ? require('./' + n) : root[g];
 const S = req('ships.js', 'EmberShips'), O = req('outfit.js', 'EmberOutfit'), G = req('galaxy.js', 'EmberGalaxy');
-const HANGAR = {local: 100, insureShare: 0.05, perPc: 25, pcPerDay: 5, minDays: 1, mass: {XS: 1, S: 2, M: 4, L: 8, XL: 16, Capital: 32}, maxShips: 20, maxModules: 120};
+const HANGAR = {local: 100, insureShare: 0.05, capWeeks: 5, weekly: 0.10, perPc: 25, pcPerDay: 5, minDays: 1, mass: {XS: 1, S: 2, M: 4, L: 8, XL: 16, Capital: 32}, maxShips: 20, maxModules: 120};
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'Capital'];
 /* what each kind of port offers: the largest ship its yard sells (null: none), its outfitters (null: none), storage */
 const SERVICE = {
@@ -66,10 +68,12 @@ function quote(kind, item, to, day) {
 	if (samePlace(item.at, to)) return {ok: false, why: 'It is already here.'};
 	if (kind == 'ship' && Object.values(item.cargo || {}).some(t => t > 0)) return {ok: false, why: 'Its hold isn\'t empty: ships are transferred only with nothing aboard.'};
 	if (kind == 'ship' && (item.passengers || 0) > 0) return {ok: false, why: 'It has passengers aboard.'};
-	if (sameSystem(item.at, to)) return {ok: true, su: HANGAR.local, days: 0, d: 0, local: true};
-	const d = distPc(item.at, to), value = kind == 'ship' ? shipValue(item) : moduleValue(item.m);
+	const value = kind == 'ship' ? shipValue(item) : moduleValue(item.m), cap = HANGAR.capWeeks * HANGAR.weekly * value;
+	if (sameSystem(item.at, to)) return {ok: true, su: Math.min(HANGAR.local, cap), days: 0, d: 0, local: true, cap, value};
+	const d = distPc(item.at, to);
 	const mass = kind == 'ship' ? HANGAR.mass[(S.hull(item.ship.model) || {}).size] || 1 : Math.max(1, item.m.size || 1);
-	return {ok: true, su: HANGAR.insureShare * value + HANGAR.perPc * d * mass, days: HANGAR.minDays + Math.ceil(d / HANGAR.pcPerDay), d, value};
+	const full = HANGAR.insureShare * value + HANGAR.perPc * d * mass;
+	return {ok: true, su: Math.min(full, cap), capped: full > cap, days: HANGAR.minDays + Math.ceil(d / HANGAR.pcPerDay), d, value, cap};
 }
 /* send for it: it's here at once (same system) or on the quoted day; the caller has been paid */
 function transfer(kind, item, to, day) {
