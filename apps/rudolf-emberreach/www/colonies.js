@@ -94,7 +94,7 @@ function canClaim(P, office, star, kind, day, jumpRange, plan, independent) {
 	if (G.mRad(p[0], p[1], p[2]) < COL.core) return {ok: false, why: 'Nothing can be built in the Core.'};
 	if (!G.system(star).planets.length) return {ok: false, why: star.name + ' has no planets: nowhere to put a port.'};
 	if (colonyAt(P, star.id)) return {ok: false, why: 'You already hold a claim there.'};
-	if (F.majors().some(m => m.star.id == star.id) || T.portFor(star, day)) return {ok: false, why: star.name + ' already has a port.'};
+	if (F.majors().some(m => m.star.id == star.id) || !T.wildAt(star, day)) return {ok: false, why: star.name + ' already has a port.'};
 	const c = F.claimAt(p);
 	if (c.contested) return {ok: false, why: star.name + ' is contested: no civilian colonies on a front (a forward base, with a commission).'};
 	if (c.owner && c.owner != sp.id) return {ok: false, why: star.name + ' is the ' + short(c.owner) + '\'s: claim it through their office.'};
@@ -105,14 +105,15 @@ function canClaim(P, office, star, kind, day, jumpRange, plan, independent) {
 	const old = list(P).find(x => x.star.id == star.id && x.stage == 'lapsed'), salvage = !!old;
 	return {ok: true, fee: Math.round(K.fee * (salvage ? 1 - COL.salvage : 1) * E.rate(sp.currency.code, day)), currency: sp.currency.code, salvage, inside: !!c.owner};
 }
-/* the checks every claim shares: one jump, not the Core, planets, no port, not yours already */
+/* the checks every claim shares: one jump, not the Core, planets, no port (0.3.6: of any kind, surface ports and
+   outposts too: only a wild system, travel.js wildAt), not yours already */
 function common(P, office, star, day, jumpRange) {
 	const p = at(star);
 	if (dist(p, at(office.star)) > jumpRange) return star.name + ' is more than one jump (' + jumpRange + ' pc) from here.';
 	if (G.mRad(p[0], p[1], p[2]) < COL.core) return 'Nothing can be built in the Core.';
 	if (!G.system(star).planets.length) return star.name + ' has no planets: nowhere to put a port.';
 	if (colonyAt(P, star.id)) return 'You already hold a claim there.';
-	if (F.majors().some(m => m.star.id == star.id) || T.portFor(star, day)) return star.name + ' already has a port.';
+	if (F.majors().some(m => m.star.id == star.id) || !T.wildAt(star, day)) return star.name + ' already has a port.';
 	return null;
 }
 const limits = (P, plan, b) => !plan && open(P) ? 'You already have a claim in progress at ' + open(P).star.name + '.' : !plan && held(P) >= b ? 'Your standing allows ' + b + (b == 1 ? ' colony' : ' colonies') + '.' : null;
