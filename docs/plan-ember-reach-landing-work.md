@@ -647,16 +647,105 @@ tests and the browser playthrough pass on the release test machine (the sandbox'
 
 - Bump the version, update the store description, run the full suite and the playthrough.
 
-## L3 and L4, in outline
+## L3: mining, and colonies on the ground
 
-They're planned in detail once L2 is in and played.
+Planned after 0.4.0. Mining comes first: a planet's rings become asteroids you fly among and mine anywhere, and
+the deposits the ground scan marks can be mined. Then colonies come down to the surface.
 
-- **L3: colonies and the economy on the ground.**
-  - Colony claims on airless worlds become surface outposts and settlements, built and upgraded through
-    the colonial office (its planner shows the site layout).
-  - A colony's port can grow into a surface starport.
-  - Pirate raids on surface ports.
-  - Mining surface deposits with the mining laser from a low pass.
+**Today (0.4.0), for reference:**
+- **Rings:** each ringed planet's rings are a flat drawn band (1.35 to 2.3 radii, 14 bands with gaps:
+  `meshes.js` rings).
+- **Mining** happens at one fixed site on the ring, a 15 km swarm of 64 asteroids (96 in a dense ring), cruised to
+  and dropped out at (`mining.js` fields and rocks). Asteroid belts round stars work the same way.
+- **What's mined is remembered** per asteroid in the save (`P.mined`).
+
+### L3.1 Rings made of asteroids
+
+- **One shape for both:** the ring's bands come from one function, used by the drawn ring and by mining alike, so
+  the gaps you see are the gaps you fly through. Each band has an inner and outer radius, a density (dense,
+  moderate, sparse) and a mix.
+- **The rocks:** a ring is filled with asteroids, made where they're needed.
+  - **Cells:** the ring is cut into cells about 3 km across (by angle, by band). Each cell's asteroids are seeded by
+    its place (planet, band, cell), so they're the same every visit.
+  - **How many:** a dense band holds 6 to 10 asteroids a cell, a moderate one 3 to 5, a sparse one 1 or 2. Gaps hold
+    none.
+  - **The ring's thickness:** a few hundred metres. A ship can fly above it, below it, and through it.
+- **Each asteroid** is mined as today. It has its own id (planet, band, cell, number), so `P.mined` remembers what
+  you took. Its goods come from the ring's kind (stone, ice or metal), leaning metallic in the inner bands and icy
+  in the outer ones.
+- **Hotspots:** the old single site becomes 2 or 3 hotspots in each ring, where one good's share doubles.
+  - **Finding them:** a resource scanner finds those within 20 km of you (a pulse, as now).
+  - **Once found:** they're instance targets, and the cartographers buy their positions.
+- **Tests:** the bands match the drawn ring; cells are the same every visit; gaps are empty; ids are unique; the
+  mix by band; hotspots.
+
+### L3.2 Flying in a ring
+
+- **Drawing:** within 8 km of the ship the ring's cells are made and drawn as asteroids (the rock meshes in use
+  today). The flat band fades out as you come close, so up close the ring *is* its asteroids. Further off it's the
+  band, as now.
+- **Collisions:** asteroids are solid, as at sites today.
+- **Cruise:**
+  - **The hazard:** cruise drops out on entering a ring's band within 2 km of its plane. Above 300 km/s that's an
+    emergency drop.
+  - **As a target:** each ring is a navigation target. Cruise assist brings you to its edge, just clear of the
+    plane, and slows for any ring it crosses on the way.
+- **Mining anywhere:** chip, prospect, refine and tractor work as today, on any asteroid in the ring.
+- **Performance:** the cells are made as you move, and a few hundred asteroids are drawn at most. The release
+  machine's frame rate is checked, with fewer asteroids drawn on low quality.
+- **Tests:**
+  - **Browser:** drop out in a ring, mine an asteroid there, and fly into a gap and find it empty.
+  - **Node:** cruise's drop at a ring's edge.
+
+### L3.3 Belts
+
+- **Belts round stars** stay as sites. A belt spans an orbit hundreds of millions of kilometres round, too large
+  to fill. They take the hotspot rule (L3.1): 2 or 3 sites a belt, found with a resource scanner.
+
+### L3.4 Mining the ground
+
+- **Deposits** (marked by the ground scan, `explore.js` deposits) hold tonnes of their good.
+- **A mining laser** fired at one from a low pass (under 300 m) or from the ground breaks chunks off. They fly up
+  and are taken in through the hatch or by tractor beam, into the refinery, as in space.
+- **Deposits run down,** and are remembered in the save.
+- **Tests:** a deposit's yield; chunks from a low pass; nothing from too high.
+
+### L3.5 Colonies on the ground
+
+- **Claims on airless worlds** become surface outposts and settlements (`surface.js` kinds), built and upgraded
+  through the colonial office. Its planner shows the site's layout.
+- **A colony's port can grow** into a surface starport.
+
+### L3.6 Raids
+
+- **Pirates raid surface ports,** colonies' and others'. A forward base's turrets (0.3.11) and the port's traffic
+  are caught up in it.
+
+### L3.7 Release 0.5.0
+
+- Bump the version, update the store description, run the full suite and the playthrough.
+
+| Step | Depends on | Size |
+|---|---|---|
+| L3.1 rings made of asteroids | | medium |
+| L3.2 flying in a ring | L3.1 | large |
+| L3.3 belts | L3.1 | small |
+| L3.4 mining the ground | | medium |
+| L3.5 colonies on the ground | | large |
+| L3.6 raids | L3.5 | medium |
+| L3.7 release 0.5.0 | L3.1–L3.6 | small |
+
+**Open questions:**
+- **Belts:** should they also become asteroids all the way round? That would mean filling only the stretch near
+  the ship, with the belt as a target.
+- **The ring's thickness:** a few hundred metres at the game's 1/12 scale (real rings are tens of metres to a
+  kilometre).
+- **Drawn bands:** should the rings' drawn bands thin out where a player has mined a lot?
+
+## L4, in outline
+
+Planned in detail once L3 is in and played.
+
 - **L4: sites.**
   - Ruins on airless worlds, landed at and surveyed from the ground, at a better yield than from orbit.
   - Precursor ruins on the Rift's airless worlds.
