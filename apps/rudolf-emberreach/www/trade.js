@@ -8,8 +8,8 @@
    - Trading for a power counts for its reputation (2 a thousand SU).
    - Services: fuel at the market's fuel price (a tank is a few tonnes, more on bigger ships); repairs at 8% of the
      ship's value for a ship wrecked from full.
-   - Shipyards: Trefoil outposts sell the smallest hulls (XS, S), Lanterns up to M, Halos everything; never an
-     enemy's designs. Your ship is taken in part-exchange at 80% of its price there, and your cargo must fit.
+   - Shipyards (0.3.8, hangar.js): none at an outpost station; bloom stations and settlements up to M, surface
+     starports L, heavy landing fields XL, living-world stations and capitals everything; never an enemy's designs. Your ship is taken in part-exchange at 80% of its price there, and your cargo must fit.
    - Losing a ship: see insurance.js (a weekly policy with a great power, and where you wake up).
    GPL-2.0-or-later. ===== */
 (function (root) {
@@ -19,7 +19,6 @@ const E = isNode ? require('./economy.js') : root.EmberEconomy, F = isNode ? req
 	S = isNode ? require('./ships.js') : root.EmberShips, R = isNode ? require('./reputation.js') : root.EmberReputation;
 const TRADE = {freeCut: 0.08, repairShare: 0.08, tradeIn: 0.8, tankPerMetre: 0.35};
 const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'Capital'];
-const YARD = {trefoil: 'S', bloom: 'S', lantern: 'M', halo: 'Capital'};
 
 /* a new player from their origin (reputation.js), with an empty hold */
 function newPlayer(originId) { const P = R.newPlayer(originId); P.cargo = {}; P.cost = {}; return P }
@@ -121,11 +120,14 @@ function repairCost(ship, fit, mkt, day, hull) {
 /* a replacement ship: 5% of its value, in the home currency */
 
 /* ---- shipyards ---- */
-/* what a yard of this port class sells here today: never an enemy's designs */
-function yard(portCls, star, day) {
+/* what a port's yard sells here today (hangar.js services: 0.3.8, none at an outpost station, up to M at a bloom
+   station or a settlement, L at a surface starport, XL at a heavy landing field, everything at a living world's
+   station or a capital's port): never an enemy's designs. port: travel.js's port record, or its class */
+const Hg = () => isNode ? require('./hangar.js') : root.EmberHangar;
+function yard(port, star, day) {
 	if (star && star.rift) return [];   /* the Rift's anchorages build nothing */
-	const max = SIZE_ORDER.indexOf(YARD[portCls] || 'S');   /* sizes it doesn't know, it doesn't sell */
-	return S.ships().filter(s => { const k = SIZE_ORDER.indexOf(s.size); return k >= 0 && k <= max }).map(s => ({ship: s, price: S.price(s.id, star, day)})).filter(x => x.price);
+	const sizes = Hg().yardSizes(typeof port == 'string' ? {cls: port} : port);
+	return S.ships().filter(s => sizes.includes(s.size)).map(s => ({ship: s, price: S.price(s.id, star, day)})).filter(x => x.price);
 }
 /* what your ship fetches in part-exchange here (in the market's currency) */
 function tradeIn(ship, star, day) {
@@ -145,6 +147,6 @@ function buyShip(P, currentId, newId, star, day) {
 	return {ok: true, cost, currency: p.currency, tradeIn: ti.amount};
 }
 
-const EmberTrade = {canSell, TRADE, YARD, newPlayer, held, free, walletSU, worth, pay, receive, canBuy, buy, sell, exchange, tank, refuelCost, repairCost, yard, tradeIn, buyShip, rate};
+const EmberTrade = {canSell, TRADE, newPlayer, held, free, walletSU, worth, pay, receive, canBuy, buy, sell, exchange, tank, refuelCost, repairCost, yard, tradeIn, buyShip, rate};
 if (isNode) module.exports = EmberTrade; else root.EmberTrade = EmberTrade;
 })(typeof window != 'undefined' ? window : this);

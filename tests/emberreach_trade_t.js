@@ -48,8 +48,8 @@ try {
 	ok('14. a lost ship is the insurer\'s business now (insurance.js), not a 5% rebuy', Tr.rebuyCost === undefined && !('rebuy' in Tr.TRADE));
 
 	/* shipyards */
-	const big = Tr.yard('halo', home.star, day), small = Tr.yard('trefoil', home.star, day);
-	ok('15. a Halo\'s yard sells far more than an outpost\'s, which sells only XS and S hulls', big.length > small.length && small.every(x => ['XS', 'S'].includes(x.ship.size)) && small.length > 3);
+	const big = Tr.yard('halo', home.star, day), small = Tr.yard('bloom', home.star, day), none = Tr.yard('trefoil', home.star, day);
+	ok('15. (0.3.8) a Halo\'s yard sells far more than a bloom station\'s (up to M); an outpost station sells no ships', big.length > small.length && small.every(x => ['XS', 'S', 'M'].includes(x.ship.size)) && small.length > 3 && !none.length && big.some(x => x.ship.size == 'Capital'));
 	ok('16. never an enemy\'s designs', big.every(x => !x.ship.maker.startsWith('major') || x.ship.maker == home.id || F.relation(x.ship.maker, home.id) >= 0));
 	const rich = Tr.newPlayer(home.id); rich.wallet[code] *= 40;
 	const hauler = big.filter(x => x.ship.cargo > 50).sort((a, b) => a.price.low - b.price.low)[0], w2 = rich.wallet[code];

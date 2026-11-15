@@ -52,6 +52,18 @@ async function frame(pg, test) {
 		const mk1 = await f.evaluate(g => document.querySelector('#port [data-good="' + g + '"]').children[3].textContent, mk0.first);
 		await pg.screenshot({path: path.join(W, 'market.png')});
 		ok('3a. the market lists what this port sells first, with its stock and what it wants; buying takes from the stock', mk0.rows > 10 && /Stock \/ demand/.test(mk0.head) && mk0.econ && /^\d+ t$/.test(mk0.cell) && parseInt(mk1) == parseInt(mk0.cell) - 1, {mk0, mk1});
+		/* 0.3.8: buy a ship and keep yours here in storage, then fly the stored one again */
+		await f.evaluate(() => { const g = EmberDebug.game; g.P.wallet[EmberFactions.byId(g.P.origin).currency.code] = 1e9 });
+		await f.click('[data-screen="shipyard"]'); await sleep(150);
+		const sy0 = await f.evaluate(() => { const rows = [...document.querySelectorAll('#port [data-ship]')], cur = EmberDebug.game.P.ship.model, pick = rows.find(r => r.dataset.ship != cur && r.dataset.ship != 'gnat'); return {rows: rows.length, pick: pick && pick.dataset.ship, model: cur, store: !!document.querySelector('[data-act="buystore"]')} });
+		await f.click('[data-ship="' + sy0.pick + '"]'); await sleep(100); await f.click('[data-act="buystore"]'); await sleep(600);
+		f = await frame(pg, () => !!document.querySelector('[data-act="hgswap"]'));
+		const sy1 = await f.evaluate(() => ({model: EmberDebug.game.P.ship.model, kept: (EmberDebug.game.P.hangar || []).map(h => h.ship.model), swap: !!document.querySelector('[data-act="hgswap"]')}));
+		await pg.screenshot({path: path.join(W, 'shipyard.png')});
+		await f.click('[data-act="hgswap"]'); await sleep(600);
+		f = await frame(pg, () => !!document.querySelector('#port [data-screen]'));
+		const sy2 = await f.evaluate(() => ({model: EmberDebug.game.P.ship.model, kept: (EmberDebug.game.P.hangar || []).map(h => h.ship.model), shipName: EmberDebug.ship.name}));
+		ok('3b. the shipyard sells a ship and keeps yours here in storage; taking yours out stores the new one in its place', sy0.rows > 5 && sy0.store && sy1.model == sy0.pick && sy1.kept.join() == sy0.model && sy1.swap && sy2.model == sy0.model && sy2.kept.join() == sy0.pick, {sy0, sy1, sy2});
 		await f.click('[data-screen="launch"]'); await sleep(200); await f.click('[data-act="launch"]'); await sleep(1500);
 		const fly = await f.evaluate(() => ({docked: EmberDebug.game.docked, v: Math.hypot(...EmberDebug.s.v)}));
 		await f.focus('#hud'); await pg.keyboard.down('KeyW'); await sleep(1500); await pg.keyboard.up('KeyW');

@@ -103,8 +103,12 @@ function packPlayer(P) {
 		mined: P.mined || {}, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
 		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance, policeKills: (P.policeKills || []).slice(-60),
 		/* (0.3.7) the ports' markets as your trades left them: {key: {day, s: {good: t}, d: {good: t}}} */
-		markets: P.markets && Object.keys(P.markets).length ? P.markets : undefined};
+		markets: P.markets && Object.keys(P.markets).length ? P.markets : undefined,
+		/* (0.3.8) ships kept in storage, where and in what state (hangar.js) */
+		hangar: P.hangar && P.hangar.length ? P.hangar : undefined, hangarSeq: P.hangarSeq || undefined};
 }
+/* a place things are kept (hangar.js placeOf) */
+const place = a => obj(a) && typeof a.star == 'string' && Array.isArray(a.p) && a.p.length == 3 && a.p.every(num) && typeof a.port == 'string' && typeof a.name == 'string';
 const numMap = o => o && typeof o == 'object' && !Array.isArray(o) && Object.values(o).every(num);
 function unpackPlayer(x) {
 	if (!x || typeof x != 'object' || typeof x.origin != 'string' || !numMap(x.wallet) || !numMap(x.cargo) || !numMap(x.rep) || !x.ship || typeof x.ship.model != 'string') return null;
@@ -125,7 +129,12 @@ function unpackPlayer(x) {
 		markets: obj(x.markets) ? Object.fromEntries(Object.entries(x.markets).filter(([k, v]) => obj(v) && num(v.day) && numMap(v.s || {}) && numMap(v.d || {})).slice(-300).map(([k, v]) => [k, {day: v.day, s: Object.assign({}, v.s), d: Object.assign({}, v.d)}])) : {},
 		rift: obj(x.rift) ? {first: num(x.rift.first) ? x.rift.first : null, crossings: num(x.rift.crossings) ? x.rift.crossings : 0} : null,
 		/* modules in storage (bought, taken out, or found) */
-		stored: Array.isArray(x.stored) ? x.stored.filter(m => obj(m) && O && O.CAT[m.id] && O.GRADE[m.grade]).slice(0, 60) : [],
+		/* (0.3.8: each kept where it was left, or on its way: a place and a day; older saves' have none, and the next
+		   port docked at takes them in) */
+		stored: Array.isArray(x.stored) ? x.stored.filter(m => obj(m) && O && O.CAT[m.id] && O.GRADE[m.grade] && (m.at === undefined || place(m.at))).slice(0, 120) : [],
+		hangar: Array.isArray(x.hangar) ? x.hangar.filter(h => obj(h) && obj(h.ship) && typeof h.ship.model == 'string' && place(h.at) && numMap(h.modules || {}) && numMap(h.cargo || {}) && numMap(h.cost || {}) && (h.fuel == null || num(h.fuel))).slice(0, 20)
+			.map(h => Object.assign({}, h, {ship: Object.assign({}, h.ship, {fit: shipFit(h.ship)})})) : [],
+		hangarSeq: num(x.hangarSeq) ? x.hangarSeq : 0,
 		/* M4: the hull's health and ammunition carried over; war missions in hand */
 		combat: x.combat && typeof x.combat == 'object' && num(x.combat.hull) ? x.combat : null,
 		/* M5: what you've charted, surveyed, sold and named */
