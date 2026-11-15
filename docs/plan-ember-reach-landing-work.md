@@ -486,8 +486,10 @@ Tested in `tests/emberreach_traffic_t.js` (15 checks) and the browser test's 9u.
   - "Open to claim" for a system a player could colonise.
 - **Wild systems:** a system with no port of any kind (space port, surface port, outpost or camp, and so no nav
   beacon) is wild: Anarchy and Uninhabited, inside a power's space or not. Wild systems outside every power's
-  space and every contested zone are open to claim at a colonial office. A colonial office no longer files a
-  claim on a system with only a surface port or outpost.
+  space and every contested zone are open to claim at a colonial office, and they are the only ones: a power's
+  uninhabited systems stay uninhabited (the charter that let a Friendly pilot claim inside a power's own space is
+  gone). A colonial office no longer files a claim on a system with only a surface port or outpost. Every great
+  power still has border ports with unclaimed systems within a jump.
 - **Population formula:**
   - **Port bases**, by kind (each varies up to 30% either way, seeded):
 

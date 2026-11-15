@@ -72,8 +72,8 @@ These are the public descriptions (Frontier's guide and update notes, and player
   - a great power's or free port's station (the claim's sponsor);
   - or one of your own colonies, once its primary port is done. That's Trailblazers' daisy chain, which carries
     settlement outwards.
-- **Inside a great power's held space**, you need that power's **charter**: Friendly or better, through its own
-  colonial office. The colony is then part of that power, and it pays its taxes.
+- **Inside a great power's held space**, no claims at all (0.3.6): its uninhabited systems stay uninhabited.
+  (Before 0.3.6, a power's charter allowed one: Friendly or better, through its own colonial office.)
 - **Contested space** can't take a civilian colony. A **forward base** (military port) can be built there for a
   side you're commissioned with. It counts as a supplied system of yours for the war, but under the same rules:
   - it can only be built where your side's chain reaches from its rear;

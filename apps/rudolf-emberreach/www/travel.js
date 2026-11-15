@@ -256,8 +256,8 @@ function canMake(leg, range, fuel) {
 /* ---------- what the HUD says of a system (0.3.6): its government, the superpower, its people ----------
    A system with no port of any kind (space port, surface port, outpost, camp; and so no nav beacon) is wild:
    uninhabited and, whoever's claim it lies in, an anarchy. Its superpower is still the great power whose space it is
-   in, if any: wild systems outside every power's space and every contested zone are the ones a player can colonise
-   (colonies.js: through a colonial office). With ports, the government is the holder's own word (a great power's name
+   in, if any, and there it stays uninhabited. Wild systems outside every power's space and every contested zone are
+   the only ones a player can colonise (colonies.js: through a colonial office). With ports, the government is the holder's own word (a great power's name
    ends in it: Republic, Hegemony, Throne...; a small faction's too), or Anarchy where pirates hold it.
    Population (0.3.6, a formula): each port's base, by its kind (the bigger and more complex the port, the more
    people), times the system's worlds: a multiplier of 1, plus 0.6 for each living world, 0.25 for each world with
@@ -290,8 +290,8 @@ function population(star, day, colonyPop) {
 	}
 	return Math.round(base * (base ? worldsOf(star).k : 0)) + (colonyPop || 0);
 }
-/* a system a player could colonise, as the HUD and the map tell it: wild, and outside every power's space and every
-   contested zone (claims inside a power's space are still filed, with its charter: colonies.js) */
+/* a system a player could colonise, as the HUD tells it: wild, and outside every power's space and every contested
+   zone (colonies.js files claims nowhere else: a power's uninhabited systems stay uninhabited) */
 function colonisable(star, day) { if (star.heart || !wildAt(star, day) || !G.system(star).planets.length) return false; const o = ownerOf(star, day); return !o.owner && !o.contested }
 /* a head count as people read it: 2.4 billion, 380 million, 41,000 */
 function fmtPop(n) {
