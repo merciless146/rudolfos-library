@@ -642,6 +642,9 @@ Tested in `tests/emberreach_autopilot_t.js` (16a to 16c) and the browser test's 
 
 ### L2.7 Release 0.4.0
 
+**Done** (0.4.0): the store description and the plan's release notes are updated. The full suite, every game's
+tests and the browser playthrough pass on the release test machine (the sandbox's software-rendered Chromium).
+
 - Bump the version, update the store description, run the full suite and the playthrough.
 
 ## L3 and L4, in outline
