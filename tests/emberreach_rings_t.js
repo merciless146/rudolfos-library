@@ -29,7 +29,7 @@ try {
 	const counts = {dense: [], moderate: [], sparse: []};
 	for (const x of ringed) for (const b of x.ring.bands) if (!b.gap) for (let a = 0; a < 6; a++) counts[b.density].push(Rg.cellRocks(x.ring, b, 0, a, {}).length);
 	ok('6. 6 to 10 a cell in a dense band, 3 to 5 in a moderate one, 1 or 2 in a sparse one', Object.entries(counts).every(([k, v]) => !v.length || v.every(n => n >= R.perCell[k][0] && n <= R.perCell[k][1])), Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, [Math.min(...v), Math.max(...v)]])));
-	const many = Rg.rocksAround(ring, ring.hotspots[0].pos, 7500, {}), ids = new Set(many.map(r => r.id));
+	const many = Rg.rocksAround(ring, ring.site, 7500, {}), ids = new Set(many.map(r => r.id));
 	ok('7. each asteroid has its own id, lies in its band, within the ring\'s 400 m sheet, 30 to 240 m across', ids.size == many.length && many.every(r => { const L = Rg.locate(ring, r.pos); return L.band && !L.band.gap && Math.abs(L.z) <= R.thick / 2 + 1e-6 && r.radius >= 30 && r.radius <= 240 }));
 	/* the mix */
 	const share = (rg, b, goods) => { let n = 0, t = 0; for (let a = 0; a < 200; a++) for (const r of Rg.cellRocks(rg, b, 0, a, {})) for (const [g, k] of Object.entries(r.comp)) { t += k; if (goods.includes(g)) n += k } return n / (t || 1) };
@@ -38,17 +38,22 @@ try {
 	ok('9. a Rift ring carries the Rift\'s ores too', Rg.mixOf('Metal', 0.5, true).Nullite > 0 && !Rg.mixOf('Metal', 0.5, false).Nullite);
 	/* mined, remembered */
 	const rk = many[0], mined = {[rk.id]: rk.yield - 1};
-	ok('10. what\'s been mined from one is remembered (P.mined, by its id)', Rg.rocksAround(ring, ring.hotspots[0].pos, 7500, mined).find(r => r.id == rk.id).left == 1);
-	/* hotspots */
-	const hs = ringed.flatMap(x => x.ring.hotspots.map(h => Object.assign({ring: x.ring}, h)));
-	ok('11. 2 or 3 hotspots a ring, in its bands (never a gap), in its plane, the first one known', ringed.every(x => x.ring.hotspots.length >= 2 && x.ring.hotspots.length <= 3 && x.ring.hotspots[0].known && !x.ring.hotspots[1].known) && hs.every(h => { const L = Rg.locate(h.ring, h.pos); return L.band && !L.band.gap && Math.abs(L.z) < 1e-6 }));
-	const h0 = hs.find(h => Rg.mixOf(h.ring.kind, 0.5, false)[h.good] < 4) || hs[0], near = Rg.rocksAround(h0.ring, h0.pos, 4000, {}), hb = h0.ring.bands[h0.band];
-	const shareIn = rs => { let n = 0, t = 0; for (const r of rs) for (const [g, k] of Object.entries(r.comp)) { t += k; if (g == h0.good) n += k } return n / (t || 1) };
-	const away = []; for (let a = 0; a < 120; a++) away.push(...Rg.cellRocks(h0.ring, hb, 0, (a * 37) % Rg.cellsOf(h0.ring, hb).nA, {}).filter(r => !r.hot));
-	ok('12. in a hotspot, its good is commoner than elsewhere in the band', near.length && near.every(r => r.hot == h0.id || len(sub(r.pos, h0.pos)) >= 5000 - 1) && shareIn(near.filter(r => r.hot)) > shareIn(away), {good: h0.good, in: shareIn(near.filter(r => r.hot)), out: shareIn(away)});
-	/* mining's site */
-	const f = Mi.fields(Sc.build(x0.s, {day: 200}), x0.s).find(y => y.ring && y.body == x0.b.name);
-	ok('13. a ring\'s mining site is its known hotspot, and its asteroids are the ring\'s own', f && len(sub(f.pos, x0.ring.hotspots[0].pos)) < 1e-6 && Mi.rocks(f, {}).every(r => r.id.startsWith(x0.ring.id + '#')));
+	ok('10. what\'s been mined from one is remembered (P.mined, by its id)', Rg.rocksAround(ring, ring.site, 7500, mined).find(r => r.id == rk.id).left == 1);
+	/* hotspots: by chance, rare minerals, only with a prospecting array */
+	const sample = []; for (const m of F.majors().slice(0, 6)) for (const st of G.starsNear(m.star.x, m.star.y, m.star.z, 8)) { if (st.kind != 'star') continue; for (const p of G.system(st).planets) if (p.ring) sample.push(Rg.ringOf({name: p.name, ring: p.ring, ringDensity: p.ringDensity, radius: 3e6, pos: [0, 0, 0]}, st)) }
+	const withHot = sample.filter(r => r.hotspots.length), share0 = withHot.length / sample.length;
+	ok('11. about a third of rings have mineral hotspots (the same ones every time): 1 to 3, in their bands (never a gap), in the plane', sample.length > 300 && share0 > 0.25 && share0 < 0.45 && withHot.every(r => r.hotspots.length >= 1 && r.hotspots.length <= 3 && r.hotspots.every(h => { const L = Rg.locate(r, h.pos); return L.band && !L.band.gap && Math.abs(L.z) < 1e-6 })) && JSON.stringify(withHot[0].hotspots) == JSON.stringify(Rg.ringOf({name: withHot[0].body, ring: withHot[0].kind, ringDensity: withHot[0].density, radius: 3e6, pos: [0, 0, 0]}, {}).hotspots), {rings: sample.length, share0});
+	const E = require(path.join(DIR, 'economy.js'));
+	ok('12. each is rich in one of its ring\'s rarer, dearer minerals', withHot.every(r => r.hotspots.every(h => Rg.RARE[r.kind].includes(h.good) && E.GOODS[h.good] >= 14)) && new Set(withHot.flatMap(r => r.hotspots.map(h => h.good))).size >= 5);
+	const hr = withHot[0], h0 = hr.hotspots[0], hb = hr.bands[h0.band], inside = Rg.rocksAround(hr, h0.pos, 4000, {}).filter(r => r.hot == h0.id), outside = []; for (let a = 0; a < 150; a++) outside.push(...Rg.cellRocks(hr, hb, 0, (a * 37) % Rg.cellsOf(hr, hb).nA, {}).filter(r => !r.hot));
+	const shareOf = rs => { let n = 0, t = 0; for (const r of rs) for (const [g, k] of Object.entries(r.comp)) { t += k; if (g == h0.good) n += k } return n / (t || 1) }, avgYield = rs => rs.reduce((t, r) => t + r.yield / r.radius, 0) / rs.length;
+	ok('13. inside one, about half of what\'s mined is its mineral, and the asteroids hold half again as much', inside.length > 5 && shareOf(inside) > 0.35 && shareOf(inside) < 0.7 && shareOf(outside) < 0.2 && avgYield(inside) > avgYield(outside) * 1.3, {good: h0.good, in: shareOf(inside), out: shareOf(outside), yIn: avgYield(inside), yOut: avgYield(outside)});
+	/* mining's sites */
+	const rk2 = ringed.find(x => x.ring.hotspots.length) || ringed[0], fs = Mi.fields(Sc.build(rk2.s, {day: 200}), rk2.s).filter(y => y.ring && y.body == rk2.b.name), site = fs.find(y => !y.hotspot), L0 = Rg.locate(rk2.ring, site.pos), rank = {dense: 2, moderate: 1, sparse: 0};
+	ok('14. a ring\'s mining site lies in its densest band, and its asteroids are the ring\'s own', L0.band && !L0.band.gap && rank[L0.band.density] == Math.max(...rk2.ring.bands.filter(b => !b.gap).map(b => rank[b.density])) && Mi.rocks(site, {}).every(r => r.id.startsWith(rk2.ring.id + '#')));
+	ok('15. its hotspots are fields too, marked as hotspots (play.js shows them only with a prospecting array)', fs.filter(y => y.hotspot).length == rk2.ring.hotspots.length && fs.filter(y => y.hotspot).every(y => /hotspot/.test(y.name)));
+	const O = require(path.join(DIR, 'outfit.js'));
+	ok('16. the prospecting array: a utility module, for mining work', O.CAT.array && O.CAT.array.cat == 'utility' && /hotspot/.test(O.CAT.array.text) && O.CAT.array.price > O.CAT.prospector.price);
 } catch (e) { N++; console.log('FAIL (threw) ' + e.stack) }
 console.log(P + '/' + (P + N) + ' passed');
 process.exit(N ? 1 : 0);

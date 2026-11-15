@@ -7,14 +7,20 @@
      seeded by its place (the planet, the band, the cell), so they're the same every visit: 6 to 10 in a dense band,
      3 to 5 in a moderate one, 1 or 2 in a sparse one, none in a gap, 30 to 240 m across, in a sheet 400 m thick.
      Each has its own id, so what's mined from it is remembered (P.mined).
-   - Hotspots: 2 or 3 in each ring, 5 km across, in its bands (never a gap), where one good's share doubles. The
-     first is known (it's the ring's mining site, as before); the others are found with a resource scanner (L3.2).
+   - Hotspots: a ring has them by chance (about a third of rings: seeded, so a ring that has them always has):
+     1 to 3, 5 km across, in its bands (never a gap). Each is rich in one of the ring's rarer, dearer minerals
+     (titanium, beryllium, uranium, jade, gold, diamond; the Rift's own there): about half of what's mined there
+     is that mineral, and its asteroids hold half again as much. Only a ship with a prospecting array (a utility
+     module, outfit.js) sees them; the minerals are there for anyone who mines there.
+   - The mining site: a point in the ring's densest band, the same every visit, for cruise to drop out at.
    The ring lies in the planet's equator (its axis), and doesn't turn with it. Pure functions. GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
 const isNode = typeof module != 'undefined';
 const G = isNode ? require('./galaxy.js') : root.EmberGalaxy;
-const RING = {inner: 1.35, outer: 2.3, bands: 14, gap: 0.22, cell: 3000, thick: 400, perCell: {dense: [6, 10], moderate: [3, 5], sparse: [1, 2]}, hot: [2, 3], hotR: 5000, hotK: 2, sizes: [30, 60, 120, 240]};
+const RING = {inner: 1.35, outer: 2.3, bands: 14, gap: 0.22, cell: 3000, thick: 400, perCell: {dense: [6, 10], moderate: [3, 5], sparse: [1, 2]}, hotChance: 0.35, hot: [1, 3], hotR: 5000, hotShare: 0.5, hotYield: 1.5, sizes: [30, 60, 120, 240]};
+/* the rarer, dearer minerals a hotspot can be rich in, by the ring's kind (the Rift's own in a Rift ring) */
+const RARE = {Stone: ['Titanium', 'Jade', 'Diamond'], Ice: ['Beryllium', 'Uranium'], Metal: ['Titanium', 'Gold', 'Diamond', 'Uranium']}, RARE_RIFT = {Stone: ['Voidglass'], Ice: ['Aetherium', 'Voidglass'], Metal: ['Voidglass', 'Nullite']};
 /* the goods by kind (as mining.js KINDS), and which lean metallic or icy */
 const GOODS = {
 	Stone: {Iron: 5, Copper: 3, Coal: 3, Lead: 2, Aluminum: 2, Titanium: 1, Jade: 0.4, Diamond: 0.15},
@@ -53,7 +59,7 @@ function ringOf(b, star) {
 	const ax = norm(b.axis || [0, 0, 1]), e1 = norm(cross(ax, Math.abs(ax[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = cross(ax, e1);
 	const kind = b.ring, R = b.radius, rift = !!(star && star.rift), B = bands(b.seed == null ? G.hashStr(b.name) : b.seed, b.ringDensity);
 	const ring = {id: 'ring:' + b.name, name: b.name + ' rings', body: b.name, kind, rift, density: b.ringDensity || 'moderate', R, c: b.pos, ax, e1, e2, bands: B};
-	ring.hotspots = hotspots(ring);
+	ring.hotspots = hotspots(ring); ring.site = siteOf(ring);
 	return ring;
 }
 /* a point in the ring's own terms: radius (m), angle, height above the plane, and the band it's in (or null) */
@@ -73,11 +79,12 @@ function cellRocks(ring, B, ri, ai, mined) {
 	for (let k = 0; k < n; k++) {
 		const rr = C.r0 + (ri + r()) * dr, a = (ai + r()) / C.nA * 2 * Math.PI, z = (r() - 0.5) * RING.thick, pos = worldAt(ring, rr, a, z);
 		const size = RING.sizes[Math.min(3, Math.floor(Math.pow(r(), 1.6) * 4))], shape = Math.floor(r() * 3);
-		/* in a hotspot, its good's share doubles */
-		const hot = ring.hotspots.find(h => len(sub(pos, h.pos)) < RING.hotR), w = hot ? Object.assign({}, w0, {[hot.good]: (w0[hot.good] || 1) * RING.hotK}) : w0;
+		/* in a hotspot, about half of it is its mineral */
+		const hot = ring.hotspots.find(h => len(sub(pos, h.pos)) < RING.hotR), rest = Object.entries(w0).filter(([g]) => !hot || g != hot.good).reduce((t, [, v]) => t + v, 0);
+		const w = hot ? Object.assign({}, w0, {[hot.good]: rest * RING.hotShare / (1 - RING.hotShare)}) : w0;
 		const comp = {}; for (let j = 0; j < 2 + (r() < 0.4 ? 1 : 0); j++) { const g = pickW(w, r); comp[g] = (comp[g] || 0) + 0.3 + r() }
 		const t = Object.values(comp).reduce((x, y) => x + y, 0); for (const g in comp) comp[g] = Math.round(comp[g] / t * 100) / 100;
-		const id = ring.id + '#' + B.i + '.' + ri + '.' + ai + '.' + k, yieldT = Math.round(size / 6 + r() * size / 6);
+		const id = ring.id + '#' + B.i + '.' + ri + '.' + ai + '.' + k, yieldT = Math.round((size / 6 + r() * size / 6) * (hot ? RING.hotYield : 1));
 		out.push({id, kind: 'asteroid', name: 'Asteroid ' + ring.body.slice(0, 2).toUpperCase() + '-' + B.i + '.' + (ai % 1000) + '.' + k, pos, radius: size, shape, comp, yield: yieldT,
 			left: Math.max(0, yieldT - ((mined && mined[id]) || 0)), hits: 0, prospected: false, hot: hot ? hot.id : null});
 	}
@@ -100,18 +107,25 @@ function rocksAround(ring, p, radius, mined) {
 	}
 	return out;
 }
-/* the ring's hotspots: 2 or 3, each in a band (not a gap), with its good */
+/* the ring's hotspots: by chance (a third of rings), 1 to 3, each in a band (not a gap), rich in a rare mineral */
 function hotspots(ring) {
-	const r = G.rng(G.hashStr('hot:' + ring.id)), n = RING.hot[0] + Math.floor(r() * (RING.hot[1] - RING.hot[0] + 1)), full = ring.bands.filter(B => !B.gap), out = [];
+	const r = G.rng(G.hashStr('hot:' + ring.id)), out = [];
+	if (r() >= RING.hotChance) return out;
+	const n = RING.hot[0] + Math.floor(r() * (RING.hot[1] - RING.hot[0] + 1)), full = ring.bands.filter(B => !B.gap), rare = (ring.rift ? RARE_RIFT : RARE)[ring.kind] || RARE.Stone;
 	for (let k = 0; k < n && full.length; k++) {
-		const B = full[Math.floor(r() * full.length)], rr = (B.r0 + (B.r1 - B.r0) * (0.25 + 0.5 * r())) * ring.R, a = r() * 2 * Math.PI, mix = mixOf(ring.kind, B.frac, ring.rift);
-		/* (its good: one of the band's three likeliest) */
-		const top = Object.entries(mix).sort((x, y) => y[1] - x[1]).slice(0, 3).map(x => x[0]), good = top[Math.floor(r() * top.length)];
-		out.push({id: ring.id + ':hot' + k, n: k, band: B.i, good, pos: worldAt(ring, rr, a, 0), radius: RING.hotR, known: k == 0});
+		const B = full[Math.floor(r() * full.length)], rr = (B.r0 + (B.r1 - B.r0) * (0.25 + 0.5 * r())) * ring.R, a = r() * 2 * Math.PI, good = rare[Math.floor(r() * rare.length)];
+		out.push({id: ring.id + ':hot' + k, n: k, band: B.i, good, pos: worldAt(ring, rr, a, 0), radius: RING.hotR});
 	}
 	return out;
 }
+/* the ring's mining site: in its densest band (the first of them), the same every visit */
+function siteOf(ring) {
+	const r = G.rng(G.hashStr('site:' + ring.id)), rank = {dense: 2, moderate: 1, sparse: 0}, full = ring.bands.filter(B => !B.gap);
+	if (!full.length) return null;
+	const B = full.slice().sort((x, y) => rank[y.density] - rank[x.density])[0];
+	return worldAt(ring, (B.r0 + B.r1) / 2 * ring.R, r() * 2 * Math.PI, 0);
+}
 
-const EmberRings = {RING, GOODS, hash3, bands, mixOf, ringOf, locate, worldAt, cellsOf, cellRocks, rocksAround, hotspots};
+const EmberRings = {RING, RARE, RARE_RIFT, siteOf, GOODS, hash3, bands, mixOf, ringOf, locate, worldAt, cellsOf, cellRocks, rocksAround, hotspots};
 if (isNode) module.exports = EmberRings; else root.EmberRings = EmberRings;
 })(typeof window != 'undefined' ? window : this);

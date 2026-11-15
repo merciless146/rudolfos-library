@@ -2,8 +2,9 @@
    - Fields: every ringed planet's rings (stone or ice), and asteroid belts (none, one or two a system, between the
      planets' orbits; rocky, or metallic around metal-rich stars). Each field has a mining site, a point a pilot can
      target and drop out of cruise at.
-   - A ring is made of asteroids (0.4.1, rings.js): its site is its known hotspot, and the asteroids there are
-     the ring's own, in its bands. A belt's site holds 64 asteroids (96 in a dense one), 30 to 240 m across,
+   - A ring is made of asteroids (0.4.1, rings.js): its site is a point in its densest band, and the asteroids
+     there are the ring's own; its mineral hotspots, by chance, are fields as well, seen only with a prospecting
+     array. A belt's site holds 64 asteroids (96 in a dense one), 30 to 240 m across,
      in a flattened swarm 15 km wide, the same every visit.
      Each holds two or three goods in proportions, and a yield of tonnes that mining runs down (kept in the save).
    - A mining laser (an external module) chips an asteroid: every few hits an ore chunk breaks off, a fraction of a
@@ -37,9 +38,11 @@ function fields(scene, star) {
 	const out = [], sun = scene.bodies[0], planets = scene.bodies.filter(b => b.kind == 'planet');
 	for (const b of planets) {
 		if (!b.ring) continue;
-		/* (0.4.1) a ring is made of asteroids (rings.js): its mining site is its known hotspot, in one of its bands */
-		const ring = Rg.ringOf(b, star), h = ring.hotspots[0]; if (!h) continue;
-		out.push({id: 'ring:' + b.name, name: b.name + ' rings', kind: b.ring, rift: !!star.rift, density: b.ringDensity || 'moderate', pos: h.pos, normal: ring.ax, body: b.name, ring, hot: h});
+		/* (0.4.1) a ring is made of asteroids (rings.js): its mining site is a point in its densest band; its mineral
+		   hotspots, if it has any, are fields too, seen only with a prospecting array (play.js) */
+		const ring = Rg.ringOf(b, star); if (!ring.site) continue;
+		out.push({id: 'ring:' + b.name, name: b.name + ' rings', kind: b.ring, rift: !!star.rift, density: b.ringDensity || 'moderate', pos: ring.site, normal: ring.ax, body: b.name, ring});
+		for (const h of ring.hotspots) out.push({id: h.id, name: h.good + ' hotspot · ' + b.name + ' rings', kind: b.ring, rift: !!star.rift, density: b.ringDensity || 'moderate', pos: h.pos, normal: ring.ax, body: b.name, ring, hotspot: h});
 	}
 	/* belts: in the gaps between planets' orbits, or out past the last */
 	const r = G.rng(G.hashStr('belts:' + star.id)), n = star.heart ? 0 : r() < 0.35 ? 0 : r() < 0.75 ? 1 : 2, orbits = planets.map(b => len(sub(b.pos, sun.pos))).sort((a, b) => a - b);

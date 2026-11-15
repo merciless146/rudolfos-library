@@ -673,9 +673,7 @@ the deposits the ground scan marks can be mined. Then colonies come down to the 
 - **Each asteroid** is mined as today. It has its own id (planet, band, cell, number), so `P.mined` remembers what
   you took. Its goods come from the ring's kind (stone, ice or metal), leaning metallic in the inner bands and icy
   in the outer ones.
-- **Hotspots:** the old single site becomes 2 or 3 hotspots in each ring, where one good's share doubles.
-  - **Finding them:** a resource scanner finds those within 20 km of you (a pulse, as now).
-  - **Once found:** they're instance targets, and the cartographers buy their positions.
+- **Hotspots** (as built in 0.4.1): by chance, rich in rare minerals, seen only with a prospecting array.
 - **Tests:** the bands match the drawn ring; cells are the same every visit; gaps are empty; ids are unique; the
   mix by band; hotspots.
 
@@ -687,12 +685,20 @@ the deposits the ground scan marks can be mined. Then colonies come down to the 
   - **A densely strewn ring's** bands are a step denser.
   - **Each asteroid** has its own id, so what's mined is remembered.
   - **The mix** leans metallic in the inner bands and icy in the outer ones; Rift rings carry the Rift's ores.
-- **Hotspots:** 2 or 3 a ring, 5 km across, in its bands, where one good's share doubles. The first is known: it's
-  the ring's mining site now, and the asteroids there are the ring's own (`mining.js` fields and rocks). Finding
-  the others with a resource scanner is L3.2's.
+- **Mineral hotspots** (as asked after the plan):
+  - **By chance:** about a third of rings have them, the same every time.
+  - **Size and mineral:** 1 to 3 a ring, 5 km across, in its bands. Each is rich in one of the ring's rarer,
+    dearer minerals (titanium, jade, diamond in stone rings; beryllium, uranium in ice; titanium, gold, diamond,
+    uranium in metal; the Rift's own in its rings).
+  - **Yield:** inside, about half of what's mined is that mineral, and the asteroids hold half again as much.
+  - **Seeing them:** only a ship with a **prospecting array** (a utility module, 24,000 SU, which also reads
+    asteroids as the resource scanner does) sees and can target them. The minerals are there for anyone who
+    mines there.
+- **The mining site:** a point in the ring's densest band, and the asteroids there are the ring's own (`mining.js`
+  fields and rocks).
 - **Belts:** unchanged (L3.3).
 
-Tested in `tests/emberreach_rings_t.js` (14 checks), the mining test's 3, and the browser test's 9z3.
+Tested in `tests/emberreach_rings_t.js` (17 checks), the mining test's 3, and the browser test's 9z3 and 9z4.
 
 ### L3.2 Flying in a ring
 
