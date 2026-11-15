@@ -526,6 +526,33 @@ Tested in `tests/emberreach_autopilot_t.js` (28 checks) and the browser test's 9
 
 ### L2.5 What surface ports trade
 
+**Done, first part** (0.3.7): **markets**, the foundation of the galaxy's trade (`economy.js`). Every port, space
+or surface, keeps its own market:
+- **Its economy:** a mix from its kind, blended with its world's.
+  - **By kind:** a capital's great port runs high tech and industry. A station at a living world adds tourism. An
+    outpost station refines, a camp extracts, and a forward base is military.
+  - **By world:** a gas giant refines fuel and a living world farms. Barren or desert rock is mined, and ice gives
+    water. Ruins sell artefacts and draw tourists.
+  - **A colony's** facilities set its port's mix.
+  - **The system's economy** is its ports' mixes, weighed by their people. The jump panel shows it.
+- **Supply and demand:** each economy makes some goods and uses others. People everywhere use food, water and
+  medicine. A good both made and used is netted. Amounts are measured against the port's people: about
+  25 × log10(people)² tonnes each way.
+- **Prices:**
+  - **The base:** a good's base value, moved a little by the stock (a full stock up to 22% under) and the demand (a
+    full demand up to 25% over).
+  - **People:** a slight premium where more people live (1.5% per power of ten).
+  - **Trade:** a port sells only from its stock, and buys only up to its demand.
+  - **Kept as before:** the war front and the Rift rules.
+- **The calendar:** stock and demand wander slowly round their level (45 to 135-day cycles, seeded per port and
+  good). A player's trades move them, and that comes back by itself at 5% of the gap a day, about half in two
+  weeks. Only the player's changes are saved (`P.markets`).
+- **The market screen** lists what the port sells first, with its stock, then what it wants. Its header names the
+  port's economy and the people it serves.
+
+Tested in `tests/emberreach_markets_t.js` (19 checks), the trade and colony tests, and the browser test's 3a.
+Still to come in L2.5: the services by kind and the surface bulletin contracts below.
+
 - **Markets** take the system's market and give each kind its twist:
   - **Mining camps** sell their world's ores at 70% and buy food, water and machinery at 120%.
   - **Outposts** keep a small general market.

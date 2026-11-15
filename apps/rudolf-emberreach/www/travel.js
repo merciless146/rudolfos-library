@@ -279,15 +279,18 @@ function government(star, day) {
 	if (wild || !m || (m.kind == 'minor' && m.type == 'criminal')) return {government: 'Anarchy', anarchy: true, wild, superpower: sup, contested: !!o.contested};
 	return {government: m.name.replace(/^The /, '').split(' ').pop(), anarchy: false, wild: false, superpower: sup, contested: !!o.contested};
 }
+/* a port's own base (by its kind, within 30%: seeded), before the worlds' multiplier */
+function portBase(star, q) {
+	if (q.anchorage && !q.maw) return 0;   /* (a Precursor anchorage runs itself: nobody aboard) */
+	const b = POP.ports[q.maw ? 'maw' : q.surface ? q.kind : q.cls]; if (!b) return 0;
+	const u = G.rng(G.hashStr('pop:' + star.id + ':' + q.id))();
+	return b * (1 + POP.spread * (2 * u - 1));
+}
+/* the people a port serves: its base times the system's worlds (economy.js sizes its market by this) */
+const portPop = (star, q) => Math.round(portBase(star, q) * worldsOf(star).k);
 function population(star, day, colonyPop) {
-	const ports = portsAt(star, day);
 	let base = 0;
-	for (const q of ports) {
-		if (q.anchorage && !q.maw) continue;   /* (a Precursor anchorage runs itself: nobody aboard) */
-		const b = POP.ports[q.maw ? 'maw' : q.surface ? q.kind : q.cls]; if (!b) continue;
-		const u = G.rng(G.hashStr('pop:' + star.id + ':' + q.id))();
-		base += b * (1 + POP.spread * (2 * u - 1));
-	}
+	for (const q of portsAt(star, day)) base += portBase(star, q);
 	return Math.round(base * (base ? worldsOf(star).k : 0)) + (colonyPop || 0);
 }
 /* a system a player could colonise, as the HUD tells it: wild, and outside every power's space and every contested
@@ -300,6 +303,6 @@ function fmtPop(n) {
 	const p = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, n))) - 1));
 	return (Math.round(n / p) * p).toLocaleString('en-US');
 }
-const EmberTravel = {POP, worldsOf, wildAt, colonisable, government, population, fmtPop, ORBITAL, PORT_ID, portsAt, portById, HAVENS, havens, ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
+const EmberTravel = {POP, portBase, portPop, worldsOf, wildAt, colonisable, government, population, fmtPop, ORBITAL, PORT_ID, portsAt, portById, HAVENS, havens, ANCHORAGE, anchorage, TRAVEL, jumpCost, starAt, starNear, misjumpChance, arrival, ownerOf, portFor, lanes, laneOpen, hopsToward, lanePath, nearestBeacon, route, canMake, at, dist};
 if (isNode) module.exports = EmberTravel; else root.EmberTravel = EmberTravel;
 })(typeof window != 'undefined' ? window : this);

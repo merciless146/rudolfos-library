@@ -17,7 +17,7 @@
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -35,7 +35,8 @@ let env = null, root = null, screen = 'station', sel = {good: null, ship: null},
 function open(e) {
 	env = e; root = document.getElementById('port'); root.hidden = false;
 	const myCol = env.port && env.port.colony ? Co.colonyAt(env.P, env.star.id) : null;
-	mkt = E.market(env.star, env.day, myCol ? {holder: env.port.owner, econ: Co.economy(myCol, env.star)} : undefined);
+	/* (0.3.7) this port's own market: its kind and world, its people, and the trades you've made there */
+	mkt = E.market(env.star, env.day, Object.assign({port: env.port, P: env.P}, myCol ? {holder: env.port.owner, econ: Co.economy(myCol, env.star), people: myCol.pop || 0} : {}));
 	screen = 'station'; sel = {good: Object.keys(mkt.prices)[0], ship: null};
 	const codes = Object.keys(env.P.wallet).filter(c => env.P.wallet[c] > 0);
 	ex = {from: mkt.currency != 'SU' && env.P.wallet[mkt.currency] > 0 ? mkt.currency : codes[0], to: mkt.currency != 'SU' ? mkt.currency : codes[0], amount: ''};
@@ -108,18 +109,21 @@ function station() {
 		+ '<section class="pt-card"><h2>You</h2><dl><dt>Origin</dt><dd>' + esc(nm(me.origin)) + '</dd><dt>Worth</dt><dd>' + fmt(Tr.worth(me, env.day)) + ' SU</dd><dt>Fuel</dt><dd>' + Math.round(env.fuel() * 100) + '%</dd><dt>Hold</dt><dd>' + Tr.held(me) + ' / ' + env.ship.cargo + ' t</dd></dl><button class="pt-ghost" data-screen="market">Open the market</button></section></div>';
 }
 function market() {
-	const me = P(), cur = here(), goods = Object.keys(mkt.prices), g = sel.good || goods[0], q = mkt.prices[g];
+	/* (the goods it trades first: what it sells, then what it buys, then the rest, quoted but not traded) */
+	const tradeRank = x => !x.none ? 0 : x.buy ? 1 : 2, me = P(), cur = here(), goods = Object.keys(mkt.prices).sort((a, b) => tradeRank(mkt.prices[a]) - tradeRank(mkt.prices[b])), g = sel.good || goods[0], q = mkt.prices[g];
+	const sd = x => !x.none ? x.stock + ' t' : x.buy ? 'wants ' + x.demand : '—';
 	const can = Tr.canBuy(me, env.ship, mkt, g, env.day), have = me.cargo[g] || 0;
-	const rows = goods.map(k => { const x = mkt.prices[k], h = me.cargo[k] || 0; return '<button class="pt-row' + (k == g ? ' on' : '') + '" data-good="' + k + '"><span>' + k + '</span><span class="num">' + fmt(x.price, 1) + '</span><span class="num muted">' + fmt(x.su, 1) + '</span><span class="num">' + (x.buy ? 'Yes' : 'No') + '</span><span class="num">' + (h || '') + '</span><span class="num muted">' + (h && me.cost[k] ? fmt(me.cost[k], 1) : '') + '</span></button>' }).join('');
-	const profit = have && me.cost[g] ? (q.su - me.cost[g]) * have : null;
+	const rows = goods.map(k => { const x = mkt.prices[k], h = me.cargo[k] || 0; return '<button class="pt-row' + (k == g ? ' on' : '') + '" data-good="' + k + '"><span>' + k + '</span><span class="num">' + fmt(x.price, 1) + '</span><span class="num muted">' + fmt(x.su, 1) + '</span><span class="num' + (x.none && !x.buy ? ' muted' : '') + '">' + sd(x) + '</span><span class="num">' + (h || '') + '</span><span class="num muted">' + (h && me.cost[k] ? fmt(me.cost[k], 1) : '') + '</span></button>' }).join('');
+	const profit = have && me.cost[g] && q.buy ? (q.su - me.cost[g]) * Math.min(have, q.demand) : null;
 	const noMoney = cur != 'SU' && !(me.wallet[cur] > 0);
-	return h1('Market', cur != 'SU' ? 'Prices in ' + cur + '; SU = standard units' : env.port.anchorage ? 'The anchorage trades in SU with whoever comes, taking your coin at an 8% cut; the Rift\'s goods fetch half what they do across the Maw' : 'Fought over: free traders deal in SU, taking your coin at an 8% cut')
-		+ '<div class="pt-split"><section class="pt-card pt-table" role="list"><div class="pt-thead"><span>Good</span><span class="num">Price ' + cur + '</span><span class="num">Value SU</span><span class="num">Buys</span><span class="num">Held</span><span class="num">Paid SU</span></div>' + rows + '</section>'
-		+ '<aside class="pt-card pt-side"><span class="pt-label">Selected</span><div class="pt-big">' + g + '</div><dl><dt>Price</dt><dd>' + fmt(q.price, 1) + ' ' + cur + '/t</dd><dt>Value</dt><dd>' + fmt(q.su, 1) + ' SU</dd><dt>Station buys</dt><dd>' + (q.buy ? 'Yes' : 'No') + '</dd><dt>In your hold</dt><dd>' + have + ' t</dd><dt>Free space</dt><dd>' + Tr.free(me, env.ship) + ' t</dd>'
+	const econLine = ' · ' + mkt.economyName + ' economy · serves ' + T.fmtPop(mkt.people) + ' people';
+	return h1('Market', (cur != 'SU' ? 'Prices in ' + cur + '; SU = standard units' : env.port.anchorage ? 'The anchorage trades in SU with whoever comes, taking your coin at an 8% cut; the Rift\'s goods fetch half what they do across the Maw' : 'Fought over: free traders deal in SU, taking your coin at an 8% cut') + econLine)
+		+ '<div class="pt-split"><section class="pt-card pt-table" role="list"><div class="pt-thead"><span>Good</span><span class="num">Price ' + cur + '</span><span class="num">Value SU</span><span class="num">Stock / demand</span><span class="num">Held</span><span class="num">Paid SU</span></div>' + rows + '</section>'
+		+ '<aside class="pt-card pt-side"><span class="pt-label">Selected</span><div class="pt-big">' + g + '</div><dl><dt>Price</dt><dd>' + fmt(q.price, 1) + ' ' + cur + '/t</dd><dt>Value</dt><dd>' + fmt(q.su, 1) + ' SU</dd><dt>In stock</dt><dd>' + (q.none ? 'None' : q.stock + ' t') + '</dd><dt>Port wants</dt><dd>' + (q.buy ? q.demand + ' t' : 'None') + '</dd><dt>In your hold</dt><dd>' + have + ' t</dd><dt>Free space</dt><dd>' + Tr.free(me, env.ship) + ' t</dd>'
 		+ (profit != null ? '<dt>If sold here</dt><dd class="' + (profit >= 0 ? 'good' : 'bad') + '">' + (profit >= 0 ? '+' : '') + fmt(profit) + ' SU</dd>' : '') + '</dl>'
 		+ '<div class="pt-btns"><button class="pt-primary" data-act="buy" data-n="1"' + (can < 1 ? ' disabled' : '') + '>Buy 1 t</button><button class="pt-primary" data-act="buy" data-n="max"' + (can < 1 ? ' disabled' : '') + '>' + (can > 1 ? 'Buy ' + can + ' t' : 'Buy the most') + '</button>'
-		+ '<button class="pt-ghost" data-act="sell" data-n="1"' + (!q.buy || !have ? ' disabled' : '') + '>Sell 1 t</button><button class="pt-ghost" data-act="sell" data-n="all"' + (!q.buy || !have ? ' disabled' : '') + '>Sell all</button></div>'
-		+ '<p class="muted small">' + (noMoney ? 'You hold no ' + cur + ': change money at Contacts (F7).' : !q.buy ? 'This port doesn\'t buy ' + g.toLowerCase() + '.' : Tr.free(me, env.ship) <= 0 ? 'The hold is full.' : (q.none ? (env.star.rift ? 'None mined near here to sell. ' : 'Found only in the Rift: nobody this side has any to sell. ') : '') + 'Prices follow the ' + (cur == 'SU' ? 'day' : cur + ' rate') + ', local supply and the season.') + '</p></aside></div>';
+		+ '<button class="pt-ghost" data-act="sell" data-n="1"' + (!Tr.canSell(me, mkt, g) ? ' disabled' : '') + '>Sell 1 t</button><button class="pt-ghost" data-act="sell" data-n="all"' + (!Tr.canSell(me, mkt, g) ? ' disabled' : '') + '>Sell all</button></div>'
+		+ '<p class="muted small">' + (noMoney ? 'You hold no ' + cur + ': change money at Contacts (F7).' : !q.buy ? 'This port doesn\'t buy ' + g.toLowerCase() + '.' : have && !q.demand ? 'This port wants no more ' + g.toLowerCase() + ' for now: its demand comes back over the days.' : Tr.free(me, env.ship) <= 0 ? 'The hold is full.' : (q.none ? (env.star.rift ? 'None mined near here to sell. ' : 'Found only in the Rift: nobody this side has any to sell. ') : '') + 'Prices follow the ' + (cur == 'SU' ? 'day' : cur + ' rate') + ' and this port\'s stock and demand, which drift over the weeks and come back slowly after you trade.') + '</p></aside></div>';
 }
 /* the war office's contracts: take one, do it in its system within 10 days, and be paid (up to three at once) */
 const pc = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -356,7 +360,7 @@ function click(e) {
 	if (lockedHere() && act && !['refuel', 'launch', 'purge'].includes(act)) { env.say('Untranslated: you can\'t make yourself understood here. Fit a linguistic decoder for the ' + O.langName(O.langOf(holder())) + '.'); env.cue('refused'); return }
 	if (act == 'repair') { const c = Tr.repairCost(env.ship, env.fit, mkt, d, hull()), r = Tr.pay(me, c, here(), d); if (r.ok) { M.repair(env.fit); me.combat = Object.assign(me.combat || {}, {hull: 1}); env.say('Repaired: ' + money(r.amount, r.code)); env.cue('clearance') } else env.say('Not enough ' + r.code + ' to repair') }
 	if (act == 'buy') { const n = t.dataset.n == 'max' ? Tr.canBuy(me, env.ship, mkt, sel.good, d) : 1, r = Tr.buy(me, env.ship, mkt, sel.good, n, d); if (r.ok) { env.say('Bought ' + r.qty + ' t ' + sel.good + ' for ' + money(r.paid.amount, r.paid.code)); env.cue('tick') } }
-	if (act == 'sell') { const n = t.dataset.n == 'all' ? me.cargo[sel.good] || 0 : 1, r = Tr.sell(me, mkt, sel.good, n, d); if (r.ok) { env.say('Sold ' + r.qty + ' t ' + sel.good + ' for ' + money(r.got.amount, r.got.code) + (Math.abs(r.profit) > 0.5 ? ' (' + (r.profit > 0 ? '+' : '') + fmt(r.profit) + ' SU)' : '')); env.cue('tick') } }
+	if (act == 'sell') { const n = t.dataset.n == 'all' ? Tr.canSell(me, mkt, sel.good) : 1, r = Tr.sell(me, mkt, sel.good, n, d); if (r.ok) { env.say('Sold ' + r.qty + ' t ' + sel.good + ' for ' + money(r.got.amount, r.got.code) + (Math.abs(r.profit) > 0.5 ? ' (' + (r.profit > 0 ? '+' : '') + fmt(r.profit) + ' SU)' : '')); env.cue('tick') } }
 	if (act == 'buyship') { const extra = O.extra(env.hullShip, me.ship.fit), r = Tr.buyShip(me, env.ship.id, sel.ship, env.star, d); if (r.ok) { if (extra > 0) Tr.receive(me, extra * 0.8 * rateHere(), here(), d); env.onShip(sel.ship); env.say('Bought a ' + env.ship.name + ': paid ' + fmt(Math.max(0, r.cost)) + ' ' + r.currency); env.cue('docked') } else env.say(r.why == 'hold' ? 'Your cargo won\'t fit its hold' : 'Not enough ' + (r.code || '') + ' for that ship') }
 	if (act == 'restock') { const c = restockCost(), r = Tr.pay(me, c.cost, here(), d); if (r.ok) { me.combat = C.refill(env.ship, me.combat); env.say('Restocked: ' + fmt(c.tons, 1) + ' t of munitions for ' + money(r.amount, r.code)); env.cue('clearance') } else env.say('Not enough ' + r.code + ' to restock') }
 	if (act == 'accept') { const m = En.offers(me, env.port, d).find(x => x.id == t.dataset.m), r = m ? En.accept(me, m, d) : {ok: false, why: 'That contract has gone.'}; env.say(r.ok ? 'Mission accepted: ' + m.text + ' (due day ' + r.mission.due + ')' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }

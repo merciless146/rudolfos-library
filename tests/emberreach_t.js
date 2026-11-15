@@ -45,6 +45,13 @@ async function frame(pg, test) {
 		for (const sc of ['station', 'market', 'bulletin', 'shipyard', 'outfitting', 'contacts', 'carto', 'status']) { await f.click('[data-screen="' + sc + '"]'); await sleep(120) }
 		ok('3. every starport screen opens', errs.length == 0, errs);
 		await pg.screenshot({path: path.join(W, 'port.png')});
+		/* 0.3.7: this port's own market: what it sells from its stock, what it wants, and a purchase taken from the stock */
+		await f.click('[data-screen="market"]'); await sleep(150);
+		const mk0 = await f.evaluate(() => { const rows = [...document.querySelectorAll('#port [data-good]')], head = document.querySelector('#port .pt-thead').textContent, sub = document.querySelector('#port h1 + *, #port .pt-sub') ? document.body.innerText : ''; return {rows: rows.length, first: rows[0].dataset.good, cell: rows[0].children[3].textContent, head, econ: /economy · serves/.test(document.getElementById('port').innerText)} });
+		await f.click('[data-good="' + mk0.first + '"]'); await sleep(100); await f.click('[data-act="buy"][data-n="1"]'); await sleep(150);
+		const mk1 = await f.evaluate(g => document.querySelector('#port [data-good="' + g + '"]').children[3].textContent, mk0.first);
+		await pg.screenshot({path: path.join(W, 'market.png')});
+		ok('3a. the market lists what this port sells first, with its stock and what it wants; buying takes from the stock', mk0.rows > 10 && /Stock \/ demand/.test(mk0.head) && mk0.econ && /^\d+ t$/.test(mk0.cell) && parseInt(mk1) == parseInt(mk0.cell) - 1, {mk0, mk1});
 		await f.click('[data-screen="launch"]'); await sleep(200); await f.click('[data-act="launch"]'); await sleep(1500);
 		const fly = await f.evaluate(() => ({docked: EmberDebug.game.docked, v: Math.hypot(...EmberDebug.s.v)}));
 		await f.focus('#hud'); await pg.keyboard.down('KeyW'); await sleep(1500); await pg.keyboard.up('KeyW');

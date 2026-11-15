@@ -79,8 +79,8 @@ try {
 	ok('25. goods handed over finish the build, and it earns a tier 2 point', b1.build.done && dv.done.includes(b1.build) && c.points.t2 >= 1);
 	const ec = Co.economy(c, s1);
 	ok('26. the port\'s economy comes from its links: here all extraction', Math.abs((ec.extraction || 0) - 1) < 1e-9);
-	ok('27. the market follows it: the system\'s ores sell cheaper, food dearer', (() => { const a = E.market(s1, day + 13, {holder: home.id}), b = E.market(s1, day + 13, {holder: home.id, econ: ec}), ore = Object.keys(a.prices).find(g => ['Iron', 'Copper', 'Coal', 'Lead', 'Aluminum', 'Titanium', 'Uranium', 'Beryllium', 'Jade', 'Gold', 'Diamond'].includes(g) && sys.planets.some(p => p.res.includes(g)));
-		return b.prices[ore].su < a.prices[ore].su && b.prices.Food.su > a.prices.Food.su && b.prices.Food.buy })());
+	ok('27. the market follows it: the system\'s ores are for sale and cheaper, food dearer than its base and bought', (() => { const a = E.market(s1, day + 13, {holder: home.id}), b = E.market(s1, day + 13, {holder: home.id, econ: ec}), ore = Object.keys(a.prices).find(g => ['Iron', 'Copper', 'Coal', 'Lead', 'Aluminum', 'Titanium', 'Uranium', 'Beryllium', 'Jade', 'Gold', 'Diamond'].includes(g) && sys.planets.some(p => p.res.includes(g)));
+		return b.prices[ore].su < a.prices[ore].su && !b.prices[ore].none && b.prices.Food.su > E.GOODS.Food && b.prices.Food.buy })());
 	const fake = {world: 'A', builds: [{fac: 'farm', body: 'A', done: true}, {fac: 'mining', body: 'B', done: true}]};
 	const starX = {FeH: 0, kind: 'star', x: s1.x, y: s1.y, z: s1.z};
 	ok('28. strong links from the port\'s world, weak (5%) from elsewhere, and body boosts (life ×1.4 for farms)', Co.boost('agriculture', {alive: true}, starX) == 1.4 && Co.boost('extraction', {ring: 'Ice'}, starX) == 1.3 && Co.boost('hightech', {ruins: true}, {kind: 'white dwarf'}) == 1.5 * 1.2);

@@ -9,16 +9,22 @@ try {
 	const day = 200, home = F.majors()[0], code = home.currency.code, mkt = E.market(home.star, day);
 	const p = Tr.newPlayer(home.id), wren = S.ships().find(s => s.id == p.ship.model);
 	ok('1. a new player: 20,000 SU in their home currency, an empty hold, a starter ship', Math.abs(Tr.walletSU(p, 0) - 20000) < 1 && Tr.held(p) == 0 && wren);
-	const good = Object.keys(mkt.prices).find(g => mkt.prices[g].buy && mkt.prices[g].price < 100);
+	/* (0.3.7: the capital's market sells what it makes, from its stock, and buys what it uses, up to its demand) */
+	const good = Object.keys(mkt.prices).find(g => !mkt.prices[g].none && mkt.prices[g].stock >= 30 && mkt.prices[g].price < 100), price0 = mkt.prices[good].price, stock0 = mkt.prices[good].stock;
 	const before = p.wallet[code], b = Tr.buy(p, wren, mkt, good, 3, day);
-	ok('2. buying: paid in the market\'s currency, into the hold', b.ok && Math.abs(before - p.wallet[code] - 3 * mkt.prices[good].price) < 1e-6 && p.cargo[good] == 3);
-	ok('3. the hold is the limit', !Tr.buy(p, wren, mkt, good, wren.cargo, day).ok && Tr.canBuy(p, wren, mkt, good, day) == wren.cargo - 3);
+	ok('2. buying: paid in the market\'s currency, into the hold, out of the port\'s stock', b.ok && Math.abs(before - p.wallet[code] - 3 * price0) < 1e-6 && p.cargo[good] == 3 && mkt.prices[good].stock == stock0 - 3, good);
+	ok('3. the hold is the limit (and the stock)', !Tr.buy(p, wren, mkt, good, wren.cargo, day).ok && Tr.canBuy(p, wren, mkt, good, day) == Math.min(wren.cargo - 3, mkt.prices[good].stock));
 	const poor = Tr.newPlayer(home.id); poor.wallet[code] = 1;
 	ok('4. so is the money', !Tr.buy(poor, wren, mkt, good, 1, day).ok && Tr.canBuy(poor, wren, mkt, good, day) == 0);
-	const w0 = p.wallet[code], s1 = Tr.sell(p, mkt, good, 2, day);
-	ok('5. selling where the station buys: paid back the same price, no profit at the same market', s1.ok && Math.abs(p.wallet[code] - w0 - 2 * mkt.prices[good].price) < 1e-6 && Math.abs(s1.profit) < 1e-9 && p.cargo[good] == 1);
+	const wanted = Object.keys(mkt.prices).find(g => mkt.prices[g].buy && !E.RIFT_GOODS.includes(g) && mkt.prices[g].demand >= 5), dem0 = mkt.prices[wanted].demand, pw = mkt.prices[wanted].price;
+	p.cargo[wanted] = 4; p.cost[wanted] = mkt.prices[wanted].su;
+	const w0 = p.wallet[code], s1 = Tr.sell(p, mkt, wanted, 2, day);
+	ok('5. selling where the port wants it: paid its price, and its demand falls by what you sold', s1.ok && Math.abs(p.wallet[code] - w0 - 2 * pw) < 1e-6 && p.cargo[wanted] == 2 && mkt.prices[wanted].demand == dem0 - 2, wanted);
+	p.cargo[wanted] = dem0 + 50;
+	ok('5a. it takes no more than it wants', Tr.sell(p, mkt, wanted, dem0 + 50, day).why == 'demand' && Tr.canSell(p, mkt, wanted) == mkt.prices[wanted].demand);
+	delete p.cargo[wanted]; delete p.cost[wanted];
 	const notBought = Object.keys(mkt.prices).find(g => !mkt.prices[g].buy);
-	if (notBought) { p.cargo[notBought] = 1; ok('6. a station that doesn\'t buy a good won\'t take it', Tr.sell(p, mkt, notBought, 1, day).why == 'market'); delete p.cargo[notBought] } else ok('6. (every good is bought here)', true);
+	if (notBought) { p.cargo[notBought] = 1; ok('6. a port that doesn\'t use a good won\'t take it', Tr.sell(p, mkt, notBought, 1, day).why == 'market'); delete p.cargo[notBought] } else ok('6. (every good is bought here)', true);
 	const rep0 = p.rep[home.id]; Tr.buy(p, wren, mkt, good, 1, day);
 	ok('7. trading for a power counts for its reputation', p.rep[home.id] > rep0);
 

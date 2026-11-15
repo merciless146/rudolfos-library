@@ -63,6 +63,7 @@ function trim(out) {
 			else for (const k of syss.splice(0, 200)) { delete X.sys[k]; delete X.sold[k] }
 		}
 	}
+	if (size() > BUDGET && P.markets) P.markets = Object.fromEntries(Object.entries(P.markets).sort((a, b) => b[1].day - a[1].day).slice(0, 40));   /* (the latest ports traded at; the rest come back to their level by themselves) */
 	if (size() > BUDGET) P.mined = {};
 	return out;
 }
@@ -100,7 +101,9 @@ function packPlayer(P) {
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
 		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
 		mined: P.mined || {}, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
-		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance, policeKills: (P.policeKills || []).slice(-60)};
+		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance, policeKills: (P.policeKills || []).slice(-60),
+		/* (0.3.7) the ports' markets as your trades left them: {key: {day, s: {good: t}, d: {good: t}}} */
+		markets: P.markets && Object.keys(P.markets).length ? P.markets : undefined};
 }
 const numMap = o => o && typeof o == 'object' && !Array.isArray(o) && Object.values(o).every(num);
 function unpackPlayer(x) {
@@ -119,6 +122,7 @@ function unpackPlayer(x) {
 		/* the Rift: whether you've been (and the Maw's side you're on comes back with the star) */
 		/* the days police ships were destroyed (the Interstellar Marshals count them) */
 		policeKills: Array.isArray(x.policeKills) ? x.policeKills.filter(num).slice(-60) : [],
+		markets: obj(x.markets) ? Object.fromEntries(Object.entries(x.markets).filter(([k, v]) => obj(v) && num(v.day) && numMap(v.s || {}) && numMap(v.d || {})).slice(-300).map(([k, v]) => [k, {day: v.day, s: Object.assign({}, v.s), d: Object.assign({}, v.d)}])) : {},
 		rift: obj(x.rift) ? {first: num(x.rift.first) ? x.rift.first : null, crossings: num(x.rift.crossings) ? x.rift.crossings : 0} : null,
 		/* modules in storage (bought, taken out, or found) */
 		stored: Array.isArray(x.stored) ? x.stored.filter(m => obj(m) && O && O.CAT[m.id] && O.GRADE[m.grade]).slice(0, 60) : [],
