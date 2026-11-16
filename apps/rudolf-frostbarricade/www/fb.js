@@ -7,6 +7,9 @@
    behind the barricade) and aims within 15 degrees of level; shots fly on past the crosshair to the end of the field
    unless an elf or a shield stops them (the Ornament Launcher still bursts at the crosshair); unlimited ammunition,
    quicker reloads, faster elves; the survivors shoot each in their own time, wild until trained, and panic below 5%.
+   Holiday Holdout 1.4.2: when Rudolf falls, the field fades to white and he to black as he drops his weapon and goes over
+   onto his back (slowing almost to a stand); then he goes white, and the game over picture shows him turned, leading the
+   horde (wendigo-dark, his nose and eyes green).
    Holiday Holdout 1.4.1: Tux, the Linux penguin, flies the sleigh on the last night (Captain Quill was a placeholder);
    he wears a red Santa coat and hat, and the sleigh carries presents; the title credits Larry Ewing and GIMP, as Tux's licence asks.
    Holiday Holdout 1.4: aim within 8 degrees of level; training to 120; survivors turn up in many places; the wendigo
@@ -228,7 +231,7 @@ function nightStep() {
 	if (N.barHit > 0) N.barHit -= DT * 3; if (N.hurt > 0) N.hurt -= DT; if (N.recoil > 0) N.recoil = Math.max(0, N.recoil - DT * 8);
 	fxStep();
 	/* the end of the night */
-	if (G.hp <= 0 && !N.over) { N.over = true; lose(); return }
+	if (G.hp <= 0 && !N.over) { N.over = true; defeated(); return }
 	if (G.night < LAST && !N.q.length && !N.elves.length && !N.won) { N.won = true; N.wonT = 0 }
 	if (N.won) { N.wonT += DT; N.dawn = Math.min(.6, N.wonT / 4); if (N.wonT > 3 && !N.over) { N.over = true; dawn() } }
 	if (N.sleigh) rescueStep();
@@ -543,7 +546,9 @@ function draw() {
 	const rf = save.set.reduceFlash;
 	if (screen != 'night' && cv.style.filter) { cv.style.filter = ''; AU.ring(0) }
 	if (screen == 'title' || !N) { A.scene(x, W, H, T, 0, 0); for (let i = 0; i < 3; i++) { const p = survPos(i); A.survivor(x, KINDS[i], p.x, T, false, p.y) } A.rudolf(x, -.1, 'icicle', T, 0, 0, 8, 0); A.barricade(x, 1, T, 0); fakeHorde(x); A.snow(x, W, H, T); A.grit(x, W, H, T, rf); titleText(x); x.restore(); return }
-	if (N.shake > 0) { const a = N.shakeAmp || 6; if (!rf || a <= 2) x.translate((Math.random() - .5) * a, (Math.random() - .5) * a * .5) }
+	/* (1.4.2) Rudolf's fall, and the game over picture after it */
+	if (N.fall && N.fall.t >= FALL.fall + FALL.white + FALL.hold) { zombiePicture(x); const w = 1 - Math.min(1, (N.fall.t - FALL.fall - FALL.white - FALL.hold) / FALL.back); if (w > 0) { x.fillStyle = `rgba(255,255,255,${w})`; x.fillRect(0, 0, W, H) } x.restore(); return }
+	if (N.shake > 0 && !N.fall) { const a = N.shakeAmp || 6; if (!rf || a <= 2) x.translate((Math.random() - .5) * a, (Math.random() - .5) * a * .5) }
 	A.scene(x, W, H, T, G.night, N.dawn);
 	if (N.wx == 'moon') { x.drawImage(A.white, W - 230, -20, 200, 200); x.beginPath(); x.arc(W - 130, 70, 32, 0, 7); x.fillStyle = '#fbf8ef'; x.fill() }
 	for (const s of N.slush) A.slush(x, s, T);
@@ -555,7 +560,7 @@ function draw() {
 		for (const d of N.drops) A.dropped(x, d.x, d.y);
 		/* the survivors and Rudolf, far to near */
 		const ppl = G.surv.map((s, i) => ({l: SURV_LANES[i % 6], f: () => { const p = survPos(i); A.survivor(x, s.kind, (s.fled ? s.runX : p.x) - board * 10, s.fled ? T * 4 : T, s.fire > 0, p.y, !s.disarmed && !s.fled, s.out, s.stun > 0) }}));
-		ppl.push({l: N.rl + .01, f: () => A.rudolf(x, aimAngle(), G.cur, T, N.recoil, N.hurt, N.rl, N.rwalk, N.pump > 0 && WEP[G.cur].pump ? 1 - N.pump / WEP[G.cur].pump : 0)});
+		if (!N.fall) ppl.push({l: N.rl + .01, f: () => A.rudolf(x, aimAngle(), G.cur, T, N.recoil, N.hurt, N.rl, N.rwalk, N.pump > 0 && WEP[G.cur].pump ? 1 - N.pump / WEP[G.cur].pump : 0)});
 		ppl.sort((a, b) => a.l - b.l).forEach(o => o.f());
 		x.globalAlpha = 1;
 	}
@@ -599,6 +604,7 @@ function draw() {
 	A.grit(x, W, H, T, rf);
 	if (N.hurt > 0 && !rf) { x.fillStyle = `rgba(120,0,40,${N.hurt * .4})`; x.fillRect(0, 0, W, H) }
 	hud(x);
+	if (N.fall) { drawFall(x); x.restore(); return }
 	/* the crosshair: its gap shows the spread */
 	if (!N.sleigh) {
 		const w = WEP[G.cur], gap = 5 + (w.spread * (1 - .45 * skillK()) + (w.pellets ? .02 : 0)) * 200;
@@ -798,9 +804,58 @@ function runDay() {
 }
 
 /* ---------- endings ---------- */
+/* (1.4.2) Rudolf's fall: the night stops; he drops his weapon and tips over onto his back, quickly at first, then
+   slowing almost to a stand as he's nearly down (2.5 s), while everything else fades to white and he to black. Then
+   he goes white too (0.8 s), and after a moment the white clears on the game over picture (fb.js zombiePicture): the
+   field, still, with Rudolf turned and leading the horde */
+const FALL = {fall: 2.5, white: .8, hold: .3, back: 1.5, g: 520};
+const fallEnd = () => FALL.fall + FALL.white + FALL.hold + FALL.back;
+function defeated() {
+	AU.music(null); AU.sfx('lost');
+	const sh = shoulder(), a = aimAngle(), s = A.rudolfScale(N.rl);
+	N.fall = {t: 0, l: N.rl, w: G.cur, T0: T, x0: sh.x + Math.cos(a) * 14 * s, y0: sh.y + Math.sin(a) * 14 * s, a0: a, ground: A.laneY(N.rl) - 2};
+}
+function fallStep() { const F = N.fall; F.t += DT; if (!F.shown && F.t >= fallEnd()) { F.shown = true; lose() } }
+/* where the dropped weapon is, t s after he lets go: falling, turning, then lying on the snow */
+function fallenWeapon(F, t) {
+	const tl = Math.sqrt(2 * Math.max(0, F.ground - F.y0) / FALL.g), u = Math.min(t, tl);
+	return {x: F.x0 - 26 * u, y: F.y0 + .5 * FALL.g * u * u, a: t < tl ? F.a0 + 3.2 * t : .08};
+}
+let fallCv = null;
+function drawFall(x) {
+	const F = N.fall, t = F.t, p = .93 * (1 - Math.exp(-t / .62)), k = Math.min(1, t / FALL.fall);
+	const wp = fallenWeapon(F, t), s = A.rudolfScale(F.l);
+	x.save(); x.translate(wp.x, wp.y); x.rotate(wp.a); x.scale(s, s); x.translate(-14, 0); A.weapon(x, F.w, 0); x.restore();
+	/* everything but Rudolf fades to white */
+	x.fillStyle = `rgba(255,255,255,${Math.pow(k, 1.3)})`; x.fillRect(-20, -20, W + 40, H + 40);
+	/* Rudolf, going over, fading to black (drawn apart, then tinted) */
+	const c = x.canvas; fallCv = fallCv || document.createElement('canvas'); if (fallCv.width != c.width || fallCv.height != c.height) { fallCv.width = c.width; fallCv.height = c.height }
+	const o = fallCv.getContext('2d'); o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-over'; o.clearRect(0, 0, c.width, c.height);
+	o.setTransform(x.getTransform()); A.rudolfDown(o, F.l, -PI / 2 * p, F.T0);
+	o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-atop'; o.fillStyle = `rgba(0,0,0,${Math.min(1, t / (FALL.fall * .85))})`; o.fillRect(0, 0, c.width, c.height); o.globalCompositeOperation = 'source-over';
+	x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(fallCv, 0, 0); x.restore();
+	/* then he goes white too */
+	const w = Math.min(1, Math.max(0, (t - FALL.fall) / FALL.white)); if (w > 0) { x.fillStyle = `rgba(255,255,255,${w})`; x.fillRect(-20, -20, W + 40, H + 40) }
+}
+/* (1.4.2) the game over picture: the field, still, the barricade down, and Rudolf (turned) leading the horde back
+   past where he stood; the night's elves crowd in behind him, and some more if there are few */
+function zombiePicture(x) {
+	const F = N.fall, t = F.T0, rf = save.set.reduceFlash, rx = A.RX + 30;
+	A.scene(x, W, H, t, G.night, 0);
+	for (const s of N.slush) A.slush(x, s, t);
+	A.barricade(x, 0, t, 0);
+	const live = N.elves.filter(e => !e.dead), minX = live.length ? Math.min(...live.map(e => e.x)) : 0, shift = minX - (rx + 65);   /* (the crowd behind him, none ahead) */
+	const crowd = live.map(e => Object.assign({}, e, {x: e.x - shift, hitT: 0}));
+	const KIND = ['shambler', 'sprinter', 'mugger', 'bloater', 'crawler', 'shambler', 'brute', 'shambler'];
+	for (let i = crowd.length; i < 9; i++) crowd.push({id: 900 + i, kind: KIND[i % KIND.length], x: rx + 80 + i * 52 + A.hash(i, 77) * 30, lane: Math.round(1 + A.hash(i, 78) * 13), walk: i * 1.7, chill: 0, burn: 0, hitT: 0});
+	const ppl = crowd.map(e => ({l: e.lane, f: () => A.elf(x, e, t, rf)}));
+	ppl.push({l: F.l + .01, f: () => A.zombieRudolf(x, rx, F.l, t)});
+	ppl.sort((a, b) => a.l - b.l).forEach(o => o.f());
+	A.snow(x, W, H, t); A.grit(x, W, H, t, true);
+}
 function lose() {
 	AU.music(null); bar();
-	dialog(`<h2>The barricade fell</h2><p>Night ${G.night}. ${G.kills} fell before it did.</p>`, [['Try the night again', retryNight, 1], ['Title', toTitle, 0, 1]]);
+	dialog(`<h2>The barricade fell</h2><p>Night ${G.night}. ${G.kills} fell before it did. Rudolf is one of them now.</p>`, [['Try the night again', retryNight, 1], ['Title', toTitle, 0, 1]], 'lost');
 }
 function retryNight() { if (G.morning) { G = JSON.parse(JSON.stringify(G.morning)); G.morning = snapshot() } else return toTitle(); closeDialog(); startNight() }
 function ending() {
@@ -930,6 +985,7 @@ function update() {
 	T += DT;
 	if (ovOpen()) { menuNav(); return }
 	if (screen != 'night' || !N || RG.paused) return;
+	if (N.fall) { fallStep(); return }
 	if (RG.pressed('pause')) { RG.pause(); return }
 	inputStep(); nightStep();
 }
@@ -946,7 +1002,7 @@ async function start() {
 	toTitle();
 	if (!save.seenHelp) { save.seenHelp = 1; persist(); help(toTitle) }
 	RG.loop(update, draw, {whilePaused: true});
-	window.__fb = {closeDialog, fixRun, reloadTime, startReload, SKILL_MAX, HIDING, WEND_HIT, SHIELD_PICK, W, H, LAST, VIS, aimAngle, shoulder, bash, dropShield, shieldBox, legsOf, deafK, CHARGE, headOf, bodyOf, nightCount, hpMul, wildChance, pickKind, survPos, BLOAT_R, makeWeather, wxOf, seen, radio, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
+	window.__fb = {FALL, fallEnd, fallStep: n => { for (let i = 0; i < n && N && N.fall && !N.fall.shown; i++) fallStep() }, closeDialog, fixRun, reloadTime, startReload, SKILL_MAX, HIDING, WEND_HIT, SHIELD_PICK, W, H, LAST, VIS, aimAngle, shoulder, bash, dropShield, shieldBox, legsOf, deafK, CHARGE, headOf, bodyOf, nightCount, hpMul, wildChance, pickKind, survPos, BLOAT_R, makeWeather, wxOf, seen, radio, get G() { return G }, get N() { return N }, set G(v) { G = v }, save: () => save, newRun, startNight, nightStep, dawn, runDay, dayScreen, WEP, cross, spawn: k => spawn(k), pick, fire: () => { firePressed = true }, hold: v => { mouseDown = v },
 		run(n) { for (let i = 0; i < n && N && !N.over; i++) { inputStep(); nightStep() } return N && {t: N.t, elves: N.elves.length, q: N.q.length, bar: G.bar, hp: G.hp, kills: G.kills} }};
 }
 start();

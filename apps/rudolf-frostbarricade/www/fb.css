@@ -11,6 +11,7 @@ body{display:flex;flex-direction:column}
 #bar .rl{margin-left:auto}
 #ov{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(3,2,8,.6);padding:12px}
 #ov[hidden]{display:none}
+#ov.lost{background:linear-gradient(transparent 45%,rgba(3,2,8,.72));align-items:flex-end;padding:16px}   /* (1.4.2: the game over picture shows above the card) */
 #ov.title{background:linear-gradient(transparent 40%,rgba(3,2,8,.55));align-items:flex-end;justify-content:flex-end;padding:16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;width:100%;max-width:420px;max-height:100%;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
 #ov.title .card{max-width:300px}
