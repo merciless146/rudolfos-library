@@ -68,6 +68,15 @@ async function open(pg) {
 		ok('8. once it is down they reach Rudolf', rh < 100, rh);
 		/* losing: the night can be tried again from its morning */
 		await f.evaluate(() => { __fb.G.hp = 0; __fb.run(2) }); await sleep(200);
+		/* (1.4.2) his fall first: the field to white, Rudolf to black, then the game over picture */
+		const fl0 = await f.evaluate(() => ({fall: !!__fb.N.fall, open: !document.getElementById('ov').hidden}));
+		await f.evaluate(() => { const N = __fb.N; N.fall.t = 0; N.fall.T0 = 40; __fb.fallStep(48) }); await sleep(120); await pg.screenshot({path: path.join(W, 'fall-1.png')});
+		await f.evaluate(() => __fb.fallStep(96)); await sleep(120); await pg.screenshot({path: path.join(W, 'fall-2.png')});
+		await f.evaluate(() => __fb.fallStep(30)); await sleep(120); await pg.screenshot({path: path.join(W, 'fall-3.png')});
+		const fl1 = await f.evaluate(() => ({open: !document.getElementById('ov').hidden, t: __fb.N.fall.t}));
+		await f.evaluate(() => __fb.fallStep(400)); await sleep(250); await pg.screenshot({path: path.join(W, 'zombie-rudolf.png')});
+		const fl2 = await f.evaluate(() => ({t: __fb.N.fall.t, end: __fb.fallEnd(), cls: document.getElementById('ov').className}));
+		ok('9a. 1.4.2: at no health Rudolf falls first (no game over yet, even 2.9 s on); then the game over comes over the picture of him leading the horde', fl0.fall && !fl0.open && !fl1.open && fl1.t > 2.8 && fl2.cls == 'lost' && Math.abs(fl2.t - fl2.end) < .05, {fl0, fl1, fl2});
 		ok('9. Rudolf falls: "The barricade fell", with Try the night again', await f.evaluate(() => /barricade fell/.test(document.getElementById('ovBody').textContent)));
 		await f.click('text=Try the night again'); await sleep(200);
 		const rt = await f.evaluate(() => ({night: __fb.G.night, bar: __fb.G.bar, hp: __fb.G.hp, q: __fb.N.q.length}));

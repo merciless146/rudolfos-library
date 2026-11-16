@@ -144,7 +144,7 @@ function stag(x, pal, t, walk, bob) {
 	x.beginPath(); x.moveTo(hx + 3, hy - 3); x.lineTo(hx + 9, hy - 2.2); x.lineTo(hx + 4, hy - .8); x.closePath(); x.fill();
 	x.strokeStyle = ink; x.lineWidth = 1.2; x.beginPath(); x.moveTo(hx + 2, hy - 5.5); x.lineTo(hx + 9, hy - 4); x.stroke();
 	/* the nose: Rudolf's red, glowing; corrupted, dead and dark */
-	if (pal.nose) x.drawImage(A.pink, hx + 15 - 9, hy + 2 - 9, 18, 18);
+	if (pal.nose) x.drawImage(pal.noseGlow || A.pink, hx + 15 - 9, hy + 2 - 9, 18, 18);
 	P([[hx + 12, hy], [hx + 16, hy - .5], [hx + 18, hy + 2], [hx + 16, hy + 4.5], [hx + 12, hy + 4]], pal.nose || '#2a1416', 1);
 	if (pal.nose) { x.fillStyle = 'rgba(255,255,255,.7)'; x.fillRect(hx + 14, hy + .5, 1.6, 1) }
 	/* a frothing mouth: green foam, dripping */
@@ -168,6 +168,37 @@ A.rudolf = function (x, aim, weapon, t, recoil, hurtT, l, walk, pump) {
 	x.translate(6, -34); x.rotate(aim); x.translate(-recoil * 4, 0);
 	A.weapon(x, weapon, pump || 0);
 	x.beginPath(); x.moveTo(-2, -3); x.lineTo(8, -3); x.lineTo(9, 3); x.lineTo(-1, 4); x.closePath(); x.fillStyle = '#f2f4f8'; x.fill(); x.strokeStyle = '#0a0c14'; x.lineWidth = 1.1; x.stroke();
+	x.restore();
+};
+/* (1.4.2) Rudolf falling, defeated: tipping onto his back about his back hoof (ang: 0 standing .. -π/2 on his back),
+   his empty arm flung up and back; drawn without his weapon (fb.js drops it) */
+A.rudolfDown = function (x, l, ang, t) {
+	const s = A.rudolfScale(l);
+	x.save(); x.translate(A.RX, A.laneY(l)); x.scale(s, s);
+	x.translate(-4, 0); x.rotate(ang); x.translate(4, 0);
+	stag(x, {ink: '#0a0c14', W1: '#f2f4f8', W2: '#c9cfdc', W3: '#9aa3b6', nose: '#e3283e'}, t, 0, 0);
+	x.strokeStyle = '#2e2620'; x.lineWidth = 3.2; x.beginPath(); x.moveTo(-9, -42); x.lineTo(8, -21); x.stroke();
+	x.fillStyle = '#b8913a'; for (let i = 0; i < 4; i++) x.fillRect(-6 + i * 3.8, -38 + i * 4.3, 1.6, 2.6);
+	x.translate(6, -34); x.rotate(-1.1 + ang * .4);
+	x.beginPath(); x.moveTo(-2, -3); x.lineTo(8, -3); x.lineTo(9, 3); x.lineTo(-1, 4); x.closePath(); x.fillStyle = '#f2f4f8'; x.fill(); x.strokeStyle = '#0a0c14'; x.lineWidth = 1.1; x.stroke();
+	x.restore();
+};
+/* (1.4.2) the game over picture's Rudolf: turned, leading the horde. Facing left (back where he stood guard), his
+   own size, coloured like the wendigos (dark and gaunt, ribs and cracks, green froth), his nose and eyes glowing green,
+   both arms stretched out ahead of him */
+A.zombieRudolf = function (x, X, l, t) {
+	const s = A.rudolfScale(l), pal = Object.assign({}, WEND, {nose: '#5dff3a', noseGlow: A.eyeG, eye: '#7dff4a'});
+	x.save(); x.translate(X, A.laneY(l)); x.scale(-s, s);
+	for (const [sx, sy, dy] of [[-1, -38, -3]]) {   /* the far arm, behind him */
+		x.strokeStyle = WEND.ink; x.lineWidth = 4.4; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + 24, sy + dy); x.stroke(); x.strokeStyle = WEND.W3; x.lineWidth = 2.6; x.stroke();
+	}
+	stag(x, pal, t, .7, 0);
+	x.strokeStyle = '#1a1512'; x.lineWidth = 3.2; x.beginPath(); x.moveTo(-9, -42); x.lineTo(8, -21); x.stroke();   /* his bandolier, still on */
+	x.fillStyle = '#5a4a24'; for (let i = 0; i < 4; i++) x.fillRect(-6 + i * 3.8, -38 + i * 4.3, 1.6, 2.6);
+	for (const [sx, sy, dy] of [[5, -36, -1]]) {   /* the near arm, stretched out straight ahead */
+		x.strokeStyle = WEND.ink; x.lineWidth = 4.6; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + 26, sy + dy); x.stroke(); x.strokeStyle = WEND.W1; x.lineWidth = 2.8; x.stroke();
+		x.strokeStyle = '#0a080c'; x.lineWidth = 1.2; for (let c = 0; c < 3; c++) { x.beginPath(); x.moveTo(sx + 26, sy + dy); x.lineTo(sx + 31, sy + dy - 2 + c * 2); x.stroke() }
+	}
 	x.restore();
 };
 /* the weapons, each its own shape and colours (drawn pointing right from the shoulder) */
