@@ -1298,6 +1298,17 @@ also arms the first ships and adds fire groups:
 
 **Released: 0.4.0, surface ports** (L2), with all of the above.
 
+**0.4.1 to 0.4.3:**
+- **0.4.1:** rings made of asteroids, and mineral hotspots seen with a prospecting array.
+- **0.4.2:** the resource scanner reads asteroids.
+- **0.4.3:**
+  - **Gun mounts:** guns fire from their mounts on the hull: one under the nose, or pairs under the wings,
+    further out and back for each pair. Fixed guns converge on the nose's line at the target's distance (150 m to
+    3 km), or 800 m with none ahead; gimballed guns aim from their mounts.
+  - **A new pilot's first ship** carries the gimballed versions of its stock guns.
+  - **Third person** (V, or the radial menu) puts the camera 2.2 ship lengths behind and 0.55 above, looking where
+    the ship looks.
+
 Still to come: mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
 
 ## Open questions
