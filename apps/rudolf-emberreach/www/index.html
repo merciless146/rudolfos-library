@@ -43,7 +43,7 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 .pt-narrow{max-width:520px}
 .pt-grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:12px}.pt-col{display:flex;flex-direction:column;gap:12px}.pt-span2{grid-column:span 2}
 @media (max-width:900px){.pt-span2{grid-column:auto}}
-.pt-split{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}.pt-table{flex:999 1 520px;padding:0;gap:0}.pt-side{flex:1 1 300px}.pt-wide{flex:1 1 380px}
+.pt-split{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}.pt-table{flex:999 1 520px;padding:0;gap:0}.pt-col{flex:999 1 520px;display:flex;flex-direction:column;gap:12px;min-width:0}.pt-col>.pt-table{flex:none}.pt-plan .pt-ghost.on{background:var(--amber,#f2a33a);color:#0a1220;border-color:var(--amber,#f2a33a)}.pt-side{flex:1 1 300px}.pt-wide{flex:1 1 380px}
 .pt-thead,.pt-row{display:grid;grid-template-columns:1.6fr 1fr 1fr .8fr .7fr .9fr;gap:8px;padding:6px 14px;align-items:center}
 .pt-row4{grid-template-columns:1.1fr 1.4fr 1.3fr 1.7fr!important}
 .pt-row3{grid-template-columns:1.1fr 2fr .6fr!important}.pt-tabs{display:flex;gap:6px;margin:0 0 10px}.pt-tabs button{min-height:40px;padding:0 16px;border:1px solid #2a3a5c;background:#0f1729;color:#c9d3e6;font:600 13px Inter,system-ui,sans-serif}.pt-tabs button.on{background:#1d2a45;color:#f6c27a;border-color:#f2a33a}
@@ -127,6 +127,7 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 <script src="render.js"></script>
 <script src="travel.js"></script>
 <script src="combat.js"></script>
+<script src="shipplan.js"></script>
 <script src="encounters.js"></script>
 <script src="canisters.js"></script>
 <script src="mining.js"></script>

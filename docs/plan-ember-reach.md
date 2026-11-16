@@ -1308,6 +1308,12 @@ also arms the first ships and adds fire groups:
   - **A new pilot's first ship** carries the gimballed versions of its stock guns.
   - **Third person** (V, or the radial menu) puts the camera 2.2 ship lengths behind and 0.55 above, looking where
     the ship looks.
+- **0.4.5:** outfitting shows the ship's plan (`shipplan.js`): a 2D drawing of the hull from the side or from above
+  (a button switches them), with every core module, internal slot, hardpoint and utility mount where it sits.
+  - **Markers:** coloured by kind, filled when fitted and hollow when empty. Core markers carry their module's
+    letter, and the picked slot is ringed.
+  - **Picking:** clicking a marker picks that slot.
+  - **Guns** now fire from their own hardpoint's mount, kept under the wing.
 - **0.4.4:** starter ships (a new pilot's first, and insurance's starter ship) come with an Autopilot Computer
   (docking and cruise assist), in a free internal slot or in place of the smallest cargo rack.
 

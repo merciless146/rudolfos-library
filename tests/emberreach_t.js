@@ -45,6 +45,17 @@ async function frame(pg, test) {
 		for (const sc of ['station', 'market', 'bulletin', 'shipyard', 'outfitting', 'contacts', 'carto', 'status']) { await f.click('[data-screen="' + sc + '"]'); await sleep(120) }
 		ok('3. every starport screen opens', errs.length == 0, errs);
 		await pg.screenshot({path: path.join(W, 'port.png')});
+		/* 0.4.5: the ship plan under outfitting: side profile and top down; a marker picks its slot */
+		await f.click('[data-screen="outfitting"]'); await sleep(200);
+		const sp0 = await f.evaluate(() => ({svg: !!document.querySelector('#port svg.sp-plan'), marks: document.querySelectorAll('#port [data-ofpick]').length, tag: (document.querySelector('#port svg.sp-plan text') || {}).textContent}));
+		await pg.screenshot({path: path.join(W, 'outfitting-side.png')}); { const el = await f.$('#port .pt-plan'); if (el) await el.screenshot({path: path.join(W, 'plan-side.png')}) }
+		await f.click('[data-ofview="top"]'); await sleep(150);
+		const sp1 = await f.evaluate(() => (document.querySelector('#port svg.sp-plan text') || {}).textContent);
+		{ const el = await f.$('#port .pt-plan'); if (el) await el.screenshot({path: path.join(W, 'plan-top.png')}) }
+		await f.evaluate(() => document.querySelector('#port [data-ofpick^="internal:"]').dispatchEvent(new MouseEvent('click', {bubbles: true}))); await sleep(150);
+		const sp2 = await f.evaluate(() => ({tab: (document.querySelector('#port [data-oftab].on') || {}).dataset.oftab, ring: !!document.querySelector('#port .sp-slot.on[data-ofpick^="internal:"]'), row: !!document.querySelector('#port .pt-row.on[data-ofslot]')}));
+		await f.click('[data-ofview="side"]'); await sleep(100);
+		ok('3c. 0.4.5: outfitting shows the ship\'s plan with every slot; Top down switches the view; clicking a marker picks its slot', sp0.svg && sp0.marks >= 8 && /From the side/.test(sp0.tag) && /From above/.test(sp1) && sp2.tab == 'internal' && sp2.ring && sp2.row, {sp0, sp1, sp2});
 		/* 0.3.7: this port's own market: what it sells from its stock, what it wants, and a purchase taken from the stock */
 		await f.click('[data-screen="market"]'); await sleep(150);
 		const mk0 = await f.evaluate(() => { const rows = [...document.querySelectorAll('#port [data-good]')], head = document.querySelector('#port .pt-thead').textContent, sub = document.querySelector('#port h1 + *, #port .pt-sub') ? document.body.innerText : ''; return {rows: rows.length, first: rows[0].dataset.good, cell: rows[0].children[3].textContent, head, econ: /economy · serves/.test(document.getElementById('port').innerText)} });

@@ -81,12 +81,15 @@ function mounts(ship, n) {
 	const len = ship.length || 20, W = len * 0.36, H = len * 0.14, L = len / 2;
 	if (n <= 1) return [[0, -H * 0.6, L * 0.35]];
 	const out = [];
-	for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, row = Math.floor(i / 2); out.push([side * W * Math.min(0.95, 0.42 + 0.18 * row), -H * 0.55, L * (0.1 - 0.12 * row)]) }
+	/* (0.4.5: each pair a third of the half-length further back, three quarters of the way out to the wing's edge
+	   there, so every mount is under the wing) */
+	for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, row = Math.floor(i / 2), z = Math.max(-0.9, 0.1 - 0.3 * row); out.push([side * W * 0.75 * (1 - z) / 2, -H * 0.55, L * z]) }
 	return out;
 }
 /* a ship's fighting state: shields, hull, heat, guns, modules */
 function state(ship, fit) {
-	const load = loadout(ship), at = mounts(ship, load.guns.length); load.guns.forEach((g, i) => { g.at = at[i] });
+	/* (0.4.5: a fitted ship's guns take their own hardpoints' mounts, as the outfitting plan shows them) */
+	const load = loadout(ship), at = mounts(ship, ship.gunSlots ? ship.hardSlots : load.guns.length); load.guns.forEach((g, i) => { g.at = at[ship.gunSlots ? ship.gunSlots[i] : i] });
 	return {dmgK: ship.dmgK || 1, hullMax: ship.hull, hull: ship.hull, shieldMax: ship.shield, shield: ship.shield, heat: 0, hot: false, lastHit: -1e9, fit: fit || M.fit(ship), load, lock: {id: null, t: 0}, dead: false};
 }
 /* a hit: shields first, then the hull and its modules. Returns what it did */
