@@ -6,6 +6,9 @@
      there are the ring's own; its mineral hotspots, by chance, are fields as well, seen only with a prospecting
      array. A belt's site holds 64 asteroids (96 in a dense one), 30 to 240 m across,
      in a flattened swarm 15 km wide, the same every visit.
+   - A belt (0.4.8, L3.3) has 2 or 3 sites round its orbit. The first is charted (anyone can see it); the others are
+     found with a resource scanner (play.js), and once visited stay charted in the save (P.charted). Found sites are
+     dense (96 asteroids) and their asteroids hold a third more.
      Each holds two or three goods in proportions, and a yield of tonnes that mining runs down (kept in the save).
    - A mining laser (an external module) chips an asteroid: every few hits an ore chunk breaks off, a fraction of a
      tonne of one of its goods, drifting away. A resource scanner (a utility mount) reads an asteroid's contents.
@@ -49,7 +52,14 @@ function fields(scene, star) {
 	for (let k = 0; k < n; k++) {
 		const i = Math.floor(r() * (orbits.length + 1)), a = orbits.length ? (i == 0 ? orbits[0] * 0.6 : i == orbits.length ? orbits[i - 1] * 1.6 : (orbits[i - 1] + orbits[i]) / 2) : 2.5 * MINE.AU;
 		const th = r() * 6.283, kind = (star.FeH || 0) > 0.05 && r() < 0.6 ? 'metallic' : 'rocky';
-		out.push({id: 'belt:' + star.id + ':' + k, name: star.name + ' belt ' + 'AB'[k], kind, rift: !!star.rift, pos: add(sun.pos, [a * Math.cos(th), a * Math.sin(th), 0]), normal: [0, 0, 1]});
+		const id = 'belt:' + star.id + ':' + k, name = star.name + ' belt ' + 'AB'[k];
+		out.push({id, name, kind, rift: !!star.rift, pos: add(sun.pos, [a * Math.cos(th), a * Math.sin(th), 0]), normal: [0, 0, 1], belt: id});
+		/* (0.4.8) its other sites, round the same orbit (seeded apart, so the first site and the next belt stay where they were) */
+		const rs = G.rng(G.hashStr('beltsites:' + id)), m = 2 + (rs() < 0.5 ? 1 : 0);
+		for (let j = 1; j < m; j++) {
+			const t2 = th + j * 6.283 / m + (rs() - 0.5) * 1.2, a2 = a * (0.97 + rs() * 0.06);
+			out.push({id: id + ':' + j, name: name + ' · site ' + (j + 1), kind, rift: !!star.rift, pos: add(sun.pos, [a2 * Math.cos(t2), a2 * Math.sin(t2), 0]), normal: [0, 0, 1], belt: id, hidden: true, density: 'dense', rich: 1.35});
+		}
 	}
 	return out;
 }
@@ -66,7 +76,7 @@ function rocks(field, mined) {
 		const size = MINE.sizes[Math.min(3, Math.floor(Math.pow(r(), 1.6) * 4))], shape = Math.floor(r() * 3);
 		const comp = {}; for (let k = 0; k < 2 + (r() < 0.4 ? 1 : 0); k++) { const g = pickW(K.goods, r); comp[g] = (comp[g] || 0) + 0.3 + r() }
 		const t = Object.values(comp).reduce((x, y) => x + y, 0); for (const g in comp) comp[g] = Math.round(comp[g] / t * 100) / 100;
-		const id = field.id + '#' + i, yieldT = Math.round(size / 6 + r() * size / 6);
+		const id = field.id + '#' + i, yieldT = Math.round((size / 6 + r() * size / 6) * (field.rich || 1));
 		out.push({id, kind: 'asteroid', name: 'Asteroid ' + field.name.slice(0, 2).toUpperCase() + '-' + (100 + i), pos: add(field.pos, add(add(mul(e1, Math.cos(a) * d), mul(e2, Math.sin(a) * d)), mul(field.normal, h))),
 			radius: size, shape, comp, yield: yieldT, left: Math.max(0, yieldT - ((mined && mined[id]) || 0)), hits: 0, prospected: false});
 	}
