@@ -183,10 +183,20 @@ function stocks(port) {
 	return o ? {maxSize: o.maxSize, grades: o.grades, some: o.some || 0} : {maxSize: 0, grades: '', some: 0};
 }
 /* the modules on offer for a slot: [{id, size, grade, price}] */
-/* (0.4.3) a new pilot's first ship: the stock fit, with its guns in their gimballed versions where there are any */
-function starter(ship) {
-	const f = stock(ship), G = {pulse: 'pulseG', heavy: 'heavyG', needle: 'needleG', gatling: 'gatlingG', gatlingM: 'gatlingMG', gatlingL: 'gatlingLG'};
-	f.external = (f.external || []).map(m => m && G[m.id] && CAT[G[m.id]] ? Object.assign({}, m, {id: G[m.id]}) : m);
+/* a starter ship's fit: the stock one with an Autopilot Computer (docking and cruise assist: 0.4.4) in the first
+   free internal slot, or in place of the smallest cargo rack; and (0.4.3: a new pilot's first ship) its guns in
+   their gimballed versions where there are any */
+function withAutopilot(ship, f) {
+	const L = layout(ship), ints = f.internal = (f.internal || []).slice();
+	if (ints.some(m => m && m.id == 'autopilot')) return f;
+	let i = L.internal.findIndex((sz, k) => !ints[k] && sz >= 1);
+	if (i < 0) i = ints.map((m, k) => ({m, k})).filter(x => x.m && x.m.id == 'cargo').sort((a, b) => a.m.size - b.m.size).map(x => x.k)[0] ?? -1;
+	if (i >= 0) ints[i] = {id: 'autopilot', size: 1, grade: 'C'};
+	return f;
+}
+function starter(ship, opts) {
+	const f = withAutopilot(ship, stock(ship)), G = {pulse: 'pulseG', heavy: 'heavyG', needle: 'needleG', gatling: 'gatlingG', gatlingM: 'gatlingMG', gatlingL: 'gatlingLG'};
+	if (!opts || opts.gimbal !== false) f.external = (f.external || []).map(m => m && G[m.id] && CAT[G[m.id]] ? Object.assign({}, m, {id: G[m.id]}) : m);
 	return valid(ship, f) ? f : stock(ship);
 }
 function offers(ship, slot, port, starId) {
@@ -339,6 +349,6 @@ function valid(ship, fit) {
 	} catch (e) { return false }
 }
 
-const EmberOutfit = {starter, PRECURSOR_MODS, precursorFrom, bpName, recipe, RECYCLE, materials, recycleRoom, recycle, RECIPES, BLUEPRINT, blueprintFrom, learn, build, broker, SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
+const EmberOutfit = {starter, withAutopilot, PRECURSOR_MODS, precursorFrom, bpName, recipe, RECYCLE, materials, recycleRoom, recycle, RECIPES, BLUEPRINT, blueprintFrom, learn, build, broker, SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
 if (isNode) module.exports = EmberOutfit; else root.EmberOutfit = EmberOutfit;
 })(typeof window != 'undefined' ? window : this);
