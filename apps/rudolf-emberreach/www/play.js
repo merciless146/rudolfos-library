@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.3'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.4'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -142,7 +142,7 @@ async function start() {
 	Co.registerScrips(game.P);
 	game.homePort = !ok && Sc.STATION[Q.get('port')] ? Q.get('port') : ok && sv.version == 1 ? sv.port : 'halo';
 	baseShip = S.hull(game.P.ship.model) || S.hull('wren');
-	/* (0.4.3) a new pilot's first ship has its guns gimballed */
+	/* (0.4.3) a new pilot's first ship has its guns gimballed, and (0.4.4) an Autopilot Computer */
 	if (!ok && !game.P.ship.fit) game.P.ship.fit = O.starter(baseShip);
 	if (!O.valid(baseShip, game.P.ship.fit)) game.P.ship.fit = O.stock(baseShip);
 	ship = O.derive(baseShip, game.P.ship.fit);
@@ -809,7 +809,7 @@ function apEngage(mode, quiet, extra) {
 	if (!apWorks()) { if (!quiet) { say('Autopilot offline: ' + (!M.works(fit, 'power') ? 'no power' : fit.reboot > 0 ? 'rebooting' : 'the sensors are down'), '#e5484d'); Snd.cue('refused') } return false }
 	game.ap = Object.assign({mode, at: game.t}, extra || {});
 	const to = mode == 'cruise' ? pname(navTarget()) : mode == 'dock' ? (game.clearance.port == T.ORBITAL ? st && st.name : 'pad ' + game.clearance.pad) : extra.leg.star.name;
-	say(AP_SAY[mode] + to + (mode == 'align' ? '' : ' · touch the stick to take over'), '#6cc9e8'); Snd.cue('tick');
+	if (!(extra && extra.silent)) { say(AP_SAY[mode] + to + (mode == 'align' ? '' : ' · touch the stick to take over'), '#6cc9e8'); Snd.cue('tick') }
 	return true;
 }
 function apOff(why, col) { if (!game.ap) return; game.ap = null; if (why) say(why, col || '#9fb0cc') }
@@ -931,7 +931,7 @@ function requestJump(fromAp) {
 	   Computer the ship turns itself onto it and jumps */
 	const off = sysOff(leg.star);
 	if (off > JUMP.align) {
-		if (!fromAp && apFitted() && apEngage('align', true, {leg})) { say('Autopilot: aligning with ' + leg.star.name + ' (' + Math.round(off) + '° off) to jump', '#6cc9e8'); return }
+		if (!fromAp && apFitted() && apEngage('align', true, {leg, silent: true})) { say('Autopilot: aligning with ' + leg.star.name + ' (' + Math.round(off) + '° off) to jump', '#6cc9e8'); return }
 		say('Align with ' + leg.star.name + ' to jump: the nose is ' + Math.round(off) + '° off its star (the open reticle), within ' + JUMP.align + '° needed', '#f2a33a'); Snd.cue('refused'); return;
 	}
 	shutHatch('the jump');
@@ -1567,7 +1567,8 @@ function lost(how) {
 	G.realm('normal');
 	if (c.starter) {
 		say(c.why == 'uninsured' ? 'Not insured: you start again at ' + game.home.star.name + ' in a starter ship' : 'Insurance: ' + Math.round(c.short).toLocaleString('en-US') + ' ' + c.code + ' short of what the policy is owed. You start again at ' + game.home.star.name + ' in a starter ship, with the starter\'s cover.', '#e5484d');
-		baseShip = S.hull(c.model); game.P.ship.fit = O.stock(baseShip); ship = O.derive(baseShip, game.P.ship.fit); R.upload('ship', Me.ship(ship.length, quality));
+		/* (0.4.4: a starter ship comes with an Autopilot Computer; the gimballed guns are a new pilot's only) */
+		baseShip = S.hull(c.model); game.P.ship.fit = O.starter(baseShip, {gimbal: false}); ship = O.derive(baseShip, game.P.ship.fit); R.upload('ship', Me.ship(ship.length, quality));
 	} else {
 		for (const x of c.changed) say('The exchange changed ' + Math.round(x.amount).toLocaleString('en-US') + ' ' + x.from + ' into ' + Math.round(x.got).toLocaleString('en-US') + ' ' + c.code + ' for your policy', '#9fb0cc');
 		say('Insurance: a new ' + ship.name + ', fitted as before' + (c.paid > 0 ? ', once ' + Math.round(c.paid).toLocaleString('en-US') + ' ' + c.code + ' owed was settled' : '') + '.', '#f2a33a');

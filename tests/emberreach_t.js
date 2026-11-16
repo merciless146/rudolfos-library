@@ -84,8 +84,8 @@ async function frame(pg, test) {
 		const left = await f.evaluate(old => { const now = new Set(EmberDebug.scene.bodies.map(b => b.name)); return EmberDebug.meshIds().filter(id => old.includes(id.split(':')[0]) && !now.has(id.split(':')[0])) }, before);
 		ok('7b. ...and lets the last system\'s meshes go (0.1.1 kept every system\'s, about 10 MB a jump)', before.length > 0 && left.length == 0, {before, left});
 		/* 0.4.3: a new pilot's first ship has its guns gimballed */
-		const first = await f.evaluate(() => ({ext: (EmberDebug.game.P.ship.fit.external || []).filter(Boolean).map(m => m.id), mounts: EmberDebug.game.pcs.load.guns.map(g => g.mount)}));
-		ok('7a. 0.4.3: a new pilot\'s first ship carries the gimballed version of every gun that has one', first.ext.some(id => /G$/.test(id)) && !first.ext.some(id => ['pulse', 'heavy', 'needle', 'gatling', 'gatlingM', 'gatlingL'].includes(id)), first);
+		const first = await f.evaluate(() => ({ext: (EmberDebug.game.P.ship.fit.external || []).filter(Boolean).map(m => m.id), mounts: EmberDebug.game.pcs.load.guns.map(g => g.mount), autopilot: !!EmberDebug.ship.autopilot}));
+		ok('7a. 0.4.3: a new pilot\'s first ship carries the gimballed version of every gun that has one, and (0.4.4) an Autopilot Computer', first.autopilot && first.ext.some(id => /G$/.test(id)) && !first.ext.some(id => ['pulse', 'heavy', 'needle', 'gatling', 'gatlingM', 'gatlingL'].includes(id)), first);
 		await pg.evaluate(() => send({op: 'pause'})); await sleep(400);
 		const paused = await f.evaluate(() => ({ov: !document.getElementById('ov').hidden, h: document.getElementById('ovT').textContent, build: (document.querySelector('#ovBody .build') || {}).textContent}));
 		ok('8. the desktop\'s pause pauses it (the alpha build named on the pause screen)', paused.ov && /Paused/.test(paused.h) && /Alpha/.test(paused.build), paused);
@@ -281,6 +281,8 @@ async function frame(pg, test) {
 		/* L2.4: at the surface starport: ask for clearance (N), get a pad; set down on someone else's pad: refused;
 		   set down inside your own: docked, the port's screens open; launch: the clamps let go, and lift off */
 		const sl4 = ms => new Promise(r => setTimeout(r, ms));
+		/* (0.4.4: the starter's Autopilot Computer would take over once cleared: these steps are flown by hand) */
+		await f.evaluate(() => { EmberDebug.ship.autopilot = false; EmberDebug.game.ap = null });
 		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, sp = g.surfacePorts.find(x => x.q.kind == 'starport'), at = EmberDebug.surfacePortAt(sp); g.clearance = null; g.landed = null; g.gear = false; g.npcs = []; s.p = at.pos.map((v, i) => v + at.up[i] * 1500); s.v = EmberFlight.frameAt(EmberScene.worldFrame(sp.body), s.p).v; s.q = EmberScene.lookRotation(at.rot.slice(0, 3), at.up); g.atc = {} });
 		await pg.keyboard.press('KeyN'); await sl4(300);
 		const set = async which => f.evaluate(async which => {
@@ -325,6 +327,7 @@ async function frame(pg, test) {
 		await put(60000);
 		const jl = await f.evaluate(() => { const g = EmberDebug.game, x = EmberGalaxy.starsNear(g.star.x, g.star.y, g.star.z, 3).find(y => y.kind == 'star' && y.id != g.star.id); g.route = {legs: [{kind: 'jump', star: x, d: Math.hypot(x.x - g.star.x, x.y - g.star.y, x.z - g.star.z)}], toStar: x}; g.fuel = 1;
 			const d = EmberDebug.sysDir(x), s = EmberDebug.s; s.q = EmberScene.lookRotation(d.map(v => -v), Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); return x.name });
+		await f.evaluate(() => { EmberDebug.ship.autopilot = false; EmberDebug.game.ap = null });   /* (by hand first; the autopilot after) */
 		await pg.keyboard.press('KeyJ'); await sleep(300);
 		const j0 = await f.evaluate(() => { const g = EmberDebug.game, h = g.hudData; return {jump: !!g.jump, said: g.msgs.slice(-1)[0].text, sys: h.system && {rows: h.system.rows, aligned: h.system.aligned, on: h.system.on}} });
 		await f.evaluate(() => { const g = EmberDebug.game, d = EmberDebug.sysDir(g.route.legs[0].star), s = EmberDebug.s; s.q = EmberScene.lookRotation(d, Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); s.w = [0, 0, 0] });
@@ -335,6 +338,13 @@ async function frame(pg, test) {
 		await pg.keyboard.press('KeyJ'); await sleep(150); await f.evaluate(() => { EmberDebug.game.route = null; EmberDebug.game.jump = null });
 		ok('9x. a jump needs the nose on the system\'s star: refused facing away (the card gives distance, government, superpower, population), and charges once lined up, the open reticle on the star mid-screen',
 			!j0.jump && /^Align with /.test(j0.said) && j0.sys && j0.sys.rows.length >= 4 && !j0.sys.aligned && !j0.sys.on && j1.jump && j1.sys.aligned && j1.sys.on, {jl, j0, j1});
+		/* 0.4.4: with the starter's Autopilot Computer, J turns the ship onto the star and the jump charges by itself */
+		const ja = await f.evaluate(async () => { const g = EmberDebug.game, s = EmberDebug.s, x = EmberGalaxy.starsNear(g.star.x, g.star.y, g.star.z, 3).find(y => y.kind == 'star' && y.id != g.star.id); EmberDebug.ship.autopilot = true; g.jump = null; g.ap = null;
+			g.route = {legs: [{kind: 'jump', star: x, d: Math.hypot(x.x - g.star.x, x.y - g.star.y, x.z - g.star.z)}], toStar: x}; const d = EmberDebug.sysDir(x); s.q = EmberScene.lookRotation(d.map(v => -v), Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]); s.w = [0, 0, 0]; return x.name });
+		await f.focus('#hud'); await pg.keyboard.press('KeyJ');
+		const ja1 = await f.evaluate(async () => { const g = EmberDebug.game; for (let i = 0; i < 120 && !g.jump; i++) await new Promise(r => setTimeout(r, 100)); const said = (g.msgs.slice(-4).find(m => /^Autopilot: aligning/.test(m.text)) || {text: g.msgs.slice(-1)[0].text}).text; return {said, ap: g.ap && g.ap.mode, jump: !!g.jump, off: g.hudData.system && g.hudData.system.note, aligning: g.msgs.slice(-6).filter(m => /^Autopilot: aligning/.test(m.text)).length} });
+		await f.evaluate(() => { const g = EmberDebug.game; g.jump = null; g.ap = null; g.route = null });
+		ok('9x2. 0.4.4: with the starter\'s Autopilot Computer, J turns the ship onto the system\'s star and the jump charges', /^Autopilot: aligning with /.test(ja1.said) && ja1.aligning == 1 && ja1.jump, {ja, ja1});
 		const rb = await f.evaluate(async () => { const g = EmberDebug.game, ft = EmberDebug.fit; EmberModules.damage(ft, 'sensors', 1e6); EmberDebug.reboot(); const r = {on: ft.reboot > 0, weapons: EmberModules.status(ft).weapons, thrust: EmberModules.status(ft).output.main};
 			await new Promise(z => setTimeout(z, 1500)); r.o2 = ft.o2 < ft.o2Max; r.chip = g.hudData.reboot > 0 && !!g.hudData.o2; ft.reboot = 0.2; await new Promise(z => setTimeout(z, 600));
 			r.back = EmberModules.works(ft, 'sensors'); r.said = g.msgs.some(m => /^Reboot complete: Sensors back/.test(m.text)); return r });

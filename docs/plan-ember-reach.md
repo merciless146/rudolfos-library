@@ -1308,6 +1308,8 @@ also arms the first ships and adds fire groups:
   - **A new pilot's first ship** carries the gimballed versions of its stock guns.
   - **Third person** (V, or the radial menu) puts the camera 2.2 ship lengths behind and 0.55 above, looking where
     the ship looks.
+- **0.4.4:** starter ships (a new pilot's first, and insurance's starter ship) come with an Autopilot Computer
+  (docking and cruise assist), in a free internal slot or in place of the smallest cargo rack.
 
 Still to come: mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
 

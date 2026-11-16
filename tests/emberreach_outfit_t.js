@@ -58,5 +58,10 @@ try {
 	/* (0.4.3) a new pilot's first ship: its guns gimballed */
 	const firsts = ['wren', 'gnat', 'tinker'].map(id => S.hull(id)).filter(Boolean), sf = firsts.map(h => ({h, f: O.starter(h)}));
 	ok('22. a new pilot\'s first ship carries the gimballed versions of its stock guns', sf.length >= 2 && sf.every(({h, f}) => O.valid(h, f) && f.external.length == O.stock(h).external.length && f.external.every(m => /G$/.test(m.id)) && C.state(O.derive(h, f)).load.guns.every(g => g.mount == 'gimbal')), sf.map(x => x.f.external.map(m => m.id)));
+	/* (0.4.4) starter ships come with an Autopilot Computer (docking and cruise assist) */
+	const starters = [...new Set(F.majors().map(m => Tr.newPlayer(m.id).ship.model))].map(id => S.hull(id));
+	ok('23. every power\'s starter ship comes with an Autopilot Computer (and keeps its shield)', starters.length >= 2 && starters.every(h => { const f = O.starter(h), g = O.starter(h, {gimbal: false}); return O.valid(h, f) && O.derive(h, f).autopilot && O.derive(h, g).autopilot && f.internal.some(m => m && m.id == 'shield') && !g.external.some(m => /G$/.test(m.id)) }), starters.map(h => h.id));
+	const hob = S.hull('hob'), hf = hob && O.withAutopilot(hob, O.stock(hob));
+	ok('24. with no free slot, the autopilot takes the smallest cargo rack\'s place', !hob || (O.valid(hob, hf) && hf.internal.some(m => m && m.id == 'autopilot') && hf.internal.filter(m => m && m.id == 'cargo').length == O.stock(hob).internal.filter(m => m && m.id == 'cargo').length - 1));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
