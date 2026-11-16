@@ -53,7 +53,7 @@ try {
 	ok('14. a ring\'s mining site lies in its densest band, and its asteroids are the ring\'s own', L0.band && !L0.band.gap && rank[L0.band.density] == Math.max(...rk2.ring.bands.filter(b => !b.gap).map(b => rank[b.density])) && Mi.rocks(site, {}).every(r => r.id.startsWith(rk2.ring.id + '#')));
 	ok('15. its hotspots are fields too, marked as hotspots (play.js shows them only with a prospecting array)', fs.filter(y => y.hotspot).length == rk2.ring.hotspots.length && fs.filter(y => y.hotspot).every(y => /hotspot/.test(y.name)));
 	const O = require(path.join(DIR, 'outfit.js'));
-	ok('16. the prospecting array: a utility module, for mining work', O.CAT.array && O.CAT.array.cat == 'utility' && /hotspot/.test(O.CAT.array.text) && O.CAT.array.price > O.CAT.prospector.price);
+	ok('16. the prospecting array: a utility module that shows hotspots; reading asteroids is the resource scanner\'s job', O.CAT.array && O.CAT.array.cat == 'utility' && /hotspot/.test(O.CAT.array.text) && /resource scanner reads the asteroids/.test(O.CAT.array.text) && /asteroid/.test(O.CAT.prospector.text) && O.CAT.array.price > O.CAT.prospector.price);
 } catch (e) { N++; console.log('FAIL (threw) ' + e.stack) }
 console.log(P + '/' + (P + N) + ' passed');
 process.exit(N ? 1 : 0);

@@ -691,9 +691,10 @@ the deposits the ground scan marks can be mined. Then colonies come down to the 
     dearer minerals (titanium, jade, diamond in stone rings; beryllium, uranium in ice; titanium, gold, diamond,
     uranium in metal; the Rift's own in its rings).
   - **Yield:** inside, about half of what's mined is that mineral, and the asteroids hold half again as much.
-  - **Seeing them:** only a ship with a **prospecting array** (a utility module, 24,000 SU, which also reads
-    asteroids as the resource scanner does) sees and can target them. The minerals are there for anyone who
-    mines there.
+  - **Seeing them:** only a ship with a **prospecting array** (a utility module, 24,000 SU) sees and can target
+    them. The minerals are there for anyone who mines there.
+  - **Reading asteroids** (0.4.2): only the resource scanner reads what an asteroid holds, scanning the asteroid
+    itself. The array finds hotspots and nothing more.
 - **The mining site:** a point in the ring's densest band, and the asteroids there are the ring's own (`mining.js`
   fields and rocks).
 - **Belts:** unchanged (L3.3).
