@@ -295,7 +295,7 @@ function pinLanded(scene, landed, t) {
 }
 
 /* ---------- cruise ---------- */
-const CRUISE = {k: 1, cap: 200 * C, min: 2000, charge: 3, lock: 10000, drop: {station: 10300, planet: 1.0, star: 5}, emergency: 3e5};
+const CRUISE = {k: 1, cap: 200 * C, min: 2000, charge: 3, lock: 10000, drop: {station: 10300, planet: 1.0, star: 5, ring: 4000}, emergency: 3e5};
 /* the nearest surface, and how far (m) */
 function nearest(scene, p) {
 	let best = {d: Infinity, what: null};
@@ -323,11 +323,15 @@ function lockedBy(scene, p) {
 const landableTarget = b => b.kind == 'planet' && !b.atmo && !(b.src && b.src.gas) && !!Ld() && Ld().landable(b.src || b).ok;
 const DROP_LAND = 5e4 * WS;
 /* the fastest cruise allowed here */
-const cruiseLimit = (scene, p) => Math.min(CRUISE.cap, Math.max(CRUISE.min, CRUISE.k * Math.max(0, nearest(scene, p).d)));
+/* (L3.2: a ringed world's rings count as well: the sheet between 1.35 and 2.3 radii, 400 m thick, in its equator) */
+function ringDist(b, p) { const d = sub(p, b.pos), ax = b.axis || [0, 0, 1], z = dot(d, ax), r = len(sub(d, mul(ax, z))), rad = Math.max(0, 1.35 * b.radius - r, r - 2.3 * b.radius); return Math.hypot(rad, Math.max(0, Math.abs(z) - 200)) }
+const ringsNear = (scene, p) => scene.bodies.reduce((m, b) => b.ring ? Math.min(m, ringDist(b, p)) : m, Infinity);
+const cruiseLimit = (scene, p) => Math.min(CRUISE.cap, Math.max(CRUISE.min, CRUISE.k * Math.max(0, Math.min(nearest(scene, p).d, ringsNear(scene, p)))));
 /* how close to a target (its surface, m) the cruise drops out: a port at the edge of its 10 km lock. With cruise
    assist (autopilot.js) a world is left at the edge of its lock too (and a world you can land on no lower than its
-   own drop point): a surface port's target drops out over its world, or at the edge of its own lock, first come */
-const dropRange = (target, assist) => target.surface && target.body ? dropRange(target.body, assist) : target.kind == 'port' ? CRUISE.drop.station - (target.radius || 0) :
+   own drop point): a surface port's target drops out over its world, or at the edge of its own lock, first come;
+   a ring (L3.2) 4 km from its nearest point */
+const dropRange = (target, assist) => target.surface && target.body ? dropRange(target.body, assist) : target.kind == 'port' ? CRUISE.drop.station - (target.radius || 0) : target.kind == 'ring' ? CRUISE.drop.ring :
 	assist && target.kind == 'planet' && target.karman ? Math.max(lockAlt(target) * 1.03, landableTarget(target) ? Math.max(target.karman, DROP_LAND) : 0) : target.bh ? bhSafe(target) * 1.5 : landableTarget(target) ? Math.max(target.karman || 0, DROP_LAND) : target.kind == 'planet' ? target.radius * CRUISE.drop.planet : target.kind == 'star' ? target.radius * CRUISE.drop.star : CRUISE.drop.station - (target.def ? target.def.radius : 0);
 /* the ship's proximity safety: how close it lets itself go. Black holes 2,000 km; stars 1.6 radii; worlds with air
    their atmosphere's top (1.12 radii); airless worlds their surface, 300 m up (no landing yet) */
@@ -380,7 +384,7 @@ function spawn(scene, dist) {
 }
 
 const EmberScene = {WS, TS, AU_S, RE_S, RSUN_S, DROP_LAND, lockAlt, worldLock, portLock, stationLock, lockedBy, dropLeft, landableTarget, localDir, groundAt, landAt, pinLanded, worldFrame, heightAt, surfaceState, AU, RE, RSUN, C, STATION, CRUISE, DOCK, build, turnOf, bodyFrame, spinOf, partsOf, sdPart, toLocal, toWorldPt, toWorldDir, angleAt, frame, nearestPart,
-	KARMAN, karmanOf, gravityAt, gravityWell, SAFE, bhSafe, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
+	KARMAN, karmanOf, gravityAt, gravityWell, SAFE, bhSafe, safeDist, inMouth, dockCheck, collide, resolve, nearest, massLocked, cruiseLimit, ringDist, ringsNear, dropRange, surfaceDist, cruiseStep, dropOut, spawn, arrival, lookRotation, rotZ,
 	v: {add, sub, mul, dot, cross, len, norm}};
 if (isNode) module.exports = EmberScene; else root.EmberScene = EmberScene;
 })(typeof window != 'undefined' ? window : this);

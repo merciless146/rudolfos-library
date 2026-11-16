@@ -13,6 +13,9 @@
      is that mineral, and its asteroids hold half again as much. Only a ship with a prospecting array (a utility
      module, outfit.js) sees them (what's in each asteroid is read with a resource scanner); the minerals are there for anyone who mines there.
    - The mining site: a point in the ring's densest band, the same every visit, for cruise to drop out at.
+   - Flying in it (L3.2, 0.4.6): the ring is a navigation target (nearestPoint: the point of it nearest you, in its
+     plane, in the nearest band that isn't a gap) that cruise drops out 4 km from; its asteroids are mined anywhere in
+     its bands (play.js loads them 7.5 km round the ship as it flies); sheetDist is how far a point is from the sheet.
    The ring lies in the planet's equator (its axis), and doesn't turn with it. Pure functions. GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -126,6 +129,18 @@ function siteOf(ring) {
 	return worldAt(ring, (B.r0 + B.r1) / 2 * ring.R, r() * 2 * Math.PI, 0);
 }
 
-const EmberRings = {RING, RARE, RARE_RIFT, siteOf, GOODS, hash3, bands, mixOf, ringOf, locate, worldAt, cellsOf, cellRocks, rocksAround, hotspots};
+/* (L3.2) the point of the ring nearest p: in its plane, at p's own angle round it, in the nearest band that isn't a
+   gap (a little inside its edges) */
+function nearestPoint(ring, p) {
+	const L = locate(ring, p), r = L.r / ring.R, full = ring.bands.filter(B => !B.gap);
+	if (!full.length) return worldAt(ring, (RING.inner + RING.outer) / 2 * ring.R, L.a, 0);
+	let best = r, bd = Infinity;
+	for (const B of full) { const m = (B.r1 - B.r0) * 0.05, rr = Math.min(B.r1 - m, Math.max(B.r0 + m, r)), d = Math.abs(rr - r); if (d < bd) { bd = d; best = rr } }
+	return worldAt(ring, best * ring.R, L.a, 0);
+}
+/* (L3.2) how far p is from the ring's sheet (m): 0 inside it (gaps and all) */
+function sheetDist(ring, p) { const L = locate(ring, p), rad = Math.max(0, RING.inner * ring.R - L.r, L.r - RING.outer * ring.R); return Math.hypot(rad, Math.max(0, Math.abs(L.z) - RING.thick / 2)) }
+
+const EmberRings = {nearestPoint, sheetDist, RING, RARE, RARE_RIFT, siteOf, GOODS, hash3, bands, mixOf, ringOf, locate, worldAt, cellsOf, cellRocks, rocksAround, hotspots};
 if (isNode) module.exports = EmberRings; else root.EmberRings = EmberRings;
 })(typeof window != 'undefined' ? window : this);

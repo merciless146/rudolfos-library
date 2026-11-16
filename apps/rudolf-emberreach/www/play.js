@@ -58,11 +58,11 @@
 const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
-	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance;
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.5'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.6'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -207,7 +207,8 @@ function enterSystem(star) {
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
 	site(); beaconAt();
-	game.fields = Mi.fields(scene, star).map(f => Object.assign(f, {kind: 'field', radius: 500, fieldKind: f.kind})); game.field = null; game.rocks = [];
+	game.fields = Mi.fields(scene, star).map(f => Object.assign(f, {kind: 'field', radius: 500, fieldKind: f.kind})); game.field = null; game.rocks = []; game.rocksAt = null; game.hotHere = null;
+	game.ringNav = game.fields.filter(f => f.ring && !f.hotspot).map(ringNav);
 	meshes();
 }
 /* every mesh, at the graphics setting */
@@ -289,7 +290,13 @@ const nearRocks = () => game.rocks.filter(r => len(sub(r.pos, s.p)) < 5000).sort
    system is the star map's pick, or the route's next leg) for cruise, surveys and jumps, picked with . (Period); and
    instance targets (the ships, canisters, asteroids, mining sites, deposits, the beacon, a colony's site) for guns,
    scans and the rest, picked with T. The HUD's card shows the instance target, or the navigation target with none */
-const navList = () => [...(st ? [st] : []), ...(game.surfacePorts || []).filter(sp => !sp.q.lone || X.found(game.P, game.star.id, sp.q.id)).map(sp => sp.tgt || (sp.tgt = surfaceTarget(sp))), ...scene.bodies.filter(b => b.kind == 'planet'), ...scene.bodies.filter(b => b.kind == 'star')];
+const navList = () => [...(st ? [st] : []), ...(game.surfacePorts || []).filter(sp => !sp.q.lone || X.found(game.P, game.star.id, sp.q.id)).map(sp => sp.tgt || (sp.tgt = surfaceTarget(sp))), ...scene.bodies.filter(b => b.kind == 'planet').flatMap(b => [b, ...(game.ringNav || []).filter(r => r.body == b.name)]), ...scene.bodies.filter(b => b.kind == 'star')];
+/* (L3.2) a world's rings as a navigation target: the point of them nearest you (in their plane, in a band), which
+   moves as you do; cruise drops out 4 km from it (scene.js) */
+const ringNav = f => ({kind: 'ring', name: f.ring.name, ring: f.ring, field: f, body: f.body, radius: 1, get pos() { return Rg.nearestPoint(f.ring, s.p) }});
+const STREWN = {dense: 'densely strewn', moderate: 'moderately strewn', sparse: 'sparsely strewn'};
+/* (L3.2) a ring's asteroids are loaded this far round the ship, again each time it has come `step` from where they were */
+const RINGROCKS = {radius: 7500, step: 2500, reach: 8000}, RING_FADE = [6000, 50000];
 /* (0.4.1) a ring's mineral hotspots show only to a ship with a working prospecting array */
 const seesHot = () => !!(ship && ship.utility.array && M.works(fit, 'sensors') && M.works(fit, 'power'));
 const shownFields = () => game.fields.filter(f => !f.hotspot || seesHot());
@@ -1272,7 +1279,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {navList: () => navList(), scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -1468,9 +1475,17 @@ function phaseOut() {
 function mine(dt) {
 	/* the site you're at: its asteroids, the same every visit */
 	/* (the nearest site within 25 km; a hotspot's minerals are there whether or not you can see it) */
-	const f = game.fields.filter(x => len(sub(x.pos, s.p)) < 25000).sort((a, b) => len(sub(a.pos, s.p)) - len(sub(b.pos, s.p)))[0];
-	if (f && game.field != f) { game.field = f; game.rocks = Mi.rocks(f, game.P.mined); for (const r of game.rocks) rockMesh(r); if (!f.hotspot) say('Mining site: ' + f.name + ', ' + Mi.KINDS[f.fieldKind].name, '#c9a46a'); else if (seesHot()) say('Mineral hotspot: ' + f.hotspot.good + ', in ' + f.name.split(' · ')[1] + ' (the prospecting array marks it)', '#c9a46a') }
-	else if (!f && game.field) { game.field = null; game.rocks = [] }
+	/* (L3.2) in a ring: its asteroids all round you, wherever you are in its bands (not only at its site) */
+	const rf = game.fields.find(x => x.ring && !x.hotspot && Rg.sheetDist(x.ring, s.p) < RINGROCKS.reach);
+	if (rf) {
+		if (game.field != rf) { game.field = rf; game.rocks = []; game.rocksAt = null; game.hotHere = null; say('In ' + rf.name + ': a ' + Mi.KINDS[rf.fieldKind].name + ', ' + STREWN[rf.ring.density] + '. Its asteroids can be mined anywhere in its bands', '#c9a46a') }
+		if (!game.rocksAt || len(sub(s.p, game.rocksAt)) > RINGROCKS.step) ringRocks(rf);
+		const h = rf.ring.hotspots.find(x => len(sub(x.pos, s.p)) < x.radius), hid = h ? h.id : null;
+		if (hid != game.hotHere) { game.hotHere = hid; if (h && seesHot()) say('Mineral hotspot: ' + h.good + ', in ' + rf.name + ' (the prospecting array marks it)', '#c9a46a') }
+	}
+	const f = rf ? null : game.fields.filter(x => !x.ring && len(sub(x.pos, s.p)) < 25000).sort((a, b) => len(sub(a.pos, s.p)) - len(sub(b.pos, s.p)))[0];
+	if (!rf && f && game.field != f) { game.field = f; game.rocks = Mi.rocks(f, game.P.mined); for (const r of game.rocks) rockMesh(r); if (!f.hotspot) say('Mining site: ' + f.name + ', ' + Mi.KINDS[f.fieldKind].name, '#c9a46a'); else if (seesHot()) say('Mineral hotspot: ' + f.hotspot.good + ', in ' + f.name.split(' · ')[1] + ' (the prospecting array marks it)', '#c9a46a') }
+	else if (!rf && !f && game.field) { game.field = null; game.rocks = []; game.rocksAt = null; game.hotHere = null }
 	if (!game.rocks.length) return;
 	/* bumping into rocks */
 	for (const r of game.rocks) {
@@ -1484,6 +1499,12 @@ function mine(dt) {
 		if (len(sub(s.p, Tg.pos)) < Mi.MINE.scanRange) { Tg.scanT = (Tg.scanT || 0) + dt; if (Tg.scanT >= Mi.MINE.scanTime) { Tg.prospected = true; say('Prospected ' + Tg.name + ': ' + comp(Tg) + ' · ' + Tg.left + ' t left', '#c9a46a'); Snd.cue('chart') } }
 		else Tg.scanT = 0;
 	}
+}
+/* (L3.2) the ring's asteroids round the ship; those already loaded are kept as they are (hits, scans, targets) */
+function ringRocks(f) {
+	const old = {}; for (const r of game.rocks) old[r.id] = r;   /* (Map here is the star map's module) */
+	game.rocksAt = s.p.slice(); game.rocks = Rg.rocksAround(f.ring, s.p, RINGROCKS.radius, game.P.mined).map(r => old[r.id] || r);
+	for (const r of game.rocks) if (!r.mesh) rockMesh(r);
 }
 const comp = r => Object.entries(r.comp).sort((a, b) => b[1] - a[1]).map(([g, k]) => g + ' ' + Math.round(k * 100) + '%').join(', ');
 function rockMesh(r) { const k = 'rock:' + r.radius + ':' + r.shape + ':' + game.field.fieldKind; r.mesh = k; if (!game.npcMeshes.has(k)) { game.npcMeshes.add(k); R.upload(k, Me.rock(r.radius, 11 + r.shape * 17 + r.radius, game.field.fieldKind)) } }
@@ -1741,9 +1762,9 @@ function draw() {
 		} else {
 			const pal = b.pal || (b.pal = avgColour(b));
 			/* close to an airless world, its terrain's tiles stand in for the sphere */
-			if (b == ground && terrainItems(b, items, bf, sun)) { if (b.ring) items.push({id: b.name + ':rings', pos: b.pos, rot, light: lightDir, amb: 0.45}); game.lod.meshes++; continue }
+			if (b == ground && terrainItems(b, items, bf, sun)) { if (b.ring) items.push({id: b.name + ':rings', pos: b.pos, rot, light: lightDir, amb: 0.45, fade: RING_FADE}); game.lod.meshes++; continue }
 			items.push({id: b.name, pos: b.pos, rot, light: lightDir, atmo, disc: {radius: b.radius, col: pal}, sprite: far ? {radius: b.radius, col: pal} : null});
-			if (b.ring && !far) items.push({id: b.name + ':rings', pos: b.pos, rot, light: lightDir, amb: 0.45});   /* rings scatter light: lit even edge-on */
+			if (b.ring && !far) items.push({id: b.name + ':rings', pos: b.pos, rot, light: lightDir, amb: 0.45, fade: RING_FADE});   /* rings scatter light: lit even edge-on; (L3.2) their flat bands fade out up close, where their asteroids are */
 		}
 		game.lod[far ? 'sprites' : 'meshes']++;
 	}
@@ -1838,6 +1859,13 @@ function hudDraw(cam) {
 	if (Tg.kind == 'asteroid') { const d = len(sub(s.p, Tg.pos)); target.kind = 'asteroid · ' + Tg.radius * 2 + ' m'; target.dock = Tg.prospected ? {line1: comp(Tg), line2: Tg.left > 0 ? Tg.left + ' t left · fire a mining laser within 600 m' : 'Spent', col: '#c9a46a'} : !ship.utility.prospector ? {line1: 'Composition unknown', line2: 'A resource scanner reads it', col: '#9fb0cc'} : {line1: d < Mi.MINE.scanRange ? 'Prospecting… ' + Math.round((Tg.scanT || 0) / Mi.MINE.scanTime * 100) + '%' : 'Prospect within 3 km', col: '#c9a46a'} }
 	if (Tg.kind == 'field') { target.kind = Tg.hotspot ? 'mineral hotspot · ' + Tg.hotspot.good + ' · 5 km across' : 'mining site · ' + Mi.KINDS[Tg.fieldKind].name; target.dock = {line1: 'Cruise here and drop out to mine', line2: (ship.mining ? ship.mining + ' mining laser' + (ship.mining > 1 ? 's' : '') : 'No mining laser') + ' · ' + (ship.refinery ? ship.refinery + ' refinery bins' : 'no refinery'), col: '#c9a46a'} }
 	if (Tg.bh) { const d = len(sub(s.p, Tg.pos)), pr = phaseRange(Tg), maw = game.star.heart; target.kind = maw ? 'the Maw · ' + Math.round(game.star.M).toLocaleString('en-US') + ' suns · ' + (game.star.rift ? 'the way home' : 'the way into the Rift') : 'black hole · ' + (game.star.M || 0).toFixed(1) + ' suns · a wormhole'; target.dock = !ship.phaser ? {line1: 'No dimensional phaser: the wormhole is closed to you', line2: 'Blueprints lie in ruins; an artifact broker builds them', col: '#9fb0cc'} : {line1: d < pr ? 'Press J to phase through' : 'Phase within ' + H.fmtDist(pr), line2: maw ? (game.star.rift ? 'Home: the heart of the galaxy' : 'The Rift: the galaxy upside down') : game.star.rift ? 'To a random star in the Rift' : 'To a random star, anywhere', col: d < pr ? '#c9a0ff' : '#9fb0cc'} }
+	if (Tg.kind == 'ring') {
+		const Lr = Rg.locate(Tg.ring, s.p), inside = Rg.sheetDist(Tg.ring, s.p) < 1000, B = Lr.band;
+		target.kind = Mi.KINDS[Tg.ring.kind].name + ' · ' + STREWN[Tg.ring.density] + ' · ' + Tg.ring.bands.filter(b => !b.gap).length + ' bands';
+		target.dock = inside && B && !B.gap ? {line1: 'In band ' + (B.i + 1) + ' of ' + Tg.ring.bands.length + ' · ' + STREWN[B.density], line2: (ship.mining ? 'Mine any asteroid here' : 'No mining laser') + ' · ' + game.rocks.length + ' within ' + H.fmtDist(RINGROCKS.radius), col: '#c9a46a'}
+			: inside ? {line1: 'In a gap between bands: no asteroids', line2: 'The nearest band is ' + H.fmtDist(Math.max(0, len(sub(Tg.pos, s.p)))) + ' off', col: '#9fb0cc'}
+			: {line1: 'Cruise here: it drops out ' + H.fmtDist(Sc.CRUISE.drop.ring) + ' off the ring', line2: 'Its asteroids can be mined anywhere in its bands', col: '#c9a46a'};
+	}
 	if (Tg.kind == 'deposit') { const dd = len(sub(posOf(Tg), s.p)); target.kind = 'deposit · ' + Tg.dep.res + ' · ' + Tg.dep.tons.toLocaleString('en-US') + ' t'; target.dock = {line1: 'Marked by the ground scan', line2: 'Mining from the ground comes later (L3)', col: '#c9a46a'} }
 	if (Tg.kind == 'beacon') { target.kind = 'navigation beacon'; target.dock = {line1: 'Hyperspace arrivals come out here', line2: navWorks() ? 'Receiver working' : ship.utility.nav ? 'Receiver offline' : 'No nav beacon receiver fitted', col: '#6cc9e8'} }
 	if (Tg.kind == 'site') {

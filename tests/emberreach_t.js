@@ -412,6 +412,30 @@ async function frame(pg, test) {
 			u.prospector = true; u.array = false; EmberDebug.scanNow(); const b = {read: rk.prospected, said: g.msgs.slice(-1)[0].text};
 			u.prospector = keep.p; u.array = keep.a; g.tgt = null; return {a, b} });
 		ok('9z5. 0.4.2: an asteroid is read with a resource scanner, scanning the asteroid itself; a prospecting array alone can\'t', !sc5.a.read && /No resource scanner/.test(sc5.a.said) && sc5.b.read && /^Prospected /.test(sc5.b.said), sc5);
+		/* 0.4.6 (L3.2): flying in a ring: its asteroids anywhere in its bands, loaded round the ship as it goes; the ring a
+		   navigation target that cruise drops out 4 km from */
+		const rf = await f.evaluate(async () => {
+			const g = EmberDebug.game, s = EmberDebug.s, fd = g.fields.find(x => x.ring && !x.hotspot), ring = fd.ring, wait = ms => new Promise(r => setTimeout(r, ms));
+			const D = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+			const L0 = EmberRings.locate(ring, fd.pos), B = ring.bands.find(b => !b.gap && b.i != L0.band.i && b.density != 'sparse') || ring.bands.find(b => !b.gap && b.i != L0.band.i), an = L0.a + 2;
+			const here = EmberRings.worldAt(ring, (B.r0 + B.r1) / 2 * ring.R, an, 0), tan = [0, 1, 2].map(i => -Math.sin(an) * ring.e1[i] + Math.cos(an) * ring.e2[i]);
+			g.ap = null; g.npcs = []; g.cruise = {on: false, v: 0, charge: 0}; s.v = [0, 0, 0];
+			s.p = here.map((v, i) => v + ring.ax[i] * 600); s.q = EmberScene.lookRotation(tan.map((v, i) => v - ring.ax[i] * 0.08), ring.ax); await wait(1200);
+			const out = {far: Math.round(D(s.p, fd.pos)), field: g.field == fd, rocks: g.rocks.length, own: g.rocks.every(r => r.id.startsWith(ring.id + '#')), round: g.rocks.every(r => D(r.pos, s.p) <= 7501), said: g.msgs.filter(m => /^In .* rings: /.test(m.text)).length};
+			const keep = g.rocks.find(r => D(r.pos, s.p.map((v, i) => v + tan[i] * 4000)) < 3000) || null;
+			s.p = s.p.map((v, i) => v + tan[i] * 4000); await wait(600);
+			out.moved = {rocks: g.rocks.length, reloaded: D(g.rocksAt, s.p) < 100, kept: !keep || g.rocks.includes(keep)};
+			const L = EmberDebug.navList(), rt = L.find(x => x.kind == 'ring' && x.ring == ring);
+			out.nav = !!rt && L.indexOf(rt) == L.findIndex(x => x.name == ring.body) + 1 && D(rt.pos, s.p) < 1000;
+			/* cruise at it from 60 km above */
+			s.p = here.map((v, i) => v + ring.ax[i] * 60000); s.q = EmberScene.lookRotation(ring.ax.map(v => -v), ring.e1); g.nav = rt; g.tgt = null; g.throttle = 1; g.cruise = {on: true, v: 3000, charge: 0};
+			for (let i = 0; i < 150 && g.cruise.on; i++) await wait(100);
+			out.cruise = {dropped: !g.cruise.on, d: Math.round(EmberRings.sheetDist(ring, s.p)), said: g.msgs.slice(-1)[0].text};
+			s.v = [0, 0, 0]; s.p = here.map((v, i) => v + ring.ax[i] * 2500); s.q = EmberScene.lookRotation(tan.map((v, i) => v - ring.ax[i] * 0.3), ring.ax); g.nav = null; await wait(800);   /* (a view along the ring: its asteroids near, its bands fading in further off) */
+			return out });
+		await pg.screenshot({path: path.join(W, 'ring-inside.png')});
+		ok('9z5a. 0.4.6 (L3.2): anywhere in a ring\'s bands (far from its site) its asteroids are there to mine, loaded round the ship as it flies (those loaded kept)', rf.field && rf.far > 20000 && rf.rocks >= 3 && rf.own && rf.round && rf.said >= 1 && rf.moved.reloaded && rf.moved.kept && rf.moved.rocks >= 1, rf);
+		ok('9z5b. 0.4.6 (L3.2): the ring is a navigation target, after its world; cruise at it drops out about 4 km off', rf.nav && rf.cruise.dropped && rf.cruise.d > 2500 && rf.cruise.d < 6000, rf);
 		/* 0.4.3: third person (V): above and behind the ship, the ship drawn; and shots leave from the gun mounts */
 		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberDebug.scene.station; EmberDebug.go(g.home.star) }); await sleep(600);
 		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberDebug.scene.station; g.npcs = []; s.p = st.c.map((v, i) => v + st.axis[i] * 16000); s.v = [0, 0, 0]; g.chase = false });

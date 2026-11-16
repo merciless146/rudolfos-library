@@ -48,7 +48,7 @@ vec4 project(vec3 c) { float w = dot(c, uF); return vec4(dot(c, uR) * uK.x, dot(
 		mesh: prog(head + proj + `
 in vec3 aP, aN; in vec4 aC; uniform vec3 uOff; uniform mat3 uRot; out vec3 vN; out vec4 vC; out float vW; out vec3 vPos;
 void main() { vec3 c = uOff + uRot * aP; gl_Position = project(c); vW = gl_Position.w; vN = normalize(uRot * aN); vC = aC; vPos = c; }`,
-		head + NV + `in vec3 vN; in vec4 vC; in float vW; in vec3 vPos; uniform vec3 uL; uniform float uAmb; uniform vec4 uAtmo; uniform vec3 uSpotP, uSpotD; uniform vec4 uSpot; out vec4 o;
+		head + NV + `in vec3 vN; in vec4 vC; in float vW; in vec3 vPos; uniform vec3 uL; uniform float uAmb; uniform vec4 uAtmo; uniform vec3 uSpotP, uSpotD; uniform vec4 uSpot; uniform vec2 uFade; out vec4 o;
 void main() { vec3 n = normalize(vN); float d = max(dot(n, uL), 0.0);
  /* the ambient isn't flat: starlight from the sky opposite the sun, so a night side's slopes still read (in night vision above all) */
  vec3 lit = vC.rgb * (uAmb * (0.35 + 0.65 * max(dot(n, -uL), 0.0)) + (1.0 - uAmb) * d);
@@ -56,6 +56,8 @@ void main() { vec3 n = normalize(vN); float d = max(dot(n, uL), 0.0);
  if (uSpot.x > 0.0) { vec3 L = uSpotP - vPos; float dl = length(L); vec3 l = L / max(dl, 0.001); float cone = smoothstep(uSpot.y, mix(uSpot.y, 1.0, 0.35), dot(-l, uSpotD));
   lit += vC.rgb * vec3(1.0, 0.95, 0.85) * uSpot.x * cone * max(dot(n, l), 0.0) / (1.0 + (dl / uSpot.z) * (dl / uSpot.z)); }
  o = vec4(mix(lit, vC.rgb * 1.15, vC.a), 1.0);
+ /* (L3.2) a faded item (a ring's flat bands): nothing within uFade.x of the camera, whole beyond uFade.y */
+ if (uFade.y > 0.0) { o.a = smoothstep(uFade.x, uFade.y, length(vPos)); if (o.a < 0.01) discard; }
  /* a world's air: a rim of haze on its lit side */
  if (uAtmo.a > 0.0) { float rim = pow(1.0 - max(dot(n, -normalize(vPos)), 0.0), 3.0); o.rgb += uAtmo.rgb * uAtmo.a * rim * (0.15 + 0.85 * smoothstep(-0.2, 0.4, dot(n, uL))); }
  o.rgb = nightVision(o.rgb);
@@ -141,13 +143,28 @@ void main() { float r = length(vQ); if (r > 1.0) discard; vec3 n = vec3(vQ.x, vQ
 		gl.useProgram(P.mesh); camUniforms('mesh', B, K); gl.uniform1f(U.mesh.uNV, nv);
 		/* the spotlights (camera-relative): F.spot = {pos, dir, strength, cos, range} */
 		const sp = F.spot; if (sp) { gl.uniform3f(U.mesh.uSpotP, sp.pos[0] - F.cam.p[0], sp.pos[1] - F.cam.p[1], sp.pos[2] - F.cam.p[2]); gl.uniform3fv(U.mesh.uSpotD, sp.dir); gl.uniform4f(U.mesh.uSpot, sp.strength, sp.cos, sp.range, 0) } else gl.uniform4f(U.mesh.uSpot, 0, 0, 1, 0);
+		gl.uniform2f(U.mesh.uFade, 0, 0);
+		const faded = [];
 		for (const it of F.items) {
 			if (it.sprite) continue;
+			if (it.fade) { faded.push(it); continue }
 			const m = meshes[it.id]; if (!m) continue;
 			gl.uniform3f(U.mesh.uOff, it.pos[0] - F.cam.p[0], it.pos[1] - F.cam.p[1], it.pos[2] - F.cam.p[2]);
 			gl.uniformMatrix3fv(U.mesh.uRot, false, it.rot); gl.uniform3fv(U.mesh.uL, it.light || [0, 0, 1]); gl.uniform1f(U.mesh.uAmb, it.amb == null ? 0.07 : it.amb);
 			gl.uniform4fv(U.mesh.uAtmo, it.atmo || [0, 0, 0, 0]);
 			gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.n);
+		}
+		/* (L3.2) faded items last, blended over what's drawn, writing no depth */
+		if (faded.length) {
+			gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+			for (const it of faded) {
+				const m = meshes[it.id]; if (!m) continue;
+				gl.uniform3f(U.mesh.uOff, it.pos[0] - F.cam.p[0], it.pos[1] - F.cam.p[1], it.pos[2] - F.cam.p[2]);
+				gl.uniformMatrix3fv(U.mesh.uRot, false, it.rot); gl.uniform3fv(U.mesh.uL, it.light || [0, 0, 1]); gl.uniform1f(U.mesh.uAmb, it.amb == null ? 0.07 : it.amb);
+				gl.uniform4fv(U.mesh.uAtmo, it.atmo || [0, 0, 0, 0]); gl.uniform2f(U.mesh.uFade, it.fade[0], it.fade[1]);
+				gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.n);
+			}
+			gl.uniform2f(U.mesh.uFade, 0, 0); gl.depthMask(true); gl.disable(gl.BLEND);
 		}
 		gl.bindVertexArray(null);
 	}
@@ -188,8 +205,10 @@ function canvas2d(cv) {
 				if (!ok) continue;
 				const n = [m.n[i], m.n[i + 1], m.n[i + 2]], nw = [R[0] * n[0] + R[3] * n[1] + R[6] * n[2], R[1] * n[0] + R[4] * n[1] + R[7] * n[2], R[2] * n[0] + R[5] * n[1] + R[8] * n[2]], nl = Math.hypot(...nw) || 1;
 				const ci = (i / 9) * 12, col = [m.c[ci], m.c[ci + 1], m.c[ci + 2]], glow = m.c[ci + 3];
-				const k = glow > 0.5 ? 1.1 : 0.07 + 0.93 * Math.max(0, dot(nw, L) / nl);
-				draw.push({z: (P3[0][2] + P3[1][2] + P3[2][2]) / 3, tri: P3, fill: rgb(col, k)});
+				const k = glow > 0.5 ? 1.1 : 0.07 + 0.93 * Math.max(0, dot(nw, L) / nl), z = (P3[0][2] + P3[1][2] + P3[2][2]) / 3;
+				/* (L3.2) a faded item: by each triangle's distance */
+				let a = 1; if (it.fade) { const t = Math.min(1, Math.max(0, (z - it.fade[0]) / (it.fade[1] - it.fade[0]))); a = t * t * (3 - 2 * t); if (a < 0.01) continue }
+				draw.push({z, tri: P3, fill: rgb(col, k), a});
 			}
 		}
 		draw.sort((a, b) => b.z - a.z);
@@ -203,7 +222,7 @@ function canvas2d(cv) {
 				if (d.atmo && d.r > 3) { ctx.strokeStyle = 'rgba(' + (d.atmo[0] * 255 | 0) + ',' + (d.atmo[1] * 255 | 0) + ',' + (d.atmo[2] * 255 | 0) + ',' + (0.5 * d.atmo[3]).toFixed(2) + ')'; ctx.lineWidth = Math.max(1, d.r * 0.04); ctx.stroke() }
 				continue;
 			}
-			ctx.fillStyle = d.fill; ctx.strokeStyle = d.fill; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(d.tri[0][0], d.tri[0][1]); ctx.lineTo(d.tri[1][0], d.tri[1][1]); ctx.lineTo(d.tri[2][0], d.tri[2][1]); ctx.closePath(); ctx.fill(); ctx.stroke();
+			ctx.globalAlpha = d.a == null ? 1 : d.a; ctx.fillStyle = d.fill; ctx.strokeStyle = d.fill; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(d.tri[0][0], d.tri[0][1]); ctx.lineTo(d.tri[1][0], d.tri[1][1]); ctx.lineTo(d.tri[2][0], d.tri[2][1]); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
 		}
 	}
 	return {kind: 'canvas', upload: (id, m) => { meshes[id] = m }, clear: () => { for (const id of Object.keys(meshes)) delete meshes[id] }, drop: id => { delete meshes[id] }, ids: () => Object.keys(meshes), setSky: a => { sky = a }, frame, basis};
