@@ -328,8 +328,8 @@ beacons, windows) use the emissive channel the stations already use.
   - A colony's surface port can grow into a surface starport, the way a station grows into a great port.
 - **Combat.** Forward bases have turrets that fight for their holder. Above surface ports, patrols fly low.
   Pirates don't raid surface ports in L2; raids come later.
-- **Mining.** The ground scan shows surface deposits. Mining them by ship (a low pass with the mining laser
-  at a deposit) is L3. Surface vehicles are later.
+- **Mining.** The ground scan shows surface deposits. Mining them is part of colonization (L3.5, decided in
+  0.4.7), not done by a ship's mining laser.
 - **Exploration.**
   - A first landing on a world counts as a discovery.
   - Landing data sells at the cartographer, worth half a survey.

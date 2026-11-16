@@ -724,18 +724,18 @@ Tested in `tests/emberreach_rings_t.js` (17 checks), the mining test's 3, and th
 - **Belts round stars** stay as sites. A belt spans an orbit hundreds of millions of kilometres round, too large
   to fill. They take the hotspot rule (L3.1): 2 or 3 sites a belt, found with a resource scanner.
 
-### L3.4 Mining the ground
+### L3.4 Mining the ground: part of colonization (decided 0.4.7)
 
-- **Deposits** (marked by the ground scan, `explore.js` deposits) hold tonnes of their good.
-- **A mining laser** fired at one from a low pass (under 300 m) or from the ground breaks chunks off. They fly up
-  and are taken in through the hatch or by tractor beam, into the refinery, as in space.
-- **Deposits run down,** and are remembered in the save.
-- **Tests:** a deposit's yield; chunks from a low pass; nothing from too high.
+- **Planetary surfaces are mined through colonization,** not by a ship's mining laser. The deposits the ground
+  scan marks (`explore.js` deposits) are worked as part of the colony mechanics, planned with L3.5.
+- Ships go on mining in space: rings (L3.1, L3.2) and belts (L3.3).
 
 ### L3.5 Colonies on the ground
 
 - **Claims on airless worlds** become surface outposts and settlements (`surface.js` kinds), built and upgraded
   through the colonial office. Its planner shows the site's layout.
+- **Mining the surface** is part of this: a colony works its world's deposits (L3.4). How (what is built, what it
+  yields, and how the goods reach the market) is planned with the rest of L3.5.
 - **A colony's port can grow** into a surface starport.
 
 ### L3.6 Raids
@@ -752,8 +752,8 @@ Tested in `tests/emberreach_rings_t.js` (17 checks), the mining test's 3, and th
 | L3.1 rings made of asteroids | | medium |
 | L3.2 flying in a ring | L3.1 | large |
 | L3.3 belts | L3.1 | small |
-| L3.4 mining the ground | | medium |
-| L3.5 colonies on the ground | | large |
+| L3.4 mining the ground (folded into L3.5) | | |
+| L3.5 colonies on the ground, with surface mining | | large |
 | L3.6 raids | L3.5 | medium |
 | L3.7 release 0.5.0 | L3.1–L3.6 | small |
 

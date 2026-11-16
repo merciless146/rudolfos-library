@@ -1326,8 +1326,11 @@ also arms the first ships and adds fire groups:
     card gives the ring's kind, how densely it's strewn and its bands, and, in it, the band you're in.
   - **The flat bands fade up close:** nothing of them within 6 km of the camera, fading in out to 50 km, so in the
     ring you see its asteroids round you and the band stretching away.
+- **0.4.7:** mining planetary surfaces is part of colonization: a deposit's card says so (the plan folds L3.4
+  into L3.5, colonies on the ground).
 
-Still to come: mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
+Still to come: belts (L3.3), colonies on the ground with surface mining (L3.5), raids (L3.6), the Core's story,
+phones (1.6.0), and multiplayer.
 
 ## Open questions
 
