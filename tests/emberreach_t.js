@@ -96,7 +96,8 @@ async function frame(pg, test) {
 		const bound = await f.evaluate(() => ({flare: RG.bindings().flare, gear: RG.bindings().gear}));
 		await f.click('button[data-tab="2"]'); await f.selectOption('select[data-set="lang"]', 'en'); await sleep(200);
 		await f.click('#ovBtns button.primary'); await sleep(300);
-		const kept = await pg.evaluate(() => SAVES['ember-reach'] && SAVES['ember-reach'].settings && SAVES['ember-reach'].settings.controls.keys.flare);
+		/* (the save is written a moment after the screen closes: wait for it, up to 5 s, as a slower runner needs) */
+		let kept = null; for (let w = 0; w < 25 && !(kept && kept.includes('KeyL')); w++) { kept = await pg.evaluate(() => SAVES['ember-reach'] && SAVES['ember-reach'].settings && SAVES['ember-reach'].settings.controls.keys.flare); if (!(kept && kept.includes('KeyL'))) await sleep(200) }
 		ok('9. Settings (from the pause screen): the language changes the menus; Simple lists the core keys only, Full every one; a key rebinds (taken from the landing gear), and the save keeps it', es == 'Ajustes' && !simpleRows.flare && simpleRows.radial && bound.flare.includes('KeyL') && !bound.gear.includes('KeyL') && kept && kept.includes('KeyL'), {es, bound, kept, simpleRows});
 		/* Follow Rudolf OS: the language Rudolf OS shares (in its settings messages), else the browser's */
 		await f.click('#ovBtns button:nth-child(2)'); await sleep(300); await f.click('button[data-tab="2"]');
