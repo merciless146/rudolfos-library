@@ -36,7 +36,7 @@ function open(e) {
 	env = e; root = document.getElementById('port'); root.hidden = false;
 	const myCol = env.port && env.port.colony ? Co.colonyAt(env.P, env.star.id) : null;
 	/* (0.3.7) this port's own market: its kind and world, its people, and the trades you've made there */
-	mkt = E.market(env.star, env.day, Object.assign({port: env.port, P: env.P}, myCol ? {holder: env.port.owner, econ: Co.economy(myCol, env.star), people: myCol.pop || 0} : {}));
+	mkt = E.market(env.star, env.day, Object.assign({port: env.port, P: env.P}, myCol ? {holder: env.port.owner, econ: Co.economy(myCol, env.star), people: myCol.pop || 0, feed: Co.feeds(myCol, env.star, env.day)} : {}));
 	/* (0.3.8) modules kept before storage had places are taken in here */
 	if (env.place && Hg.services(env.port).storage) Hg.adopt(env.P, env.place);
 	screen = 'station'; sel = {good: Object.keys(mkt.prices)[0], ship: null};
@@ -182,12 +182,17 @@ const econText = e => Object.entries(e).sort((a, b) => b[1] - a[1]).map(([k, v])
 function buildOut(c, office) {
 	const me = P(), d = env.day, star = Co.starOf(c); if (!star) return '';
 	const st = Co.stats(c, star), here = env.star.id == c.id && env.port.colony, sl = Co.slots(star), pk = pick[c.id] || (pick[c.id] = {fac: 'mining', at: ''});
-	const opts = sl.flatMap(x => ['orbit', 'surface'].filter(w => x[w] > Co.used(c, x.body, w)).map(w => [x.body + '|' + w, x.body + ' · ' + w + ' (' + (x[w] - Co.used(c, x.body, w)) + ' free)']));
+	/* (0.4.9) a surface mine goes at a deposit the ground scan found on one of the colony's worlds */
+	const isMine = !!Co.FAC[pk.fac].deposit, deps = isMine ? Co.openDeposits(me, c) : [];
+	const opts = isMine ? deps.map(dp => [dp.body + '|surface|' + dp.id, dp.body + ' · ' + dp.res + ' deposit · ' + fmt(dp.tons) + ' t'])
+		: sl.flatMap(x => ['orbit', 'surface'].filter(w => x[w] > Co.used(c, x.body, w)).map(w => [x.body + '|' + w, x.body + ' · ' + w + ' (' + (x[w] - Co.used(c, x.body, w)) + ' free)']));
 	if (!opts.some(o => o[0] == pk.at)) pk.at = opts[0] ? opts[0][0] : '';
-	const [body, where] = pk.at.split('|'), ck = body ? Co.canBuild(c, star, pk.fac, body, where) : {ok: false, why: 'No free slots.'};
+	const [body, where, depId] = pk.at.split('|'), dep = depId && me.deposits && me.deposits[depId] ? Object.assign({id: depId}, me.deposits[depId]) : null;
+	const ck = isMine ? Co.canBuild(c, star, pk.fac, body, 'surface', dep, me) : body ? Co.canBuild(c, star, pk.fac, body, where) : {ok: false, why: 'No free slots.'};
 	let preview = '';
 	if (ck.ok && Co.FAC[pk.fac].econ) { const after = Co.economy({world: c.world, builds: [...c.builds, {fac: pk.fac, body, done: true}]}, star); preview = 'Economy after: ' + econText(after) }
-	const builds = c.builds.map(b => '<div class="pt-rep"><span>' + esc(Co.FAC[b.fac].name) + ' · ' + esc(b.body) + ' ' + b.where + '</span><span class="num">' + (b.done ? 'built' : pct(Co.progress(b))) + '</span><span class="muted">' + (b.done ? 'day ' + b.finished : Object.entries(Co.left(b)).map(([g, t]) => fmt(t) + ' ' + g).slice(0, 3).join(', ')) + '</span></div>').join('');
+	const mineNote = b => !b.dep ? '' : b.done ? (Co.mineLeft(b, star, d) > 0 ? ' · ' + fmt(Co.mineRate(star)) + ' t ' + b.dep.res + ' a day to the market · ' + fmt(Math.round(Co.mineLeft(b, star, d))) + ' t left' : ' · ' + b.dep.res + ' deposit worked out') : ' · ' + b.dep.res;
+	const builds = c.builds.map(b => '<div class="pt-rep"><span>' + esc(Co.FAC[b.fac].name) + ' · ' + esc(b.body) + ' ' + b.where + esc(mineNote(b)) + '</span><span class="num">' + (b.done ? 'built' : pct(Co.progress(b))) + '</span><span class="muted">' + (b.done ? 'day ' + b.finished : Object.entries(Co.left(b)).map(([g, t]) => fmt(t) + ' ' + g).slice(0, 3).join(', ')) + '</span></div>').join('');
 	const active = c.builds.filter(b => !b.done);
 	const haul = active.length && mkt.currency != 'SU' ? active.slice(0, 2).map(b => Object.entries(Co.left(b)).filter(([g, t]) => t - ((b.coming || {})[g] || 0) > 0).slice(0, 6).map(([g, t]) => { const n = t - ((b.coming || {})[g] || 0), q = Co.haulQuote(office, mkt, c, g, n, d); return q ? '<button class="pt-ghost" data-act="haul" data-c="' + esc(c.id) + '" data-j="' + esc(b.id) + '" data-g="' + g + '" data-n="' + n + '">' + fmt(n) + ' t ' + g + ' · ' + money(q.cost, q.currency) + ' · ' + q.days + ' d</button>' : '' }).join('')).join('') : '';
 	const rent = active.length ? carrierRow(c) : '';
@@ -197,8 +202,8 @@ function buildOut(c, office) {
 		+ (here && active.length ? '<div class="pt-btns"><button class="pt-primary" data-act="givebuild" data-c="' + esc(c.id) + '">Hand over goods from the hold</button></div>' : active.length ? '<p class="muted small">Hand over goods docked at ' + esc(c.star.name) + '\'s own port.</p>' : '')
 		+ (haul ? '<h3>Haulage from here</h3><div class="pt-btns pt-wrap">' + haul + '</div>' : '') + rent
 		+ '<h3>Plan a facility</h3><div class="pt-form"><label>Facility<select data-pick="fac" data-c="' + esc(c.id) + '">' + Object.entries(Co.FAC).map(([k, f]) => '<option value="' + k + '"' + (k == pk.fac ? ' selected' : '') + '>' + esc(f.name) + ' · tier ' + f.tier + '</option>').join('') + '</select></label>'
-		+ '<label>Where<select data-pick="at" data-c="' + esc(c.id) + '">' + opts.map(([v, t]) => '<option value="' + esc(v) + '"' + (v == pk.at ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label></div>'
-		+ '<p class="small">' + (ck.ok ? fmt(Object.values(ck.goods).reduce((t, v) => t + v, 0)) + ' t of goods' + (ck.cost.t2 ? ' · 1 tier 2 point' : ck.cost.t3 ? ' · ' + ck.cost.t3 + ' tier 3 points' : ' · earns a tier ' + (Co.FAC[pk.fac].tier + 1) + ' point') + (preview ? '<br>' + esc(preview) : '') : '<span class="bad">' + esc(ck.why) + '</span>') + '</p>'
+		+ '<label>' + (isMine ? 'Deposit' : 'Where') + '<select data-pick="at" data-c="' + esc(c.id) + '">' + opts.map(([v, t]) => '<option value="' + esc(v) + '"' + (v == pk.at ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label></div>'
+		+ '<p class="small">' + (ck.ok ? fmt(Object.values(ck.goods).reduce((t, v) => t + v, 0)) + ' t of goods' + (ck.cost.t2 ? ' · 1 tier 2 point' : ck.cost.t3 ? ' · ' + ck.cost.t3 + ' tier 3 points' : ' · earns a tier ' + (Co.FAC[pk.fac].tier + 1) + ' point') + (isMine ? ' · then ' + fmt(Co.mineRate(star)) + ' t ' + dep.res + ' a day to the port\'s market, about ' + fmt(Math.ceil(dep.tons / Co.mineRate(star))) + ' days' : '') + (preview ? '<br>' + esc(preview) : '') : '<span class="bad">' + esc(ck.why) + '</span>') + '</p>'
 		+ '<div class="pt-btns"><button class="pt-ghost" data-act="startbuild" data-c="' + esc(c.id) + '"' + (ck.ok ? '' : ' disabled') + '>Start building</button></div>';
 }
 function colonies() {
@@ -449,7 +454,7 @@ function click(e) {
 	if (act == 'claimi') { const st = Co.candidates(me, {star: env.star, owner: holder()}, d, env.ship.jump || 0, 10).find(x => x.id == colSel), r = st ? Co.claim(me, {star: env.star, owner: holder()}, st, t.dataset.k, d, env.ship.jump || 0, true) : {ok: false, why: 'Pick a system.'}; env.say(r.ok ? 'Independent claim filed on ' + st.name + ' (scrip ' + r.colony.scrip + '): drop the beacon by day ' + r.colony.beaconBy + ' near ' + r.colony.world + '.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	if (act == 'rent') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = c ? Co.rent(me, c, t.dataset.m, d, here()) : {ok: false, why: 'No such colony.'}; env.say(r.ok ? r.carrier.name + ' will park at ' + c.star.name + ' until day ' + r.carrier.until : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'haul') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = c ? Co.postHaul(me, {star: env.star, owner: holder()}, mkt, c, t.dataset.g, +t.dataset.n, d, t.dataset.j) : {ok: false, why: 'No such colony.'}; env.say(r.ok ? 'Haulage contracted: ' + r.quote.tons + ' t ' + r.quote.good + ' by ' + r.quote.ship + ', ' + r.quote.days + (r.quote.days == 1 ? ' day' : ' days') : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
-	if (act == 'startbuild') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), pk = pick[c.id], [body, where] = pk.at.split('|'), r = Co.startBuild(c, Co.starOf(c), pk.fac, body, where, d); env.say(r.ok ? 'Building ' + Co.FAC[pk.fac].name + ' at ' + body + ': bring ' + fmt(Object.values(r.build.need).reduce((a, b) => a + b, 0)) + ' t of goods' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
+	if (act == 'startbuild') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), pk = pick[c.id], [body, where, depId] = pk.at.split('|'), dep = depId && me.deposits && me.deposits[depId] ? Object.assign({id: depId}, me.deposits[depId]) : null, r = Co.startBuild(c, Co.starOf(c), pk.fac, body, where, d, dep, me); env.say(r.ok ? 'Building ' + Co.FAC[pk.fac].name + ' at ' + body + ': bring ' + fmt(Object.values(r.build.need).reduce((a, b) => a + b, 0)) + ' t of goods' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'givebuild') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = Co.deliverBuilds(me, c, d), g = Object.entries(r.gave); env.say(g.length ? 'Handed over ' + g.map(([k, v]) => v + ' t ' + k).join(', ') + (r.done.length ? '. Built: ' + r.done.map(b => Co.FAC[b.fac].name).join(', ') : '') : 'Nothing in your hold the builds need'); env.cue(g.length ? 'docked' : 'refused') }
 	if (act == 'expct') { ex.amount = String(Math.floor((me.wallet[ex.from] || 0) * +t.dataset.n * 100) / 100) }
 	if (act == 'insure') { const r = Ins.insure(me, holder(), env.hullShip, me.ship.fit, d); env.say(r.ok ? 'Insured with the ' + nm(holder()) + ': ' + money(r.amount, r.code) + ' paid for the first week.' : r.why); env.cue(r.ok ? 'tick' : 'refused') }

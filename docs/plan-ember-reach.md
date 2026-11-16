@@ -1331,8 +1331,10 @@ also arms the first ships and adds fire groups:
 - **0.4.8, belts (L3.3):** each asteroid belt has 2 or 3 mining sites round its orbit. The first is charted, as
   before; the others show only to a ship with a resource scanner, and are charted (remembered in the save) once
   you've visited them with one. They're dense, 96 asteroids, and their asteroids hold a third more.
+- **0.4.9, surface mines (L3.5):** a colony builds surface mines at deposits the ground scan found on its worlds.
+  Each works its deposit at 25 t a day and feeds that good to the colony port's market until the deposit runs out.
 
-Still to come: colonies on the ground with surface mining (L3.5), raids (L3.6), the Core's story,
+Still to come: the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
 
 ## Open questions

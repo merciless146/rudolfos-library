@@ -125,6 +125,22 @@ try {
 	ok('40. a rented carrier makes haulage 30% cheaper and twice as fast for a season', rr && rr.ok && Math.abs(q1.cost - q0.cost * 0.7) <= 1 && q1.days == Math.max(1, Math.ceil(q0.days / 2)) && !Co.rented(cc, day + 31), rr && rr.why);
 	const back3 = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(pi))));
 	ok('41. independent and lost colonies come back from the save', back3.colonies.length == pi.colonies.length && back3.colonies[0].scrip == ic.scrip);
+	/* 0.4.9 (L3.5): surface mines, at deposits the ground scan found, feeding the colony port's market */
+	{
+		const land = G.system(s1).planets.find(p => !p.gas && (p.res || []).length) || G.system(s1).planets.find(p => !p.gas) || G.system(s1).planets[0];
+		const dep = {id: 'dep:' + land.name + ':1,2,3:0', res: (land.res || ['Iron'])[0], tons: 1000, dir: [0.6, 0, 0.8]};
+		const no = Co.canBuild(c, s1, 'mine', land.name, 'surface', null, pl);
+		Co.noteDeposit(pl, s1.id, land.name, dep); const od = Co.openDeposits(pl, c), dp = () => Object.assign({id: dep.id}, pl.deposits[dep.id]);
+		const before = Co.used(c, land.name, 'surface'), bm = Co.startBuild(c, s1, 'mine', land.name, 'surface', day + 40, dp(), pl);
+		ok('42. a surface mine goes at a deposit the ground scan found on one of the colony\'s worlds: one a deposit, taking no slot', !no.ok && /deposit/.test(no.why) && od.length == 1 && od[0].res == dep.res && bm.ok && Co.used(c, land.name, 'surface') == before && !Co.canBuild(c, s1, 'mine', land.name, 'surface', dp(), pl).ok && !Co.openDeposits(pl, c).length, no.why + ' / ' + bm.why);
+		bm.build.got = Object.assign({}, bm.build.need); Co.finishBuild(c, bm.build, day + 41);
+		const rate = Co.mineRate(s1), f1 = Co.feeds(c, s1, day + 42), f2 = Co.feeds(c, s1, day + 41 + Math.ceil(1000 / rate) + 1);
+		ok('43. built, it works its deposit at 25 t a day (30 round a metal-rich star), until it runs out', [25, 30].includes(rate) && f1[dep.res] == rate && !f2[dep.res] && Math.abs(Co.mineLeft(bm.build, s1, day + 51) - (1000 - rate * 10)) < 1e-6, {rate, f1, f2});
+		const ctx = {holder: home.id, econ: Co.economy(c, s1), people: Math.max(1000, c.pop || 0), P: pl}, m0 = E.market(s1, day + 42, ctx), m1 = E.market(s1, day + 42, Object.assign({}, ctx, {feed: f1})), g0 = m0.prices[dep.res], g1 = m1.prices[dep.res];
+		ok('44. it feeds the colony port\'s market: ten days of its output more of the good to stock, and no dearer', g1.supplyCap == (g0.supplyCap || 0) + rate * 10 && g1.stock > g0.stock && g1.su <= g0.su + 1e-9, {g0, g1});
+		const back4 = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(pl))));
+		ok('45. the save keeps the deposits found and the mine on its deposit', back4.deposits[dep.id].res == dep.res && back4.deposits[dep.id].dir.length == 3 && back4.colonies.find(x => x.id == c.id).builds.some(b => b.dep && b.dep.id == dep.id));
+	}
 	const t0 = Date.now(); Co.candidates(pl, office, day, JUMP, 12);
 	ok('19. the planner\'s listing is quick', Date.now() - t0 < 500, (Date.now() - t0) + ' ms');
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }

@@ -104,7 +104,7 @@ const PORT_ECON = {
 	starport: {mix: {industrial: 0.6, hightech: 0.4}, world: 0.4}, field: {mix: {industrial: 0.5, refinery: 0.5}, world: 0.3}, settlement: {mix: {agriculture: 0.5, industrial: 0.5}, world: 0.6},
 	outpost: {mix: {refinery: 0.5, industrial: 0.5}, world: 0.6}, camp: {mix: {extraction: 1}, world: 0}, base: {mix: {military: 1}, world: 0}};
 const PEOPLE = {Food: 0.15, Water: 0.1, Medicine: 0.05};   /* what every port's people use, as shares of its market */
-const MKT = {per: 25, makeLow: 0.78, needHigh: 0.25, popK: 0.015, untraded: 1.1, level: 0.6, swing: 0.25, cycle: [45, 135], recover: 0.95, front: 1.6, riftDemand: 500};
+const MKT = {feedDays: 10, per: 25, makeLow: 0.78, needHigh: 0.25, popK: 0.015, untraded: 1.1, level: 0.6, swing: 0.25, cycle: [45, 135], recover: 0.95, front: 1.6, riftDemand: 500};
 const Tv = () => isNode ? require('./travel.js') : root.EmberTravel;
 const portKind = q => !q ? null : q.maw ? 'maw' : q.anchorage ? 'anchorage' : q.surface ? q.kind : q.cls;
 const addMix = (to, mix, k) => { for (const [e, w] of Object.entries(mix)) to[e] = (to[e] || 0) + w * k; return to };
@@ -161,7 +161,8 @@ function record(P, mkt, good, qty, sold, day) {
 	if (!Object.keys(o.s).length && !Object.keys(o.d).length) delete m[mkt.key]; else m[mkt.key] = {day, s: o.s, d: o.d};
 }
 /* the market at a star's port. ctx: {port (travel.js portsAt's record; else the system's first port), P (the player:
-   their trades there), holder (a colony's sponsor), econ (a colony's facilities), people (a colony's), events,
+   their trades there), holder (a colony's sponsor), econ (a colony's facilities), people (a colony's), feed (its
+   surface mines' goods, t a day: 0.4.9), events,
    shocks} */
 function market(star, day, ctx) {
 	ctx = ctx || {};
@@ -177,6 +178,8 @@ function market(star, day, ctx) {
 	/* (an anchorage runs itself, nobody aboard, but its automated market trades as a small port's) */
 	const people = ctx.people != null ? Math.max(50, ctx.people) : q ? Math.max(colony ? 50 : 0, q.anchorage ? 2000 : 0, T.portPop(star, q)) : colony ? 50 : 0, mix = q || colony ? portEconomy(star, q, ctx.econ) : {};
 	const cap = people ? capacities(star, q, mix, people) : {supply: {}, demand: {}, size: 0}, key = keyOf(star, q), off = offsets(ctx.P, key, day);
+	/* (0.4.9) a colony's surface mines feed their goods to its port: ten days of their output in stock */
+	for (const [g, t] of Object.entries(ctx.feed || {})) if (GOODS[g]) cap.supply[g] = (cap.supply[g] || 0) + Math.round(t * MKT.feedDays);
 	const metals = Math.pow(10, star.FeH || 0), popK = 1 + MKT.popK * Math.log10(Math.max(1, people)), prices = {};
 	for (const [g, base] of Object.entries(GOODS)) {
 		const sc = cap.supply[g] || 0, dc = cap.demand[g] || 0;
