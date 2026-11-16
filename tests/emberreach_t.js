@@ -436,6 +436,19 @@ async function frame(pg, test) {
 		await pg.screenshot({path: path.join(W, 'ring-inside.png')});
 		ok('9z5a. 0.4.6 (L3.2): anywhere in a ring\'s bands (far from its site) its asteroids are there to mine, loaded round the ship as it flies (those loaded kept)', rf.field && rf.far > 20000 && rf.rocks >= 3 && rf.own && rf.round && rf.said >= 1 && rf.moved.reloaded && rf.moved.kept && rf.moved.rocks >= 1, rf);
 		ok('9z5b. 0.4.6 (L3.2): the ring is a navigation target, after its world; cruise at it drops out about 4 km off', rf.nav && rf.cruise.dropped && rf.cruise.d > 2500 && rf.cruise.d < 6000, rf);
+		/* 0.4.8 (L3.3): a belt's other sites, found with a resource scanner, charted once visited with one */
+		const bs = await f.evaluate(async () => {
+			const g = EmberDebug.game, s = EmberDebug.s, u = EmberDebug.ship.utility, keep = !!u.prospector, wait = ms => new Promise(r => setTimeout(r, ms)); let star = null;
+			for (const m of EmberFactions.majors()) { for (const x of EmberGalaxy.starsNear(m.star.x, m.star.y, m.star.z, 6)) if (x.kind == 'star' && EmberMining.fields(EmberScene.build(x, {day: 200, port: null}), x).some(f => f.hidden)) { star = x; break } if (star) break }
+			EmberDebug.go(star); await wait(300); g.npcs = [];
+			const hid = g.fields.filter(f => f.hidden), names = () => EmberDebug.shownFields().filter(f => f.hidden).length;
+			u.prospector = false; const without = names(); u.prospector = true; const withS = names();
+			const site = hid[0]; s.p = site.pos.map((v, i) => v + [0, 0, 900][i]); s.v = [0, 0, 0]; g.cruise = {on: false, v: 0, charge: 0}; await wait(900);
+			const out = {hidden: hid.length, without, withS, rocks: g.rocks.length, field: g.field && g.field.id == site.id, charted: !!(g.P.charted || {})[site.id], said: g.msgs.filter(m => /^Charted /.test(m.text)).length};
+			u.prospector = false; out.after = EmberDebug.shownFields().filter(f => f.hidden).map(f => f.id); u.prospector = keep;
+			g.tgt = null; s.p = site.pos.map((v, i) => v + [0, 0, 60000][i]); await wait(300);
+			return out });
+		ok('9z5c. 0.4.8 (L3.3): a belt\'s other sites show only with a resource scanner; visiting one with it charts it (dense, 96 asteroids), and it stays shown', bs.hidden >= 1 && bs.without == 0 && bs.withS == bs.hidden && bs.field && bs.rocks == 96 && bs.charted && bs.said == 1 && bs.after.length == 1, bs);
 		/* 0.4.3: third person (V): above and behind the ship, the ship drawn; and shots leave from the gun mounts */
 		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberDebug.scene.station; EmberDebug.go(g.home.star) }); await sleep(600);
 		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberDebug.scene.station; g.npcs = []; s.p = st.c.map((v, i) => v + st.axis[i] * 16000); s.v = [0, 0, 0]; g.chase = false });

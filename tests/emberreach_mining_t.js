@@ -50,5 +50,17 @@ try {
 	ok('15. a refinery has two bins plus one a size', O.derive(pike, (() => { const f = O.stock(pike); const i = f.internal.findIndex(m => m && m.id == 'refinery'); f.internal[i] = {id: 'refinery', size: 1, grade: 'C'}; return f })()).refinery == 2);
 	const back = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(Object.assign(p2, {mined})))));
 	ok('16. the save keeps what\'s been mined and the refinery\'s bins', back.mined[r0.id] == mined[r0.id] && back.refinery.Iron == 0.5);
+	/* 0.4.8 (L3.3): belts' sites */
+	{
+		const belts = []; for (const st of G.starsNear(home.star.x, home.star.y, home.star.z, 10).filter(x => x.kind == 'star')) { const sc = Sc.build(st, {day: 200, port: null}); for (const f of Mi.fields(sc, st)) if (f.belt) belts.push({f, sun: sc.bodies[0]}); if (belts.length > 60) break }
+		const by = {}; for (const b of belts) (by[b.f.belt] = by[b.f.belt] || []).push(b);
+		const groups = Object.values(by), R = b => len(b.f.pos.map((v, i) => v - b.sun.pos[i]));
+		ok('17. every belt has 2 or 3 sites round its orbit (both counts seen): the first charted, the others to be found', groups.length >= 5 && groups.every(g => g.length >= 2 && g.length <= 3 && g[0].f.id == g[0].f.belt && !g[0].f.hidden && g.slice(1).every(b => b.f.hidden && Math.abs(R(b) / R(g[0]) - 1) < 0.031)) && groups.some(g => g.length == 2) && groups.some(g => g.length == 3), groups.length);
+		const g = groups[0], plain = Mi.rocks(Object.assign({}, g[0].f, {fieldKind: g[0].f.kind}), {}), found = Mi.rocks(Object.assign({}, g[1].f, {fieldKind: g[1].f.kind}), {});
+		const avg = rs => rs.reduce((t, r) => t + r.yield / r.radius, 0) / rs.length;
+		ok('18. a found site is dense (96 asteroids) and its asteroids hold a third more', plain.length == 64 && found.length == 96 && avg(found) / avg(plain) > 1.2 && avg(found) / avg(plain) < 1.5, {plain: avg(plain), found: avg(found)});
+		const p3 = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(Object.assign({}, p2, {charted: {[g[1].f.id]: 1, 'junk': 1}})))));
+		ok('19. the save keeps the sites you\'ve charted (and nothing else under that name)', p3.charted[g[1].f.id] === 1 && !p3.charted.junk);
+	}
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

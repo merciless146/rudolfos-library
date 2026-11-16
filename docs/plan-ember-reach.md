@@ -1328,8 +1328,11 @@ also arms the first ships and adds fire groups:
     ring you see its asteroids round you and the band stretching away.
 - **0.4.7:** mining planetary surfaces is part of colonization: a deposit's card says so (the plan folds L3.4
   into L3.5, colonies on the ground).
+- **0.4.8, belts (L3.3):** each asteroid belt has 2 or 3 mining sites round its orbit. The first is charted, as
+  before; the others show only to a ship with a resource scanner, and are charted (remembered in the save) once
+  you've visited them with one. They're dense, 96 asteroids, and their asteroids hold a third more.
 
-Still to come: belts (L3.3), colonies on the ground with surface mining (L3.5), raids (L3.6), the Core's story,
+Still to come: colonies on the ground with surface mining (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
 
 ## Open questions

@@ -100,7 +100,7 @@ function packPlayer(P) {
 	const r = (o, d) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v).map(([k, v]) => [k, +v.toFixed(d)]));
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
 		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
-		mined: P.mined || {}, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
+		mined: P.mined || {}, charted: P.charted && Object.keys(P.charted).length ? P.charted : undefined, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
 		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance, policeKills: (P.policeKills || []).slice(-60),
 		/* (0.3.7) the ports' markets as your trades left them: {key: {day, s: {good: t}, d: {good: t}}} */
 		markets: P.markets && Object.keys(P.markets).length ? P.markets : undefined,
@@ -119,6 +119,8 @@ function unpackPlayer(x) {
 		/* mining: tonnes taken from each asteroid, and the refinery's bins */
 		mined: obj(x.mined) ? Object.fromEntries(Object.entries(x.mined).filter(([k, v]) => num(v) && v >= 0).slice(-3000)) : {},
 		refinery: obj(x.refinery) ? Object.fromEntries(Object.entries(x.refinery).filter(([k, v]) => num(v) && v > 0 && v < 1)) : {},
+		/* (0.4.8) the belt sites charted with a resource scanner: {field id: 1} */
+		charted: obj(x.charted) ? Object.fromEntries(Object.entries(x.charted).filter(([k, v]) => typeof k == 'string' && k.startsWith('belt:') && v === 1).slice(-500)) : {},
 		/* recycling: the days of the latest modules each station took */
 		recycled: obj(x.recycled) ? Object.fromEntries(Object.entries(x.recycled).filter(([k, v]) => Array.isArray(v) && v.every(num)).slice(-200)) : {},
 		/* alien blueprints found in ruins */

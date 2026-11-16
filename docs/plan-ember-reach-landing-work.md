@@ -724,6 +724,14 @@ Tested in `tests/emberreach_rings_t.js` (17 checks), the mining test's 3, and th
 - **Belts round stars** stay as sites. A belt spans an orbit hundreds of millions of kilometres round, too large
   to fill. They take the hotspot rule (L3.1): 2 or 3 sites a belt, found with a resource scanner.
 
+**Done** (0.4.8, `mining.js` fields):
+- **Sites:** each belt has 2 or 3, round its orbit (within 3% of its radius). The first is charted and anyone sees
+  it, as before (its id, place and asteroids unchanged). The others are dense (96 asteroids), and their asteroids
+  hold a third more.
+- **Finding them:** they show (as T targets) only to a ship with a working resource scanner. Visiting one with
+  the scanner charts it (`P.charted`, in the save), and then it shows without one.
+- Tested in the mining test's 17 to 19 and the browser test's 9z5c.
+
 ### L3.4 Mining the ground: part of colonization (decided 0.4.7)
 
 - **Planetary surfaces are mined through colonization,** not by a ship's mining laser. The deposits the ground
