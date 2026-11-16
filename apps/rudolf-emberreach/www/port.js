@@ -17,7 +17,7 @@
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel, Hg = window.EmberHangar, Ct = window.EmberContracts;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel, Hg = window.EmberHangar, Ct = window.EmberContracts, Sp = window.EmberShipPlan;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -230,7 +230,7 @@ function colonies() {
 		+ '<div class="pt-split"><section class="pt-card pt-table" role="list"><h2>Planner · within one jump (' + jump + ' pc)</h2>' + (rows || '') + '</section><aside class="pt-card pt-side">' + side + '</aside></div>';
 }
 /* ---------- outfitting: four categories of modules ---------- */
-let ofTab = 'core', ofSlot = null, ofLang = '';
+let ofTab = 'core', ofSlot = null, ofLang = '', ofView = 'side';   /* (0.4.5: the ship plan's view: 'side' or 'top') */
 const TABS = [['core', 'Core'], ['internal', 'Internal'], ['external', 'External'], ['utility', 'Utility']];
 const HP = ['', 'small', 'medium', 'large', 'huge'];
 const gname = m => !m ? 'Empty' : O.CAT[m.id].name + (m.size || O.CAT[m.id].grades.length > 1 || m.grade != 'C' ? ' ' : '') + (m.size ? m.size : '') + (O.CAT[m.id].grades.length > 1 || m.grade != 'C' ? m.grade : '') + (m.id == 'decoder' ? ' · ' + ((m.langs || []).map(l => O.langName(l)).join(', ') || 'no languages') : '');
@@ -272,7 +272,16 @@ function outfitting() {
 	}
 	return h1('Outfitting', sh.name + ' · power ' + pw.draw.toFixed(1) + ' / ' + pw.out.toFixed(1) + ' MW')
 		+ '<div class="pt-chips"><span>Hold ' + fmt(sh.cargo) + ' t</span><span>Shields ' + fmt(sh.shield) + '</span><span>Hull ' + fmt(sh.hull) + '</span><span>Jump ' + (sh.jump ? sh.jump.toFixed(1) + ' pc' : 'none') + '</span><span>Tank ×' + sh.tank.toFixed(2) + '</span><span>' + (sh.guns.length ? sh.guns.length + ' weapons' : 'unarmed') + '</span>' + (sh.langs.length ? '<span>Speaks ' + sh.langs.map(O.langName).join(', ') + '</span>' : '') + '</div>'
-		+ tabs + '<div class="pt-split"><section class="pt-card pt-table" role="list">' + list + '</section><aside class="pt-card pt-side">' + side + '</aside></div>';
+		+ tabs + '<div class="pt-split"><div class="pt-col"><section class="pt-card pt-table" role="list">' + list + '</section>' + shipPlan() + '</div><aside class="pt-card pt-side">' + side + '</aside></div>';
+}
+/* (0.4.5) the ship's plan: where each slot is on the hull, from the side or from above; a marker picks its slot */
+function shipPlan() {
+	const L = O.layout(env.hullShip), f = P().ship.fit, nm = s => s.cat == 'core' ? O.CAT[s.key].name : s.cat == 'internal' ? 'Slot ' + (s.i + 1) + ' · size ' + s.size : s.cat == 'external' ? 'Hardpoint ' + (s.i + 1) + ' · ' + HP[s.size] : 'Mount ' + (s.i + 1);
+	const label = s => { const m = s.cat == 'core' ? f.core[s.key] : (f[s.cat] || [])[s.i]; return nm(s) + ': ' + (m ? gname(m) : 'empty') };
+	const legend = Object.keys(Sp.COL).map(k => '<span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + Sp.COL[k] + ';margin-right:6px"></i>' + Sp.NAMES[k] + '</span>').join('') + '<span class="muted">filled: fitted · hollow: empty</span>';
+	return '<section class="pt-card pt-plan"><div class="pt-btns" style="justify-content:space-between;align-items:center;margin:0 0 6px"><h2 style="margin:0">Ship plan</h2><span>'
+		+ ['side', 'top'].map(v => '<button class="pt-ghost' + (ofView == v ? ' on' : '') + '" data-ofview="' + v + '" aria-pressed="' + (ofView == v) + '">' + (v == 'side' ? 'Side profile' : 'Top down') + '</button>').join(' ') + '</span></div>'
+		+ Sp.svg(env.hullShip, L, f, ofView, ofSlot, label) + '<div class="pt-chips">' + legend + '</div></section>';
 }
 const recycleText = m => { const r = O.materials(m); return Object.entries(r.goods).map(([g, t]) => t + ' t ' + g).join(', ') + (r.blueprint ? (Object.keys(r.goods).length ? ', and ' : '') + 'its blueprint' : '') };
 const recycleNote = () => { const r = O.recycleRoom(P(), env.star.id, env.day); return r.left > 0 ? r.left + ' more module' + (r.left == 1 ? '' : 's') + ' here this spell (materials to the hold; alien modules give their blueprint back).' : 'this station\'s recyclers are busy until day ' + r.next + '.' };
@@ -375,7 +384,11 @@ function status() {
 
 /* ---------- actions ---------- */
 function click(e) {
+	/* (0.4.5) a marker on the ship plan picks its slot */
+	const pick = e.target.closest && e.target.closest('[data-ofpick]');
+	if (pick) { const [cat, id] = pick.dataset.ofpick.split(':'); ofTab = cat; ofSlot = cat == 'core' ? {cat, key: id} : {cat, i: +id}; env.cue('tick'); render(); return }
 	const t = e.target.closest('button'); if (!t || t.disabled) return;
+	if (t.dataset.ofview) { ofView = t.dataset.ofview; render(); const b = root.querySelector('[data-ofview="' + ofView + '"]'); if (b) b.focus(); return }
 	if (t.dataset.screen) { screen = t.dataset.screen; env.cue('tick'); if (screen == 'launch') {} render(); focusScreen(); return }
 	if (t.dataset.good) { sel.good = t.dataset.good; render(); const b = root.querySelector('[data-good="' + sel.good + '"]'); if (b) b.focus(); return }
 	if (t.dataset.oftab) { ofTab = t.dataset.oftab; ofSlot = null; render(); const b = root.querySelector('[data-oftab="' + ofTab + '"]'); if (b) b.focus(); return }
@@ -499,6 +512,7 @@ function input(e) {
 }
 function key(e) {
 	if (e.target.tagName == 'INPUT' || e.target.tagName == 'SELECT') return;
+	if ((e.key == 'Enter' || e.key == ' ') && e.target.closest && e.target.closest('[data-ofpick]')) { e.preventDefault(); click(e); return }
 	const n = /^F([1-9])$/.exec(e.key) || /^([1-9])$/.exec(e.key);
 	if (n) { e.preventDefault(); screen = SCREENS[+n[1] - 1][0]; render(); focusScreen() }
 }

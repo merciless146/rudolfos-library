@@ -163,6 +163,8 @@ function derive(ship, fit) {
 	out.tank = fit.core.fuel ? 1 + (g('fuel') - 1) * 3 : 1;                     /* C 1, B 1.45, A 1.9 tanks of stock fuel */
 	out.canopyK = 1 + (g('canopy') - 1) * 4; out.lifeK = 1 + (g('life') - 1) * 4;
 	out.guns = fit.external.filter(m => m && CAT[m.id].weapon).map(m => m.id);
+	/* (0.4.5) which hardpoint each gun is in, so it fires from that hardpoint's mount (combat.js mounts) */
+	out.gunSlots = fit.external.map((m, i) => m && CAT[m.id].weapon && m.id != 'missile' ? i : -1).filter(i => i >= 0); out.hardSlots = fit.external.length;
 	out.mining = fit.external.filter(m => m && m.id == 'mining').length; out.tractor = fit.external.filter(m => m && m.id == 'tractor').length;
 	out.refinery = ints.filter(m => m.id == 'refinery').reduce((t, m) => t + m.size + 1, 0);
 	out.phaser = ints.some(m => m.id == 'phaser');
