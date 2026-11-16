@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.6'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.7'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -1866,7 +1866,7 @@ function hudDraw(cam) {
 			: inside ? {line1: 'In a gap between bands: no asteroids', line2: 'The nearest band is ' + H.fmtDist(Math.max(0, len(sub(Tg.pos, s.p)))) + ' off', col: '#9fb0cc'}
 			: {line1: 'Cruise here: it drops out ' + H.fmtDist(Sc.CRUISE.drop.ring) + ' off the ring', line2: 'Its asteroids can be mined anywhere in its bands', col: '#c9a46a'};
 	}
-	if (Tg.kind == 'deposit') { const dd = len(sub(posOf(Tg), s.p)); target.kind = 'deposit · ' + Tg.dep.res + ' · ' + Tg.dep.tons.toLocaleString('en-US') + ' t'; target.dock = {line1: 'Marked by the ground scan', line2: 'Mining from the ground comes later (L3)', col: '#c9a46a'} }
+	if (Tg.kind == 'deposit') { const dd = len(sub(posOf(Tg), s.p)); target.kind = 'deposit · ' + Tg.dep.res + ' · ' + Tg.dep.tons.toLocaleString('en-US') + ' t'; target.dock = {line1: 'Marked by the ground scan', line2: 'Mined by a colony on this world (colonization)', col: '#c9a46a'} }
 	if (Tg.kind == 'beacon') { target.kind = 'navigation beacon'; target.dock = {line1: 'Hyperspace arrivals come out here', line2: navWorks() ? 'Receiver working' : ship.utility.nav ? 'Receiver offline' : 'No nav beacon receiver fitted', col: '#6cc9e8'} }
 	if (Tg.kind == 'site') {
 		const c = Tg.colony, d = len(sub(s.p, Tg.pos)) - (c.stage == 'building' ? Tg.radius : 0);
