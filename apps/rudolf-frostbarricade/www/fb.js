@@ -2,11 +2,13 @@
    Library, docs/plan-games.md). An original game: the corrupted elves come out of the woods each night; aim and shoot
    (point and click, keys, a controller or touch); by day spend twelve hours on repairs, searching for weapons, ammo and
    survivors, and training; a weather radio tells what the night will bring. On the twenty-fifth night, in the great
-   blizzard, Captain Quill's sleigh comes for everyone who held the line.
+   blizzard, Tux's sleigh comes for everyone who held the line.
    25 Days (1.3): Rudolf moves up and down behind the barricade (W/S, the arrows, a controller's left stick, or a drag
    behind the barricade) and aims within 15 degrees of level; shots fly on past the crosshair to the end of the field
    unless an elf or a shield stops them (the Ornament Launcher still bursts at the crosshair); unlimited ammunition,
    quicker reloads, faster elves; the survivors shoot each in their own time, wild until trained, and panic below 5%.
+   Holiday Holdout 1.4.1: Tux, the Linux penguin, flies the sleigh on the last night (Captain Quill was a placeholder);
+   the title credits Larry Ewing and The GIMP, as Tux's licence asks.
    Holiday Holdout 1.4: aim within 8 degrees of level; training to 120; survivors turn up in many places; the wendigo
    has a health bar, and its blows (and its screech reaching him) hurt Rudolf 10 and stun him for 3 s; sprinters run
    all the way; fewer shielders, but from Night 12 the white-eyed pick up fallen shields far more often; looters dodge
@@ -529,7 +531,7 @@ function startRescue() { N.sleigh = {t: 0, x: W + 80, y: 40, phase: 'in'}; AU.mu
 function rescueStep() {
 	const S = N.sleigh; S.t += DT;
 	if (S.phase == 'in') { S.x += (300 - S.x) * 1.4 * DT; S.y += (170 - S.y) * 1.4 * DT; if (S.t > 3.5) { S.phase = 'light'; S.t = 0; for (const e of N.elves) { e.dead = true; const ly = A.laneY(e.lane); burst(e.x, ly - 20, 14, '#ffd36e', ly); burst(e.x, ly - 20, 8, '#140a1c', ly) } N.elves = []; N.q = []; N.fx.push({k: 'ring', x: S.x, y: S.y, r: 700, t: 0, slow: true}); AU.sfx('light') } }
-	else if (S.phase == 'light') { N.dawn = Math.min(.35, S.t / 3); if (S.t > 1.2 && !S.said) { S.said = true; N.say = {t: 0, who: 'Captain Quill', text: 'Easy now — there’s room for every one of you. Climb aboard!'} } if (S.t > 5.5) { S.phase = 'board'; S.t = 0 } }
+	else if (S.phase == 'light') { N.dawn = Math.min(.35, S.t / 3); if (S.t > 1.2 && !S.said) { S.said = true; N.say = {t: 0, who: 'Tux', text: 'Easy now — there’s room for every one of you. Climb aboard!'} } if (S.t > 5.5) { S.phase = 'board'; S.t = 0 } }
 	else if (S.phase == 'board') { S.board = Math.min(1, S.t / 2); if (S.t > 2.6) { S.phase = 'away'; S.t = 0; N.say = {t: 0, who: 'Rudolf', text: 'We held the line. Every night of it.'} } }
 	else if (S.phase == 'away') { S.x -= 70 * DT; S.y -= 34 * DT; N.dawn = Math.min(1, .35 + S.t / 6); if (S.t > 6 && !N.over) { N.over = true; ending() } }
 }
@@ -742,7 +744,7 @@ function dayScreen() {
 	if (G.surv.length) html += '<h3>Survivors</h3>' + G.surv.map((s, i) => `<div class="hrow"><span><b>${s.name}</b><small>a ${s.kind}</small></span><button data-s="${i}" class="role">${ROLES[s.role].split(' (')[0]}</button></div>`).join('');
 	html += `<p class="small">Carrying: ${owned}.</p>`;
 	if (G.lost && G.lost.length) html += `<p class="small">Missing (taken by looters; searching today finds them): ${G.lost.map(L => L.who == 'Rudolf' ? 'Rudolf’s ' + WEP[L.wep].name : L.who + '’s crossbow').join(', ')}.</p>`;
-	if (G.night == LAST - 1 && !G.letter) html += '<p class="note">A snowy owl lands on the barricade with a note tied to its leg: <i>“Hold on through the storm, to the end of the twenty-fifth night. I am coming for all of you. — Captain Quill”</i></p>';
+	if (G.night == LAST - 1 && !G.letter) html += '<p class="note">A snowy owl lands on the barricade with a note tied to its leg: <i>“Hold on through the storm, to the end of the twenty-fifth night. I am coming for all of you. — Tux”</i></p>';
 	dialog(html, [['Spend the day', runDay, 1], ['Save and quit', toTitle, 0, 1]], 'day');
 	document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => { const k = b.dataset.h, d = +b.dataset.d, u = p.repair + p.search + p.train; if (d > 0 && u >= 12) return; if (k == 'search' && noSearch) return; p[k] = Math.max(0, p[k] + d); AU.sfx('ok'); dayScreen(); const nb = document.querySelector(`[data-h="${k}"][data-d="${d}"]`); nb && nb.focus() });
 	document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { const s = G.surv[+b.dataset.s], ks = Object.keys(ROLES); s.role = ks[(ks.indexOf(s.role) + 1) % ks.length]; dayScreen(); const nb = document.querySelector(`[data-s="${b.dataset.s}"]`); nb && nb.focus() });
@@ -820,7 +822,8 @@ function toTitle() {
 	const r = save.run, B = [];
 	if (r) B.push(['Carry on · Night ' + r.night + ' (' + DIFF[r.diff].name + ')', () => { G = JSON.parse(JSON.stringify(r)); dayScreen() }, 1]);
 	B.push(['New game', pickDiff, !r], ['Options', menuOptions], ['How to play', () => help(toTitle)]);
-	dialog('<p class="age">For older players: cartoon horror and combat.</p>' + (save.wins ? '<p class="small">The line held ' + save.wins + ' time' + (save.wins > 1 ? 's' : '') + '.</p>' : save.best > 1 ? '<p class="small">Furthest: Night ' + save.best + '.</p>' : ''), B, 'title');
+	/* (1.4.1: the credit Tux's licence asks for: Larry Ewing, and The GIMP) */
+	dialog('<p class="age">For older players: cartoon horror and combat.</p>' + '<p class="small">Tux by Larry Ewing, made with The GIMP.</p>' + (save.wins ? '<p class="small">The line held ' + save.wins + ' time' + (save.wins > 1 ? 's' : '') + '.</p>' : save.best > 1 ? '<p class="small">Furthest: Night ' + save.best + '.</p>' : ''), B, 'title');
 }
 function pickDiff() {
 	const b = d => [DIFF[d].name, () => { save.set.diff = d; newRun(d); save.run = snapshot(); persist(); AU.music('day'); dayScreen() }, save.set.diff == d];

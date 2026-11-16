@@ -4,8 +4,8 @@
    The corrupted elves follow Night Flight's corruption: jagged dark silhouettes, dark skin and clothes, narrow glowing
    eyes without highlights, static at their edges.
    Rudolf is angular and faceted like Rudolf OS's portrait (the boot splash): a white low-poly stag with big branching
-   antlers, diamond ears, narrow eyes, a shaggy ruff and the red nose. The survivors, Captain Quill and his owls stay
-   soft and round.
+   antlers, diamond ears, narrow eyes, a shaggy ruff and the red nose. The survivors, Tux (the Linux penguin: Larry Ewing's,
+   made with The GIMP, free to use and change with that credit) and his owls stay soft and round.
    The scene is seen from the side: the barricade on the left, the horde coming from the right. ===== */
 (function () {
 'use strict';
@@ -326,9 +326,8 @@ A.gib = function (x, g) { x.save(); x.translate(g.x, g.y); x.rotate(g.a); x.fill
 /* a crossbow a panicking survivor dropped */
 A.dropped = function (x, X, Y) { x.strokeStyle = '#4a3220'; x.lineWidth = 2; x.beginPath(); x.moveTo(X - 7, Y - 1); x.lineTo(X + 7, Y - 3); x.stroke(); x.strokeStyle = '#8a7a5a'; x.lineWidth = 1; x.beginPath(); x.moveTo(X + 2, Y - 7); x.lineTo(X + 4, Y + 2); x.stroke() };
 
-/* ---------- Captain Quill and his sleigh (Night 15) ---------- */
-/* an original character: a rockhopper penguin (slate-blue back, spiky yellow crest, orange-red beak, pink feet) in a red
-   winter coat with white fur trim, flying a red sleigh pulled by two snowy owls */
+/* ---------- Tux and his sleigh (the last night) ---------- */
+/* (1.4.1: Tux takes the sleigh over from Captain Quill, the placeholder) a red sleigh pulled by two snowy owls */
 A.sleigh = function (x, X, Y, t, wave) {
 	x.save(); x.translate(X, Y); x.scale(1.5, 1.5);
 	/* the owls, flapping, on long reins */
@@ -345,19 +344,26 @@ A.sleigh = function (x, X, Y, t, wave) {
 	x.beginPath(); x.moveTo(-40, -20); x.lineTo(30, -20); x.quadraticCurveTo(44, -20, 42, -6); x.lineTo(-34, -4); x.quadraticCurveTo(-46, -8, -40, -20); fl(x, '#b52a2a', '#4a0f0f', 1.6);
 	x.strokeStyle = '#d9b14a'; x.lineWidth = 2; x.beginPath(); x.moveTo(-38, -14); x.lineTo(34, -14); x.stroke();
 	x.strokeStyle = '#d9b14a'; x.lineWidth = 2.4; x.beginPath(); x.moveTo(-44, 4); x.lineTo(40, 4); x.quadraticCurveTo(52, 4, 50, -6); x.moveTo(-30, -4); x.lineTo(-30, 4); x.moveTo(20, -4); x.lineTo(20, 4); x.stroke();
-	/* the captain */
+	/* the captain: Tux, the Linux penguin (by Larry Ewing, made with The GIMP: free to use and change, with that
+	   credit), round and black and white, orange beak and feet, in a red holiday hat with white fur and a bobble */
 	const cx = -6, cy = -30;
-	oval(x, cx, cy + 4, 11, 13); fl(x, '#c42a2a', '#4a0f0f', 1.3);
-	x.fillStyle = '#ffffff'; x.fillRect(cx - 2, cy - 8, 4, 22); oval(x, cx, cy + 15, 11, 2.6); x.fill();
-	circ(x, cx + 1, cy - 12, 9); fl(x, '#3a4a66', '#1a2033', 1.2);
-	oval(x, cx + 4, cy - 10, 5, 5.5); x.fillStyle = '#ffffff'; x.fill();
-	/* the crest: spiky yellow feathers sweeping back from the brow */
-	x.strokeStyle = '#ffd23f'; x.lineWidth = 1.6; for (let i = 0; i < 4; i++) { x.beginPath(); x.moveTo(cx + 3, cy - 16); x.lineTo(cx - 8 - i * 2, cy - 22 - i * 2 + Math.sin(t * 4 + i) * 1.2); x.stroke() }
-	circ(x, cx + 5, cy - 13, 1.6); x.fillStyle = '#c42a2a'; x.fill(); circ(x, cx + 5.4, cy - 13.4, .6); x.fillStyle = '#fff'; x.fill();
-	x.fillStyle = '#ff6a2a'; x.beginPath(); x.moveTo(cx + 9, cy - 11); x.lineTo(cx + 16, cy - 9); x.lineTo(cx + 9, cy - 7); x.closePath(); x.fill();
-	/* a wing raised in a wave */
-	x.save(); x.translate(cx + 8, cy - 2); x.rotate(-.9 + Math.sin(t * (wave ? 8 : 2)) * (wave ? .4 : .1)); oval(x, 6, 0, 8, 3); fl(x, '#c42a2a', '#4a0f0f', 1); x.fillStyle = '#fff'; oval(x, 13, 0, 2.5, 3); x.fill(); x.restore();
-	x.fillStyle = '#ff9fb0'; oval(x, cx - 2, cy + 18, 3, 1.5); x.fill(); oval(x, cx + 4, cy + 18, 3, 1.5); x.fill();
+	oval(x, cx, cy + 4, 12, 14); fl(x, '#16161c', '#000', 1.3);                                       /* body */
+	oval(x, cx + 2, cy + 6, 8, 11); x.fillStyle = '#f6f4ee'; x.fill();                                 /* belly */
+	circ(x, cx + 1, cy - 12, 9.5); fl(x, '#16161c', '#000', 1.2);                                      /* head */
+	oval(x, cx - 1.5, cy - 12, 3, 4); x.fillStyle = '#f6f4ee'; x.fill(); oval(x, cx + 4.5, cy - 12, 3, 4); x.fill();   /* eyes */
+	circ(x, cx - 0.8, cy - 11.5, 1.4); x.fillStyle = '#000'; x.fill(); circ(x, cx + 5.2, cy - 11.5, 1.4); x.fill();
+	circ(x, cx - 0.4, cy - 12.1, .5); x.fillStyle = '#fff'; x.fill(); circ(x, cx + 5.6, cy - 12.1, .5); x.fill();
+	/* the beak: two parts, orange-yellow */
+	x.fillStyle = '#f2a51a'; x.beginPath(); x.moveTo(cx - 2, cy - 7.5); x.quadraticCurveTo(cx + 2, cy - 10, cx + 8, cy - 7.5); x.quadraticCurveTo(cx + 2, cy - 6, cx - 2, cy - 7.5); x.fill();
+	x.fillStyle = '#e08a10'; x.beginPath(); x.moveTo(cx - 1, cy - 7); x.quadraticCurveTo(cx + 3, cy - 4.5, cx + 7, cy - 7); x.quadraticCurveTo(cx + 3, cy - 5.6, cx - 1, cy - 7); x.fill();
+	/* the hat: red, drooping back, white trim and bobble */
+	x.beginPath(); x.moveTo(cx - 9, cy - 17); x.quadraticCurveTo(cx + 1, cy - 33, cx + 10, cy - 18); x.quadraticCurveTo(cx - 2, cy - 22, cx - 9, cy - 17); fl(x, '#c42a2a', '#4a0f0f', 1);
+	x.beginPath(); x.moveTo(cx + 1, cy - 30); x.quadraticCurveTo(cx - 8, cy - 31 + Math.sin(t * 3) * 1.5, cx - 14, cy - 24); x.lineTo(cx - 9, cy - 22); x.quadraticCurveTo(cx - 6, cy - 27, cx + 1, cy - 26); fl(x, '#c42a2a', '#4a0f0f', 1);
+	oval(x, cx + 0.5, cy - 17.5, 10.5, 2.4); x.fillStyle = '#ffffff'; x.fill(); circ(x, cx - 14, cy - 23.5, 2.6); x.fill();
+	/* a flipper raised in a wave */
+	x.save(); x.translate(cx + 9, cy - 1); x.rotate(-.9 + Math.sin(t * (wave ? 8 : 2)) * (wave ? .4 : .1)); oval(x, 6, 0, 8, 3); fl(x, '#16161c', '#000', 1); x.restore();
+	/* the feet, over the sleigh's edge */
+	x.fillStyle = '#f2a51a'; oval(x, cx - 3, cy + 18, 4, 1.7); x.fill(); oval(x, cx + 5, cy + 18, 4, 1.7); x.fill();
 	x.globalAlpha = .45; x.drawImage(A.warm, -50, -50, 100, 70); x.globalAlpha = 1;
 	x.restore();
 };
