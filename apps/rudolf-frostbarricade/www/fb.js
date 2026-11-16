@@ -8,7 +8,7 @@
    unless an elf or a shield stops them (the Ornament Launcher still bursts at the crosshair); unlimited ammunition,
    quicker reloads, faster elves; the survivors shoot each in their own time, wild until trained, and panic below 5%.
    Holiday Holdout 1.4.1: Tux, the Linux penguin, flies the sleigh on the last night (Captain Quill was a placeholder);
-   the title credits Larry Ewing and The GIMP, as Tux's licence asks.
+   he wears a red Santa coat and hat, and the sleigh carries presents; the title credits Larry Ewing and GIMP, as Tux's licence asks.
    Holiday Holdout 1.4: aim within 8 degrees of level; training to 120; survivors turn up in many places; the wendigo
    has a health bar, and its blows (and its screech reaching him) hurt Rudolf 10 and stun him for 3 s; sprinters run
    all the way; fewer shielders, but from Night 12 the white-eyed pick up fallen shields far more often; looters dodge
@@ -822,8 +822,8 @@ function toTitle() {
 	const r = save.run, B = [];
 	if (r) B.push(['Carry on · Night ' + r.night + ' (' + DIFF[r.diff].name + ')', () => { G = JSON.parse(JSON.stringify(r)); dayScreen() }, 1]);
 	B.push(['New game', pickDiff, !r], ['Options', menuOptions], ['How to play', () => help(toTitle)]);
-	/* (1.4.1: the credit Tux's licence asks for: Larry Ewing, and The GIMP) */
-	dialog('<p class="age">For older players: cartoon horror and combat.</p>' + '<p class="small">Tux by Larry Ewing, made with The GIMP.</p>' + (save.wins ? '<p class="small">The line held ' + save.wins + ' time' + (save.wins > 1 ? 's' : '') + '.</p>' : save.best > 1 ? '<p class="small">Furthest: Night ' + save.best + '.</p>' : ''), B, 'title');
+	/* (1.4.1: the credit Tux's licence asks for: Larry Ewing, and GIMP) */
+	dialog('<p class="age">For older players: cartoon horror and combat.</p>' + '<p class="small">Tux by Larry Ewing, made with GIMP.</p>' + (save.wins ? '<p class="small">The line held ' + save.wins + ' time' + (save.wins > 1 ? 's' : '') + '.</p>' : save.best > 1 ? '<p class="small">Furthest: Night ' + save.best + '.</p>' : ''), B, 'title');
 }
 function pickDiff() {
 	const b = d => [DIFF[d].name, () => { save.set.diff = d; newRun(d); save.run = snapshot(); persist(); AU.music('day'); dayScreen() }, save.set.diff == d];

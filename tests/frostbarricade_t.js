@@ -292,7 +292,7 @@ async function open(pg) {
 		/* (1.4.1: Tux at the reins; a picture of him landing) */
 		await sleep(300); await pg.screenshot({path: path.join(W, 'tux-sleigh.png')});
 		const end2 = await f.evaluate(() => { for (let i = 0; i < 60 * 40 && !__fb.N.over; i++) __fb.run(1); return {over: __fb.N.over} }); end.over = end2.over;
-		ok('21a. 1.4.1: Tux flies the sleigh and speaks for it; the title credits Larry Ewing and The GIMP', end.who == 'Tux' && await f.evaluate(() => typeof __fb != 'undefined'), end);
+		ok('21a. 1.4.1: Tux flies the sleigh and speaks for it; the title credits Larry Ewing and GIMP', end.who == 'Tux' && fs.readFileSync(path.join(__dirname, '../apps/rudolf-frostbarricade/www/fb.js'), 'utf8').includes('Tux by Larry Ewing, made with GIMP.'), end);
 		await sleep(300);
 		const et = await f.evaluate(() => ({h: document.getElementById('ovBody').textContent, wins: __fb.save().wins, run: __fb.save().run}));
 		ok('21. Night 25, in the great blizzard: Tux’s sleigh comes at 150 s, and the night’s elves are gone', end.saw && end.saw.t == 150 && end.over, end);
