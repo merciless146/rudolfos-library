@@ -11,7 +11,7 @@
      1 to 3, 5 km across, in its bands (never a gap). Each is rich in one of the ring's rarer, dearer minerals
      (titanium, beryllium, uranium, jade, gold, diamond; the Rift's own there): about half of what's mined there
      is that mineral, and its asteroids hold half again as much. Only a ship with a prospecting array (a utility
-     module, outfit.js) sees them; the minerals are there for anyone who mines there.
+     module, outfit.js) sees them (what's in each asteroid is read with a resource scanner); the minerals are there for anyone who mines there.
    - The mining site: a point in the ring's densest band, the same every visit, for cruise to drop out at.
    The ring lies in the planet's equator (its axis), and doesn't turn with it. Pure functions. GPL-2.0-or-later. ===== */
 (function (root) {

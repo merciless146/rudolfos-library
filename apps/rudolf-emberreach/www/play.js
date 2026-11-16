@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.1'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.2'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -564,7 +564,7 @@ function scanNow() {
 		scanned(Tg); say('Scanned ' + Tg.name + (Tg.wanted ? ': WANTED, ' + Tg.wanted.amount.toLocaleString('en') + ' ' + Tg.wanted.code : ': clean'), '#6cc9e8'); Snd.cue('chart'); return;
 	}
 	if (Tg.kind == 'asteroid') {
-		if (!ship.utility.prospector && !ship.utility.array) { say('No resource scanner or prospecting array fitted', '#f2a33a'); Snd.cue('refused'); return }
+		if (!ship.utility.prospector) { say('No resource scanner fitted: it reads an asteroid\'s minerals (a prospecting array only shows hotspots)', '#f2a33a'); Snd.cue('refused'); return }
 		const d = len(sub(Tg.pos, s.p)); if (d > Mi.MINE.scanRange) { say('Prospect: within ' + H.fmtDist(Mi.MINE.scanRange), '#f2a33a'); Snd.cue('refused'); return }
 		Tg.prospected = true; say('Prospected ' + Tg.name + ': ' + comp(Tg), '#c9a46a'); Snd.cue('chart'); return;
 	}
@@ -1267,7 +1267,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -1475,7 +1475,7 @@ function mine(dt) {
 	}
 	/* the resource scanner: a targeted asteroid within 3 km, for 3 s */
 	const Tg = curTarget();
-	if (Tg && Tg.kind == 'asteroid' && !Tg.prospected && (ship.utility.prospector || ship.utility.array) && M.works(fit, 'sensors')) {
+	if (Tg && Tg.kind == 'asteroid' && !Tg.prospected && ship.utility.prospector && M.works(fit, 'sensors')) {
 		if (len(sub(s.p, Tg.pos)) < Mi.MINE.scanRange) { Tg.scanT = (Tg.scanT || 0) + dt; if (Tg.scanT >= Mi.MINE.scanTime) { Tg.prospected = true; say('Prospected ' + Tg.name + ': ' + comp(Tg) + ' · ' + Tg.left + ' t left', '#c9a46a'); Snd.cue('chart') } }
 		else Tg.scanT = 0;
 	}

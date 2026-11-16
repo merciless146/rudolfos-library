@@ -379,6 +379,14 @@ async function frame(pg, test) {
 			u.array = true; const withA = EmberDebug.shownFields().filter(x => x.hotspot).map(x => x.name);
 			u.array = had; return {star: star.name, all, without, withA} });
 		ok('9z4. L3.1: a ring\'s mineral hotspots show only to a ship with a prospecting array', hv.all >= 1 && hv.without == 0 && hv.withA.length == hv.all && hv.withA.every(n => /hotspot/.test(n)), hv);
+		const sc5 = await f.evaluate(async () => {
+			const g = EmberDebug.game, s = EmberDebug.s, fd = g.fields.find(x => x.ring && !x.hotspot), u = EmberDebug.ship.utility, keep = {p: !!u.prospector, a: !!u.array};
+			s.p = fd.pos.map((v, i) => v + fd.ring.ax[i] * 900); s.v = [0, 0, 0]; g.npcs = []; await new Promise(r => setTimeout(r, 800));
+			const rk = g.rocks.slice().sort((a, b) => Math.hypot(...a.pos.map((v, i) => v - s.p[i])) - Math.hypot(...b.pos.map((v, i) => v - s.p[i])))[0]; s.p = rk.pos.map((v, i) => v + fd.ring.ax[i] * (rk.radius + 400)); g.tgt = rk;
+			u.prospector = false; u.array = true; EmberDebug.scanNow(); const a = {read: rk.prospected, said: g.msgs.slice(-1)[0].text};
+			u.prospector = true; u.array = false; EmberDebug.scanNow(); const b = {read: rk.prospected, said: g.msgs.slice(-1)[0].text};
+			u.prospector = keep.p; u.array = keep.a; g.tgt = null; return {a, b} });
+		ok('9z5. 0.4.2: an asteroid is read with a resource scanner, scanning the asteroid itself; a prospecting array alone can\'t', !sc5.a.read && /No resource scanner/.test(sc5.a.said) && sc5.b.read && /^Prospected /.test(sc5.b.said), sc5);
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
 		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(15000);
