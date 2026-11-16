@@ -287,11 +287,15 @@ async function open(pg) {
 		await pg.screenshot({path: path.join(W, 'night.png')});
 		/* the last night: the sleigh */
 		const end = await f.evaluate(() => { const G = __fb.G; G.wx = __fb.makeWeather(G.seed); G.night = __fb.LAST; G.morning = JSON.parse(JSON.stringify(G)); __fb.startNight(); G.hp = 1e9; G.bar = 1e9; G.barMax = 1e9;
-			let saw = null; for (let i = 0; i < 60 * 172 && !__fb.N.over; i++) { __fb.run(1); if (__fb.N.sleigh && !saw) saw = {t: Math.round(__fb.N.t), elves: __fb.N.elves.length} }
-			return {saw, over: __fb.N.over, foremen: true} });
+			let saw = null; for (let i = 0; i < 60 * 172 && !__fb.N.over && !(saw && __fb.N.say && __fb.N.say.who); i++) { __fb.run(1); if (__fb.N.sleigh && !saw) saw = {t: Math.round(__fb.N.t), elves: __fb.N.elves.length} }
+			window.__saw = saw; return {saw, who: __fb.N.say && __fb.N.say.who} });
+		/* (1.4.1: Tux at the reins; a picture of him landing) */
+		await sleep(300); await pg.screenshot({path: path.join(W, 'tux-sleigh.png')});
+		const end2 = await f.evaluate(() => { for (let i = 0; i < 60 * 40 && !__fb.N.over; i++) __fb.run(1); return {over: __fb.N.over} }); end.over = end2.over;
+		ok('21a. 1.4.1: Tux flies the sleigh and speaks for it; the title credits Larry Ewing and GIMP', end.who == 'Tux' && fs.readFileSync(path.join(__dirname, '../apps/rudolf-frostbarricade/www/fb.js'), 'utf8').includes('Tux by Larry Ewing, made with GIMP.'), end);
 		await sleep(300);
 		const et = await f.evaluate(() => ({h: document.getElementById('ovBody').textContent, wins: __fb.save().wins, run: __fb.save().run}));
-		ok('21. Night 25, in the great blizzard: Captain Quill’s sleigh comes at 150 s, and the night’s elves are gone', end.saw && end.saw.t == 150 && end.over, end);
+		ok('21. Night 25, in the great blizzard: Tux’s sleigh comes at 150 s, and the night’s elves are gone', end.saw && end.saw.t == 150 && end.over, end);
 		ok('22. the ending: Dawn, "Thank you for holding the line"; the win is kept', /Dawn/.test(et.h) && /holding the line/.test(et.h) && et.wins == 1 && !et.run, et.h.slice(0, 100));
 		ok('23. no errors in the console', errs.length == 0, errs.slice(0, 4).join(' | '));
 		/* saves: a game in progress carries on after the page is opened again */
