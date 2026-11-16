@@ -1316,6 +1316,16 @@ also arms the first ships and adds fire groups:
   - **Guns** now fire from their own hardpoint's mount, kept under the wing.
 - **0.4.4:** starter ships (a new pilot's first, and insurance's starter ship) come with an Autopilot Computer
   (docking and cruise assist), in a free internal slot or in place of the smallest cargo rack.
+- **0.4.6, flying in a ring (L3.2):**
+  - **Mining anywhere in it:** a ring's asteroids are there to mine wherever you are in its bands, not only at its
+    site. They're loaded 7.5 km round the ship, and again each time it has come 2.5 km; those already loaded stay as
+    they were (hits, scans, a target). A hotspot is announced (with a prospecting array) as you fly into it.
+  - **A navigation target:** each ring follows its world in the navigation list (.). It's the point of the ring
+    nearest you, in its plane, in the nearest band that isn't a gap, so it moves as you do. Cruise drops out 4 km
+    from it, and slows for a ring as it does for a world (no faster than the distance to the sheet allows). Its
+    card gives the ring's kind, how densely it's strewn and its bands, and, in it, the band you're in.
+  - **The flat bands fade up close:** nothing of them within 6 km of the camera, fading in out to 50 km, so in the
+    ring you see its asteroids round you and the band stretching away.
 
 Still to come: mining on worlds (L3), the Core's story, phones (1.6.0), and multiplayer.
 

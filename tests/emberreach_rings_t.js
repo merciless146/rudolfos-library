@@ -54,6 +54,22 @@ try {
 	ok('15. its hotspots are fields too, marked as hotspots (play.js shows them only with a prospecting array)', fs.filter(y => y.hotspot).length == rk2.ring.hotspots.length && fs.filter(y => y.hotspot).every(y => /hotspot/.test(y.name)));
 	const O = require(path.join(DIR, 'outfit.js'));
 	ok('16. the prospecting array: a utility module that shows hotspots; reading asteroids is the resource scanner\'s job', O.CAT.array && O.CAT.array.cat == 'utility' && /hotspot/.test(O.CAT.array.text) && /resource scanner reads the asteroids/.test(O.CAT.array.text) && /asteroid/.test(O.CAT.prospector.text) && O.CAT.array.price > O.CAT.prospector.price);
+	/* 0.4.6 (L3.2): flying in it */
+	{
+		let good = true, n = 0;
+		for (const x of ringed) for (let k = 0; k < 12; k++) {
+			const r = x.ring, a = k * 0.53, rr = (1 + k * 0.15) * r.R, h = (k % 3 - 1) * 5000, p = Rg.worldAt(r, rr, a, h), q = Rg.nearestPoint(r, p), L = Rg.locate(r, q);
+			n++; if (!(L.band && !L.band.gap && Math.abs(L.z) < 1e-3 && Math.abs(((L.a - a + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) < 1e-6)) good = false;
+		}
+		ok('17. a ring\'s nearest point lies in its plane, at your own angle round it, in a band that isn\'t a gap', good && n > 50);
+		const r = ringed[0].ring, mid = (R.inner + R.outer) / 2 * r.R;
+		ok('18. the sheet\'s distance: 0 inside it, the height above its top over it, and to its edge beyond it',
+			Rg.sheetDist(r, Rg.worldAt(r, mid, 1, 100)) == 0 && Math.abs(Rg.sheetDist(r, Rg.worldAt(r, mid, 1, 5200)) - 5000) < 1e-3 && Math.abs(Rg.sheetDist(r, Rg.worldAt(r, R.outer * r.R + 3000, 2, 0)) - 3000) < 1e-3);
+		const x = ringed[0], sc = Sc.build(x.s, {day: 200}), b = sc.bodies.find(y => y.name == x.b.name), up = Rg.worldAt(r, mid, 1, 30000);
+		ok('19. cruise slows for rings as for worlds (it goes no faster than the distance to the sheet allows) and drops out 4 km from a ring',
+			Math.abs(Sc.ringDist(b, up) - Rg.sheetDist(r, up)) < 1 && Sc.cruiseLimit(sc, up) <= Math.max(Sc.CRUISE.min, Sc.ringDist(b, up)) + 1 && Sc.dropRange({kind: 'ring', radius: 1}) == 4000 && Sc.dropLeft({kind: 'ring', radius: 1, pos: Rg.nearestPoint(r, up)}, up) > 20000,
+			{ring: Sc.ringDist(b, up), sheet: Rg.sheetDist(r, up), lim: Sc.cruiseLimit(sc, up)});
+	}
 } catch (e) { N++; console.log('FAIL (threw) ' + e.stack) }
 console.log(P + '/' + (P + N) + ' passed');
 process.exit(N ? 1 : 0);
