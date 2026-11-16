@@ -83,6 +83,9 @@ async function frame(pg, test) {
 		ok('7. a jump to another star builds its system', await f.evaluate(id => EmberDebug.game.star.id == id && EmberDebug.scene.bodies.length > 1, to));
 		const left = await f.evaluate(old => { const now = new Set(EmberDebug.scene.bodies.map(b => b.name)); return EmberDebug.meshIds().filter(id => old.includes(id.split(':')[0]) && !now.has(id.split(':')[0])) }, before);
 		ok('7b. ...and lets the last system\'s meshes go (0.1.1 kept every system\'s, about 10 MB a jump)', before.length > 0 && left.length == 0, {before, left});
+		/* 0.4.3: a new pilot's first ship has its guns gimballed */
+		const first = await f.evaluate(() => ({ext: (EmberDebug.game.P.ship.fit.external || []).filter(Boolean).map(m => m.id), mounts: EmberDebug.game.pcs.load.guns.map(g => g.mount)}));
+		ok('7a. 0.4.3: a new pilot\'s first ship carries the gimballed version of every gun that has one', first.ext.some(id => /G$/.test(id)) && !first.ext.some(id => ['pulse', 'heavy', 'needle', 'gatling', 'gatlingM', 'gatlingL'].includes(id)), first);
 		await pg.evaluate(() => send({op: 'pause'})); await sleep(400);
 		const paused = await f.evaluate(() => ({ov: !document.getElementById('ov').hidden, h: document.getElementById('ovT').textContent, build: (document.querySelector('#ovBody .build') || {}).textContent}));
 		ok('8. the desktop\'s pause pauses it (the alpha build named on the pause screen)', paused.ov && /Paused/.test(paused.h) && /Alpha/.test(paused.build), paused);
@@ -388,6 +391,17 @@ async function frame(pg, test) {
 			u.prospector = true; u.array = false; EmberDebug.scanNow(); const b = {read: rk.prospected, said: g.msgs.slice(-1)[0].text};
 			u.prospector = keep.p; u.array = keep.a; g.tgt = null; return {a, b} });
 		ok('9z5. 0.4.2: an asteroid is read with a resource scanner, scanning the asteroid itself; a prospecting array alone can\'t', !sc5.a.read && /No resource scanner/.test(sc5.a.said) && sc5.b.read && /^Prospected /.test(sc5.b.said), sc5);
+		/* 0.4.3: third person (V): above and behind the ship, the ship drawn; and shots leave from the gun mounts */
+		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberDebug.scene.station; EmberDebug.go(g.home.star) }); await sleep(600);
+		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, st = EmberDebug.scene.station; g.npcs = []; s.p = st.c.map((v, i) => v + st.axis[i] * 16000); s.v = [0, 0, 0]; g.chase = false });
+		await f.focus('#hud'); await pg.keyboard.press('KeyV'); await sleep(400);
+		const tpv = await f.evaluate(() => ({chase: EmberDebug.game.chase, said: EmberDebug.game.msgs.slice(-1)[0].text}));
+		await f.evaluate(() => { EmberDebug.game.shots.length = 0; EmberDebug.game.wantFire = true });
+		await pg.keyboard.down('Semicolon'); await sleep(250); await pg.keyboard.up('Semicolon');
+		await pg.screenshot({path: path.join(W, 'third-person.png')});
+		await pg.keyboard.press('KeyV'); await sleep(200);
+		const tpv2 = await f.evaluate(() => EmberDebug.game.chase);
+		ok('9z6. 0.4.3: V switches to a third-person view and back', tpv.chase && /Third-person/.test(tpv.said) && !tpv2, {tpv, tpv2});
 		await f.evaluate(() => { EmberDebug.go(EmberGalaxy.lookup('heart', [0, 0, 0])); EmberDebug.game.npcs = [] }); await sleep(800);
 		await f.evaluate(() => { const g = EmberDebug.game, f0 = g.P.ship.fit, L = EmberOutfit.layout(EmberShips.hull(g.P.ship.model)); const i = L.internal.findIndex(z => z >= 3); if (i < 0) return; f0.internal[i] = {id: 'phaser', size: 3, grade: 'A'}; f0.core.power.grade = 'A'; EmberDebug.refit(); EmberDebug.near(EmberDebug.scene.bodies[0], 3.4) });
 		await f.focus('#hud'); await pg.keyboard.press('KeyJ'); await sleep(15000);

@@ -55,5 +55,8 @@ try {
 	const back = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(p5))));
 	ok('20. the fit and storage come back from the save; a fit that doesn\'t suit the hull is dropped', JSON.stringify(back.ship.fit) == JSON.stringify(up.fit) && back.stored.length == 1 && Sv.unpackPlayer(Object.assign(JSON.parse(JSON.stringify(Sv.packPlayer(p5))), {ship: Object.assign({}, p5.ship, {model: 'caravel'})})).ship.fit === null);
 	ok('21. modules beyond stock add to a ship\'s worth', O.extra(pike, up.fit) > 0 && O.extra(pike, O.stock(pike)) == 0);
+	/* (0.4.3) a new pilot's first ship: its guns gimballed */
+	const firsts = ['wren', 'gnat', 'tinker'].map(id => S.hull(id)).filter(Boolean), sf = firsts.map(h => ({h, f: O.starter(h)}));
+	ok('22. a new pilot\'s first ship carries the gimballed versions of its stock guns', sf.length >= 2 && sf.every(({h, f}) => O.valid(h, f) && f.external.length == O.stock(h).external.length && f.external.every(m => /G$/.test(m.id)) && C.state(O.derive(h, f)).load.guns.every(g => g.mount == 'gimbal')), sf.map(x => x.f.external.map(m => m.id)));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

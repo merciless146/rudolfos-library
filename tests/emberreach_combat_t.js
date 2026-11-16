@@ -20,12 +20,18 @@ try {
 	const cs4 = C.state(kestrel); M.damage(cs4.fit, 'shields', 1e6); cs4.shield = 0; for (let t = 5; t < 30; t += DT) C.tick(cs4, t, DT);
 	ok('5. ...unless the shield generator is down', cs4.shield == 0);
 
+	/* (0.4.3) guns fire from their mounts on the hull, not the cockpit */
+	{ const two = Object.assign({}, kestrel, {guns: ['pulse', 'gatling']}), s0 = Fl.create(kestrel); s0.radius = 6; const c0 = C.state(two); c0.id = 'me'; const o0 = []; C.fire(c0, s0, 0, null, o0);
+	  const fwd = Fl.forward(s0), at = o0.map(x => C.v.sub(x.p, s0.p)), side = at.map(d => C.v.dot(d, Fl.toWorld(s0.q, [1, 0, 0]))), conv = o0.map(x => { const P = C.v.add(s0.p, C.v.mul(fwd, C.CONVERGE.none)), d = C.v.sub(P, x.p); return 1 - C.v.dot(C.v.norm(d), x.ray ? x.dir : C.v.norm(C.v.sub(x.v, s0.v))) });
+	  ok('6a. guns fire from their mounts on the hull: two guns, one under each wing, converging on the nose\'s line', o0.length == 2 && side[0] < -1 && side[1] > 1 && at.every(d => C.v.dot(d, Fl.toWorld(s0.q, [0, 1, 0])) < 0) && conv.every(e => e < 1e-6) && C.state(Object.assign({}, kestrel, {guns: ['pulse']})).load.guns[0].at[0] == 0, {side, conv});
+	  const tgt = {p: C.v.add(s0.p, C.v.add(C.v.mul(fwd, 1000), Fl.toWorld(s0.q, [40, 0, 0]))), v: [0, 0, 0]}, g2 = C.state(Object.assign({}, kestrel, {guns: ['pulseG']})); g2.id = 'me'; const o2 = []; C.fire(g2, s0, 0, tgt, o2);
+	  ok('6b. a gimballed gun aims from its mount at the target', o2.length == 1 && Math.abs(C.v.dot(o2[0].dir, C.v.norm(C.v.sub(tgt.p, C.v.sub(o2[0].p, C.v.mul(o2[0].dir, 2))))) - 1) < 1e-9) }
 	/* heat */
 	const lasers = Object.assign({}, kestrel, {guns: ['pulse', 'pulse']}), s = Fl.create(kestrel); s.radius = 6; const cs5 = C.state(lasers); cs5.id = 'me'; let shots = 0, locked = false; const out = [];
 	for (let t = 0; t < 30; t += DT) { C.tick(cs5, t, DT); shots += C.fire(cs5, s, t, null, out); if (cs5.hot) locked = true }
 	ok('6. holding the trigger heats the lasers until the guns lock, then they cool and fire again', locked && shots > 0 && shots < 30 * 12, shots + ' shots in 30 s');
 	const gcs = C.state(Object.assign({}, kestrel, {guns: ['gatling']})); gcs.id = 'me'; const gout = []; C.fire(gcs, s, 0, null, gout);
-	ok('7. lasers fire rays along the nose, out to their range; a gatling\'s rounds leave along the nose at their speed', out.length && out[0].ray && Math.abs(C.v.dot(out[0].dir, Fl.forward(s)) - 1) < 1e-9 && out[0].range == C.WEAPONS.pulse.range
+	ok('7. lasers fire rays along the nose (converging on it from their mounts), out to their range; a gatling\'s rounds leave along the nose at their speed', out.length && out[0].ray && C.v.dot(out[0].dir, Fl.forward(s)) > 0.9995 && out[0].range == C.WEAPONS.pulse.range
 		&& gout.length == 1 && Math.abs(len(sub(gout[0].v, s.v)) - C.WEAPONS.gatling.speed) < 1e-6);
 
 	/* projectiles and lead */

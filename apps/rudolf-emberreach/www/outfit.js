@@ -183,6 +183,12 @@ function stocks(port) {
 	return o ? {maxSize: o.maxSize, grades: o.grades, some: o.some || 0} : {maxSize: 0, grades: '', some: 0};
 }
 /* the modules on offer for a slot: [{id, size, grade, price}] */
+/* (0.4.3) a new pilot's first ship: the stock fit, with its guns in their gimballed versions where there are any */
+function starter(ship) {
+	const f = stock(ship), G = {pulse: 'pulseG', heavy: 'heavyG', needle: 'needleG', gatling: 'gatlingG', gatlingM: 'gatlingMG', gatlingL: 'gatlingLG'};
+	f.external = (f.external || []).map(m => m && G[m.id] && CAT[G[m.id]] ? Object.assign({}, m, {id: G[m.id]}) : m);
+	return valid(ship, f) ? f : stock(ship);
+}
 function offers(ship, slot, port, starId) {
 	const L = layout(ship), st = stocks(port), out = [], Hg = typeof require != 'undefined' ? require('./hangar.js') : root.EmberHangar;
 	/* (an outpost station carries about half the range: hangar.js carries) */
@@ -333,6 +339,6 @@ function valid(ship, fit) {
 	} catch (e) { return false }
 }
 
-const EmberOutfit = {PRECURSOR_MODS, precursorFrom, bpName, recipe, RECYCLE, materials, recycleRoom, recycle, RECIPES, BLUEPRINT, blueprintFrom, learn, build, broker, SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
+const EmberOutfit = {starter, PRECURSOR_MODS, precursorFrom, bpName, recipe, RECYCLE, materials, recycleRoom, recycle, RECIPES, BLUEPRINT, blueprintFrom, learn, build, broker, SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
 if (isNode) module.exports = EmberOutfit; else root.EmberOutfit = EmberOutfit;
 })(typeof window != 'undefined' ? window : this);

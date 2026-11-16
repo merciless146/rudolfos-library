@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.2'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.3'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -142,6 +142,8 @@ async function start() {
 	Co.registerScrips(game.P);
 	game.homePort = !ok && Sc.STATION[Q.get('port')] ? Q.get('port') : ok && sv.version == 1 ? sv.port : 'halo';
 	baseShip = S.hull(game.P.ship.model) || S.hull('wren');
+	/* (0.4.3) a new pilot's first ship has its guns gimballed */
+	if (!ok && !game.P.ship.fit) game.P.ship.fit = O.starter(baseShip);
 	if (!O.valid(baseShip, game.P.ship.fit)) game.P.ship.fit = O.stock(baseShip);
 	ship = O.derive(baseShip, game.P.ship.fit);
 	game.day = ok ? sv.day : +(Q.get('day') || 200);
@@ -356,7 +358,7 @@ function actions(dt) {
 	if (game.mapOpen) { mapKeys(dt); return }
 	if (RG.pressed('pause')) { RG.pause(); return }
 	if (RG.pressed('map')) { openMap(); return }
-	if (RG.pressed('view')) game.chase = !game.chase;
+	if (RG.pressed('view')) toggleView();
 	if (RG.pressed('systems')) game.systems = !game.systems;
 	if (RG.pressed('mouse')) toggleMouse();
 	if (radialStep()) return;   /* (the radial menu, held on ~, takes the other keys while it's open) */
@@ -534,9 +536,12 @@ function toggleMode() {
 }
 function toggleMouse() { game.mouseFly = !game.mouseFly; say('Mouse flight ' + (game.mouseFly ? 'on: point away from the centre to pitch and roll' : 'off')) }
 /* the radial menu: hold ~, point at a function (or step round with ← → or A D), let go. Steering waits meanwhile */
+/* the view: the cockpit, or third person (V, or the radial menu), a ship's length and a bit behind and a little above */
+const VIEW = {back: 2.2, up: 0.55};
+function toggleView() { game.chase = !game.chase; say(game.chase ? 'Third-person view' : 'Cockpit view', '#9fb0cc') }
 const RADIAL = [['gear', 'Landing gear', () => toggleGear()], ['hatch', 'Cargo hatch', () => toggleHatch()], ['lights', 'Spotlights', () => toggleLights()], ['nightVision', 'Night vision', () => toggleNightVision()],
 	['systems', 'Internal systems', () => { game.systems = !game.systems }], ['flare', 'Flare', () => { const pc = game.pcs; if (pc.load.flares > 0) { const k = C.flare(pc, game.shots); say('Flare' + (k ? ': ' + k + ' decoyed' : '') + ' · ' + pc.load.flares + ' left'); Snd.cue('flare') } else say('No flares left', '#f2a33a') }],
-	['mouse', 'Mouse flight', () => toggleMouse()], ['fa', 'Flight assist', () => toggleFA()], ['autopilot', 'Autopilot', () => toggleAutopilot()], ['reboot', 'Reboot', () => reboot()]];
+	['mouse', 'Mouse flight', () => toggleMouse()], ['fa', 'Flight assist', () => toggleFA()], ['autopilot', 'Autopilot', () => toggleAutopilot()], ['reboot', 'Reboot', () => reboot()], ['view', 'Third person', () => toggleView()]];
 function radialStep() {
 	const R0 = game.radial;
 	if (RG.down('radial')) {
@@ -1708,7 +1713,8 @@ function draw() {
 	/* docked, the port's screens cover the view: nothing to draw behind them */
 	if (game.docked && Port.isOpen()) return;
 	adaptRes();
-	const B = R.basis(s.q), cam = game.chase ? {p: add(add(s.p, mul(B.f, -ship.length * 3.2)), mul(B.u, ship.length * 0.9)), q: s.q} : {p: add(s.p, mul(B.f, ship.length * 0.3)), q: s.q};
+	/* the cockpit, or (0.4.3) third person: a little above and behind the ship, looking where it looks */
+	const B = R.basis(s.q), cam = game.chase ? {p: add(add(s.p, mul(B.f, -ship.length * VIEW.back)), mul(B.u, ship.length * VIEW.up)), q: s.q} : {p: add(s.p, mul(B.f, ship.length * 0.3)), q: s.q};
 	const sun = scene.bodies[0], items = [], glows = [], CB = R.basis(cam.q), kpx = Hh / 2 / Math.tan(fovNow() / 2 * Math.PI / 180);
 	/* how many pixels across a thing of radius r at p looks */
 	/* (a thing behind the camera is out of sight, unless it's so close it reaches round: then in full) */
@@ -1881,7 +1887,7 @@ function hudDraw(cam) {
 		target, prograde: vm && game.settings.hud.prograde ? {x: vm.x, y: vm.y, on: vm.z > 0} : null, alerts: M.alerts(fit), modules: fit.modules, showSystems: game.systems, shipName: ship.name,
 		messages: game.msgs, vision: game.vision, gFelt: game.gFelt, reduceFlash: reduceFlash(), reduceMotion: game.settings.a11y.motion, thrustNote: s.fa ? null : tr('Thrust') + ' ' + Math.round(game.throttle * 100) + '%',
 		gear: game.gear, landed: !!game.landed, lights: !!game.lights, nv: !!game.nv, mode: game.mode || 'combat',
-		radial: game.radial ? {sel: game.radial.sel, items: RADIAL.map(([id, name]) => ({name: tr(name), on: id == 'gear' ? game.gear : id == 'hatch' ? game.hatch : id == 'lights' ? game.lights : id == 'nightVision' ? game.nv : id == 'systems' ? game.systems : id == 'autopilot' ? !!game.ap : id == 'reboot' ? fit.reboot > 0 : id == 'mouse' ? game.mouseFly : id == 'fa' ? s.fa : null}))} : null, fps: game.settings.graphics.fps ? game.fps : null, captions: game.settings.a11y.captions ? game.captions.filter(c => game.t - c.t < 3) : null,
+		radial: game.radial ? {sel: game.radial.sel, items: RADIAL.map(([id, name]) => ({name: tr(name), on: id == 'gear' ? game.gear : id == 'hatch' ? game.hatch : id == 'lights' ? game.lights : id == 'nightVision' ? game.nv : id == 'systems' ? game.systems : id == 'view' ? !!game.chase : id == 'autopilot' ? !!game.ap : id == 'reboot' ? fit.reboot > 0 : id == 'mouse' ? game.mouseFly : id == 'fa' ? s.fa : null}))} : null, fps: game.settings.graphics.fps ? game.fps : null, captions: game.settings.a11y.captions ? game.captions.filter(c => game.t - c.t < 3) : null,
 		fuel: game.fuel, jumpCharge: J && J.tunnel == null ? J.charge : 0, witch: J && J.tunnel != null ? 1 - J.tunnel / JUMP.tunnel : null, witchTo: J && J.leg.star.name,
 		nextLeg: leg ? tr('Next') + ': ' + leg.star.name + ' · ' + leg.d.toFixed(1) + ' pc' + (leg.kind != 'jump' ? ' (lane)' : '') + ' · J' : null,
 		touch: RG.lastInput == 'touch', touchUI: touchLayout(),
@@ -1932,7 +1938,7 @@ function pointers() {
 		const u = touchLayout();
 		const b = u.buttons.find(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
 		if (b && b.act == 'fire') { Tt.fire = e.pointerId; return }
-		if (b) { ({missile: () => { Tt.msl = true }, flare: () => { Tt.flare = true }, hostile: nearestHostile, hatch: toggleHatch, fa: toggleFA, cruise: toggleCruise, target: nextTarget, dock: requestDock, map: openMap, jump: requestJump, view: () => { game.chase = !game.chase }, gear: toggleGear, pause: () => RG.pause()})[b.act](); return }
+		if (b) { ({missile: () => { Tt.msl = true }, flare: () => { Tt.flare = true }, hostile: nearestHostile, hatch: toggleHatch, fa: toggleFA, cruise: toggleCruise, target: nextTarget, dock: requestDock, map: openMap, jump: requestJump, view: toggleView, gear: toggleGear, pause: () => RG.pause()})[b.act](); return }
 		if (Math.hypot(p.x - u.stick.x, p.y - u.stick.y) < u.stick.r * 1.6) { Tt.stick = {id: e.pointerId}; stickMove(p); return }
 		if (p.x >= u.vert.x - 8 && p.x <= u.vert.x + u.vert.w + 8 && p.y >= u.vert.y - 20 && p.y <= u.vert.y + u.vert.h + 20) { Tt.vertId = e.pointerId; vertMove(p); return }
 		if (p.x >= u.thr.x - 20 && p.x <= u.thr.x + u.thr.w + 20 && p.y >= u.thr.y - 20 && p.y <= u.thr.y + u.thr.h + 20) { Tt.thrId = e.pointerId; thrMove(p) }

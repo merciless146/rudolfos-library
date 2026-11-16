@@ -74,9 +74,20 @@ function loadout(ship) {
 	h.forEach((n, size) => { for (let k = 0; k < n; k++) { const kind = k % 2 && size == 0 ? 'gatling' : k % 2 && size == 2 ? 'gatlingL' : BY_SIZE[size]; guns.push({kind, mount: WEAPONS[kind].charge || kind == 'torpedo' ? 'fixed' : 'gimbal', cool: 0, ammo: WEAPONS[kind].ammo}) } });
 	return {guns, missiles: h[1] * WEAPONS.missile.ammo, flares: COMBAT.flares, turrets: ship.size == 'Capital'};
 }
+/* (0.4.3) where each gun is mounted on the ship (body axes, m: +x right, +y up, +z the nose), on the hull's own
+   shape (meshes.js ship): one gun under the nose; more in pairs under the wings, left then right, each pair further
+   out and further back. Shots leave from there, not from the cockpit */
+function mounts(ship, n) {
+	const len = ship.length || 20, W = len * 0.36, H = len * 0.14, L = len / 2;
+	if (n <= 1) return [[0, -H * 0.6, L * 0.35]];
+	const out = [];
+	for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, row = Math.floor(i / 2); out.push([side * W * Math.min(0.95, 0.42 + 0.18 * row), -H * 0.55, L * (0.1 - 0.12 * row)]) }
+	return out;
+}
 /* a ship's fighting state: shields, hull, heat, guns, modules */
 function state(ship, fit) {
-	return {dmgK: ship.dmgK || 1, hullMax: ship.hull, hull: ship.hull, shieldMax: ship.shield, shield: ship.shield, heat: 0, hot: false, lastHit: -1e9, fit: fit || M.fit(ship), load: loadout(ship), lock: {id: null, t: 0}, dead: false};
+	const load = loadout(ship), at = mounts(ship, load.guns.length); load.guns.forEach((g, i) => { g.at = at[i] });
+	return {dmgK: ship.dmgK || 1, hullMax: ship.hull, hull: ship.hull, shieldMax: ship.shield, shield: ship.shield, heat: 0, hot: false, lastHit: -1e9, fit: fit || M.fit(ship), load, lock: {id: null, t: 0}, dead: false};
 }
 /* a hit: shields first, then the hull and its modules. Returns what it did */
 function damage(cs, dmg, kind, t, rnd) {
@@ -131,15 +142,21 @@ function track(s, dt) {
 }
 /* where one gun points: along the nose (fixed), at the target's lead within the gimbal (gimballed), anywhere
    (turrets). gimbalDeg: the reach (the player's from the field of view) */
+/* (0.4.3) a gun's muzzle in the world: its mount on the ship */
+const muzzle = (s, g) => g.at ? add(s.p, Fl.toWorld(s.q, g.at)) : s.p;
+/* fixed guns converge on the nose's line: at the target's distance when it's ahead (150 m to 3 km), else 800 m */
+const CONVERGE = {near: 150, far: 3000, none: 800};
 function aimOf(cs, s, g, target) {
-	const nose = Fl.forward(s), W = WEAPONS[g.kind];
-	if (!target || (g.mount != 'gimbal' && !cs.load.turrets)) return {dir: nose, tracking: false};
-	const L = norm(sub(lead(s.p, s.v, target.p, target.v, W.hitscan ? 0 : W.speed, target.a), s.p));
+	const nose = Fl.forward(s), W = WEAPONS[g.kind], from = muzzle(s, g);
+	const fixed = () => { const d = target ? clamp(dot(sub(target.p, s.p), nose), CONVERGE.near, CONVERGE.far) : CONVERGE.none; return {dir: g.at ? norm(sub(add(s.p, mul(nose, d)), from)) : nose, tracking: false} };
+	if (!target || (g.mount != 'gimbal' && !cs.load.turrets)) return fixed();
+	const L = norm(sub(lead(from, s.v, target.p, target.v, W.hitscan ? 0 : W.speed, target.a), from));
 	if (cs.load.turrets || Math.acos(clamp(dot(L, nose), -1, 1)) * 180 / Math.PI < (cs.gimbalDeg || COMBAT.gimbalDeg)) return {dir: L, tracking: true};
-	return {dir: nose, tracking: false};
+	return fixed();
 }
 function shoot(cs, s, g, W, dir, out, k) {
-	const origin = add(s.p, mul(dir, s.radius * 1.2)), dmg = W.dmg * (cs.dmgK || 1) * (g.mount == 'gimbal' ? COMBAT.gimbalDmg : 1) * (k == null ? 1 : k);
+	/* (from the gun's mount, a little out along its line; ships without mounts, from just ahead of the hull) */
+	const origin = g.at ? add(muzzle(s, g), mul(dir, 2)) : add(s.p, mul(dir, s.radius * 1.2)), dmg = W.dmg * (cs.dmgK || 1) * (g.mount == 'gimbal' ? COMBAT.gimbalDmg : 1) * (k == null ? 1 : k);
 	/* a laser: a ray, settled in the next step (stepProjectiles); anything else flies */
 	if (W.hitscan) out.push({kind: g.kind, p: origin, dir, range: W.range, ray: true, ttl: 1, dmg, owner: cs.id, target: null});
 	else out.push({kind: g.kind, p: origin, v: add(s.v, mul(dir, W.speed)), ttl: W.range / W.speed, dmg, owner: cs.id, target: null});
@@ -329,6 +346,6 @@ function missing(ship, k) {
 }
 function refill(ship, k) { const full = loadout(ship); return {hull: k && typeof k.hull == 'number' ? k.hull : 1, ammo: full.guns.map(g => g.ammo), missiles: full.missiles, flares: full.flares} }
 
-const EmberCombat = {groupOf, GIMBALLED, gunOf, gimbalFor, track, aimOf, railStep, railReady, heatK, GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
+const EmberCombat = {mounts, muzzle, CONVERGE, groupOf, GIMBALLED, gunOf, gimbalFor, track, aimOf, railStep, railReady, heatK, GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
 if (isNode) module.exports = EmberCombat; else root.EmberCombat = EmberCombat;
 })(typeof window != 'undefined' ? window : this);
