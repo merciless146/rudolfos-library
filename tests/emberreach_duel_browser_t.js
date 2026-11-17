@@ -50,8 +50,8 @@ async function frame(pg, test) {
 		/* a ram: both take it */
 		const ram = await f.evaluate(async () => { const g = EmberDebug.game, s = EmberDebug.s, n = g.npcs[0], fw = EmberFlight.forward(s), a0 = g.pcs.shield + g.pcs.hull, b0 = n.cs.shield + n.cs.hull;
 			n.s.p = s.p.map((v, i) => v + fw[i] * (s.radius + n.s.radius + 1)); n.s.v = [0, 0, 0]; s.v = fw.map(v => v * 60); n.pos = n.s.p; await new Promise(r => setTimeout(r, 300));
-			return {me: a0 - (g.pcs.shield + g.pcs.hull), them: b0 - (n.cs.shield + n.cs.hull), said: g.msgs.some(m => /^Collision with Rival/.test(m.text))} });
-		ok('4. ramming the rival at 60 m/s hurts you both (speed-based), and says so', ram.me > 10 && ram.them > 10 && ram.said, ram);
+			return {me: a0 - (g.pcs.shield + g.pcs.hull), them: b0 - (n.cs.shield + n.cs.hull), mMe: s.mass, mThem: n.s.mass, said: g.msgs.some(m => /^Collision with Rival/.test(m.text))} });
+		ok('4. ramming the rival at 60 m/s hurts you both (speed-based: about 66 between you), the lighter ship more, and says so', ram.me > 2 && ram.them > 2 && ram.me + ram.them > 45 && ram.me + ram.them < 90 && (ram.mMe <= ram.mThem ? ram.me >= ram.them : ram.them >= ram.me) && ram.said, ram);
 		/* a rock at 40 m/s */
 		const rock = await f.evaluate(async () => { const g = EmberDebug.game, s = EmberDebug.s, r = g.rocks.slice().sort((a, b) => Math.hypot(...a.pos.map((v, i) => v - s.p[i])) - Math.hypot(...b.pos.map((v, i) => v - s.p[i])))[0], dir = [1, 0, 0];
 			g.npcs[0].s.p = g.npcs[0].s.p.map((v, i) => v + [0, 0, 5000][i]); const a0 = g.pcs.shield + g.pcs.hull;
