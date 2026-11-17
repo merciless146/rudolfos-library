@@ -85,6 +85,15 @@ function surfacePanel(ctx, bx, by, bw, bh, sf) {
 	ctx.strokeStyle = C.line; ctx.strokeRect(hx + 0.5, hy + 0.5, hw, hh);
 	ctx.fillStyle = C.amber; ctx.fillRect(cxh - 12, cyh - 0.5, 8, 1.5); ctx.fillRect(cxh + 4, cyh - 0.5, 8, 1.5); ctx.fillRect(cxh - 1, cyh - 1, 2, 2);
 }
+/* (0.5.0) a duel's clock, round and score at the top centre; a banner between rounds */
+function duelBar(ctx, W, H, d) {
+	const cx = W / 2;
+	ctx.fillStyle = 'rgba(8,10,18,0.55)'; ctx.fillRect(cx - 150, 8, 300, 62);
+	text(ctx, d.clock, cx, 34, {mono: true, size: d.clock.length > 6 ? 20 : 26, weight: 700, align: 'center', col: d.urgent ? C.red : C.text});
+	text(ctx, d.round, cx, 52, {size: 12, align: 'center', col: C.muted});
+	text(ctx, d.dealt, cx, 66, {size: 11, mono: true, align: 'center', col: C.muted});
+	if (d.banner) { text(ctx, d.banner.text, cx, H * 0.3, {size: 30, weight: 700, align: 'center', col: d.banner.col}); if (d.banner.sub) text(ctx, d.banner.sub, cx, H * 0.3 + 28, {size: 15, align: 'center', col: C.text}) }
+}
 function draw(ctx, W, H, h, t) {
 	ctx.save();
 	const cx = W / 2, cy = H / 2, small = W < 700;
@@ -324,6 +333,7 @@ function draw(ctx, W, H, h, t) {
 			ctx.fillStyle = 'rgba(108,201,232,0.5)'; ctx.fillRect(V.x, Math.min(mid, mid - V.v * V.h / 2), V.w, Math.abs(V.v) * V.h / 2); text(ctx, 'VERT', V.x + V.w / 2, V.y - 6, {align: 'center', size: 10, weight: 600, col: C.muted}) }
 		for (const b of u.buttons) { ctx.fillStyle = 'rgba(8,14,26,0.7)'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = b.on ? C.cyan : 'rgba(232,237,246,0.35)'; ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1); text(ctx, b.label, b.x + b.w / 2, b.y + b.h / 2 + 4, {align: 'center', size: 12, weight: 600, col: b.on ? C.cyan : C.text}) }
 	}
+	if (h.duel) duelBar(ctx, W, H, h.duel);
 	ctx.restore();
 }
 
