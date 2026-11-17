@@ -1334,7 +1334,35 @@ also arms the first ships and adds fire groups:
 - **0.4.9, surface mines (L3.5):** a colony builds surface mines at deposits the ground scan found on its worlds.
   Each works its deposit at 25 t a day and feeds that good to the colony port's market until the deposit runs out.
 
-Still to come: the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
+- **0.5.0, duels (first stage):** a two-pilot duel mode beside the single-player game (`?duel`, or Duels on the
+  pause menu), with its own `duel.js`.
+  - **Ships:** four built for it from the ordinary yards (no Precursor work), guns gimballed: a heavy fighter (the
+    all-rounder), a raider (gatling and mass driver), a gunship (missiles, the thickest hull, slow to turn) and a
+    medium strike craft (five hardpoints, heavy shields, a wide turn). Their hull, shields and damage are scaled so
+    each one's fighting power (a minute's damage times what it takes to destroy it) meets the stock heavy fighter's,
+    times a handicap tuned by AI duels: every ship wins 20-80% of its AI fights against the others.
+  - **Arena:** three dense asteroid swarms in a row (45 km), seeded so both fly the same rocks, far out from a
+    portless star. The two start 20 km apart, facing each other, red on each other's radar (25 km in a duel).
+  - **Rounds:** 300 s at most, the clock at the top centre (with the round, the score and the damage each has done).
+    Destroying the other wins the round; at 5:00 the more damage wins it; level, it's sudden death, and the next
+    damage done wins. Best of three, 6 s between rounds; then Rematch, Choose ship or Leave.
+  - **Collisions, in duels and the single-player game:** hitting an asteroid or a ship hurts in proportion to the
+    speed (0.6 a m/s over 5 m/s), through shields and then the hull (before, an asteroid only hurt modules). Between
+    ships both take it, the lighter more, and they bounce apart.
+  - **Opponents:** the AI pilot now. Online (WebSocket) and LAN come next (below).
+  - Tested in `tests/emberreach_duel_t.js` (node) and `tests/emberreach_duel_browser_t.js` (a match in Chromium).
+- **Duels online and on a LAN (next):** the player picks either.
+  - **The protocol:** one pilot's game hosts (it decides hits, kills, collisions and the clock: `duel.js`'s match);
+    the other sends its controls and its own ship's state 30 times a second, flies its own ship at once, and smooths
+    the host's updates. The arena is seeded, so only the ships and the shots travel. Both run the same version.
+  - **WebSocket (online):** a small relay service with room codes ("join ABC123") and a quick-match queue, on
+    Cloudflare Workers with a Durable Object per match (or any host running the same few hundred lines of Node). It
+    needs an account to deploy; players never see each other's addresses. Later the match itself could run there.
+  - **LAN:** a browser can't take connections, so one computer on the network runs the relay: a small Rudolf OS
+    service the host's game asks for (through the game kit), found by the other on the network (mDNS). Nothing goes
+    over the internet.
+
+Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
 
 ## Open questions

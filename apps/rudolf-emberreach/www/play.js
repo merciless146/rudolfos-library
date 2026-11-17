@@ -58,11 +58,11 @@
 const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
-	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings;
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.9'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.0'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -133,11 +133,13 @@ async function start() {
 	if (fresh) sv = sv && {settings: sv.settings};
 	const ok = sv && sv.ship;
 	/* the player: from the save; or, for a new game, the origin from the URL or chosen here */
-	let originIdx = ok ? sv.power : Q.has('power') ? Math.max(0, Math.min(majors.length - 1, +Q.get('power'))) : null;
+	/* (0.5.0) duels: their own game, nothing saved but the settings */
+	const duel = Q.has('duel'); if (duel) game.duel = {m: null, pick: Du.ROSTER[0].id, opp: null, seed: 1 + Math.floor(Math.random() * 1e6)};
+	let originIdx = duel ? 0 : ok ? sv.power : Q.has('power') ? Math.max(0, Math.min(majors.length - 1, +Q.get('power'))) : null;
 	if (originIdx == null) { $('load').style.display = 'none'; originIdx = await chooseOrigin(sv && sv.oldGalaxy); $('load').style.display = '' }
 	game.power = originIdx;
 	game.home = majors[game.power];
-	game.P = ok && sv.player ? sv.player : Tr.newPlayer(game.home.id);
+	game.P = !duel && ok && sv.player ? sv.player : Tr.newPlayer(game.home.id);
 	if (Q.has('ship') && !ok) game.P.ship.model = Q.get('ship');
 	Co.registerScrips(game.P);
 	game.homePort = !ok && Sc.STATION[Q.get('port')] ? Q.get('port') : ok && sv.version == 1 ? sv.port : 'halo';
@@ -148,24 +150,25 @@ async function start() {
 	ship = O.derive(baseShip, game.P.ship.fit);
 	game.day = ok ? sv.day : +(Q.get('day') || 200);
 	game.fuel = ok ? sv.fuel : 1;
-	const here = ok && sv.star ? T.starAt(sv.star.id, sv.star.p) : null;
+	const here = !duel && ok && sv.star ? T.starAt(sv.star.id, sv.star.p) : null;
 	game.lastPort = ok && sv.lastPort ? T.starAt(sv.lastPort.id, sv.lastPort.p) : null; game.lastPortId = ok && sv.lastPort && sv.lastPort.port || T.ORBITAL;
 	/* renderer, then the system */
 	R = Re.create(gl, {canvas2d: Q.has('canvas'), antialias: game.settings.graphics.aa});
-	enterSystem(here || game.home.star);
+	enterSystem(duel ? duelStar() : here || game.home.star);
 	view = RG.fit(hud, (w, h) => ({w, h}));
 	/* (the 3D view's resolution: the screen's, times the Resolution setting) */
 	RG.on('resize', v => { game.lastView = v; W = v.w; Hh = v.h; sizeCanvas() });
 	view.refit();
 	map = Map.create();
 	pointers();
-	if (ok) resume(sv);
+	if (duel) duelArena();
+	else if (ok) resume(sv);
 	else {
 		/* a new game starts docked at the capital, in the starport */
 		launch(true); game.lastPort = game.star; game.lastPortId = T.ORBITAL;
 		if (st && !Q.has('spawn')) { game.docked = true; game.dockPort = game.port; { const C = atcOf(game.port), r = Atc.request(C, 'me', Atc.classOf(baseShip), game.t); Atc.docked(C, 'me'); game.clearance = {port: T.ORBITAL, pad: r.pad || 1, until: Infinity} } say('Welcome to ' + st.name + '. Your ' + ship.name + ' is ready.') }
 	}
-	if (ok && sv.routeTo) game.pendingRoute = sv.routeTo;
+	if (ok && sv.routeTo && !duel) game.pendingRoute = sv.routeTo;
 	$('load').remove();
 	/* sound starts on the first touch, click or key (browsers insist) */
 	const unlock = () => Snd.unlock();
@@ -183,6 +186,7 @@ async function start() {
 	RG.onPause(() => { if (!$('ov').hidden) return; overlay('pause') });
 	if (game.docked) openPort();
 	RG.loop(update, draw);
+	if (duel) overlay('duel');
 	hud.focus();
 }
 /* a star system: its bodies, its port (if any), meshes and sky */
@@ -273,7 +277,7 @@ function resume(sv) {
 }
 /* save now (gamekit keeps it); quietly, at most once a second */
 function persist() {
-	if (!s || !fit) return;
+	if (!s || !fit || game.duel) return;
 	if (game.saving) { game.savePending = true; return }   /* (a save asked for meanwhile follows the one under way, so the last word is kept) */
 	game.savePending = false;
 	game.saving = true; game.savedAt = game.t;
@@ -816,6 +820,7 @@ function surfaceTarget(sp) { return {kind: 'port', surface: true, sp, name: sp.q
 /* why the ship is mass locked, for a refusal: below a world's Kármán line, or within 10 km of a port */
 function lockWhy(what) { const L = Sc.lockedBy(scene, s.p); return !L ? '' : L.alt != null ? 'Mass locked by ' + L.name + ': ' + what + ' needs ' + H.fmtDist(L.alt) + ' of height (its Kármán line)' : 'Mass locked by ' + L.name + ': ' + what + ' needs ' + H.fmtDist(Sc.CRUISE.lock) + ' clear' }
 function toggleCruise() {
+	if (game.duel) { say('No cruise in a duel', '#f2a33a'); Snd.cue('refused'); return }
 	const cz = game.cruise;
 	if (cz.on) { const r = Sc.dropOut(s, cz); cz.on = false; game.throttle = Math.min(1, len(s.v) / s.spec.vmax); say(r.emergency ? 'Emergency drop out: the drive took a knock' : 'Dropped out of cruise', r.emergency ? '#f2a33a' : undefined); Snd.cue(r.emergency ? 'emergency' : 'drop'); if (r.emergency) damage(25); return }
 	if (cz.charge > 0) { cz.charge = 0; say('Cruise cancelled'); return }
@@ -940,6 +945,7 @@ function nextLeg() {
 	return null;
 }
 function requestJump(fromAp) {
+	if (game.duel) { say('No jumping out of a duel', '#f2a33a'); Snd.cue('refused'); return }
 	if (!fromAp && game.ap && game.ap.mode == 'align') { apOff('Jump cancelled'); if (game.jump) game.jump = null; return }
 	if (game.jump) { const ph = game.jump.phase; game.jump = null; say(ph ? 'Phase cancelled' : 'Jump cancelled'); return }
 	if (game.autoJumpAt != null) { game.autoJumpAt = null; say('Automatic jump stopped: J to jump on when you\'re ready', '#9fb0cc'); return }
@@ -1000,6 +1006,7 @@ function plot(toStar, quiet) {
 
 /* ---------------- the map ---------------- */
 function openMap() {
+	if (game.duel) { say('No star map in a duel', '#f2a33a'); return }
 	game.mapOpen = true;
 	map.explore = game.P.explore; map.player = game.P; map.info = null;
 	map.here = game.star; map.range = ship.jump; map.origin = game.home.id; map.day = game.day; map.fuel = game.fuel; map.route = game.route;
@@ -1026,6 +1033,29 @@ function mapKeys(dt) {
 }
 
 /* ---------------- the step ---------------- */
+/* (0.5.0) a collision's damage to you: shields, then the hull and its modules */
+function bumped(dmg, how, by) {
+	const out = C.damage(game.pcs, dmg, 'ram', game.t); game.hitAt = game.t;
+	for (const a of out.alerts) moduleAlert(a);
+	if (game.duel) { if (by && by.duel) duelHit(1, out.shield + out.hull); if (game.pcs.dead) duelDown(0); return out }
+	if (game.pcs.dead) lost(how);
+	return out;
+}
+/* (0.5.0) bumping into other ships: both take it, from the speed they met at (duel.js bump) */
+function shipBumps() {
+	s.mass = s.mass || ship.mass || Math.pow((ship.length || 10) / 10, 3);
+	for (const n of game.npcs) {
+		if (n.cs.dead || n.role == 'turret') continue;
+		n.s.mass = n.s.mass || n.ship.mass || Math.pow((n.ship.length || 10) / 10, 3);
+		const b = Du.bump(s, n.s); if (!b || !b.impact) continue; n.pos = n.s.p;
+		if (b.a + b.b <= 0) continue;
+		say('Collision with ' + n.name + ' at ' + Math.round(b.impact) + ' m/s', '#f2a33a'); Snd.cue('collide', b.impact);
+		/* (in sudden death the one who came off better takes the round: their hit counts first) */
+		const theirs = () => { const o = C.damage(n.cs, b.b, 'ram', game.t); if (n.duel) duelHit(0, o.shield + o.hull); else if (!n.provoked && !En.hostile(game.P, n) && b.impact > 20) provoke(n); if (n.cs.dead) destroyed(n, false) };
+		if (b.b >= b.a) { theirs(); if (!game.duel || game.duel.m.phase == 'fight') bumped(b.a, 'a collision with ' + n.name, n) }
+		else { bumped(b.a, 'a collision with ' + n.name, n); if (game.pcs.dead && !game.duel) return; if (!game.duel || game.duel.m.phase == 'fight') theirs() }
+	}
+}
 function damage(amount) {
 	let left = amount;
 	while (left > 0) { const h = M.hit(fit, Math.min(left, 12), Math.random()); left -= 12; if (h.alert) moduleAlert(h.alert) }
@@ -1111,7 +1141,8 @@ function update(dt) {
 	if (!cz.on) mine(dt);
 	explore(dt, cz.on);
 	groundScan(dt, cz.on);
-	if (!cz.on) { const pc = game.pcs; combat(dt); if (game.pcs !== pc) return }
+	if (!cz.on) { const pc = game.pcs; combat(dt); if (game.pcs !== pc) return; shipBumps(); if (game.pcs !== pc) return }
+	if (game.duel) duelStep(dt);
 	/* the sound follows the thrusters */
 	const Sp = s.spec, aB = r ? r.aBody : [0, 0, 0], al = r ? r.alpha : [0, 0, 0];
 	Snd.update({main: Math.max(0, aB[2]) / Sp.aMain, rcs: Math.min(1, (Math.abs(aB[0]) + Math.abs(aB[1])) / Sp.aRcs + Math.max(0, -aB[2]) / Sp.aRetro + al.reduce((t, a, i) => t + Math.abs(a) / Sp.alpha[i], 0) * 0.3),
@@ -1167,7 +1198,7 @@ function place(list) {
 		game.npcs.push(n);
 	}
 }
-const isHostile = n => !n.cs.dead && En.hostile(game.P, n);
+const isHostile = n => !n.cs.dead && (n.duel || En.hostile(game.P, n));
 /* hostile ships within 5 km hold you out of cruise */
 const shipLock = () => game.npcs.find(n => !n.cs.dead && isHostile(n) && n.role != 'depot' && len(sub(n.s.p, s.p)) < 5000);
 const ME = {player: true, id: 'me'};
@@ -1200,7 +1231,7 @@ function combat(dt) {
 			n.next = game.t + 0.7 + Math.random() * 0.6;
 			let best = null, bd = 25000;
 			if (n.role != 'trader') {
-				if (En.hostile(P, n)) { const d = len(sub(s.p, n.s.p)); if (d < bd) { bd = d * 0.8; best = ME } }
+				if (n.duel || En.hostile(P, n)) { const d = len(sub(s.p, n.s.p)); if (d < bd || n.duel) { bd = d * 0.8; best = ME } }
 				for (const o of game.npcs) if (o != n && !o.cs.dead && o.role != 'depot' && En.enemies(n, o, P)) { const d = len(sub(o.s.p, n.s.p)); if (d < bd) { bd = d; best = o } }
 			} else if (n.provoked) best = ME;
 			n.foe = best;
@@ -1241,7 +1272,7 @@ function combat(dt) {
 	if (game.locked && !wasLocked) Snd.cue('lock');
 	/* the triggers (0.3.4): Fire (the left mouse button) the primary guns, Fire secondary (the right) the secondary; with
 	   guns in only one group, either fires them; touch's FIRE, and a gamepad's trigger, fire every gun */
-	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned;
+	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned && (!game.duel || duelLive());
 	const allG = game.touch.fire != null || (RG.lastInput == 'pad' && RG.down('fire')), t1 = RG.down('fire') || allG, t2 = RG.down('fire2') || allG;
 	const oneGroup = new Set(pc.load.guns.filter(g => !C.WEAPONS[g.kind].homing).map(C.groupOf)).size < 2, heldG = g => oneGroup ? t1 || t2 : C.groupOf(g) == 1 ? t1 : t2, trigger = heldG;
 	/* the mass drivers: held, they charge; let go, they fire (combat mode only; out of it, the charge is lost) */
@@ -1260,7 +1291,7 @@ function combat(dt) {
 		if (!pc.load.missiles && !torp) { say('No missiles left: restock at a port', '#f2a33a'); Snd.cue('refused') }
 		else if (!foe) { say('Target a ship first (T, or U for the nearest hostile)', '#f2a33a'); Snd.cue('refused') }
 		else if (!game.locked) { say('No lock yet: hold ' + tg.name + ' in your sights for 2 s', '#f2a33a'); Snd.cue('refused') }
-		else if (C.launch(pc, s, foe, game.shots)) { say('Missile away · ' + pc.load.missiles + ' left'); Snd.cue('missile'); if (!En.hostile(P, tg)) provoke(tg) }
+		else if (C.launch(pc, s, foe, game.shots)) { say('Missile away · ' + pc.load.missiles + ' left'); Snd.cue('missile'); if (!tg.duel && !En.hostile(P, tg)) provoke(tg) }
 	}
 	if (game.mode == 'analysis' && (RG.pressed('flare') || game.touch.flare)) { game.touch.flare = false; pulse() }
 	else if (RG.pressed('flare') || game.touch.flare) { game.touch.flare = false; if (pc.load.flares > 0) { const k = C.flare(pc, game.shots); say('Flare' + (k ? ': ' + k + (k == 1 ? ' missile' : ' missiles') + ' decoyed' : '') + ' · ' + pc.load.flares + ' left'); Snd.cue('flare') } else say('No flares left', '#f2a33a') }
@@ -1280,8 +1311,9 @@ function combat(dt) {
 		game.booms.push({pos: pr.p.slice(), t: game.t, r: big ? 30 : 4, col: W.col, life: big ? 0.6 : 0.2});
 		if (h.ship.id == 'me') { hitMe(pr); if (game.pcs !== pc) return; continue }
 		const n = h.ship.n;
-		C.damage(n.cs, pr.dmg, pr.kind, game.t);
-		if (pr.owner == 'me' && !n.provoked && !En.hostile(P, n)) provoke(n);
+		const done = C.damage(n.cs, pr.dmg, pr.kind, game.t);
+		if (n.duel && pr.owner == 'me') duelHit(0, done.shield + done.hull);
+		if (pr.owner == 'me' && !n.duel && !n.provoked && !En.hostile(P, n)) provoke(n);
 		else if (pr.owner != 'me' && n.role != 'trader') { const src = game.npcs.find(o => o.id == pr.owner); if (src && n.foe != ME) { n.foe = src; n.next = game.t + 3 } }
 		if (n.cs.dead) destroyed(n, pr.owner == 'me');
 	}
@@ -1298,7 +1330,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {seesSites: () => seesSites(), navList: () => navList(), scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () => duelBegin(), seesSites: () => seesSites(), navList: () => navList(), scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -1317,10 +1349,12 @@ function hitMe(pr) {
 	game.hitAt = game.t;
 	Snd.cue(out.hull > 0 ? 'hullHit' : 'shieldHit');
 	for (const a of out.alerts) moduleAlert(a);
+	if (game.duel) { const src = game.npcs.find(o => o.id == pr.owner); if (src && src.duel) duelHit(1, out.shield + out.hull); if (game.pcs.dead) duelDown(0); return }
 	if (game.pcs.dead) { const src = game.npcs.find(o => o.id == pr.owner); lost('destroyed by ' + (src ? src.name : 'gunfire')) }
 }
 function destroyed(n, byMe) {
 	game.booms.push({pos: n.s.p.slice(), t: game.t, r: n.s.radius * 4, col: [1, 0.72, 0.4], life: 1.8});
+	if (n.duel) { Snd.cue('boom', 1); if (game.tgt == n) game.tgt = null; duelDown(1); return }
 	for (const g of n.cargo || []) game.cans.push(Ca.make(g, n.s.p, n.s.v, game.t));
 	Snd.cue('boom', Math.max(0.15, Math.min(1, 3000 / (len(sub(n.s.p, s.p)) + 1))));
 	if (byMe) {
@@ -1495,23 +1529,26 @@ function mine(dt) {
 	/* the site you're at: its asteroids, the same every visit */
 	/* (the nearest site within 25 km; a hotspot's minerals are there whether or not you can see it) */
 	/* (L3.2) in a ring: its asteroids all round you, wherever you are in its bands (not only at its site) */
-	const rf = game.fields.find(x => x.ring && !x.hotspot && Rg.sheetDist(x.ring, s.p) < RINGROCKS.reach);
+	const rf = game.duel ? null : game.fields.find(x => x.ring && !x.hotspot && Rg.sheetDist(x.ring, s.p) < RINGROCKS.reach);
 	if (rf) {
 		if (game.field != rf) { game.field = rf; game.rocks = []; game.rocksAt = null; game.hotHere = null; say('In ' + rf.name + ': a ' + Mi.KINDS[rf.fieldKind].name + ', ' + STREWN[rf.ring.density] + '. Its asteroids can be mined anywhere in its bands', '#c9a46a') }
 		if (!game.rocksAt || len(sub(s.p, game.rocksAt)) > RINGROCKS.step) ringRocks(rf);
 		const h = rf.ring.hotspots.find(x => len(sub(x.pos, s.p)) < x.radius), hid = h ? h.id : null;
 		if (hid != game.hotHere) { game.hotHere = hid; if (h && seesHot()) say('Mineral hotspot: ' + h.good + ', in ' + rf.name + ' (the prospecting array marks it)', '#c9a46a') }
 	}
-	const f = rf ? null : game.fields.filter(x => !x.ring && len(sub(x.pos, s.p)) < 25000).sort((a, b) => len(sub(a.pos, s.p)) - len(sub(b.pos, s.p)))[0];
+	const f = rf || game.duel ? null : game.fields.filter(x => !x.ring && len(sub(x.pos, s.p)) < 25000).sort((a, b) => len(sub(a.pos, s.p)) - len(sub(b.pos, s.p)))[0];
 	if (!rf && f && game.field != f) { game.field = f; game.rocks = Mi.rocks(f, game.P.mined); for (const r of game.rocks) rockMesh(r); if (f.hidden) { if (seesSites() && !charted(f)) { (game.P.charted = game.P.charted || {})[f.id] = 1; say('Charted ' + f.name + ': a dense ' + Mi.KINDS[f.fieldKind].name + ' site your resource scanner found, its asteroids rich', '#c9a46a'); Snd.cue('chart') } else if (charted(f)) say('Mining site: ' + f.name + ', ' + Mi.KINDS[f.fieldKind].name + ' (charted)', '#c9a46a') }
 		else if (!f.hotspot) say('Mining site: ' + f.name + ', ' + Mi.KINDS[f.fieldKind].name, '#c9a46a'); else if (seesHot()) say('Mineral hotspot: ' + f.hotspot.good + ', in ' + f.name.split(' · ')[1] + ' (the prospecting array marks it)', '#c9a46a') }
-	else if (!rf && !f && game.field) { game.field = null; game.rocks = []; game.rocksAt = null; game.hotHere = null }
+	else if (!rf && !f && game.field && !game.duel) { game.field = null; game.rocks = []; game.rocksAt = null; game.hotHere = null }
 	if (!game.rocks.length) return;
 	/* bumping into rocks */
+	/* (0.5.0: duel.js rockBump: the damage, from the speed, goes through shields and hull; for every ship near) */
 	for (const r of game.rocks) {
-		const d = sub(s.p, r.pos), L = len(d), min = r.radius * 0.9 + s.radius; if (L >= min) continue;
-		const n = mul(d, 1 / (L || 1)), vn = dot(s.v, n); s.p = add(r.pos, mul(n, min));
-		if (vn < 0) { s.v = sub(s.v, mul(n, vn * 1.6)); if (-vn > 8) { say('Collision with an asteroid at ' + Math.round(-vn) + ' m/s', '#f2a33a'); Snd.cue('collide', -vn); damage(-vn * 0.6) } }
+		const b = Du.rockBump(s, r); if (b && b.dmg > 0) { say('Collision with an asteroid at ' + Math.round(b.impact) + ' m/s', '#f2a33a'); Snd.cue('collide', b.impact); bumped(b.dmg, 'a collision with an asteroid') }
+	}
+	for (const n of game.npcs) {
+		if (n.cs.dead || n.role == 'depot' || n.role == 'turret' || len(sub(n.s.p, game.rocksAt || game.field.pos || s.p)) > 40000) continue;
+		for (const r of game.rocks) { if (Math.abs(r.pos[0] - n.s.p[0]) > r.radius + n.s.radius) continue; const b = Du.rockBump(n.s, r); if (b && b.dmg > 0) { C.damage(n.cs, b.dmg, 'ram', game.t); n.pos = n.s.p; if (n.cs.dead) destroyed(n, false) } }
 	}
 	/* the resource scanner: a targeted asteroid within 3 km, for 3 s */
 	const Tg = curTarget();
@@ -1944,12 +1981,13 @@ function hudDraw(cam) {
 		refinery: Object.keys(game.P.refinery || {}).length ? Object.entries(game.P.refinery).map(([g, t]) => g + ' ' + t.toFixed(1)).join(' · ') : null,
 		hatch: !hasHatch() ? null : !M.works(fit, 'hatch') ? 'jammed' : game.hatch ? 'open' : null,
 		surface: !cz.on && game.well ? (() => { const ss = Sc.surfaceState(scene, s, game.t, ship); return ss ? {world: ss.world, alt: ss.alt, vz: ss.vz, vh: ss.vh, pitch: ss.pitch, bank: ss.bank, limit: Ld.TOUCH[Ld.padFor(ship.size)].vz, landable: ss.landable && ss.landable.ok} : null })() : null,
-		scanner: M.works(fit, 'sensors') && game.settings.hud.scanner ? {range: game.t < (game.pulseUntil || 0) ? PULSE.range : 8000, blips} : null, well: game.well ? {g: game.well.g, alt: game.well.alt, name: game.well.body.name} : null, incoming: game.incoming > 0, hitAge: game.hitAt != null ? game.t - game.hitAt : null,
+		scanner: M.works(fit, 'sensors') && game.settings.hud.scanner ? {range: game.duel ? 25000 : game.t < (game.pulseUntil || 0) ? PULSE.range : 8000, blips} : null, well: game.well ? {g: game.well.g, alt: game.well.alt, name: game.well.body.name} : null, incoming: game.incoming > 0, hitAge: game.hitAt != null ? game.t - game.hitAt : null,
 		/* the gimballed guns' circle: 40% of the screen's height across */
 		gimbal: pc.load.guns.some(g => g.mount == 'gimbal') && game.mode != 'analysis' && !cz.on && !game.docked ? {r: 0.2 * Hh, charge: railCharge(pc)} : railCharge(pc) ? {r: 0, charge: railCharge(pc)} : null,
 		combat: {shield: pc.shield / Math.max(1, pc.shieldMax), hull: pc.hull / pc.hullMax, heat: Math.min(1, pc.heat), hot: pc.hot, armed: pc.load.guns.length > 0,
 			ammo: ammoGuns.length ? ammoGuns.reduce((t, g) => t + g.ammo, 0) : null, missiles: pc.load.missiles + pc.load.guns.filter(g => g.kind == 'torpedo').reduce((t, g) => t + g.ammo, 0),
-			missileMax: full.missiles + full.guns.filter(g => g.kind == 'torpedo').length, flares: pc.load.flares}
+			missileMax: full.missiles + full.guns.filter(g => g.kind == 'torpedo').length, flares: pc.load.flares},
+		duel: duelHud()
 	}, game.t);
 }
 function dockCues(rel) {
@@ -2000,6 +2038,86 @@ function pointers() {
 }
 
 /* ---------------- overlays ---------------- */
+/* ---------------- duels (0.5.0: duel.js) ----------------
+   Their own game (?duel): a temporary pilot, nothing saved but the settings. A system with no port, the arena far out
+   from its star; you and your rival 20 km apart in its asteroids, best of three rounds of 300 s */
+function duelStar() { const h = game.home.star; return G.starsNear(h.x, h.y, h.z, 12).find(x => x.kind == 'star' && !x.rift && !T.portsAt(x, game.day).length) || h }
+function duelArena() {
+	const D = game.duel, sun = scene.bodies[0], far = Math.max(...scene.bodies.map(b => len(sub(b.pos, sun.pos)) + b.radius));
+	D.c = add(sun.pos, mul(norm([0.3, 1, 0.2]), far * 1.4 + 5e8));
+	D.A = Du.arena(D.seed);
+	const fields = D.A.fields.map(f => Object.assign({}, f, {pos: add(D.c, f.pos), kind: 'field', radius: 500}));
+	game.fields = []; game.field = fields[1]; game.rocksAt = D.c; game.mines = []; game.ringNav = []; game.sweep = 0;
+	game.rocks = fields.flatMap(f => Mi.rocks(Object.assign({}, f, {kind: f.fieldKind}), {})); for (const r of game.rocks) rockMesh(r);
+	duelPlace();
+}
+const duelLive = () => !game.duel.m || game.duel.m.phase == 'fight' || game.duel.m.phase == 'sudden';
+/* the two ships at their starts: fresh, repaired, rearmed */
+function duelPlace() {
+	const D = game.duel, A = D.A, at = i => ({p: add(D.c, A.starts[i].p), q: Sc.lookRotation(A.starts[i].face, [0, 0, 1]), v: [0, 0, 0]});
+	if (D.m) { const b = Du.build(D.m.ships[0]); baseShip = b.hull; game.P.ship.model = b.hull.id; game.P.ship.fit = b.fit; ship = b.ship; R.upload('ship', Me.ship(ship.length, quality)) }
+	s = Fl.create(ship, at(0)); s.radius = Math.max(2, ship.length / 2); s.mass = ship.mass;
+	fit = M.fit(ship); pilot = Pi.create(); M.apply(fit, s); game.pcs = C.state(ship, fit); game.pcs.id = 'me';
+	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = 0; game.ap = null; game.jump = null; game.tgt = null; game.nav = null;
+	game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null;
+	if (!D.m) return;
+	const ob = Du.build(D.m.ships[1]), n = {id: 'duelist', role: 'duelist', duel: true, faction: 'duel', ship: ob.ship, name: 'Rival ' + ob.ship.name, cargo: [], wanted: null, scanned: null, scanT: 0, wasHostile: true, provoked: true};
+	n.s = Fl.create(ob.ship, at(1)); n.s.radius = Math.max(2, ob.ship.length / 2); n.s.mass = ob.ship.mass;
+	n.cs = C.state(ob.ship); n.cs.id = n.id; n.ai = {mode: 'attack', base: 'attack', fleeAt: 0};
+	n.home = n.s.p; n.pos = n.s.p; n.radius = n.s.radius; n.kind = 'ship'; n.next = 0; n.foe = null;
+	npcMesh(n); game.npcs.push(n); game.tgt = n;
+}
+function duelBegin() {
+	const D = game.duel, others = Du.ROSTER.map(r => r.id);
+	D.opp = D.opp || others[Math.floor(Math.random() * others.length)];
+	D.m = Du.match(D.seed, [D.pick, D.opp]); D.banner = null;
+	duelPlace();
+	say('Round 1 of 3: the ' + Du.byId(D.opp).role.toLowerCase() + ', the rival ' + Du.build(D.opp).ship.name + ', is 20 km ahead. Destroy it, or do more damage in 5:00', '#e5484d'); Snd.cue('launch');
+}
+function duelStep(dt) {
+	const D = game.duel, m = D.m; if (!m) return;
+	const ev = Du.step(m, dt);
+	if (ev == 'sudden') { say('Level at 5:00: sudden death. The next hit wins the round', '#e5484d'); Snd.cue('critical'); D.banner = {text: 'SUDDEN DEATH', sub: 'The next hit wins the round', until: game.t + 4, col: '#e5484d'} }
+	else if (ev == 'time') duelSaid(m.last);
+	else if (ev == 'next') { duelPlace(); say('Round ' + m.round + ' of 3', '#e5484d'); D.banner = {text: 'ROUND ' + m.round, sub: 'You ' + m.wins[0] + ' · Rival ' + m.wins[1], until: game.t + 3, col: '#f2d36a'}; Snd.cue('launch') }
+}
+function duelHit(by, amount) { const D = game.duel; if (!D || !D.m) return; const r = Du.hit(D.m, by, amount); if (r) duelSaid(r) }
+function duelDown(who) {
+	const D = game.duel; if (!D || !D.m) return;
+	if (who == 0) { game.booms.push({pos: s.p.slice(), t: game.t, r: s.radius * 4, col: [1, 0.72, 0.4], life: 1.8}); Snd.cue('destroyed') }
+	const both = who == 0 ? game.npcs.some(n => n.duel && n.cs.dead) : game.pcs.dead, r = Du.killed(D.m, who, both); if (r) duelSaid(r);
+}
+function duelSaid(r) {
+	const D = game.duel, m = D.m, mine = r.winner == 0, why = r.how == 'kill' ? (mine ? 'rival destroyed' : 'you were destroyed') : r.how == 'sudden' ? 'sudden death' : 'more damage at 5:00 (' + Math.round(r.dealt[0]) + ' to ' + Math.round(r.dealt[1]) + ')';
+	say((mine ? 'You take round ' : 'The rival takes round ') + r.round + ': ' + why + ' · ' + m.wins[0] + '–' + m.wins[1], mine ? '#7fd1a8' : '#e5484d');
+	D.banner = {text: m.phase == 'over' ? (m.wins[0] > m.wins[1] ? 'YOU WIN THE DUEL' : 'THE RIVAL WINS THE DUEL') : mine ? 'ROUND ' + r.round + ' TO YOU' : 'ROUND ' + r.round + ' TO THE RIVAL', sub: why + ' · ' + m.wins[0] + '–' + m.wins[1], until: game.t + Du.DUEL.between, col: mine ? '#7fd1a8' : '#e5484d'};
+	Snd.cue(mine ? 'clearance' : 'warning');
+	if (m.phase == 'over') setTimeout(() => { if (game.duel.m == m) overlay('duelOver') }, 3500);
+}
+const clock = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+function duelHud() {
+	const D = game.duel; if (!D || !D.m) return null; const m = D.m;
+	return {clock: m.phase == 'sudden' ? 'SUDDEN DEATH' : m.phase == 'over' ? 'FINAL' : clock(Math.ceil(Du.left(m))), urgent: m.phase == 'sudden' || (m.phase == 'fight' && Du.left(m) < 30), round: 'Round ' + m.round + ' of 3 · You ' + m.wins[0] + ' – ' + m.wins[1] + ' Rival',
+		dealt: 'Damage ' + Math.round(m.dealt[0]) + ' – ' + Math.round(m.dealt[1]), banner: D.banner && game.t < D.banner.until ? D.banner : null};
+}
+/* the duel's screens: picking a ship (and how to play: the AI now; online and LAN come next), and the result */
+function duelPick(body, button, close) {
+	RG.pause();
+	const D = game.duel, row = r => { const b = Du.build(r.id), x = Du.rating(b.ship); return '<label class="duel-ship"><input type="radio" name="duelShip" value="' + r.id + '"' + (r.id == D.pick ? ' checked' : '') + '> <b>' + esc(b.ship.name) + '</b> · ' + esc(r.role) + '<br><span>' + esc(r.text) + '</span><br><span class="duel-num">hull ' + b.ship.hull + ' · shields ' + b.ship.shield + ' · ' + x.dps.toFixed(0) + ' damage a second' + (x.msl ? ' · missiles' : '') + ' · ' + b.ship.speed + ' m/s · turn ' + b.ship.agility + '</span></label>' };
+	body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">Duel</h1><p>Two pilots, an asteroid field, 20 km apart. Best of three rounds of 5:00: destroy the other ship, or do more damage by the end; level, and the next hit wins. Rocks and rams hurt in proportion to your speed.</p>'
+		+ '<h2>Your ship</h2><div class="duel-ships">' + Du.ROSTER.map(row).join('') + '</div>'
+		+ '<h2>Opponent</h2><div class="duel-opp"><label><input type="radio" name="duelOpp" value="ai" checked> AI pilot (practice)</label> <label class="muted"><input type="radio" name="duelOpp" value="ws" disabled> Online (WebSocket): coming next</label> <label class="muted"><input type="radio" name="duelOpp" value="lan" disabled> LAN: coming next</label></div>';
+	button('Start', () => { const c = body.querySelector('input[name=duelShip]:checked'); D.pick = c ? c.value : D.pick; D.opp = null; close(); duelBegin() }, true).focus();
+	button('Leave duels', () => { location.href = location.pathname });
+}
+function duelOver(body, button, close) {
+	RG.pause();
+	const D = game.duel, m = D.m, won = m.wins[0] > m.wins[1];
+	body.innerHTML = '<p class="build">Ember Reach · duel</p><h1 id="ovT">' + (won ? 'You win the duel' : 'The rival wins the duel') + ' · ' + m.wins[0] + '–' + m.wins[1] + '</h1><p>Your ' + esc(Du.build(m.ships[0]).ship.name) + ' against the rival\'s ' + esc(Du.build(m.ships[1]).ship.name) + '.</p>';
+	button('Rematch', () => { D.opp = m.ships[1]; close(); duelBegin() }, true).focus();
+	button('Choose ship', () => overlay('duel'));
+	button('Leave duels', () => { location.href = location.pathname });
+}
 function overlay(kind) {
 	const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns');
 	const close = () => { ov.hidden = true; RG.resume(); hud.focus() };
@@ -2012,10 +2130,15 @@ function overlay(kind) {
 		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr(kind == 'pause' ? 'Paused' : 'Controls')) + '</h1><p>' + esc(ship.name) + ' · ' + esc(where) + ' · day ' + Math.floor(game.day) + ' · fuel ' + Math.round(game.fuel * 100) + '%. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + helpRows().map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table><p class="small">' + esc(tr('Mouse: the left button fires; with mouse flight on, point away from the centre to pitch and roll.')) + ' ' + esc(tr('Gamepad sticks: the left pitches and rolls, the right yaws and sets the throttle.')) + ' ' + esc(tr('Gamepad: the d-pad strafes (up and down are the vertical thrusters). A asks for docking; held half a second, it moves the landing gear.')) + ' ' + esc(tr('Touch: the VERT slider beside the throttle works the vertical thrusters, and GEAR moves the landing gear.')) + '</p><p class="small">' + esc(tr('Landing: target a world you can land on and cruise to it, and you drop out above it. Below its Kármán line its gravity pulls, and flight assist holds you up. Lower the gear, let down on the vertical thrusters (strafe up and down), and touch down slowly on level ground.')) + '</p>';
 		button(tr('Resume'), close, true).focus();
 		button(tr('Settings'), () => openSettings(() => overlay(kind)));
+		/* (0.5.0) duels: their own page; nothing of the game is touched */
+		if (game.duel) { button('Choose ship', () => overlay('duel')); button('Leave duels', () => { location.href = location.pathname }); ov.hidden = false; return }
+		button('Duels', () => { persist(); setTimeout(() => { location.href = location.pathname + '?duel' }, 300) });
 		button(tr('Save to a file'), () => { persist(); setTimeout(() => RG.exportSave(), 300) });
 		button(tr('Load from a file'), () => RG.importSave().then(() => location.reload(), e => say(e.message, '#f2a33a')));
 		button(tr('New game'), e => { if (e.target.dataset.sure) { RG.save({settingsOnly: true, settings: game.settings}).then(() => { location.href = location.pathname }) } else { e.target.dataset.sure = 1; e.target.textContent = tr('New game: sure? (the save is lost)') } });
 	}
+	if (kind == 'duel') duelPick(body, button, close);
+	if (kind == 'duelOver') duelOver(body, button, close);
 	ov.hidden = false;
 }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));

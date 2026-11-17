@@ -51,6 +51,8 @@ const WEAPONS = {
 	/* the Interstellar Marshals' (encounters.js): each hit also cuts into the shield generator itself, shields up or
 	   not, a twenty-fifth of it, so a wing's disruptors put shields out in seconds */
 	disruptor: {name: 'Marshal disruptor', size: 1, dmg: 5, rate: 2, speed: 3500, range: 3500, heat: 0.01, vsShield: 1, vsHull: 1, ammo: null, col: [0.4, 0.9, 1], module: 'shields', moduleShare: 0.04},
+	/* (0.5.0) not a weapon: a collision's damage (duel.js bump), even against shields and hulls */
+	ram: {name: 'Collision', size: -9, dmg: 0, rate: 0, speed: 0, range: 0, heat: 0, vsShield: 1, vsHull: 1, ammo: null, col: [1, 0.8, 0.6]},
 	missile: {name: 'Missile', size: -1, dmg: 30, rate: 1, speed: 600, range: 7000, heat: 0, vsShield: 1, vsHull: 1.5, ammo: 4, homing: 2.2, col: [1, 1, 1]}};
 const BY_SIZE = ['pulse', 'driver', 'heavy', 'torpedo'];
 /* gimballed mounts: their module ids (outfit.js), the gun each carries */
