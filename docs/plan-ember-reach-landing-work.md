@@ -746,6 +746,18 @@ Tested in `tests/emberreach_rings_t.js` (17 checks), the mining test's 3, and th
   yields, and how the goods reach the market) is planned with the rest of L3.5.
 - **A colony's port can grow** into a surface starport.
 
+**Done so far** (0.4.9, `colonies.js`): **surface mines.** Buildable installations feed the port's market (as
+decided after 0.4.8).
+- **Where:** a surface mine (tier 1, 500 t of goods) is built at a deposit the ground scan has found on one of the
+  colony's worlds. The scan's finds go into the record (`P.deposits`). One mine a deposit; mines take no slot.
+- **What it does:** built, it works the deposit at 25 t a day (30 round a metal-rich star) and feeds that good to
+  the colony port's market: ten days of its output count as the market's stock (`economy.js` market, `feed`). It
+  counts as extraction in the port's economy. The deposit runs out (200 to 5,000 t, so a week to half a year).
+- **Seen:** the colonial office plans it (pick the deposit) and shows each mine's daily output and what's left; in
+  flight, your mines are targets on their worlds, and a deposit's card says what a mine there does or could do.
+- Tested in the colony test's 42 to 45 and the browser test's 9n2.
+- **Still to do in L3.5:** claims on airless worlds as surface outposts and settlements, and the planner's layout.
+
 ### L3.6 Raids
 
 - **Pirates raid surface ports,** colonies' and others'. A forward base's turrets (0.3.11) and the port's traffic

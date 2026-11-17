@@ -212,6 +212,8 @@ async function frame(pg, test) {
 		await setDown(0.6, -1.0); await sleep(8000);
 		const gs = await f.evaluate(() => { const g = EmberDebug.game; return {landed: !!g.landed, scanned: g.msgs.some(m => /^Ground scan/.test(m.text)), deps: (g.deposits || []).length, record: Object.keys((g.P.explore && g.P.explore.land) || {}).length} });
 		ok('9n. landed, the ground scan runs by itself (6 s) and marks a handful of deposits within 5 km; the landing is in the record', gs.landed && gs.deps > 0 && gs.deps < 20 && gs.record >= 1, gs);
+		const gn = await f.evaluate(() => { const g = EmberDebug.game, D = g.P.deposits || {}; return {found: (g.deposits || []).filter(d => D[d.dep.id] && D[d.dep.id].star == g.star.id && D[d.dep.id].res == d.dep.res && D[d.dep.id].dir.length == 3).length, deps: (g.deposits || []).length, card: (g.deposits || []).length ? true : false} });
+		ok('9n2. 0.4.9: the deposits it marks go into the record, for a colony\'s surface mines', gn.deps > 0 && gn.found == gn.deps, gn);
 		/* cruise toward a targeted world you can land on drops out at its line, or 4.2 km up */
 		await f.evaluate(() => { const g = EmberDebug.game, sc = EmberDebug.scene, b = sc.bodies.filter(x => x.kind == 'planet' && EmberScene.landableTarget(x)).sort((p, q) => q.karman - p.karman)[0], s = EmberDebug.s;
 			g.landed = null; const u = s.p.map((v, i) => v - b.pos[i]), n = Math.hypot(...u), U = u.map(v => v / n); s.p = b.pos.map((v, i) => v + U[i] * (b.radius + 3e5)); s.v = [0, 0, 0];

@@ -101,7 +101,7 @@ function packPlayer(P) {
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
 		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
 		mined: P.mined || {}, charted: P.charted && Object.keys(P.charted).length ? P.charted : undefined, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
-		colonies: P.colonies || [], hauls: P.hauls || [], rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance, policeKills: (P.policeKills || []).slice(-60),
+		colonies: P.colonies || [], hauls: P.hauls || [], deposits: P.deposits && Object.keys(P.deposits).length ? P.deposits : undefined, rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance, policeKills: (P.policeKills || []).slice(-60),
 		/* (0.3.7) the ports' markets as your trades left them: {key: {day, s: {good: t}, d: {good: t}}} */
 		markets: P.markets && Object.keys(P.markets).length ? P.markets : undefined,
 		/* (0.3.8) ships kept in storage, where and in what state (hangar.js) */
@@ -141,6 +141,8 @@ function unpackPlayer(x) {
 		combat: x.combat && typeof x.combat == 'object' && num(x.combat.hull) ? x.combat : null,
 		/* M5: what you've charted, surveyed, sold and named */
 		explore: exploreOk(x.explore) ? x.explore : null,
+		/* (0.4.9) the deposits the ground scan found: {id: {star, body, res, tons}} */
+		deposits: obj(x.deposits) ? Object.fromEntries(Object.entries(x.deposits).filter(([k, v]) => /^dep:/.test(k) && obj(v) && typeof v.star == 'string' && typeof v.body == 'string' && typeof v.res == 'string' && num(v.tons) && v.tons > 0).map(([k, v]) => [k, {star: v.star, body: v.body, res: v.res, tons: v.tons, dir: Array.isArray(v.dir) && v.dir.length == 3 && v.dir.every(num) ? v.dir : undefined}]).slice(-600)) : {},
 		/* M5b: colonies and haulage contracts */
 		colonies: Array.isArray(x.colonies) ? x.colonies.filter(c => obj(c) && typeof c.id == 'string' && obj(c.star) && Array.isArray(c.star.at) && obj(c.need) && obj(c.got) && typeof c.stage == 'string') : [],
 		/* the ship's insurance (insurance.js): a policy, or none (null: cancelled); absent in older saves, which get

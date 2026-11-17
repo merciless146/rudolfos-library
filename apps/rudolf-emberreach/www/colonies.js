@@ -41,7 +41,11 @@
      takes the colony over.
    - Rented carriers: a prospector guild's or nomads' fleet carrier, parked at your build for a season (if they're
      not against you), serves as a depot: haulage to that colony costs 30% less and arrives in half the days.
-   The record (P.colonies, P.hauls) is plain data, kept in the save. GPL-2.0-or-later. ===== */
+   Surface mines (0.4.9, landing L3.5): mining a world's surface is part of colonization. A surface mine is built at
+     a deposit the ground scan has found (P.deposits) on one of the colony's worlds, one mine a deposit, taking no
+     slot. Built, it works the deposit at 25 t a day (30 round a metal-rich star) and feeds that good to the colony
+     port's market (feeds(): economy.js counts ten days of it as the market's stock), until the deposit runs out.
+   The record (P.colonies, P.hauls, P.deposits) is plain data, kept in the save. GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
 const isNode = typeof module != 'undefined';
@@ -56,6 +60,7 @@ const PORTS = {
 	base: {name: 'Forward base', cls: 'trefoil', fee: 200000, goods: {Iron: 625, Titanium: 500, Machinery: 375, Electronics: 375, Munitions: 625}, base: true}};
 const COL = {claimDays: 2, seasonDays: 30, salvage: 1 / 3, core: G.REGIONS[0][2], beaconRadii: 30, deliverRange: 3000, charter: 100, neutral: -100, perRep: 100, finishRep: 150,
 	raid: {unclaimed: 0.10, claimed: 0.05}, baseEffort: 5, rent: {fee: 40000, cut: 0.3}, scrip: {drift: 0.15}, takeover: 2, indep: {share: [0.10, 0.15], security: -0.15},
+	mine: {rate: 25, metals: 1.2, keep: 400},
 	haul: {over: [0.10, 0.25], perPc: 0.004, fleet: [{ship: 'Aurochs', t: 600, jump: 5}, {ship: 'Woolly-Rhino', t: 3000, jump: 6}, {ship: 'Brontosaur', t: 30000, jump: 6}]}};
 const at = s => s.at || [s.x, s.y, s.z];
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -258,6 +263,8 @@ const MIX = {base: {Iron: .3, Aluminum: .2, Titanium: .1, Machinery: .15, Electr
 /* the catalogue: where (orbit, surface, either), tier, tonnes, economy, and what else it gives */
 const FAC = {
 	mining: {name: 'Mining installation', where: 'either', tier: 1, t: 600, econ: 'extraction'},
+	/* (0.4.9) at a deposit the ground scan found: feeds its good to the port's market */
+	mine: {name: 'Surface mine', where: 'surface', tier: 1, t: 500, econ: 'extraction', deposit: true},
 	refinery: {name: 'Refinery', where: 'orbit', tier: 1, t: 900, econ: 'refinery', needs: b => b.gas || !!b.ring, needsText: 'a gas giant or a ringed world'},
 	farm: {name: 'Agriculture', where: 'either', tier: 1, t: 700, econ: 'agriculture', mix: 'farm', needs: (b, w) => w == 'orbit' || b.atmo, needsText: 'air, on the surface'},
 	habitat: {name: 'Habitat ring', where: 'orbit', tier: 1, t: 1000, pop: 50000, mix: 'habitat'},
@@ -287,13 +294,39 @@ function slots(star) {
 	});
 }
 /* what's taken: the primary port (an orbital slot at its world) and the builds */
-function used(c, body, where) { return (where == 'orbit' && body == c.world ? 1 : 0) + (c.builds || []).filter(b => b.body == body && b.where == where).length }
+function used(c, body, where) { return (where == 'orbit' && body == c.world ? 1 : 0) + (c.builds || []).filter(b => b.body == body && b.where == where && !FAC[b.fac].deposit).length }
+/* ---- (0.4.9) surface mines ---- */
+/* a deposit the ground scan marked, into the record: {id: {star, body, res, tons}} (the latest few hundred) */
+function noteDeposit(P, starId, body, d) {
+	const D = P.deposits = P.deposits || {}; if (D[d.id]) return;
+	D[d.id] = {star: starId, body, res: d.res, tons: d.tons, dir: (d.dir || []).map(v => Math.round(v * 1e6) / 1e6)};
+	const ks = Object.keys(D); if (ks.length > COL.mine.keep) for (const k of ks.slice(0, ks.length - COL.mine.keep)) if (!minedBy(P, k)) delete D[k];
+}
+const minedBy = (P, depId) => { for (const c of list(P)) for (const b of c.builds || []) if (b.dep && b.dep.id == depId && !gone(c)) return {c, b}; return null };
+/* the deposits found on a colony's worlds, with no mine yet */
+const openDeposits = (P, c) => Object.entries(P.deposits || {}).filter(([id, d]) => d.star == c.id && !minedBy(P, id)).map(([id, d]) => Object.assign({id}, d));
+const mineRate = star => COL.mine.rate * ((star.FeH || 0) > 0.1 ? COL.mine.metals : 1);
+/* what's left in a mine's deposit on a day */
+const mineLeft = (b, star, day) => !b.done ? b.dep.tons : Math.max(0, b.dep.tons - mineRate(star) * Math.max(0, day - b.finished));
+/* what a colony's mines feed its port's market, t a day: {good: t} */
+function feeds(c, star, day) {
+	const out = {};
+	for (const b of (c.builds || []).filter(x => x.done && x.dep)) if (mineLeft(b, star, day) > 0) out[b.dep.res] = (out[b.dep.res] || 0) + mineRate(star);
+	return out;
+}
 const t3cost = c => 4 + 2 * (c.builds || []).filter(b => FAC[b.fac].tier == 3).length;
 const cost = (c, fac) => FAC[fac].tier == 2 ? {t2: 1} : FAC[fac].tier == 3 ? {t3: t3cost(c)} : {};
 /* can this facility go there? {ok, why, goods, cost} */
-function canBuild(c, star, fac, body, where) {
+function canBuild(c, star, fac, body, where, dep, P) {
 	const F0 = FAC[fac]; if (!F0) return {ok: false, why: 'No such facility.'};
 	if (c.stage != 'done') return {ok: false, why: 'Finish the primary port first.'};
+	if (F0.deposit) {
+		if (!dep) return {ok: false, why: 'A surface mine goes at a deposit: land on one of ' + c.star.name + '\'s worlds and let the ground scan find one.'};
+		if (dep.star != c.id || dep.body != body) return {ok: false, why: 'That deposit isn\'t on ' + body + '.'};
+		if (P && minedBy(P, dep.id)) return {ok: false, why: 'That deposit has a mine already.'};
+		const sl = slots(star).find(x => x.body == body); if (!sl) return {ok: false, why: 'No such body.'};
+		return {ok: true, goods: facGoods(fac, sl.p, 'surface'), cost: {}};
+	}
 	if (F0.where != 'either' && F0.where != where) return {ok: false, why: F0.name + ' goes ' + (F0.where == 'orbit' ? 'in orbit' : 'on the surface') + '.'};
 	const sl = slots(star).find(x => x.body == body); if (!sl) return {ok: false, why: 'No such body.'};
 	if (used(c, body, where) >= sl[where]) return {ok: false, why: sl[where] ? 'Every ' + where + ' slot at ' + body + ' is taken.' : body + ' has no ' + (where == 'orbit' ? 'orbital' : 'surface') + ' slots.'};
@@ -303,10 +336,11 @@ function canBuild(c, star, fac, body, where) {
 	if ((k.t3 || 0) > pts.t3) return {ok: false, why: 'Needs ' + k.t3 + ' tier 3 points (you have ' + pts.t3 + ').'};
 	return {ok: true, goods: facGoods(fac, sl.p, where), cost: k};
 }
-function startBuild(c, star, fac, body, where, day) {
-	const ck = canBuild(c, star, fac, body, where); if (!ck.ok) return ck;
+function startBuild(c, star, fac, body, where, day, dep, P) {
+	const ck = canBuild(c, star, fac, body, where, dep, P); if (!ck.ok) return ck;
 	c.points.t2 -= ck.cost.t2 || 0; c.points.t3 -= ck.cost.t3 || 0;
 	const b = {id: 'b' + (c.builds.length + 1) + '-' + fac, fac, body, where, need: ck.goods, got: {}, done: false, started: Math.floor(day)};
+	if (FAC[fac].deposit) b.dep = {id: dep.id, res: dep.res, tons: dep.tons, dir: dep.dir};
 	c.builds.push(b);
 	return {ok: true, build: b};
 }
@@ -429,6 +463,6 @@ function starOf(c) {
 	STARS.set(c.id, s); return s;
 }
 
-const EmberColonies = {raided, scripCode, registerScrips, carriers, rent, rented, FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
+const EmberColonies = {noteDeposit, minedBy, openDeposits, mineRate, mineLeft, feeds, raided, scripCode, registerScrips, carriers, rent, rented, FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
 if (isNode) module.exports = EmberColonies; else root.EmberColonies = EmberColonies;
 })(typeof window != 'undefined' ? window : this);

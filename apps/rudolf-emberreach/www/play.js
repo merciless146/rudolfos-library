@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.8'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.4.9'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -208,7 +208,7 @@ function enterSystem(star) {
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
 	site(); beaconAt();
 	game.fields = Mi.fields(scene, star).map(f => Object.assign(f, {kind: 'field', radius: 500, fieldKind: f.kind})); game.field = null; game.rocks = []; game.rocksAt = null; game.hotHere = null;
-	game.ringNav = game.fields.filter(f => f.ring && !f.hotspot).map(ringNav);
+	game.ringNav = game.fields.filter(f => f.ring && !f.hotspot).map(ringNav); game.mines = minesHere();
 	meshes();
 }
 /* every mesh, at the graphics setting */
@@ -303,7 +303,7 @@ const seesHot = () => !!(ship && ship.utility.array && M.works(fit, 'sensors') &
 const seesSites = () => !!(ship && ship.utility.prospector && M.works(fit, 'sensors') && M.works(fit, 'power'));
 const charted = f => !!(game.P.charted && game.P.charted[f.id]);
 const shownFields = () => game.fields.filter(f => (!f.hotspot || seesHot()) && (!f.hidden || charted(f) || seesSites()));
-const instList = () => [...(game.beacon ? [game.beacon] : []), ...(game.deposits || []), ...nearRocks(), ...shownFields(), ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans];
+const instList = () => [...(game.beacon ? [game.beacon] : []), ...(game.mines || []), ...(game.deposits || []), ...nearRocks(), ...shownFields(), ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans];
 const targets = () => [...navList(), ...instList()];
 /* the targets are kept by reference (ships come and go); a lost navigation target falls back to the port, or the
    first body; a lost instance target to none */
@@ -493,6 +493,21 @@ function liftOff(pin) {
    Landed or within 2 km of the ground, the sensors scan it (6 s): the deposits of the world's resources within 5 km
    are marked, and can be targeted (T). Again once you've moved 2.5 km on */
 const GSCAN = {alt: 2000, time: 6, range: 5000, again: 2500};
+/* a deposit on a world, as a target (on the ground, turning with the world) */
+const depositTarget = (b, d, mine) => ({kind: 'deposit', dep: d, world: b, radius: 30, mine: mine || null, name: mine ? 'Surface mine · ' + d.res : d.res + ' deposit', get pos() { const bf = Sc.bodyFrame(b, Sc.turnOf(b, game.day, game.t)), w = add(add(mul(bf.x, d.dir[0]), mul(bf.y, d.dir[1])), mul(bf.z, d.dir[2])); return add(b.pos, mul(w, b.radius + Sc.heightAt(b, d.dir) + 2)) }});
+/* (0.4.9) your colony's surface mines in this system, as targets */
+/* (0.4.9) a deposit's card: your mine's work, or what a colony could do with it */
+function depCard(Tg) {
+	const m = Tg.mine || (Co.minedBy(game.P, Tg.dep.id) || {}).b, c = Co.colonyAt(game.P, game.star.id);
+	if (m && m.done) { const left = Co.mineLeft(m, game.star, game.day); return {line1: 'Your surface mine', line2: left > 0 ? Co.mineRate(game.star).toLocaleString('en-US') + ' t a day to your port\'s market · ' + Math.round(left).toLocaleString('en-US') + ' t left' : 'Worked out', col: '#7fd1a8'} }
+	if (m) return {line1: 'Your surface mine, being built', line2: Math.round(Co.progress(m) * 100) + '% of its goods in (colonial office)', col: '#c9a46a'};
+	if (c && c.stage == 'done') return {line1: 'Marked by the ground scan', line2: 'Plan a surface mine here at your colonial office', col: '#c9a46a'};
+	return {line1: 'Marked by the ground scan', line2: 'Mined by a colony on this world (colonization)', col: '#c9a46a'};
+}
+function minesHere() {
+	const c = Co.colonyAt(game.P, game.star.id); if (!c) return [];
+	return (c.builds || []).filter(x => x.dep && x.dep.dir && x.dep.dir.length == 3).map(x => { const b = scene.bodies.find(y => y.name == x.body); return b ? depositTarget(b, x.dep, x) : null }).filter(Boolean);
+}
 function groundScan(dt, cruising) {
 	if (cruising || !game.well) { game.gscan = null; return }
 	const sf = Sc.surfaceState(scene, s, game.t, ship); if (!sf || !Ld.landable(sf.body.src).ok) { game.gscan = null; return }
@@ -505,7 +520,8 @@ function groundScan(dt, cruising) {
 	if (g.t < GSCAN.time) return;
 	game.gscan = null; game.gscanAt = {world: sf.world, dir: here};
 	const b = sf.body, list = X.deposits(b, b.src, here, GSCAN.range);
-	game.deposits = list.map(d => ({kind: 'deposit', dep: d, world: b, radius: 30, name: d.res + ' deposit', get pos() { const bf = Sc.bodyFrame(b, Sc.turnOf(b, game.day, game.t)), w = add(add(mul(bf.x, d.dir[0]), mul(bf.y, d.dir[1])), mul(bf.z, d.dir[2])); return add(b.pos, mul(w, b.radius + Sc.heightAt(b, d.dir) + 2)) }}));
+	for (const d of list) Co.noteDeposit(game.P, game.star.id, b.name, d);   /* (0.4.9: for a colony's surface mines) */
+	game.deposits = list.filter(d => !(game.mines || []).some(m => m.dep.id == d.id)).map(d => depositTarget(b, d));
 	for (const m of Ct.scanned(game.P, game.star.id, b.name)) say('Ground survey done for the contract: ' + pname(b) + ' · dock anywhere to be paid', '#7fd1a8');   /* (0.3.10) */
 	if (!list.length) say('Ground scan of ' + pname(b) + ': no deposits within 5 km', '#9fb0cc');
 	else { const by = {}; for (const d of list) by[d.res] = (by[d.res] || 0) + 1; say('Ground scan: ' + list.length + (list.length == 1 ? ' deposit' : ' deposits') + ' within 5 km (' + Object.entries(by).map(([r, n]) => r + (n > 1 ? ' ×' + n : '')).join(', ') + '). T to target them', '#c9a46a') }
@@ -1870,7 +1886,7 @@ function hudDraw(cam) {
 			: inside ? {line1: 'In a gap between bands: no asteroids', line2: 'The nearest band is ' + H.fmtDist(Math.max(0, len(sub(Tg.pos, s.p)))) + ' off', col: '#9fb0cc'}
 			: {line1: 'Cruise here: it drops out ' + H.fmtDist(Sc.CRUISE.drop.ring) + ' off the ring', line2: 'Its asteroids can be mined anywhere in its bands', col: '#c9a46a'};
 	}
-	if (Tg.kind == 'deposit') { const dd = len(sub(posOf(Tg), s.p)); target.kind = 'deposit · ' + Tg.dep.res + ' · ' + Tg.dep.tons.toLocaleString('en-US') + ' t'; target.dock = {line1: 'Marked by the ground scan', line2: 'Mined by a colony on this world (colonization)', col: '#c9a46a'} }
+	if (Tg.kind == 'deposit') { const dd = len(sub(posOf(Tg), s.p)); target.kind = 'deposit · ' + Tg.dep.res + ' · ' + Tg.dep.tons.toLocaleString('en-US') + ' t'; target.dock = depCard(Tg) }
 	if (Tg.kind == 'beacon') { target.kind = 'navigation beacon'; target.dock = {line1: 'Hyperspace arrivals come out here', line2: navWorks() ? 'Receiver working' : ship.utility.nav ? 'Receiver offline' : 'No nav beacon receiver fitted', col: '#6cc9e8'} }
 	if (Tg.kind == 'site') {
 		const c = Tg.colony, d = len(sub(s.p, Tg.pos)) - (c.stage == 'building' ? Tg.radius : 0);
