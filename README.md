@@ -20,7 +20,7 @@ Published at **https://merciless146.github.io/rudolfos-library/**:
 | 🧱 | `rudolf-blockdrop` | Block Drop: a falling-blocks puzzle with prisms that burst a whole colour and set off chains; Classic, Relaxed and Daily | GPL-2.0-or-later |
 | ⛏️ | `rudolf-faultlines` | Fault Lines: a logic puzzle (clear the ground without opening a fault), with a Daily field | GPL-2.0-or-later |
 | 🌌 | `rudolf-emberreach` | Ember Reach (Single-Player Alpha Build): a whole galaxy to fly, trade, fight, explore, mine and settle, out to the Rift beyond the Maw | GPL-2.0-or-later |
-| 🕹️ | `rudolf-emu` | Emu's Nintendo DS (DeSmuME) and SNES (LakeSnes) cores, as WebAssembly. No games, BIOS files or keys | GPL-2.0-or-later, MIT |
+| 🕹️ | `rudolf-emu` | Emu's Nintendo DS (DeSmuME), SNES (LakeSnes), Genesis / Mega Drive (ClownMDEmu) and PlayStation (PCSX-ReARMed) cores, as WebAssembly. No games, BIOS files or keys | GPL-2.0-or-later, MIT, AGPL-3.0-or-later |
 
 ## Layout
 
