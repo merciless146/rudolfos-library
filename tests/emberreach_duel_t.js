@@ -1,5 +1,7 @@
 /* Ember Reach's duels (apps/rudolf-emberreach/www/duel.js, 0.5.0), in node: the ships and their balance, the arena,
-   the match's rules (kills, time, sudden death, best of three), and collisions by speed.
+   the match's rules (kills, time, sudden death, best of three), and collisions by speed. (0.5.2) Duels over a network
+   (net.js): what travels (ships, shots, the match seen from the guest's side), the session (the relay's handshake,
+   the version check, leaving, a lost connection), smoothing the other's ship, and the relay's address.
      node tests/emberreach_duel_t.js */
 const path = require('path');
 const DIR = path.join(__dirname, '..', 'apps/rudolf-emberreach/www');
@@ -53,5 +55,92 @@ try {
 		const avg = Object.fromEntries(ids.map(x => [x, +(wr[x].reduce((t, v) => t + v, 0) / wr[x].length).toFixed(2)]));
 		ok('12. AI duels: every ship wins between 20% and 80% of its fights against the others', Object.values(avg).every(v => v >= 0.2 && v <= 0.8), avg);
 	}
-} catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
-console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
+	/* ---------- (0.5.2) over a network: net.js ---------- */
+	const Ne = require(path.join(DIR, 'net.js'));
+	{
+		const c = [1e9, -2e9, 3e8], s = {p: [1e9 + 1234.567, -2e9 - 50.004, 3e8 + 7], v: [120.123, -3, 0], q: [0.5, 0.5, 0.5, 0.5], w: [0.1, 0, -0.2]};
+		const pk = Ne.packShip(s, c), back = Ne.unpackShip(JSON.parse(JSON.stringify(pk)), c);
+		const bad = [{p: [NaN, 0, 0], v: [0, 0, 0], q: [1, 0, 0, 0], w: [0, 0, 0]}, {p: [3e5, 0, 0], v: [0, 0, 0], q: [1, 0, 0, 0], w: [0, 0, 0]}, {p: [0, 0], v: [0, 0, 0], q: [1, 0, 0, 0], w: [0, 0, 0]}, {p: [0, 0, 0], v: [0, 0, 0], q: [0, 0, 0, 0], w: [0, 0, 0]}, null, 'x'];
+		ok('13. a ship travels relative to the arena\'s centre (small numbers, to the centimetre) and comes back where it was; anything malformed or out of the arena is refused', Math.abs(pk.p[0] - 1234.57) < 1e-9 && len(back.p.map((v, i) => v - s.p[i])) < 0.01 && Math.abs(back.v[0] - 120.12) < 1e-9 && bad.every(b => Ne.unpackShip(b, c) == null), {pk, back});
+		const shot = {kind: 'pulseG', p: [1e9 + 10, -2e9, 3e8], v: [800, 0, 0], ttl: 2.5, dmg: 9.3, owner: 'me', target: null}, ray = {kind: 'beamG', p: [1e9, -2e9, 3e8], dir: [0, 1, 0], range: 1800, ray: true, ttl: 1, dmg: 4, owner: 'me', target: null}, msl = {kind: 'missile', p: c, v: [10, 0, 0], ttl: 9, dmg: 60, owner: 'me', target: 'duelist'};
+		const kinds = Object.keys(require(path.join(DIR, 'combat.js')).WEAPONS), sk = kinds.includes('pulseG') ? shot : Object.assign({}, shot, {kind: kinds.find(k => !/missile|torpedo|beam/.test(k))}), rk = kinds.includes('beamG') ? ray : Object.assign({}, ray, {kind: kinds[0]});
+		const u = [sk, rk, msl].map(x => Ne.unpackShot(JSON.parse(JSON.stringify(Ne.packShot(x, c, 'duelist'))), c, 'duelist', 'me'));
+		ok('14. shots travel as their kind, place, velocity (or a laser\'s ray) and damage: arriving, they\'re the other ship\'s, and a missile at you homes on you; an unknown weapon or wild damage is refused', u.every(x => x && x.owner == 'duelist') && len(u[0].p.map((v, i) => v - sk.p[i])) < 0.01 && u[0].v[0] == 800 && u[1].ray && u[1].range == 1800 && u[2].target == 'me' && u[0].target == null && Ne.unpackShot({k: 'phaser9', p: [0, 0, 0], v: [0, 0, 0], ttl: 1, dmg: 1}, c, 'x', 'me') == null && Ne.unpackShot({k: sk.kind, p: [0, 0, 0], v: [0, 0, 0], ttl: 1, dmg: 1e7}, c, 'x', 'me') == null, u);
+		const m = Du.match(5, ['pike', 'jackal']); Du.hit(m, 0, 40); Du.hit(m, 1, 10); Du.killed(m, 1);
+		const mm = Ne.mirror(JSON.parse(JSON.stringify(Ne.packMatch(m))));
+		ok('15. the match, as the guest sees it: the host\'s match with the sides swapped (wins, damage, ships, who won the last round)', mm.wins.join() == '0,1' && mm.dealt.join() == '10,40' && mm.ships.join() == 'jackal,pike' && mm.last.winner == 1 && mm.round == 1 && mm.phase == 'between' && Ne.mirror({round: 1}) == null, mm);
+	}
+	/* a session through a small stand-in relay (pipes): pairs a host and a guest by code, passes their messages, and
+	   tells one when the other goes */
+	const relay = () => {
+		const rooms = {};
+		return (side, cli) => {
+			side.onmessage = m => {
+				if (m.t == 'hello') {
+					if (m.want == 'host') { const code = 'ABC234'; rooms[code] = {host: side, ver: m.ver}; side.room = rooms[code]; side.send({t: 'room', code}) }
+					else { const r = rooms[m.code]; if (!r) return side.send({t: 'error', why: 'room'}); r.guest = side; side.room = r; r.host.send({t: 'paired', role: 'host'}); side.send({t: 'paired', role: 'guest'}) }
+				} else if (m.t == 'g' && side.room) { const o = side.room.host == side ? side.room.guest : side.room.host; if (o) o.send(m) }
+			};
+			side.onclose = () => { const r = side.room; if (!r) return; const o = r.host == side ? r.guest : r.host; if (o && !o.closed) { o.send({t: 'left'}); o.close() } };
+		};
+	};
+	const wait = ms => new Promise(r => setTimeout(r, ms));
+	const pair = async (verA, verB, clk) => {
+		const R = relay(), [ah, ar] = Ne.pipe(1), [bh, br] = Ne.pipe(1); R(ar); R(br);
+		const ev = {a: [], b: []}, A = Ne.session(ah, {ver: verA, want: 'host', ship: 'pike', now: clk}), log = (k, n) => x => ev[k].push([n, x]);
+		for (const n of ['room', 'paired', 'ready', 'msg', 'end']) A.on(n, log('a', n));
+		await wait(20);
+		const B = Ne.session(bh, {ver: verB, want: 'join', code: A.code, ship: 'lancet', now: clk});
+		for (const n of ['room', 'paired', 'ready', 'msg', 'end']) B.on(n, log('b', n));
+		await wait(40);
+		return {A, B, ev, bh};
+	};
+	(async () => {
+		{
+			const {A, B, ev} = await pair('0.5.2', '0.5.2');
+			A.send({k: 'st', n: 1}); await wait(20);
+			ok('16. a session: the host gets a code, the guest joins with it; each says hello (its version and ship) and they\'re ready; messages pass', A.code == 'ABC234' && A.role == 'host' && B.role == 'guest' && A.state == 'ready' && B.state == 'ready' && A.peer.ship == 'lancet' && B.peer.ship == 'pike' && ev.b.some(([n, x]) => n == 'msg' && x.k == 'st'), {a: ev.a.map(e => e[0]), b: ev.b.map(e => e[0])});
+			B.leave(); await wait(30);
+			const ea = ev.a.find(e => e[0] == 'end'), eb = ev.b.find(e => e[0] == 'end');
+			ok('17. leaving: the other is told at once ("The other pilot left the duel") and both sessions end, cleanly, once', ea && ea[1].why == 'left' && /left the duel/.test(ea[1].text) && eb && eb[1].why == 'mine' && A.state == 'over' && B.state == 'over' && ev.a.filter(e => e[0] == 'end').length == 1, {ea, eb});
+		}
+		{
+			const {A, B, ev} = await pair('0.5.2', '0.5.1');
+			const ea = ev.a.find(e => e[0] == 'end'), eb = ev.b.find(e => e[0] == 'end');
+			ok('18. both must run the same version: a 0.5.1 game and a 0.5.2 one are refused, each told which the other runs', A.state == 'over' && B.state == 'over' && !ev.a.some(e => e[0] == 'ready') && ea && ea[1].why == 'version' && /0\.5\.1/.test(ea[1].text) && /0\.5\.2/.test(ea[1].text) && eb && eb[1].why == 'version' && /Ember Reach 0\.5\.2 and you run 0\.5\.1/.test(eb[1].text), {ea, eb});
+		}
+		{
+			let T = 100; const clk = () => T;
+			const {A, B, ev, bh} = await pair('0.5.2', '0.5.2', clk);
+			T += 2; A.tick(); await wait(20); const answered = A.rtt != null, was = A.state;
+			/* the guest's side goes silent (its connection hangs, nothing closes): 10 s on, the host gives up */
+			bh.send = () => true;
+			T += 5; A.tick(); await wait(20); const mid = A.state; T += 6; A.tick(); await wait(20);
+			const ea = ev.a.find(e => e[0] == 'end');
+			ok('19. a connection gone quiet (nothing heard for 10 s): the duel ends cleanly, "the connection ... was lost"', was == 'ready' && mid == 'ready' && A.state == 'over' && ea && ea[1].why == 'lost' && /lost/.test(ea[1].text) && answered, ea);
+			const [x, y] = Ne.pipe(0), S = Ne.session(x, {ver: '0.5.2', want: 'quick'}), got = []; S.on('end', e => got.push(e)); y.onmessage = () => {};
+			await wait(10); y.close(); await wait(10);
+			ok('20. the relay closing the connection before a match ends the session with a message too', got.length == 1 && got[0].why == 'closed' && S.state == 'over', got);
+		}
+		/* smoothing */
+		{
+			const g = Ne.ghost(), sh = {p: [0, 0, 0], v: [0, 0, 0], q: [1, 0, 0, 0], w: [0, 0, 0]};
+			let t = 0, maxErr = 0, err = 0;
+			const truth = tt => [100 * tt, 50 * Math.sin(tt), 0], vel = tt => [100, 50 * Math.cos(tt), 0];
+			for (let i = 0; i < 600; i++) {   /* 10 s at 60 steps, a state every 2 steps (30 a second), 60 ms late */
+				t += 1 / 60;
+				if (i % 2 == 0) Ne.ghostSet(g, {p: truth(t - 0.06), v: vel(t - 0.06), q: [Math.cos(t / 4), 0, Math.sin(t / 4), 0], w: [0, 0.5, 0]}, t);
+				Ne.ghostStep(g, sh, 1 / 60, t);
+				err = len(sh.p.map((v, k) => v - truth(t - 0.06)[k])); if (i > 60) maxErr = Math.max(maxErr, err);
+			}
+			const first = (() => { const g2 = Ne.ghost(), s2 = {p: [0, 0, 0], v: [0, 0, 0], q: [1, 0, 0, 0], w: [0, 0, 0]}; Ne.ghostSet(g2, {p: [9000, 0, 0], v: [10, 0, 0], q: [0, 1, 0, 0], w: [0, 0, 0]}, 0); Ne.ghostStep(g2, s2, 1 / 60, 0); return s2 })();
+			const jump = (() => { const g3 = Ne.ghost(), s3 = {p: [0, 0, 0], v: [0, 0, 0], q: [1, 0, 0, 0], w: [0, 0, 0]}; Ne.ghostSet(g3, {p: [0, 0, 0], v: [0, 0, 0], q: [1, 0, 0, 0], w: [0, 0, 0]}, 0); Ne.ghostStep(g3, s3, 1 / 60, 0); Ne.ghostSet(g3, {p: [50, 0, 0], v: [0, 0, 0], q: [1, 0, 0, 0], w: [0, 0, 0]}, 0); Ne.ghostStep(g3, s3, 1 / 60, 0); const one = s3.p[0]; Ne.ghostSet(g3, {p: [2000, 0, 0], v: [0, 0, 0], q: [1, 0, 0, 0], w: [0, 0, 0]}, 0); Ne.ghostStep(g3, s3, 1 / 60, 0); return {one, far: s3.p[0]} })();
+			const ql = Math.hypot(...sh.q);
+			ok('21. smoothing the other\'s ship: it follows a curving course within a metre or two (carried on by its velocity, eased to where the last state says it is now); placed at once at first, eased over a small jump, snapped over a big one; its rotation stays a rotation', maxErr < 2 && first.p[0] == 9000 && first.q[1] == 1 && jump.one > 0 && jump.one < 20 && jump.far == 2000 && Math.abs(ql - 1) < 1e-9, {maxErr, first: first.p, jump, ql});
+		}
+		ok('22. the online relay: none until one is set up ("not set up yet"); a page\'s ?relay= only if it\'s a ws:// or wss:// address', Ne.RELAY == '' && Ne.relayUrl('') == '' && Ne.relayUrl('?relay=wss://duel.example.org/x') == 'wss://duel.example.org/x' && Ne.relayUrl('?relay=ws://127.0.0.1:8771/') == 'ws://127.0.0.1:8771/' && Ne.relayUrl('?relay=https://evil.example/') == '' && Ne.relayUrl('?relay=javascript:alert(1)') == '' && Ne.helloUrl('wss://r.example/duel?x=1', {want: 'join', ver: '0.5.2', code: 'ABC234'}) == 'wss://r.example/duel?want=join&ver=0.5.2&code=ABC234', [Ne.helloUrl('ws://h:1/', {want: 'quick', ver: '0.5.2'}), Ne.relayUrl('?relay=wss://duel.example.org/x')]);
+		ok('23. room codes: six of the letters and digits that can\'t be mixed up; typed codes cleaned up', Ne.validCode(Ne.makeCode()) && !/[01OIL]/.test([...Array(50)].map(() => Ne.makeCode()).join('')) && Ne.normCode(' abc-234 ') == 'ABC234' && !Ne.validCode('ABC10O'), Ne.makeCode());
+		done();
+	})().catch(e => { N++; console.log('FAIL (error) ' + (e.stack || e)); done() });
+} catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)); done() }
+function done() { console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0) }
