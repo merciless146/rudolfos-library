@@ -314,14 +314,14 @@ FA, shown on the HUD. NPCs fly with FA on, through the same model and the same c
 | Keyboard | Gamepad | Touch | |
 |---|---|---|---|
 | ↑ ↓ or W S, ← → | left stick | the stick, bottom left | pitch (↑ noses down), roll |
-| A D | right stick, LB / RB | | yaw |
-| R F, X | triggers | the slider, bottom right | throttle up / down; X to zero |
-| J L I K | right stick (vertical), d-pad | | strafe |
+| A D | right stick, LB / RB | the bar above the stick | yaw |
+| R F, X | triggers | THR, the slider bottom right | throttle up / down; X to zero |
+| J L I K | right stick (vertical), d-pad | VERT, beside the throttle (up and down) | strafe |
 | Z | B | FA | flight assist |
 | C | Y | CRUISE | cruise |
-| T or Tab | X | TARGET | next target |
+| T or Tab | X | TGT; AHEAD (the target nearest the nose) | next target |
 | N | A | DOCK | docking clearance |
-| V, O, M, H, P or Esc | Back, Start | VIEW, II | chase view, internal systems, mouse flight, help, pause |
+| V, O, M, H, P or Esc | Back, Start | MENU (the radial menu), II; a drag elsewhere looks round | chase view, internal systems, mouse flight, help, pause |
 
 **Docking** (`scene.js`): ask for clearance within 10 km (a pad is assigned), then fly through the dock mouth on
 the port's axis, nose in, under 60 m/s. At a spinning port (Trefoil, Bloom) the ship must also turn with it, within
@@ -1173,6 +1173,9 @@ In the game since this change (`insurance.js`; tested in `tests/emberreach_insur
    population and the architect's pay; forward bases on the fronts, raids, independent colonies with their scrip,
    and rented carriers.
 8. **M6:** the Core, the black hole, polish; phones (1.6.0). **The Maw and the Rift are playable** (see "The Rift").
+   **Phones, the game's part (0.5.3):** the touch controls reworked for phones (below); the small-screen layout and a
+   low-power preset follow in the same version. The phone's own interface is Rudolf OS 2.0's (its plan-1.6.1 Part 2:
+   1.6.1 lays only the groundwork, a workspace shown full screen as a panel); the game runs in such a panel as it is.
 
 **Released: the Single-Player Alpha Build (SPAB), 0.1.0**, in the Rudolf OS Library (`rudolf-emberreach`). It has
 everything through M5b, and the Maw and the Rift from M6. The release brought these fixes:
@@ -1361,6 +1364,26 @@ also arms the first ships and adds fire groups:
   - **LAN:** a browser can't take connections, so one computer on the network runs the relay: a small Rudolf OS
     service the host's game asks for (through the game kit), found by the other on the network (mDNS). Nothing goes
     over the internet.
+
+- **0.5.3, phones: touch controls.** On a touch screen the controls are there from the start (no first touch on the
+  view needed) and go when a keyboard, a mouse or a gamepad is used, back at the next touch; Settings (Controls,
+  Touch) can show them always (Rudolf OS's first phone, on X11, passes a touch as the mouse) or never.
+  - **Layout:** the stick (pitch and roll) bottom left with a yaw bar above it; THR and VERT bottom right; FIRE (the
+    primary guns) and FIRE 2 (the secondary) beside them, MSL and FLARE over the sliders; II, TGT, AHEAD, HOSTILE,
+    CRUISE, JUMP, MENU, MAP, DOCK, FA and GEAR in rows along the top (clear of the messages in landscape; above them in
+    portrait). Every control at least 44 px, inside the screen and apart, at 360x640, 390x844 and 844x390.
+  - **Several fingers at once** (fly and fire); a drag anywhere else looks round (the view, not the ship), easing
+    back when the finger lifts. AHEAD targets what is nearest the nose (within 30°). MENU opens the radial menu,
+    a tap on a function does it; on an upright phone its items stand in two columns, on a small screen round an oval.
+  - **Settings** (kept in the save): On-screen controls (Auto, On, Off), their size (75-150%), opacity, the stick's
+    sensitivity (50-200%) and a left-handed layout (mirrored).
+  - **Fixed:** a tap left the browser's mouse events behind, which fired the guns (the left button's Fire) and hid
+    the controls until the next touch; the throttle slider no longer holds the throttle once the keys or a gamepad
+    move it. The touch FIRE button fired every gun; FIRE and FIRE 2 now fire the two groups, as the mouse buttons do.
+  - No boost: the flight model has none, so there is no button for it.
+  - Tested in `tests/emberreach_touch_t.js` (Chromium with touch, by DevTools' touch events: launched, flown, fired
+    with two fingers, looked round, the radial menu, AHEAD, docked by DOCK and the autopilot, a purchase at the
+    market, the settings, portrait and landscape, and hidden on a computer).
 
 Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.

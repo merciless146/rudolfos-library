@@ -172,13 +172,13 @@ function draw(ctx, W, H, h, t) {
 	if (h.gimbal && h.gimbal.charge > 0) { const k = Math.min(1, h.gimbal.charge), over = h.gimbal.charge > 1; ctx.strokeStyle = over ? C.red : C.amber; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, 30, Math.PI * 0.75, Math.PI * (0.75 + 1.5 * k)); ctx.stroke() }
 	/* ---- the panels, at the HUD's size (Settings); the markers above stay where they point ---- */
 	const W0 = W, H0 = H, k0 = OPT.size || 1; ctx.save(); ctx.scale(k0, k0); W = W / k0; H = H / k0;
-	const cxk = W / 2, small2 = W < 700;
+	const cxk = W / 2, small2 = W < 700, tb = h.touch && h.touchUI ? h.touchUI.bottom / k0 : 0;   /* (0.5.3: clear of the touch controls) */
 	/* sound captions, above the scanner */
-	if (h.captions && h.captions.length) { const cy2 = H - (h.touch ? 340 : 150); h.captions.slice(-3).forEach((c, i, a) => { const yy = cy2 - (a.length - 1 - i) * 22; ctx.font = '600 13px ' + SANS; const w = ctx.measureText('[ ' + c.text + ' ]').width + 16; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(cxk - w / 2, yy - 15, w, 20); text(ctx, '[ ' + c.text + ' ]', cxk, yy, {align: 'center', size: 13, weight: 600, col: '#ffffff'}) }) }
+	if (h.captions && h.captions.length) { const cy2 = H - (tb ? tb + 150 : 150); h.captions.slice(-3).forEach((c, i, a) => { const yy = cy2 - (a.length - 1 - i) * 22; ctx.font = '600 13px ' + SANS; const w = ctx.measureText('[ ' + c.text + ' ]').width + 16; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(cxk - w / 2, yy - 15, w, 20); text(ctx, '[ ' + c.text + ' ]', cxk, yy, {align: 'center', size: 13, weight: 600, col: '#ffffff'}) }) }
 	if (h.fps != null) text(ctx, Math.round(h.fps) + ' FPS', W - 16, 14, {mono: true, size: 10, col: C.muted, align: 'right'});
 	/* ---- bottom centre: the scanner ---- */
 	if (h.scanner) {
-		const sc = h.scanner, rw = small2 ? 110 : 150, rh = small2 ? 38 : 50, sx = cxk, sy = H - rh - (h.touch ? 200 : 26), R = sc.range;
+		const sc = h.scanner, rw = small2 ? 110 : 150, rh = small2 ? 38 : 50, sx = cxk, sy = H - rh - (tb ? tb + 10 : 26), R = sc.range;
 		ctx.fillStyle = 'rgba(8,14,26,0.6)'; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.fill();
 		ctx.strokeStyle = 'rgba(108,201,232,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.ellipse(sx, sy, rw / 2, rh / 2, 0, 0, 7); ctx.moveTo(sx - rw, sy); ctx.lineTo(sx + rw, sy); ctx.moveTo(sx, sy - rh); ctx.lineTo(sx, sy + rh); ctx.stroke();
 		for (const b of sc.blips) {
@@ -191,7 +191,7 @@ function draw(ctx, W, H, h, t) {
 		text(ctx, (R / 1000) + ' km', sx + rw - 4, sy + rh + 12, {mono: true, size: 10, col: C.muted, align: 'right'});
 	}
 	/* ---- bottom left: flight ---- */
-	const bw = small2 ? 240 : 290, bh = 118, bx = 16, by = H - bh - (h.touch ? 190 : 16);
+	const bw = small2 ? 240 : 290, bh = 118, bx = 16, by = H - bh - (tb || 16);
 	box(ctx, bx, by, bw, bh);
 	if (h.combat) {
 		const k = h.combat, py = by - 84;
@@ -243,7 +243,7 @@ function draw(ctx, W, H, h, t) {
 	else text(ctx, h.fa ? TT('Set') + ' ' + fmtSpeed(Math.max(0, thr) * h.vmax) : (h.thrustNote || TT('Thrust') + ' ' + Math.round(thr * 100) + '%'), bx + 12, by + 110, {size: 11, col: C.muted});
 	/* ---- bottom right: target ---- */
 	if (h.target) {
-		const T = h.target, w = small2 ? 210 : 280, th = T.land ? 138 : 118, x = W - w - 16, y = H - th - (h.touch ? 190 : 16);
+		const T = h.target, w = small2 ? 210 : 280, th = T.land ? 138 : 118, x = W - w - 16, y = H - th - (tb || 16);
 		box(ctx, x, y, w, th);
 		if (T.land) text(ctx, T.land.line, x + 12, y + 128, {size: 11, col: T.land.ok ? C.green : C.muted, weight: 600});
 		text(ctx, T.kind.toUpperCase(), x + 12, y + 20, {mono: true, size: 11, col: C.muted});
@@ -255,21 +255,23 @@ function draw(ctx, W, H, h, t) {
 	}
 	/* ---- the radial menu (held on ~): its functions round a ring, the one pointed at lit ---- */
 	if (h.radial) {
-		const R0 = Math.min(W, H) * 0.26, n = h.radial.items.length;
-		ctx.fillStyle = 'rgba(4,8,16,0.55)'; ctx.beginPath(); ctx.arc(cx, cy, R0 + 70, 0, 7); ctx.fill();
-		ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, R0 * 0.35, 0, 7); ctx.stroke();
+		/* (0.5.3: where the items are, radialRects, shared with the touch controls' taps; on a small screen an oval) */
+		const rc0 = radialRects(W0, H0, h.radial.items.length, k0), rc = rc0.map(b => ({x: b.cx / k0, y: b.cy / k0, w: b.w / k0, h: b.h / k0})), cxr = W0 / 2 / k0, cyr = H0 / 2 / k0, R0 = Math.min(W0, H0) * 0.26 / k0;
+		ctx.fillStyle = 'rgba(4,8,16,0.55)'; if (rc0.small) ctx.fillRect(0, 0, W, H); else { ctx.beginPath(); ctx.arc(cxr, cyr, R0 + 70, 0, 7); ctx.fill() }
+		const grid = rc0.small && W0 < H0;   /* (upright and narrow: two columns, no ring) */
+		if (!grid) { ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cxr, cyr, R0 * 0.35, 0, 7); ctx.stroke() }
 		h.radial.items.forEach((it, k) => {
-			const a = k / n * 2 * Math.PI, x = cx + Math.sin(a) * R0, y = cy - Math.cos(a) * R0, sel = k == h.radial.sel, w = 150, hh = 40;
+			const x = rc[k].x, y = rc[k].y, sel = k == h.radial.sel, w = rc[k].w, hh = rc[k].h;
 			ctx.fillStyle = sel ? 'rgba(108,201,232,0.28)' : C.panel; ctx.fillRect(x - w / 2, y - hh / 2, w, hh);
 			ctx.strokeStyle = sel ? C.cyan : C.line; ctx.lineWidth = sel ? 2 : 1; ctx.strokeRect(x - w / 2 + 0.5, y - hh / 2 + 0.5, w, hh);
 			text(ctx, it.name, x, y + 1, {align: 'center', size: 13, weight: sel ? 700 : 500, col: sel ? C.text : C.muted});
 			if (it.on != null) text(ctx, TT(it.on ? 'On' : 'Off'), x, y + 15, {align: 'center', size: 10, mono: true, col: it.on ? C.green : C.muted});
 		});
-		text(ctx, TT('Radial menu'), cx, cy + 4, {align: 'center', size: 12, mono: true, col: C.muted});
+		text(ctx, TT('Radial menu'), cxr, grid ? Math.min(...rc.map(b => b.y)) - rc[0].h / 2 - 12 : cyr + 4, {align: 'center', size: 12, mono: true, col: C.muted});
 	}
 	/* ---- top left: alerts, or the console ---- */
 	const al = h.alerts || [];
-	const lx = 16, ly = 16, lw = small2 ? Math.min(W - 32, 300) : 340;
+	const lx = 16, lw = small2 ? Math.min(W - 32, 300) : 340, ly = tb && h.touchUI.topLeft / k0 < lx + lw ? h.touchUI.top / k0 + 6 : 16;   /* (below the touch buttons where they meet) */
 	let y = ly;
 	if (al.length) {
 		box(ctx, lx, y, lw, 120);
@@ -323,20 +325,49 @@ function draw(ctx, W, H, h, t) {
 	}
 	ctx.restore(); W = W0; H = H0;
 	/* ---- touch controls (where the touches land: not scaled) ---- */
-	if (h.touch && h.touchUI) {
-		const u = h.touchUI;
-		ctx.strokeStyle = 'rgba(232,237,246,0.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(u.stick.x, u.stick.y, u.stick.r, 0, 7); ctx.stroke();
-		ctx.fillStyle = 'rgba(108,201,232,0.45)'; ctx.beginPath(); ctx.arc(u.stick.x + u.stick.dx * u.stick.r, u.stick.y + u.stick.dy * u.stick.r, 26, 0, 7); ctx.fill();
-		ctx.strokeStyle = 'rgba(232,237,246,0.35)'; ctx.strokeRect(u.thr.x, u.thr.y, u.thr.w, u.thr.h);
-		ctx.fillStyle = 'rgba(242,163,58,0.5)'; const tv = Math.max(0, h.throttle); ctx.fillRect(u.thr.x, u.thr.y + u.thr.h * (1 - tv), u.thr.w, u.thr.h * tv);
-		if (u.vert) { const V = u.vert, mid = V.y + V.h / 2; ctx.strokeStyle = 'rgba(232,237,246,0.35)'; ctx.strokeRect(V.x, V.y, V.w, V.h); ctx.beginPath(); ctx.moveTo(V.x, mid); ctx.lineTo(V.x + V.w, mid); ctx.stroke();
-			ctx.fillStyle = 'rgba(108,201,232,0.5)'; ctx.fillRect(V.x, Math.min(mid, mid - V.v * V.h / 2), V.w, Math.abs(V.v) * V.h / 2); text(ctx, 'VERT', V.x + V.w / 2, V.y - 6, {align: 'center', size: 10, weight: 600, col: C.muted}) }
-		for (const b of u.buttons) { ctx.fillStyle = 'rgba(8,14,26,0.7)'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = b.on ? C.cyan : 'rgba(232,237,246,0.35)'; ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1); text(ctx, b.label, b.x + b.w / 2, b.y + b.h / 2 + 4, {align: 'center', size: 12, weight: 600, col: b.on ? C.cyan : C.text}) }
-	}
+	if (h.touch && h.touchUI && !h.radial) drawTouch(ctx, h.touchUI, h);   /* (the radial menu, open, takes the taps) */
 	if (h.duel) duelBar(ctx, W, H, h.duel);
 	ctx.restore();
 }
 
-const EmberHUD = {draw, setOptions, OPT, fmtDist, fmtSpeed, COLORS: C, PROFILE};
+/* (0.5.3) the radial menu's items, in screen units (k: the HUD's size): round a ring, or on a small screen round an
+   oval out to the edges, the items a finger's size */
+function radialRects(W, H, n, k) {
+	const small = Math.min(W, H) < 600, w = (small ? 112 : 150) * k, hh = (small ? 44 : 40) * k, cx = W / 2, cy = H / 2, R0 = Math.min(W, H) * 0.26;
+	const rx = small ? Math.max(R0, W / 2 - w / 2 - 10) : R0, ry = small ? Math.max(R0, H / 2 - hh / 2 - 70) : R0;
+	/* (a narrow screen, upright: two columns, in the ring's order down the right and back up the left) */
+	if (small && W < H) { const rows = Math.ceil(n / 2), cw = Math.min(w * 1.3, (W - 36) / 2), y0 = cy - (rows * (hh + 10) - 10) / 2;
+		const out = Array.from({length: n}, (_, i) => { const right = i < rows, r = right ? i : n - 1 - i, x = right ? cx + 6 + cw / 2 : cx - 6 - cw / 2, y = y0 + r * (hh + 10) + hh / 2; return {x: x - cw / 2, y: y - hh / 2, w: cw, h: hh, cx: x, cy: y} });
+		out.small = small; return out }
+	const out = Array.from({length: n}, (_, i) => { const a = i / n * 2 * Math.PI, x = cx + Math.sin(a) * rx, y = cy - Math.cos(a) * ry; return {x: x - w / 2, y: y - hh / 2, w, h: hh, cx: x, cy: y} });
+	out.small = small; return out;
+}
+/* (0.5.3) the touch controls: the stick and the yaw bar, the sliders, the guns and the buttons, at their opacity */
+function drawTouch(ctx, u, h) {
+	const A = u.alpha == null ? 1 : u.alpha, line = 'rgba(232,237,246,' + (0.45 * A).toFixed(3) + ')', fill = 'rgba(8,14,26,' + (0.6 * A).toFixed(3) + ')';
+	ctx.save(); ctx.globalAlpha = Math.min(1, 0.35 + A * 0.65);
+	const label = (t, x, y, w, col, size) => { let sz = size || 12; ctx.font = '600 ' + sz + 'px ' + SANS; while (sz > 9 && ctx.measureText(t).width > w - 8) { sz--; ctx.font = '600 ' + sz + 'px ' + SANS } text(ctx, t, x, y, {align: 'center', size: sz, weight: 600, col}) };
+	/* the stick */
+	ctx.strokeStyle = line; ctx.lineWidth = 2; ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(u.stick.x, u.stick.y, u.stick.r, 0, 7); ctx.fill(); ctx.stroke();
+	ctx.fillStyle = 'rgba(108,201,232,0.55)'; ctx.beginPath(); ctx.arc(u.stick.x + u.stick.dx * u.stick.r, u.stick.y + u.stick.dy * u.stick.r, Math.max(22, u.stick.r * 0.4), 0, 7); ctx.fill();
+	/* the yaw bar: from the middle, back to it when let go */
+	if (u.yaw) { const Y = u.yaw, mid = Y.x + Y.w / 2; ctx.fillStyle = fill; ctx.fillRect(Y.x, Y.y, Y.w, Y.h); ctx.strokeStyle = line; ctx.strokeRect(Y.x + 0.5, Y.y + 0.5, Y.w - 1, Y.h - 1); ctx.beginPath(); ctx.moveTo(mid, Y.y); ctx.lineTo(mid, Y.y + Y.h); ctx.stroke();
+		ctx.fillStyle = 'rgba(108,201,232,0.5)'; ctx.fillRect(Math.min(mid, mid + Y.v * Y.w / 2), Y.y, Math.abs(Y.v) * Y.w / 2, Y.h); label('◂ YAW ▸', mid, Y.y + Y.h / 2 + 4, Y.w, C.muted, 11) }
+	/* the throttle, and the vertical thrusters beside it */
+	ctx.fillStyle = fill; ctx.fillRect(u.thr.x, u.thr.y, u.thr.w, u.thr.h); ctx.strokeStyle = line; ctx.strokeRect(u.thr.x, u.thr.y, u.thr.w, u.thr.h);
+	ctx.fillStyle = 'rgba(242,163,58,0.55)'; const tv = Math.max(0, h.throttle); ctx.fillRect(u.thr.x, u.thr.y + u.thr.h * (1 - tv), u.thr.w, u.thr.h * tv);
+	label('THR', u.thr.x + u.thr.w / 2, u.thr.y + u.thr.h - 8, u.thr.w, C.muted, 10);
+	if (u.vert) { const V = u.vert, mid = V.y + V.h / 2; ctx.fillStyle = fill; ctx.fillRect(V.x, V.y, V.w, V.h); ctx.strokeStyle = line; ctx.strokeRect(V.x, V.y, V.w, V.h); ctx.beginPath(); ctx.moveTo(V.x, mid); ctx.lineTo(V.x + V.w, mid); ctx.stroke();
+		ctx.fillStyle = 'rgba(108,201,232,0.5)'; ctx.fillRect(V.x, Math.min(mid, mid - V.v * V.h / 2), V.w, Math.abs(V.v) * V.h / 2); label('VERT', V.x + V.w / 2, V.y + V.h - 8, V.w, C.muted, 10) }
+	/* the buttons: round for the guns, square for the rest; lit when on */
+	for (const b of u.buttons) {
+		ctx.fillStyle = b.act == 'fire' || b.act == 'fire2' ? (b.on ? 'rgba(229,72,77,0.55)' : 'rgba(60,14,18,' + (0.6 * A).toFixed(3) + ')') : fill; ctx.strokeStyle = b.on ? C.cyan : line; ctx.lineWidth = b.on ? 2 : 1.5;
+		if (b.round) { ctx.beginPath(); ctx.arc(b.x + b.r, b.y + b.r, b.r, 0, 7); ctx.fill(); ctx.stroke() } else { ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1) }
+		label(b.label, b.x + b.w / 2, b.y + b.h / 2 + 4, b.w, b.on ? C.cyan : C.text);
+	}
+	ctx.restore();
+}
+
+const EmberHUD = {draw, radialRects, drawTouch, setOptions, OPT, fmtDist, fmtSpeed, COLORS: C, PROFILE};
 if (typeof module != 'undefined') module.exports = EmberHUD; else root.EmberHUD = EmberHUD;
 })(typeof window != 'undefined' ? window : this);

@@ -4,7 +4,8 @@
      effects, alerts; the HUD's size and opacity, how many messages and for how long, the scanner and markers.
    - Controls: every action's two keys and gamepad button, rebound by pressing what you want (a key taken from
      another action is moved, and the menu says from which); mouse sensitivity and pitch, gamepad pitch and dead
-     zone; a reset.
+     zone; a reset; (0.5.3) the touch controls: shown or not, their size and opacity, the stick's sensitivity and a
+     left-handed layout.
    - Language and accessibility: the languages Rudolf OS offers (i18n.js); reduced flashing (or as Rudolf OS
      says), reduced motion, a colour-blind palette, a high-contrast HUD, and captions for the sounds.
    The settings are kept in the save (save.js keeps them through a new game) and sanitised there with sanitise().
@@ -20,6 +21,9 @@ const DEFAULTS = () => ({
 	/* the control scheme (Simple: the core keys, the rest in the radial menu, and the assists on; Full: every key) and
 	   the assists, each on or off whatever the scheme */
 	controls: {keys: {}, mice: 1, mouseSens: 100, invertMouse: false, invertPad: false, deadzone: 12, scheme: 'simple', autoGear: true, autoLights: true, landAssist: true, autoRoute: true},
+	/* (0.5.3) the touch controls: shown on a touch screen until a keyboard, mouse or gamepad is used (auto), always or never;
+	   their size, opacity and the stick's sensitivity (%), and the left-handed layout (mirrored) */
+	touch: {show: 'auto', size: 100, opacity: 80, sens: 100, left: false},
 	lang: 'os',   /* follow Rudolf OS (or the browser) */
 	a11y: {flash: 'os', motion: false, palette: 'off', contrast: false, captions: false}});
 
@@ -67,7 +71,7 @@ const CODE = /^(pad:(\d{1,2}|axis\d[+-])|mouse:\d|wheel:(up|down)|[A-Za-z0-9]{1,
 /* old saves kept {quality, sound}: they carry over */
 function sanitise(x, actions, langs) {
 	const D = DEFAULTS(); if (!x || typeof x != 'object') return D;
-	const g = x.graphics || {}, a = x.audio || {}, h = x.hud || {}, c = x.controls || {}, y = x.a11y || {};
+	const g = x.graphics || {}, a = x.audio || {}, h = x.hud || {}, c = x.controls || {}, y = x.a11y || {}, t = x.touch || {};
 	const keys = {};
 	if (c.keys && typeof c.keys == 'object') for (const [k, v] of Object.entries(c.keys)) if ((!actions || actions.includes(k)) && Array.isArray(v)) keys[k] = v.filter(z => typeof z == 'string' && CODE.test(z)).slice(0, 3);
 	/* (before 0.3.4 the left mouse button always fired: a Fire the player rebound gets it, unless something else has it) */
@@ -82,6 +86,7 @@ function sanitise(x, actions, langs) {
 			return {keys, mice: 1, mouseSens: num(c.mouseSens, 25, 300, 100), invertMouse: bool(c.invertMouse, false), invertPad: bool(c.invertPad, false), deadzone: num(c.deadzone, 0, 40, 12),
 				scheme, autoGear: bool(c.autoGear, true), autoLights: bool(c.autoLights, on), landAssist: bool(c.landAssist, on), autoRoute: bool(c.autoRoute, on)};
 		})(),
+		touch: {show: one(t.show, ['auto', 'on', 'off'], 'auto'), size: num(t.size, 75, 150, 100), opacity: num(t.opacity, 30, 100, 80), sens: num(t.sens, 50, 200, 100), left: bool(t.left, false)},
 		lang: x.lang == 'os' || (langs || ['en']).includes(x.lang) ? x.lang : D.lang,
 		a11y: {flash: one(y.flash, ['os', 'on', 'off'], 'os'), motion: bool(y.motion, false), palette: one(y.palette, ['off', 'rg', 'by'], 'off'), contrast: bool(y.contrast, false), captions: bool(y.captions, false)}};
 }
@@ -139,7 +144,15 @@ function open(el, S, env) {
 		}
 		return out + head('Controls') + row('Mouse sensitivity', range('controls.mouseSens', c.mouseSens, 25, 300, 5, '%')) + row('Invert mouse pitch', onOff('controls.invertMouse', c.invertMouse))
 			+ row('Invert gamepad pitch', onOff('controls.invertPad', c.invertPad)) + row('Gamepad dead zone', range('controls.deadzone', c.deadzone, 0, 40, 1, '%'))
+			+ touchRows()
 			+ '<p><button class="st-reset" data-reset="1">' + esc(T('Reset controls')) + '</button></p>';
+	}
+	/* (0.5.3) the touch controls */
+	function touchRows() {
+		const t = S.touch;
+		return head('Touch') + row('On-screen controls', pick('touch.show', t.show, [['auto', T('Auto')], ['on', T('On')], ['off', T('Off')]])) + '<p class="st-note">' + esc(T('Auto shows them on a touch screen until a keyboard, a mouse or a gamepad is used.')) + '</p>'
+			+ row('Touch control size', range('touch.size', t.size, 75, 150, 5, '%')) + row('Touch control opacity', range('touch.opacity', t.opacity, 30, 100, 5, '%'))
+			+ row('Stick sensitivity', range('touch.sens', t.sens, 50, 200, 5, '%')) + row('Left-handed layout', onOff('touch.left', t.left));
 	}
 	function page2() {
 		const y = S.a11y;
