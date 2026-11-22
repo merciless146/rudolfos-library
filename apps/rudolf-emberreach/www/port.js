@@ -17,7 +17,7 @@
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel, Hg = window.EmberHangar, Ct = window.EmberContracts, Sp = window.EmberShipPlan;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel, Hg = window.EmberHangar, Ct = window.EmberContracts, Sp = window.EmberShipPlan, Cb = window.EmberContraband, Ca = window.EmberCareer;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -293,7 +293,7 @@ function groundClaims(s, o, cl, office, jump) {
 let ofTab = 'core', ofSlot = null, ofLang = '', ofView = 'side';   /* (0.4.5: the ship plan's view: 'side' or 'top') */
 const TABS = [['core', 'Core'], ['internal', 'Internal'], ['external', 'External'], ['utility', 'Utility']];
 const HP = ['', 'small', 'medium', 'large', 'huge'];
-const gname = m => !m ? 'Empty' : O.CAT[m.id].name + (m.size || O.CAT[m.id].grades.length > 1 || m.grade != 'C' ? ' ' : '') + (m.size ? m.size : '') + (O.CAT[m.id].grades.length > 1 || m.grade != 'C' ? m.grade : '') + (m.id == 'decoder' ? ' · ' + ((m.langs || []).map(l => O.langName(l)).join(', ') || 'no languages') : '');
+const gname = m => !m ? 'Empty' : (m.cb ? 'Contraband ' : '') + O.CAT[m.id].name + (m.size || O.CAT[m.id].grades.length > 1 || m.grade != 'C' ? ' ' : '') + (m.size ? m.size : '') + (O.CAT[m.id].grades.length > 1 || m.grade != 'C' ? m.grade : '') + (m.id == 'decoder' ? ' · ' + ((m.langs || []).map(l => O.langName(l)).join(', ') || 'no languages') : '');
 const rateHere = () => here() == 'SU' ? 1 : E.rate(here(), env.day);
 function slotsOf(tab) {
 	const L = O.layout(env.hullShip), f = P().ship.fit;
@@ -302,16 +302,23 @@ function slotsOf(tab) {
 	if (tab == 'external') return L.external.map((z, i) => ({cat: 'external', i, label: 'Hardpoint ' + (i + 1) + ' · ' + HP[z], m: f.external[i]}));
 	return f.utility.map((m, i) => ({cat: 'utility', i, label: 'Mount ' + (i + 1), m}));
 }
+/* (0.5.7) contraband: weapons say their damage is a fifth more; modules described only in words, that they're a fifth
+   stronger (the figures shown elsewhere already carry it) */
 function effect(m) {
+	const e = effect0(m); if (!m || !m.cb) return e;
+	const c = O.CAT[m.id];
+	return c.weapon ? e.replace(/(\d+(?:\.\d+)?) dmg/, (x, n) => fmt(+n * O.CB.k, 2).replace(/\.?0+$/, '') + ' dmg') + ' (contraband: +20% damage)' : e == c.text ? e + ' · contraband: a fifth stronger' : e;
+}
+function effect0(m) {
 	const sh = env.hullShip, c = O.CAT[m.id];
 	if (m.id == 'cargo') return O.rack(m.size) + ' t';
 	if (m.id == 'shield') return fmt(O.derive(sh, Object.assign({}, P().ship.fit, {internal: [m]})).shield) + ' shields';
-	if (m.id == 'armour') return '+' + fmt(sh.hull * 0.08 * m.size * O.GRADE[m.grade].k) + ' hull';
-	if (m.id == 'relay' || m.id == 'alien') return '+' + (m.id == 'alien' ? 1.5 * m.size : 0.35 * m.size * O.GRADE[m.grade].k).toFixed(2) + ' pc';
+	if (m.id == 'armour') return '+' + fmt(sh.hull * 0.08 * m.size * O.kOf(m)) + ' hull';
+	if (m.id == 'relay' || m.id == 'alien') return '+' + (m.id == 'alien' ? 1.5 * m.size : 0.35 * m.size * O.kOf(m)).toFixed(2) + ' pc';
 	if (m.id == 'refinery') return (m.size + 1) + ' bins';
 	if (m.id == 'power') return O.powerOf(sh, m).toFixed(1) + ' MW';
 	if (m.id == 'decoder') return O.DECODER[m.grade] + ' languages';
-	if (m.id == 'life') return Math.round(15 * (1 + (O.GRADE[m.grade].k - 1) * 4)) + ' min of air in reserve';
+	if (m.id == 'life') return Math.round(15 * (1 + (O.kOf(m) - 1) * 4)) + ' min of air in reserve';
 	return c.text;
 }
 function outfitting() {
@@ -324,9 +331,9 @@ function outfitting() {
 	if (ofSlot) {
 		const cur0 = O.at(me.ship.fit, ofSlot), offers = O.offers(env.hullShip, ofSlot, env.port, env.star.id), stored = Hg.modulesAt(me, env.place, env.day).filter(x => O.CAT[x.m.id].cat == ofSlot.cat), away = Hg.modulesElsewhere(me, env.place, env.day).filter(x => O.CAT[x.m.id].cat == ofSlot.cat);
 		side = '<span class="pt-label">' + esc(ofSlot.cat == 'core' ? 'Core' : ofSlot.cat == 'internal' ? 'Internal' : ofSlot.cat == 'external' ? 'External' : 'Utility') + '</span><div class="pt-big">' + esc(gname(cur0)) + '</div>'
-			+ (cur0 ? '<p class="small">' + esc(effect(cur0)) + ' · sells for ' + money(O.price(cur0) * 0.8 * rate, cur) + '</p>' + (ofSlot.cat != 'core' ? '<div class="pt-btns"><button class="pt-ghost" data-act="ofstore">Take out (store)</button><button class="pt-ghost" data-act="ofsell">Take out and sell</button></div>' : '') : '')
+			+ (cur0 ? '<p class="small">' + esc(effect(cur0)) + (cur0.cb ? ' · <span class="gold">contraband: bound to you, never sold</span>' : ' · sells for ' + money(O.price(cur0) * 0.8 * rate, cur)) + '</p>' + (ofSlot.cat != 'core' ? '<div class="pt-btns"><button class="pt-ghost" data-act="ofstore">Take out (store)</button>' + (cur0.cb ? '' : '<button class="pt-ghost" data-act="ofsell">Take out and sell</button>') + '</div>' : '') : '')
 			+ (cur0 && cur0.id == 'decoder' ? langLoader(cur0) : '')
-			+ (stored.length ? '<h3>In storage</h3>' + stored.map(x => '<div class="pt-claim"><span>' + esc(gname(x.m)) + ' · ' + esc(effect(x.m)) + '</span><span><button class="pt-ghost" data-act="offitstore" data-j="' + x.j + '">Fit</button> ' + (O.CAT[x.m.id].ruins ? '' : '<button class="pt-ghost" data-act="ofsellstore" data-j="' + x.j + '">Sell · ' + money(O.price(x.m) * 0.8 * rate, cur) + '</button> ') + '<button class="pt-ghost" data-act="ofrecycle" data-j="' + x.j + '" title="' + esc(recycleText(x.m)) + '">Recycle</button></span></div>').join('') + '<p class="muted small">Recycling: ' + recycleNote() + '</p>' : '')
+			+ (stored.length ? '<h3>In storage</h3>' + stored.map(x => '<div class="pt-claim"><span>' + esc(gname(x.m)) + ' · ' + esc(effect(x.m)) + '</span><span><button class="pt-ghost" data-act="offitstore" data-j="' + x.j + '">Fit</button> ' + (O.CAT[x.m.id].ruins || x.m.cb ? '' : '<button class="pt-ghost" data-act="ofsellstore" data-j="' + x.j + '">Sell · ' + money(O.price(x.m) * 0.8 * rate, cur) + '</button> ') + (x.m.cb ? '' : '<button class="pt-ghost" data-act="ofrecycle" data-j="' + x.j + '" title="' + esc(recycleText(x.m)) + '">Recycle</button>') + '</span></div>').join('') + '<p class="muted small">Recycling: ' + recycleNote() + '</p>' : '')
 			+ (away.length ? '<h3>Stored elsewhere</h3>' + away.map(x => { const q = Hg.moduleQuote(me, x.j, env.place, env.day); return '<div class="pt-claim"><span>' + esc(gname(x.m)) + ' · ' + esc(x.m.at ? (Hg.ready(x.m, env.day) ? 'at ' + x.m.at.name : 'arrives ' + (Hg.samePlace(x.m.at, env.place) ? 'here' : 'at ' + x.m.at.name) + ' on day ' + x.m.ready) : '') + '</span><span>' + (q.ok ? '<button class="pt-ghost" data-act="ofsend" data-j="' + x.j + '">Transfer here · ' + esc(transferText(q)) + '</button>' : '') + '</span></div>' }).join('') : '')
 			+ '<h3>For sale here</h3>' + (offers.length ? offers.map((o, j) => { const ck = O.install(env.hullShip, me.ship.fit, ofSlot, o); return '<div class="pt-claim"><div><b>' + esc(gname(o)) + '</b><span class="muted small">' + esc(effect(o)) + ' · ' + fmt(O.drawOf(o), 1) + ' MW</span></div><button class="pt-ghost" data-act="ofbuy" data-j="' + j + '"' + (ck.ok ? '' : ' disabled title="' + esc(ck.why) + '"') + '>Buy and fit · ' + money(o.price * rate, cur) + '</button>' + (ck.ok ? '' : '<span class="bad small">' + esc(ck.why) + '</span>') + '</div>' }).join('') : '<p class="muted small">Nothing for this slot here.</p>');
 	}
@@ -362,6 +369,21 @@ function outfittingOld() {
 
 /* ---- the shipyard (0.3.8: hangar.js): ships for sale by the port's size, and your stored ships, here and elsewhere ---- */
 const kept = (m) => Object.assign(m, {at: Object.assign({}, env.place), ready: 0});
+/* (0.5.7) a ship leaving you (traded in, sold from storage): its contraband stays yours, in storage here (contraband.js
+   strip). The note for the message, or '' */
+function keepContraband(fit) {
+	const moved = Cb.strip(fit ? JSON.parse(JSON.stringify(fit)) : null, env.place); if (!moved.length) return '';
+	(P().stored = P().stored || []).push(...moved);
+	return '. Your contraband (' + moved.map(gname).join(', ') + ') stays yours: it\'s in storage here.';
+}
+/* (0.5.7) the Contraband Merchant (contraband.js): at a great power's major starport, for a Hardcore pilot */
+function merchant() {
+	const me = P(), o = holder();
+	if (!Cb.sees(me) || !Cb.atPort(env.port, o)) return '';
+	const list = Cb.offers(me, env.port, env.star.id, env.hullShip, env.day), cur = here(), rate = rateHere();
+	return '<section class="pt-card" id="cbMerchant"><h2>Contraband Merchant</h2><p class="small">For Hardcore pilots only. A fifth stronger than ordinary work of the same grade, never the equal of Precursor work. Not illegal, only exclusive: <b>bound to you for good</b>, it can never be sold, traded in or given away. ' + (Ca.hcOf(me) == 'on' ? 'Not insurable while Hardcore is on.' : 'Insured at twice an ordinary module\'s premium.') + ' New stock each week; it goes into storage here, to fit at the outfitter.</p>'
+		+ (list.length ? list.map((x, j) => '<div class="pt-claim"><div><b>' + esc(gname(x)) + '</b><span class="muted small">' + esc(effect(x)) + '</span></div>' + (x.sold ? '<span class="muted small">Sold this week</span>' : '<button class="pt-ghost" data-act="cbbuy" data-j="' + j + '"' + ((me.wallet[cur] || 0) < x.price * rate ? ' disabled' : '') + '>Buy · ' + money(x.price * rate, cur) + '</button>') + '</div>').join('') : '<p class="muted small">Nothing that fits your ship this week.</p>') + '</section>';
+}
 const transferCost = q => q.su * (here() == 'SU' ? 1 : E.rate(here(), env.day));
 const transferText = q => q.local ? money(transferCost(q), here()) + ', at once (same system)' : money(transferCost(q), here()) + (q.capped ? ' (the cap)' : '') + ' · ' + q.days + (q.days == 1 ? ' day' : ' days') + ' · ' + q.d.toFixed(1) + ' pc';
 function hangarList() {
@@ -411,6 +433,7 @@ function contacts() {
 		+ (o ? '<p class="small">' + (me.commission ? 'Commissioned with the ' + esc(nm(me.commission)) + '.' : 'A commission makes your kills on contested ground count double for this power, and its enemies\' ships fight you on sight.') + '</p><button class="pt-ghost" data-act="enlist"' + (me.commission == o || rel(o) < 0 ? ' disabled' : '') + '>' + (me.commission == o ? 'Commissioned here' : 'Enlist with the ' + esc(nm(o))) + '</button>' : '') + '</section>'
 		+ insurance()
 		+ broker()
+		+ merchant()
 		+ '<section class="pt-card"><h2>Colonial office</h2><p class="small">' + (o ? 'Claim a system within one jump and build a port there, sponsored by the ' + esc(nm(o)) + '. ' + ((me.colonies || []).length ? 'You hold ' + me.colonies.filter(c => c.stage != 'lapsed').length + '.' : '') : 'No sponsor while the system is fought over.') + '</p><button class="pt-ghost" data-screen="colonies"' + (o ? '' : ' disabled') + '>Open the colonial office</button></section></div>'
 		+ '<section class="pt-card pt-span2"><h2>Exchange</h2>' + (o ? '<p class="muted small">Spread: 1.5% for the ' + esc(nm(o)) + '\'s own coin, 3% for an ally\'s, 5% for a neutral\'s; an enemy\'s coin is refused.</p>'
 		+ '<div class="pt-form"><label>From<select data-ex="from">' + heldCodes.map(c => opt(c, ex.from)).join('') + '</select></label><label>To<select data-ex="to">' + codes.map(c => opt(c, ex.to)).join('') + '</select></label><label>Amount<input data-ex="amount" inputmode="decimal" value="' + esc(ex.amount) + '" placeholder="0"></label></div>'
@@ -422,9 +445,10 @@ function contacts() {
 /* the insurer's desk (insurance.js): your policy, and one from this port's power */
 function insurance() {
 	const me = P(), d = env.day, o = holder(), I = Ins.ensure(me, d), here = o && F.byId(o), wk = Ins.premium(me, env.hullShip, me.ship.fit, d);
-	const quote = here ? Ins.INSURE.weekly * Ins.shipValue(env.hullShip, me.ship.fit) * E.rate(here.currency.code, d) : 0;
+	const quote = here ? Ins.quote(me, here.currency.code, env.hullShip, me.ship.fit, d) : 0;
 	const mine = I && here && I.provider == o;
 	return '<section class="pt-card"><h2>Insurance</h2>' + (I ? '<dl><dt>Insurer</dt><dd>' + esc(nm(I.provider)) + '</dd><dt>Premium</dt><dd>' + money(wk.amount, wk.code) + ' a week</dd><dt>Paid to</dt><dd>day ' + Math.floor(I.paidTo) + '</dd>' + (I.owed > 0 ? '<dt>Owed</dt><dd class="bad">' + money(I.owed, I.code) + '</dd>' : '') + '</dl>' : '<p class="bad small">Not insured: lose the ship and you start again at home in a starter ship.</p>')
+		+ (O.modules(me.ship.fit).some(m => m.cb) ? '<p class="small">' + (Ca.hcOf(me) == 'on' ? 'Your contraband isn\'t covered while Hardcore is on: it\'s left out of the ship\'s value.' : 'Your contraband is covered at twice an ordinary module\'s premium.') + '</p>' : '')
 		+ '<p class="muted small">10% of your ship\'s whole value a week. Lose it and you wake at the nearest port within 1,000 ly trading in the policy\'s currency (or whose exchange takes it), with the ship as it was, once anything owed is settled; if it can\'t be, at home in a starter ship.</p>'
 		+ (here && !mine ? '<button class="pt-primary" data-act="insure"' + ((me.wallet[here.currency.code] || 0) < quote || (I && I.owed > 0) ? ' disabled' : '') + '>' + (I ? 'Switch to' : 'Insure with') + ' the ' + esc(nm(o)) + ': ' + money(quote, here.currency.code) + ' a week</button>' : '')
 		+ (I && I.owed > 0 ? ' <button class="pt-ghost" data-act="inspay"' + ((me.wallet[I.code] || 0) <= 0 ? ' disabled' : '') + '>Pay what\'s owed</button>' : '')
@@ -462,7 +486,7 @@ function click(e) {
 	if (act == 'repair') { const c = Tr.repairCost(env.ship, env.fit, mkt, d, hull()), r = Tr.pay(me, c, here(), d); if (r.ok) { M.repair(env.fit); me.combat = Object.assign(me.combat || {}, {hull: 1}); env.say('Repaired: ' + money(r.amount, r.code)); env.cue('clearance') } else env.say('Not enough ' + r.code + ' to repair') }
 	if (act == 'buy') { const n = t.dataset.n == 'max' ? Tr.canBuy(me, env.ship, mkt, sel.good, d) : 1, r = Tr.buy(me, env.ship, mkt, sel.good, n, d); if (r.ok) { env.say('Bought ' + r.qty + ' t ' + sel.good + ' for ' + money(r.paid.amount, r.paid.code)); env.cue('tick') } }
 	if (act == 'sell') { const n = t.dataset.n == 'all' ? Tr.canSell(me, mkt, sel.good) : 1, r = Tr.sell(me, mkt, sel.good, n, d); if (r.ok) { env.say('Sold ' + r.qty + ' t ' + sel.good + ' for ' + money(r.got.amount, r.got.code) + (Math.abs(r.profit) > 0.5 ? ' (' + (r.profit > 0 ? '+' : '') + fmt(r.profit) + ' SU)' : '')); env.cue('tick') } }
-	if (act == 'buyship') { const extra = O.extra(env.hullShip, me.ship.fit), r = Tr.buyShip(me, env.ship.id, sel.ship, env.star, d); if (r.ok) { if (extra > 0) Tr.receive(me, extra * 0.8 * rateHere(), here(), d); env.onShip(sel.ship); env.say('Bought a ' + env.ship.name + ': paid ' + fmt(Math.max(0, r.cost)) + ' ' + r.currency); env.cue('docked') } else env.say(r.why == 'hold' ? 'Your cargo won\'t fit its hold' : 'Not enough ' + (r.code || '') + ' for that ship') }
+	if (act == 'buyship') { const extra = O.extra(env.hullShip, me.ship.fit), fit0 = me.ship.fit && JSON.parse(JSON.stringify(me.ship.fit)), r = Tr.buyShip(me, env.ship.id, sel.ship, env.star, d); if (r.ok) { if (extra > 0) Tr.receive(me, extra * 0.8 * rateHere(), here(), d); const kc = keepContraband(fit0); env.onShip(sel.ship); env.say('Bought a ' + env.ship.name + ': paid ' + fmt(Math.max(0, r.cost)) + ' ' + r.currency + kc); env.cue('docked') } else env.say(r.why == 'hold' ? 'Your cargo won\'t fit its hold' : 'Not enough ' + (r.code || '') + ' for that ship') }
 	/* (0.3.8) buying and keeping the old ship here; flying a stored one; selling one; sending for one */
 	if (act == 'buystore') {
 		const x = Tr.yard(env.port, env.star, d).find(y => y.ship.id == sel.ship); if (!x) return;
@@ -477,9 +501,9 @@ function click(e) {
 	if (act == 'hgswap') { const r = Hg.swap(me, t.dataset.id, env.state(), env.place, d); if (!r.ok) { env.say(r.why); env.cue('refused'); return } env.onSwap(r); env.say('You take out your ' + (S.hull(me.ship.model) || {name: 'ship'}).name + '; the ' + ((S.hull(r.stored.ship.model) || {}).name || 'other') + ' is stored here'); env.cue('clearance'); return }
 	if (act == 'hgsell') {
 		const x = (me.hangar || []).find(y => y.id == t.dataset.id), h = x && S.hull(x.ship.model); if (!h) return;
-		const ti = Tr.tradeIn(h, env.star, d), extra = x.ship.fit ? O.extra(h, x.ship.fit) * 0.8 * (ti.currency == 'SU' ? 1 : E.rate(ti.currency, d)) : 0, r = Hg.sellShip(me, x.id, env.place, d);
+		const ti = Tr.tradeIn(h, env.star, d), extra = x.ship.fit ? O.extra(h, x.ship.fit) * 0.8 * (ti.currency == 'SU' ? 1 : E.rate(ti.currency, d)) : 0, fit0 = x.ship.fit && JSON.parse(JSON.stringify(x.ship.fit)), r = Hg.sellShip(me, x.id, env.place, d);
 		if (!r.ok) { env.say(r.why); env.cue('refused'); return }
-		Tr.receive(me, ti.amount + extra, ti.currency, d); env.say('Sold your stored ' + h.name + ' for ' + money(ti.amount + extra, ti.currency)); env.cue('docked');
+		Tr.receive(me, ti.amount + extra, ti.currency, d); env.say('Sold your stored ' + h.name + ' for ' + money(ti.amount + extra, ti.currency) + keepContraband(fit0)); env.cue('docked');
 	}
 	if (act == 'hgsend') {
 		const x = (me.hangar || []).find(y => y.id == t.dataset.id), q = x ? Hg.quote('ship', x, env.place, d) : {ok: false, why: 'No such ship.'};
@@ -499,9 +523,9 @@ function click(e) {
 		const bp = (me.blueprints || [])[+t.dataset.j], r = bp ? O.build(me, bp, fee => Tr.pay(me, fee * rateHere(), here(), d), {coreSize: O.layout(env.hullShip).coreSize, held: Tr.held(me)}) : {ok: false, why: 'No such blueprint.'};
 		if (r.ok && r.hull) {
 			/* a Precursor hull: your ship (and what's fitted beyond stock) goes in part-exchange */
-			const ti = Tr.tradeIn(env.hullShip, env.star, d), extra = O.extra(env.hullShip, me.ship.fit);
+			const ti = Tr.tradeIn(env.hullShip, env.star, d), extra = O.extra(env.hullShip, me.ship.fit), fit0 = me.ship.fit && JSON.parse(JSON.stringify(me.ship.fit));
 			Tr.receive(me, ti.amount, ti.currency, d); if (extra > 0) Tr.receive(me, extra * 0.8 * rateHere(), here(), d);
-			me.ship.model = r.hull; env.onShip(r.hull);
+			me.ship.model = r.hull; env.onShip(r.hull); const kc = keepContraband(fit0); if (kc) env.say(kc.slice(2));
 			env.say('The broker built the ' + env.ship.name + ', a Precursor hull: your old ship went in part-exchange (' + fmt(ti.amount) + ' ' + ti.currency + ').'); env.cue('docked');
 		} else { env.say(r.ok ? 'The broker built the ' + O.bpName(bp) + ': it\'s in storage, ready to fit at the outfitter.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	}
@@ -512,6 +536,14 @@ function click(e) {
 	if (act == 'startbuild') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), pk = pick[c.id], [body, where, depId] = pk.at.split('|'), dep = depId && me.deposits && me.deposits[depId] ? Object.assign({id: depId}, me.deposits[depId]) : null, r = Co.startBuild(c, Co.starOf(c), pk.fac, body, where, d, dep, me); env.say(r.ok ? 'Building ' + Co.FAC[pk.fac].name + ' at ' + body + ': bring ' + fmt(Object.values(r.build.need).reduce((a, b) => a + b, 0)) + ' t of goods' : r.why); env.cue(r.ok ? 'clearance' : 'refused') }
 	if (act == 'givebuild') { const c = (me.colonies || []).find(x => x.id == t.dataset.c), r = Co.deliverBuilds(me, c, d), g = Object.entries(r.gave); env.say(g.length ? 'Handed over ' + g.map(([k, v]) => v + ' t ' + k).join(', ') + (r.done.length ? '. Built: ' + r.done.map(b => Co.FAC[b.fac].name).join(', ') : '') : 'Nothing in your hold the builds need'); env.cue(g.length ? 'docked' : 'refused') }
 	if (act == 'expct') { ex.amount = String(Math.floor((me.wallet[ex.from] || 0) * +t.dataset.n * 100) / 100) }
+	if (act == 'cbbuy') {
+		const o = Cb.offers(me, env.port, env.star.id, env.hullShip, d)[+t.dataset.j];
+		if (!o || !Cb.atPort(env.port, holder())) return;
+		if (o.sold || !Cb.sees(me)) { env.say(o.sold ? 'Sold this week.' : 'The merchant deals only with Hardcore pilots.'); env.cue('refused'); return }
+		const p = Tr.pay(me, o.price * rateHere(), here(), d); if (!p.ok) { env.say('Not enough ' + p.code + ' for it'); env.cue('refused'); return }
+		const r = Cb.take(me, o, env.pilotId, d); (me.stored = me.stored || []).push(kept(r.m));
+		env.say('Bought: ' + gname(r.m) + ' for ' + money(p.amount, p.code) + '. It\'s in storage here, bound to you.'); env.cue('clearance');
+	}
 	if (act == 'insure') { const r = Ins.insure(me, holder(), env.hullShip, me.ship.fit, d); env.say(r.ok ? 'Insured with the ' + nm(holder()) + ': ' + money(r.amount, r.code) + ' paid for the first week.' : r.why); env.cue(r.ok ? 'tick' : 'refused') }
 	if (act == 'inspay') { const I = me.insurance, take = Math.min(I.owed, me.wallet[I.code] || 0); me.wallet[I.code] -= take; I.owed -= take; if (I.owed < 1e-6) I.owed = 0; env.say('Paid ' + money(take, I.code) + ' on your policy' + (I.owed ? '; ' + money(I.owed, I.code) + ' still owed.' : '.')); env.cue('tick') }
 	if (act == 'inscancel') { Ins.cancel(me); env.say('Policy cancelled. Lose the ship now and you start again at home in a starter ship.'); env.cue('refused') }
@@ -538,7 +570,7 @@ function outfitAct(act, t, me, d) {
 		const r = O.remove(sh, me.ship.fit, ofSlot); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
 		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
 		if (act == 'ofstore') { (me.stored = me.stored || []).push(kept(r.old)); done(gname(r.old) + ' taken out and stored', r.fit) }
-		else { Tr.receive(me, O.price(r.old) * 0.8 * rate, cur, d); done(gname(r.old) + ' sold for ' + money(O.price(r.old) * 0.8 * rate, cur), r.fit) }
+		else { if (r.old.cb) { env.say(Cb.BOUND); env.cue('refused'); return } Tr.receive(me, O.price(r.old) * 0.8 * rate, cur, d); done(gname(r.old) + ' sold for ' + money(O.price(r.old) * 0.8 * rate, cur), r.fit) }
 	}
 	if (act == 'offitstore') {
 		const j = +t.dataset.j, m0 = me.stored[j]; if (!m0 || !Hg.samePlace(m0.at, env.place) || !Hg.ready(m0, d)) { env.say('That module isn\'t here'); env.cue('refused'); return }
@@ -549,7 +581,7 @@ function outfitAct(act, t, me, d) {
 		done('Fitted from storage: ' + gname(m), r.fit);
 	}
 	if (act == 'ofrecycle') { const r = O.recycle(me, +t.dataset.j, env.star.id, d, env.ship.cargo); if (!r.ok) { env.say(r.why); env.cue('refused'); return } done('Recycled ' + gname(r.module) + ': ' + (Object.entries(r.goods).map(([g, n]) => n + ' t ' + g).join(', ') || 'nothing worth keeping') + (r.blueprint ? ', and the blueprint back' : '')); return }
-	if (act == 'ofsellstore') { const j = +t.dataset.j, m = me.stored[j]; if (!m || !Hg.samePlace(m.at, env.place) || !Hg.ready(m, d)) return; me.stored.splice(j, 1); Tr.receive(me, O.price(m) * 0.8 * rate, cur, d); done(gname(m) + ' sold for ' + money(O.price(m) * 0.8 * rate, cur)) }
+	if (act == 'ofsellstore') { const j = +t.dataset.j, m = me.stored[j]; if (!m || !Hg.samePlace(m.at, env.place) || !Hg.ready(m, d)) return; if (m.cb) { env.say(Cb.BOUND); env.cue('refused'); return } me.stored.splice(j, 1); Tr.receive(me, O.price(m) * 0.8 * rate, cur, d); done(gname(m) + ' sold for ' + money(O.price(m) * 0.8 * rate, cur)) }
 	if (act == 'ofsend') { const j = +t.dataset.j, q = Hg.moduleQuote(me, j, env.place, d); if (!q.ok) { env.say(q.why); env.cue('refused'); return }
 		const p = Tr.pay(me, transferCost(q), cur, d); if (!p.ok) { env.say('Not enough ' + p.code + ' for the transfer'); env.cue('refused'); return }
 		const m = me.stored[j]; Hg.sendModule(me, j, env.place, d); done(gname(m) + (q.local ? ' brought over: here now' : ' sent for: here on day ' + m.ready) + ' (' + money(p.amount, p.code) + ')') }

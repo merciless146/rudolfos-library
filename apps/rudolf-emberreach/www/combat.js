@@ -72,7 +72,7 @@ const COMBAT = {gimbalDmg: 0.85, gimbalDeg: gimbalFor(70), heatLock: 1, lockCone
 function loadout(ship) {
 	/* a fitted ship (outfit.js) carries what its external modules are; missile racks hold four missiles each */
 	if (ship.guns) {
-		const guns = ship.guns.filter(k => k != 'missile').map(k => { const g = gunOf(k); return {kind: g.kind, mount: g.mount, cool: 0, ammo: WEAPONS[g.kind].ammo} });
+		const guns = ship.guns.map((k, i) => [k, i]).filter(([k]) => k != 'missile').map(([k, i]) => { const g = gunOf(k), o = {kind: g.kind, mount: g.mount, cool: 0, ammo: WEAPONS[g.kind].ammo}; if (ship.gunK && ship.gunK[i] > 1) o.k = ship.gunK[i]; return o });   /* (o.k: a contraband gun's damage, 0.5.7) */
 		return {guns, missiles: ship.guns.filter(k => k == 'missile').length * WEAPONS.missile.ammo, flares: COMBAT.flares, turrets: ship.size == 'Capital'};
 	}
 	const guns = [], h = ship.hard || [0, 0, 0, 0];
@@ -165,7 +165,7 @@ function aimOf(cs, s, g, target) {
 }
 function shoot(cs, s, g, W, dir, out, k) {
 	/* (from the gun's mount, a little out along its line; ships without mounts, from just ahead of the hull) */
-	const origin = g.at ? add(muzzle(s, g), mul(dir, 2)) : add(s.p, mul(dir, s.radius * 1.2)), dmg = W.dmg * (cs.dmgK || 1) * (g.mount == 'gimbal' ? COMBAT.gimbalDmg : 1) * (k == null ? 1 : k);
+	const origin = g.at ? add(muzzle(s, g), mul(dir, 2)) : add(s.p, mul(dir, s.radius * 1.2)), dmg = W.dmg * (cs.dmgK || 1) * (g.mount == 'gimbal' ? COMBAT.gimbalDmg : 1) * (g.k || 1) * (k == null ? 1 : k);
 	/* a laser: a ray, settled in the next step (stepProjectiles); anything else flies */
 	if (W.hitscan) out.push({kind: g.kind, p: origin, dir, range: W.range, ray: true, ttl: 1, dmg, owner: cs.id, target: null});
 	else out.push({kind: g.kind, p: origin, v: add(s.v, mul(dir, W.speed)), ttl: W.range / W.speed, dmg, owner: cs.id, target: null});

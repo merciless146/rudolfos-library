@@ -1474,6 +1474,12 @@ also arms the first ships and adds fire groups:
   1.6.2) and 256 KB where it doesn't (1.6.1): up to 60 MB, with a warning at 80%. An older one-record galaxy is
   split at the next save. The game kit (1.4.0) follows the desktop's limit and keeps browser saves in IndexedDB.
   Tested in `tests/emberreach_galaxystore_t.js` and `tests/emberreach_galaxystore_browser_t.js`.
+- **0.5.7, the Contraband Merchant (P3 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** for
+  Hardcore pilots, at a great power's major starports: six pieces a week of weapons and modules a fifth stronger
+  than their grade (still under Precursor work), at 1.6 times the price. Bound to the pilot for good (never sold,
+  traded in or recycled; a ship that leaves keeps its contraband in storage), not illegal; uninsured while Hardcore
+  is on, twice the premium after. Fixed: the insurer's quote and first week left out the difficulty. Tested in
+  `tests/emberreach_contraband_t.js` and `tests/emberreach_contraband_browser_t.js`.
 - **0.5.6, careers (P2 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** a new pilot's name,
   difficulty (Rookie, Pilot or Admiral: rewards, damage taken, insurance and how enemies fight) and Hardcore
   (×1.5 rewards, Admiral until it ends; a destroyed ship loses the pilot, the galaxy keeping their colonies as

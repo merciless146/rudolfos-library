@@ -1756,7 +1756,7 @@ function openPort() {
 			game.fuel = r.fuel == null ? 1 : r.fuel; if (!game.P.combat) game.P.combat = C.refill(ship, {hull: 1});
 			env.ship = ship; env.hullShip = baseShip; env.fit = fit; arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist();
 		},
-		say: t => say(t), cue: k => Snd.cue(k)};
+		say: t => say(t), cue: k => Snd.cue(k), pilotId: game.pilotId};   /* (pilotId: what contraband is bound to, 0.5.7) */
 	Port.open(env);
 }
 /* after buying a ship, reopen with the new one (same screen) */

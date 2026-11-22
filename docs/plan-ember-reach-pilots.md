@@ -252,6 +252,24 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
   a galaxy that big would make a save noticeable (the laptop is slower). A typical galaxy is a few hundred KB, where
   neither shows. Worth doing if galaxies ever grow that far: loading by region, and building only changed parts.
 - **Tests:** `tests/emberreach_galaxystore_t.js` (11, node) and `tests/emberreach_galaxystore_browser_t.js` (8,
+**P3 is built (0.5.7):**
+- **The Contraband Merchant** (`contraband.js`) is a card in Contacts at a great power's capitals, system ports and
+  surface starports (not outposts, settlements, colony ports or anchorages), for pilots with Hardcore on or done.
+- **Stock:** six pieces a week from the port's seed, each sold once that week. Core modules come sized for the
+  pilot's ship; the rest fit it. Bought pieces go into storage at that port, to fit at the outfitter.
+- **What it sells:** weapons, and core and internal modules with figures to raise. Not utilities (none has a figure
+  to raise), cargo racks, refineries, the autopilot, tractors or missile racks.
+- **Strength:** a fifth stronger than the same grade (an A's 1.3 becomes 1.56; Precursor's is 1.6). A contraband
+  gun does 20% more damage, still under a Precursor gun of its size, and a contraband gatling still makes no heat.
+  Priced at 1.6×.
+- **Bound to its pilot** (`by`: the pilot's id): no Sell or Recycle at the outfitter. A ship traded in, sold from
+  storage or given up for a Precursor hull leaves its contraband in storage at that port. Fitting, storing and
+  transfers between the pilot's own ports work as for any module.
+- **Insurance:** left out of the ship's value while Hardcore is on; twice its ordinary counterpart's worth after,
+  so twice the premium. The insurer's card says which.
+- **Hardcore turned off by hand:** the merchant is gone; the pilot keeps what they bought.
+- **Fixed on the way:** 0.5.6 left the difficulty's premium out of the insurer's quote and the first week paid.
+- **Tests:** `tests/emberreach_contraband_t.js` (18, node) and `tests/emberreach_contraband_browser_t.js` (8,
   Chromium).
 
 ## Steps
