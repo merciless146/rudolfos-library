@@ -1173,8 +1173,8 @@ In the game since this change (`insurance.js`; tested in `tests/emberreach_insur
    population and the architect's pay; forward bases on the fronts, raids, independent colonies with their scrip,
    and rented carriers.
 8. **M6:** the Core, the black hole, polish; phones (1.6.0). **The Maw and the Rift are playable** (see "The Rift").
-   **Phones, the game's part (0.5.3):** the touch controls reworked for phones (below); the small-screen layout and a
-   low-power preset follow in the same version. The phone's own interface is Rudolf OS 2.0's (its plan-1.6.1 Part 2:
+   **Phones, the game's part (0.5.3):** the touch controls reworked for phones and the small-screen layout (below);
+   a low-power preset follows in the same version. The phone's own interface is Rudolf OS 2.0's (its plan-1.6.1 Part 2:
    1.6.1 lays only the groundwork, a workspace shown full screen as a panel); the game runs in such a panel as it is.
 
 **Released: the Single-Player Alpha Build (SPAB), 0.1.0**, in the Rudolf OS Library (`rudolf-emberreach`). It has
@@ -1388,6 +1388,19 @@ also arms the first ships and adds fire groups:
   - Tested in `tests/emberreach_touch_t.js` (Chromium with touch, by DevTools' touch events: launched, flown, fired
     with two fingers, looked round, the radial menu, AHEAD, docked by DOCK and the autopilot, a purchase at the
     market, the settings, portrait and landscape, and hidden on a computer).
+- **0.5.3, phones: small screens.** Under 500 px either way the HUD's panels go compact: speed (with the set speed and
+  the chips that matter, or height and vertical speed over a world) and the target (name, distance, then its shields
+  and hull, the docking line or what it is) side by side, shields, hull and heat in short rows with what's left to
+  fire, and the scanner beside them (upright) or over the stick (on its side); clear of the touch controls and, from
+  700 px tall or on its side, of the crosshair. Messages wrap to two lines.
+  - **The port's screens** (and the colonial office, Settings, the pause menu, the origin and duel menus) under 600 px
+    wide or 500 px high: the page scrolls as a whole with its bar of screens kept at the bottom (a new screen starts at
+    its top), the services in one row, the tables tighter with long numbers wrapping, every control at least 44 px.
+  - **The star map's** buttons narrow to fit (never under 44 px), the scale line below them.
+  - The radial menu: two columns upright, an oval on its side (in part 1). The throttle no taller than the stick's
+    side, so MSL and FLARE sit level with the yaw bar.
+  - Nothing changes on a computer's screen: before and after at 1280x720 and 1920x1080 match.
+  - Tested in `tests/emberreach_phone_t.js` (360x640 and 360x740, 390x844, 844x390 with touch; and 1280x720).
 
 Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.

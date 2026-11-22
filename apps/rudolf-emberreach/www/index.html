@@ -95,6 +95,28 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 .st-key.on{border-color:#f2a33a;color:#f2a33a}
 .st-wait{color:#f2a33a;font-weight:600}.st-note{color:#9fb0cc;font-size:12px}
 .st-reset{background:#2a1a1a;color:#ffd0c8;border:1px solid #5c2a2a;padding:6px 12px;cursor:pointer}
+/* (0.5.3) phones: under 600 px wide or 500 px high. The port's page scrolls as a whole (its bar of screens stays at
+   the bottom), the services in one row, the tables tighter; every control a finger's size (44 px) */
+@media (max-width:600px),(max-height:500px){
+#port{overflow:auto;-webkit-overflow-scrolling:touch}
+.pt{height:auto;min-height:100%}
+.pt-main{flex:1 0 auto;overflow:visible;padding:10px 12px}
+.pt-top{padding:6px 12px;gap:2px 12px}.pt-name{flex:1 1 100%}.pt-stats{gap:2px 12px}
+.pt-svc{padding:6px 12px;gap:6px}.pt-svcb{min-width:0;flex:1 1 90px;padding:4px 10px}.pt-ship{flex:1 1 100%;font-size:12px}
+.pt-bar{position:sticky;bottom:0;z-index:1;padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+.pt-bar button{flex:1 0 66px;min-height:52px}.pt-bar button small{display:none}
+.pt-thead,.pt-row{padding:6px 8px;gap:4px}.pt-row>*,.pt-thead>*{min-width:0;overflow-wrap:anywhere}.pt-row{min-height:44px;font-size:12px}.pt-thead{font-size:10px}
+.pt-rep{padding:6px 8px}
+.pt-ad{flex-wrap:wrap;gap:8px 12px}.pt-ad div{flex:1 1 calc(100% - 64px)}
+.pt-h h1{font-size:19px}
+.pt-tabs{flex-wrap:wrap}.pt-tabs button,.pt-form select,.pt-form input,.pt-name-row input{min-height:44px}
+.pt-card{padding:12px}
+.card{padding:16px 14px;max-height:94vh;max-width:96vw}
+.st-tabs button,.st-key,.st-reset{min-height:44px}.st-row{flex-wrap:wrap;gap:4px 12px}.st-row select{min-height:44px;max-width:100%}.st-r input{width:130px;height:44px}
+.st-keys{table-layout:fixed}.st-keys td{padding:2px}.st-key{width:100%;min-width:0;padding:4px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.st-keys td:first-child{font-size:12px;width:34%}
+.duel-ship{min-height:44px;box-sizing:border-box}.duel-opp label{min-height:44px;display:flex!important;align-items:center;gap:6px}
+}
+@media (max-height:500px){.pt-svcb span{display:none}.pt-svcb{min-height:44px}.pt-top{min-height:0}}
 </style>
 </head>
 <body>

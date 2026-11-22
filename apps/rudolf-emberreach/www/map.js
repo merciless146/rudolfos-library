@@ -218,10 +218,10 @@ function create() {
 			for (const l of ['Drag to turn, wheel or pinch to zoom', 'Tap a star to pick it; Enter plots a route', 'Home: back to you · G: close the map', 'Long lanes: dashed amber · lanes: in each power\'s colour', 'Contested space: dashed red · borders: grey']) { text(ctx, l, px + 12, y, {size: 12, col: C.muted}); y += 18 }
 		}
 		/* buttons */
-		const bw = 74, bh = 44, by = 16, bx = W - 16 - bw * 5 - 6 * 4;
+		const bw = Math.min(74, (W - 32 - 6 * 4) / 5), bh = 44, by = 16, bx = W - 16 - bw * 5 - 6 * 4;   /* (0.5.3: narrower on a phone, never under 44 px) */
 		M.buttons = [['Close', 'close'], ['You', 'home'], ['Route', 'route'], ['−', 'out'], ['+', 'in']].map(([label, act], i) => ({label, act, x: bx + i * (bw + 6), y: by, w: bw, h: bh}));
 		for (const b of M.buttons) { ctx.fillStyle = 'rgba(8,14,26,0.85)'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = C.line; ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1); text(ctx, b.label, b.x + b.w / 2, b.y + 27, {align: 'center', size: 13, weight: 600}) }
-		text(ctx, scaleText(), 16, 30, {mono: true, size: 12, col: C.muted});
+		text(ctx, scaleText(), 16, bx < 340 ? by + bh + 20 : 30, {mono: true, size: 12, col: C.muted});   /* (below the buttons where they'd meet) */
 	}
 	function scaleText() { const D = M.D; return 'View ' + (D < 10 ? D.toFixed(1) : Math.round(D).toLocaleString('en-US')) + ' pc out' + (D > FAR ? ' · the galaxy' : D > 25 ? ' · a region' : ' · nearby stars') }
 	function describe(s) {

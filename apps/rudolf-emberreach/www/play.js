@@ -161,6 +161,8 @@ async function start() {
 	view.refit();
 	map = Map.create();
 	pointers();
+	/* (0.5.3) on a phone the port's page scrolls as a whole: a new screen starts at its top */
+	$('port').addEventListener('click', e => { if (e.target.closest('[data-screen]')) requestAnimationFrame(() => { $('port').scrollTop = 0 }) });
 	if (duel) duelArena();
 	else if (ok) resume(sv);
 	else {
@@ -1334,7 +1336,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () => duelBegin(), seesSites: () => seesSites(), navList: () => navList(), scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), touchShown: () => touchShown(), targetAhead: () => targetAhead(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () => duelBegin(), seesSites: () => seesSites(), navList: () => navList(), scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), get map() { return map }, touchShown: () => touchShown(), targetAhead: () => targetAhead(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -2043,7 +2045,8 @@ function touchLayout() {
 	const r = Math.round(Math.min(64 * k, W * 0.17, Hh * 0.2)), sx = m + 10 + r, sy = Hh - m - 10 - r;
 	const yh = Math.max(44, Math.round(44 * k)), yaw = {x: X(sx - r, 2 * r), y: sy - r - 14 - yh, w: 2 * r, h: yh, v: Tt.yaw || 0};
 	/* the throttle and the vertical thrusters */
-	const th = Math.round(Math.min(170 * k, Hh * 0.42)), tw = Math.max(44, Math.round(48 * k)), vw = Math.max(44, Math.round(44 * k));
+	const th = Math.round(Math.min(170 * k, Hh * 0.42, 2 * r + 14)),   /* (no taller than the stick's side, MSL and FLARE over it level with the yaw bar) */
+		  tw = Math.max(44, Math.round(48 * k)), vw = Math.max(44, Math.round(44 * k));
 	const thr = {x: X(W - m - tw, tw), y: Hh - m - th, w: tw, h: th}, vert = {x: X(W - m - tw - 10 - vw, vw), y: thr.y, w: vw, h: th, v: Tt.vert || 0};
 	/* the guns: FIRE (the primary guns), FIRE 2 above it (the secondary); MSL and FLARE over the sliders */
 	const fr = Math.max(30, Math.round(38 * k)), f2 = Math.max(26, Math.round(30 * k)), fx = W - m - tw - 10 - vw - 16 - fr, fy = Hh - m - 6 - fr;
@@ -2056,7 +2059,10 @@ function touchLayout() {
 	const bw = Math.max(48, Math.round(52 * k)), gap = 6, left = W >= 700 ? Math.min(W / 2, 372) : m, cols = Math.max(1, Math.floor((W - m - left + gap) / (bw + gap)));
 	TOUCH_TOP.forEach(([act, label], i) => { const row = Math.floor(i / cols), col = i % cols; buttons.push({act, label, on: !!on[act], x: W - m - bw - col * (bw + gap), y: m + row * (bh + gap), w: bw, h: bh}) });
 	const rows = Math.ceil(TOUCH_TOP.length / cols);
-	return {stick: {x: X(sx), y: sy, r, dx: Tt.dx, dy: Tt.dy}, yaw, thr, vert, buttons, alpha: S.opacity / 100, left: S.left,
+	/* (the room between the two clusters at the bottom, for the HUD's panels on a phone on its side) */
+	const low = [{x: X(sx - r, 2 * r), w: 2 * r}, yaw, thr, vert, ...buttons.slice(0, 4)], lc = low.filter(b => b.x + b.w / 2 < W / 2), rc = low.filter(b => b.x + b.w / 2 >= W / 2);
+	const freeL = Math.max(...lc.map(b => b.x + b.w)) + 12, freeR = Math.min(...rc.map(b => b.x)) - 12;
+	return {freeL, freeR, stick: {x: X(sx), y: sy, r, dx: Tt.dx, dy: Tt.dy}, yaw, thr, vert, buttons, alpha: S.opacity / 100, left: S.left,
 		/* (what they cover: the HUD's panels keep clear of these) */
 		top: m + rows * (bh + gap), topLeft: W - m - Math.min(cols, TOUCH_TOP.length) * (bw + gap), bottom: Hh - Math.min(yaw.y, buttons[1].y, thr.y - 10 - bh) + 8};
 }

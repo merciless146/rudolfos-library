@@ -176,6 +176,10 @@ function draw(ctx, W, H, h, t) {
 	/* sound captions, above the scanner */
 	if (h.captions && h.captions.length) { const cy2 = H - (tb ? tb + 150 : 150); h.captions.slice(-3).forEach((c, i, a) => { const yy = cy2 - (a.length - 1 - i) * 22; ctx.font = '600 13px ' + SANS; const w = ctx.measureText('[ ' + c.text + ' ]').width + 16; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(cxk - w / 2, yy - 15, w, 20); text(ctx, '[ ' + c.text + ' ]', cxk, yy, {align: 'center', size: 13, weight: 600, col: '#ffffff'}) }) }
 	if (h.fps != null) text(ctx, Math.round(h.fps) + ' FPS', W - 16, 14, {mono: true, size: 10, col: C.muted, align: 'right'});
+	/* (0.5.3) a phone's screen (under 500 px either way): the panels compact, clear of the touch controls */
+	const compact = W0 < 500 || H0 < 500;
+	LAST.panels = null; if (compact) compactPanels(ctx, h, W, H, k0, t);
+	else {
 	/* ---- bottom centre: the scanner ---- */
 	if (h.scanner) {
 		const sc = h.scanner, rw = small2 ? 110 : 150, rh = small2 ? 38 : 50, sx = cxk, sy = H - rh - (tb ? tb + 10 : 26), R = sc.range;
@@ -253,6 +257,7 @@ function draw(ctx, W, H, h, t) {
 		if (T.bars) { text(ctx, T.bars.what, x + 12, y + 88, {size: 11, col: T.hostile ? C.red : C.muted, weight: 600}); bar(ctx, x + 12, y + 96, w - 24, 6, T.bars.shield, C.cyan); bar(ctx, x + 12, y + 106, w - 24, 6, T.bars.hull, T.bars.hull < 0.3 ? C.red : C.green) }
 		if (T.dock) { const d = T.dock; text(ctx, d.line1, x + 12, y + 90, {size: 12, col: d.col || C.text, weight: 600}); if (d.line2) text(ctx, d.line2, x + 12, y + 108, {size: 12, col: C.muted}) }
 	}
+	}
 	/* ---- the radial menu (held on ~): its functions round a ring, the one pointed at lit ---- */
 	if (h.radial) {
 		/* (0.5.3: where the items are, radialRects, shared with the touch controls' taps; on a small screen an oval) */
@@ -296,7 +301,15 @@ function draw(ctx, W, H, h, t) {
 		y += ch + 8;
 	}
 	const MT = OPT.msgTime || 8, msgs = OPT.messages > 0 ? (h.messages || []).filter(m => t - m.t < MT).slice(-OPT.messages) : [];
-	if (msgs.length) {
+	if (msgs.length && compact) {
+		/* (0.5.3: on a phone, each message wrapped to the box, at most two lines, the box as wide as the room) */
+		const mw = Math.min(W - lx - 16, lw + 60) - 20; ctx.font = '500 12px ' + MONO;
+		const wrap = s0 => { const out = []; let line = ''; for (const wd of s0.split(' ')) { const tryL = line ? line + ' ' + wd : wd; if (ctx.measureText(tryL).width > mw && line) { out.push(line); line = '  ' + wd } else line = tryL } out.push(line); if (out.length > 2) { out.length = 2; out[1] = out[1].replace(/.{0,2}$/, '…') } return out };
+		const rows = msgs.flatMap(m => wrap('> ' + m.text).map(l => ({l, m})));
+		ctx.fillStyle = 'rgba(3,6,12,0.8)'; ctx.fillRect(lx, y, mw + 20, 10 + rows.length * 17);
+		rows.forEach(({l, m}, i) => { ctx.globalAlpha = Math.min(1, (MT - (t - m.t)) / 1.5); text(ctx, l, lx + 10, y + 19 + i * 17, {mono: true, size: 12, col: pal(m.col) || C.green}) });
+		ctx.globalAlpha = 1;
+	} else if (msgs.length) {
 		const ch = 10 + msgs.length * 20;
 		ctx.fillStyle = 'rgba(3,6,12,0.8)'; ctx.fillRect(lx, y, lw, ch);
 		msgs.forEach((m, i) => { ctx.globalAlpha = Math.min(1, (MT - (t - m.t)) / 1.5); text(ctx, '> ' + m.text, lx + 10, y + 20 + i * 20, {mono: true, size: 12, col: pal(m.col) || C.green}) });
@@ -328,6 +341,79 @@ function draw(ctx, W, H, h, t) {
 	if (h.touch && h.touchUI && !h.radial) drawTouch(ctx, h.touchUI, h);   /* (the radial menu, open, takes the taps) */
 	if (h.duel) duelBar(ctx, W, H, h.duel);
 	ctx.restore();
+}
+
+/* (0.5.3) the panels on a phone: the scanner, shields, hull and heat in a strip, then speed and the target side by
+   side, each cut to what matters. Upright, in a band above the touch controls; on its side, between the stick and
+   the guns (the scanner over the stick). Scaled units (k: the HUD's size) */
+function compactPanels(ctx, h, W, H, k, t) {
+	const u = h.touch && h.touchUI, m = 12, upright = W < H;
+	/* the room: across the bottom, or (touch, on its side) between the two clusters of controls */
+	let x0 = m, x1 = W - m, yb = H - m;
+	if (u) { if (upright) yb = H - u.bottom / k; else { x0 = u.freeL / k; x1 = u.freeR / k } }
+	const cw = x1 - x0, ph = 64, half = (cw - 8) / 2;
+	/* speed (or cruise), the set speed, the chips that matter; over a world, height and vertical speed */
+	const py = yb - ph; box(ctx, x0, py, half, ph);
+	const PR = LAST.panels = [{n: 'speed', x: x0 * k, y: py * k, w: half * k, h: ph * k}, {n: 'target', x: (x0 + half + 8) * k, y: py * k, w: half * k, h: ph * k}];
+	const sf = h.surface, thr = Math.max(-0.3, Math.min(1, h.throttle || 0));
+	text(ctx, fmtSpeed(h.speed), x0 + 10, py + 24, {size: 19, weight: 600, mono: true, col: h.cruise ? C.cyan : C.text});
+	text(ctx, TT(h.cruise ? 'CRUISE' : 'SPEED'), x0 + half - 10, py + 16, {col: C.muted, size: 10, mono: true, align: 'right'});
+	bar(ctx, x0 + 10, py + 32, half - 20, 4, Math.max(0, thr), h.cruise ? C.cyan : C.amber);
+	const chips = [[TT(h.fa ? 'FA ON' : 'FA OFF'), h.fa ? C.cyan : C.amber]];
+	if (h.landed) chips.push([TT('LANDED'), C.green]); else if (h.gear) chips.push([TT('GEAR DOWN'), C.amber]);
+	if (h.charging) chips.push([TT('CHARGING') + ' ' + Math.ceil(h.charging), C.cyan]); else if (h.massLocked && !h.cruise) chips.push([TT('MASS LOCKED'), C.muted]);
+	if (h.jumpCharge) chips.push([TT('JUMP') + ' ' + Math.ceil(h.jumpCharge), C.cyan]);
+	if (h.ap) chips.push([h.ap, C.cyan]);
+	if (h.reboot) chips.push([TT('REBOOTING') + ' ' + Math.ceil(h.reboot), C.amber]);
+	if (h.o2) chips.push([h.o2.text, h.o2.low ? C.red : C.amber]);
+	if (h.fuel != null && h.fuel < 0.25) chips.push([TT('FUEL') + ' ' + Math.round(h.fuel * 100) + '%', C.amber]);
+	if (sf) text(ctx, TT('UP') + ' ' + fmtDist(Math.max(0, sf.alt)) + ' · ' + (sf.vz < 0 ? '▼ ' : '▲ ') + fmtSpeed(Math.abs(sf.vz)), x0 + 10, py + 54, {size: 11, mono: true, weight: 600, col: sf.limit && -sf.vz > sf.limit ? C.red : C.text});
+	else { let cx = x0 + 10; for (const [s, col] of chips) { ctx.font = '600 10px ' + MONO; const w = ctx.measureText(s).width + 10; if (cx + w > x0 + half - 6) break; ctx.strokeStyle = col; ctx.strokeRect(cx + 0.5, py + 42.5, w, 16); text(ctx, s, cx + 5, py + 54, {mono: true, size: 10, col, weight: 600}); cx += w + 4 } }
+	/* the target: its name and distance, then its shields and hull, or the docking line, or what it is */
+	const tx = x0 + half + 8; box(ctx, tx, py, half, ph);
+	if (h.target) {
+		const T = h.target, fit = (s, w, size, weight) => { ctx.font = (weight || 500) + ' ' + size + 'px ' + SANS; if (ctx.measureText(s).width <= w) return s; while (s.length > 2 && ctx.measureText(s + '…').width > w) s = s.slice(0, -1); return s + '…' };
+		text(ctx, fit(T.name, half - 20, 13, 600), tx + 10, py + 18, {size: 13, weight: 600});
+		text(ctx, fmtDist(T.dist), tx + 10, py + 34, {mono: true, size: 12});
+		text(ctx, (T.closing >= 0 ? '▼ ' : '▲ ') + fmtSpeed(Math.abs(T.closing)), tx + half - 10, py + 34, {mono: true, size: 10, col: C.muted, align: 'right'});
+		if (T.bars) { bar(ctx, tx + 10, py + 42, half - 20, 5, T.bars.shield, C.cyan); bar(ctx, tx + 10, py + 51, half - 20, 5, T.bars.hull, T.bars.hull < 0.3 ? C.red : C.green) }
+		else if (T.dock) text(ctx, fit(T.dock.line1, half - 20, 11, 600), tx + 10, py + 54, {size: 11, col: T.dock.col || C.text, weight: 600});
+		else if (T.land) text(ctx, fit(T.land.line, half - 20, 11, 600), tx + 10, py + 54, {size: 11, col: T.land.ok ? C.green : C.muted, weight: 600});
+		else text(ctx, fit(T.kind.toUpperCase(), half - 20, 10), tx + 10, py + 54, {mono: true, size: 10, col: C.muted});
+	} else text(ctx, '—', tx + 10, py + 22, {size: 12, col: C.muted});
+	/* shields, hull and heat above: upright, three short rows beside the scanner; on its side, one strip (the scanner
+	   over the stick). With what's left to fire, and the most urgent of the status line */
+	const kk = h.combat, rowH = upright ? 44 : 24, ry = py - 6 - rowH, sw = upright && h.scanner ? Math.min(150, cw * 0.38) : 0, stw = cw - (sw ? sw + 8 : 0);
+	if (kk) {
+		box(ctx, x0, ry, stw, rowH); PR.push({n: 'combat', x: x0 * k, y: ry * k, w: stw * k, h: rowH * k});
+		const rows = [[TT('SHLD'), kk.shield, C.cyan], [TT('HULL'), kk.hull, kk.hull < 0.3 ? C.red : kk.hull < 0.6 ? C.amber : C.green], [TT('HEAT'), kk.heat, kk.hot ? C.red : kk.heat > 0.75 ? C.amber : '#c9a46a']];
+		const inv = [kk.missileMax ? 'MSL ' + kk.missiles : null, 'FLR ' + kk.flares].filter(Boolean);
+		if (upright) {
+			rows.forEach(([l, v, col], i) => { const yy = ry + 6 + i * 12; text(ctx, l, x0 + 8, yy + 8, {mono: true, size: 9, col: C.muted}); bar(ctx, x0 + 42, yy + 2, stw - 42 - 62, 5, v, col) });
+			inv.forEach((t2, i) => text(ctx, t2, x0 + stw - 8, ry + 16 + i * 14, {mono: true, size: 10, col: C.muted, align: 'right'}));
+		} else {
+			const iw = 70, seg = (stw - 16 - iw) / 3;
+			rows.forEach(([l, v, col], i) => { const x = x0 + 8 + i * seg; text(ctx, l, x, ry + 16, {mono: true, size: 9, col: C.muted}); bar(ctx, x + 32, ry + 9, seg - 40, 6, v, col) });
+			text(ctx, inv.join(' '), x0 + stw - 8, ry + 16, {mono: true, size: 9, col: C.muted, align: 'right'});
+		}
+		const warn = h.incoming ? [TT('MISSILE INBOUND'), C.red] : kk.hot ? [TT('OVERHEAT'), C.red] : h.hatch ? [TT(h.hatch == 'jammed' ? 'HATCH JAMMED · SPILLING' : 'HATCH OPEN · SCOOPING'), h.hatch == 'jammed' ? C.red : C.cyan] : null;
+		if (warn) text(ctx, warn[0], x0 + stw / 2, ry - 6, {mono: true, size: 10, weight: 700, col: warn[1], align: 'center'});
+	}
+	/* the scanner: beside them upright, or over the stick on its side (or, without the touch controls, above) */
+	if (h.scanner) {
+		const sc = h.scanner, R = sc.range; let rw = sw / 2 - 4, rh = 16, sx = x0 + cw - sw / 2, sy = ry + rowH / 2 - 5;
+		if (!upright) { if (u) { const st = u.stick; rw = Math.min(80, st.r / k + 14); rh = 24; sx = st.x / k; sy = u.yaw.y / k - rh - 18 } else { rw = 100; rh = 26; sx = x0 + cw / 2; sy = ry - 12 - rh } }
+		PR.push({n: 'scanner', x: (sx - rw) * k, y: (sy - rh) * k, w: 2 * rw * k, h: (2 * rh + 12) * k});
+		ctx.fillStyle = 'rgba(8,14,26,0.6)'; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.fill();
+		ctx.strokeStyle = 'rgba(108,201,232,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.ellipse(sx, sy, rw / 2, rh / 2, 0, 0, 7); ctx.moveTo(sx - rw, sy); ctx.lineTo(sx + rw, sy); ctx.moveTo(sx, sy - rh); ctx.lineTo(sx, sy + rh); ctx.stroke();
+		for (const b of sc.blips) {
+			const kb = Math.hypot(b.x, b.z) / R; if (kb > 1) continue;
+			const px = sx + b.x / R * rw, py2 = sy - b.z / R * rh, tp = py2 - Math.max(-rh, Math.min(rh, b.y / R * rh * 1.6));
+			ctx.strokeStyle = ctx.fillStyle = pal(b.col); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(px, py2); ctx.lineTo(px, tp); ctx.stroke();
+			ctx.fillRect(px - (b.big ? 3 : 2), tp - 1.5, b.big ? 6 : 4, 3); if (b.target) ctx.strokeRect(px - 5, tp - 4, 10, 8);
+		}
+		text(ctx, (R / 1000) + ' km', sx + rw - 4, sy + rh + 11, {mono: true, size: 9, col: C.muted, align: 'right'});
+	}
 }
 
 /* (0.5.3) the radial menu's items, in screen units (k: the HUD's size): round a ring, or on a small screen round an
@@ -368,6 +454,8 @@ function drawTouch(ctx, u, h) {
 	ctx.restore();
 }
 
-const EmberHUD = {draw, radialRects, drawTouch, setOptions, OPT, fmtDist, fmtSpeed, COLORS: C, PROFILE};
+/* (what the last frame laid out, for the tests: the phone's panels in screen units, or null) */
+const LAST = {panels: null};
+const EmberHUD = {draw, radialRects, drawTouch, LAST, setOptions, OPT, fmtDist, fmtSpeed, COLORS: C, PROFILE};
 if (typeof module != 'undefined') module.exports = EmberHUD; else root.EmberHUD = EmberHUD;
 })(typeof window != 'undefined' ? window : this);
