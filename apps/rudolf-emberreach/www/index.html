@@ -15,6 +15,8 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 #ov[hidden]{display:none}
 /* (0.5.0) the duel screen: ships to pick from */
 .duel-ships{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin:6px 0 10px}.duel-ship{display:block;padding:8px 10px;border:1px solid #2a3a5c;border-radius:6px;cursor:pointer;text-align:left}.duel-ship:has(input:checked){border-color:#6cc9e8;background:rgba(108,201,232,.08)}.duel-ship span{font-size:13px;color:#9fb0cc}.duel-num{font-family:monospace;font-size:12px!important}.duel-opp label{display:block;margin:4px 0}.duel-opp .muted{opacity:.55}
+/* (0.5.2) duels over a network: the choices under LAN and Online, the duels found, a room code */
+.duel-sub{margin:2px 0 8px 24px}.duel-sub label{margin:3px 0}.duel-found{font-size:13px;color:#9fb0cc;margin:4px 0}.duel-sub input[type=text],#duelCode{font:inherit;font-family:monospace;width:7em;text-transform:uppercase;margin-left:6px}.duel-code{font-family:monospace;letter-spacing:.12em;color:#f2d36a}
 .card{max-width:min(560px,92vw);max-height:88vh;overflow:auto;background:#0b1424;border:1px solid #2a3a5c;padding:22px 24px;box-sizing:border-box}
 .card .build{margin:0 0 4px;font:600 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;color:#f2a33a}
 .card h1{margin:0 0 6px;font-size:22px;font-weight:700;letter-spacing:.01em}
@@ -68,7 +70,7 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 .pt-table h2{padding:14px 14px 6px}
 .pt-rep{display:grid;grid-template-columns:2fr .8fr 1fr;gap:8px;padding:6px 14px;border-bottom:1px solid #172340;font-size:13px}
 .pt-name-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;font-size:13px}.pt-name-row>span:first-child{flex:1 1 100%}.pt-name-row input{flex:1;min-width:120px;min-height:40px;background:#0a111f;color:#e8edf6;border:1px solid #2a3a5c;padding:0 8px;font:14px Inter,system-ui,sans-serif}
-.pt-claim{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #172340}.pt-claim>div{display:flex;flex-direction:column}.pt-claim .bad{flex:1 1 100%}.pt-wrap{flex-wrap:wrap}
+.pt-plans{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0}.pt-plan-site{margin:0;background:#0b0e16;border:1px solid #172340;padding:6px;max-width:254px}.pt-plan-site svg{display:block;background:#07090f;max-width:100%;height:auto}.pt-plan-site figcaption{font-size:11px;color:#9aa6bb;padding-top:4px}.pt-claim{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #172340}.pt-claim>div{display:flex;flex-direction:column}.pt-claim .bad{flex:1 1 100%}.pt-wrap{flex-wrap:wrap}
 .pt-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(380px,100%),1fr));gap:12px}
 .pt-bar{display:flex;gap:6px;padding:8px 20px 12px;border-top:1px solid #243352;background:#0d1628;overflow-x:auto}
 .pt-bar button{flex:1 0 84px;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:transparent;border:1px solid #243352;color:#c3cde0;font-size:12px}
@@ -146,6 +148,7 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 <script src="port.js"></script>
 <script src="sound.js"></script>
 <script src="duel.js"></script>
+<script src="net.js"></script>
 <script src="save.js"></script>
 <script src="play.js"></script>
 </body>

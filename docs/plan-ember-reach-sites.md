@@ -256,6 +256,9 @@ game's own name generator from its site ("the Htevak tablet").
   - **Sell it** at a syndicate's dreadnought or a free port: twice the money, −25 standing with the faction, and a
     step towards outlaw.
   - An old hulk's recorder is history, not intelligence: a cartographer buys it for 800 SU.
+- **Data cores:** an explorer's wreck holds its unsold charts (1,000–8,000 SU). Land within 60 m and hold 10 s; they
+  sell at a cartographer as your own data (not as a first discovery).
+- **Munitions:** a warship's wreck gives 2–6 t of munitions among its canisters.
 - **Escape pods:** a fresh wreck has one 30% of the time (a target by the hulk), for 6 days after the wreck; after
   that it's gone (others picked it up). Taking it aboard needs a free tonne; it's a cargo good, **Escape pod**, that
   can't be sold. Handed over at any port that isn't hostile, within 10 days: 2,000 SU and +25 standing with the pod's
@@ -273,7 +276,10 @@ game's own name generator from its site ("the Htevak tablet").
   - **Opening a vault** brings a second wave of sentinels half the time, from orbit, 30–50 s later.
   - **A Precursor site's guardian pylons** (2 to 4) are Riftborn-strong turrets with the lance's beam. Opening its
     vault always calls a guardian pair (Riftborn-strong, up to M size) from orbit, 40–60 s later.
-- **Unstable ground:** one structure in four (seeded) stands over a hollow.
+- **Destroyed pylons** drop 1 t of Nullite or Voidglass. **A cleared site stays cleared** for the season: its wardens'
+  and pylons' state is kept in `P.sites`.
+- **Unstable ground:** one structure in four (seeded) stands over a hollow; twice as often on icy worlds and on moons
+  of giants (tidal heating), half as often on airless deserts.
   - **The ground gives way:** landing within its radius, 3–8 s after touchdown a pit opens, 40–90 m across and
     20–60 m deep, and the ship drops into it; the touchdown rules decide the damage.
   - **The warning:** 1.5 s before, a rumble and a plume of dust; lifting off at once escapes it.
@@ -355,6 +361,22 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
     slope).
 - **Wrecks** reuse the ship meshes the game already draws: placed, tilted and sunk. The terrain hides the buried
   part, so nothing is cut.
+- **The ruins' styles:** each ruin takes one of five styles from its seed (or from its people's, if open question 6
+  goes that way), with its own proportions and colours leaning on the world's ground:
+
+  | Style | Pieces |
+  |---|---|
+  | **Terraces** | stepped platforms, ramps, low walls in rows |
+  | **Spires** | tall tapered towers (`frustum`), many fallen across the ground |
+  | **Shells** | broken domes cut open, ribs standing where the glass was |
+  | **Rings** | standing arches and ring segments, in lines across the site |
+  | **Grid** | a city plan of low roofless walls on a grid, round a central hall |
+
+  Outlying ruins use the same style at a smaller scale with fewer pieces (a watch post, a mine's pit).
+- **The Precursors' style** is deliberately unlike any of these: monolithic slabs and faceted pillars (`shard`),
+  black like voidglass, with thin seams glowing violet in the emissive channel, a vault's doors as tall slots in a
+  slab. Nothing Precursor in the Rift has fallen. (The Core's Calm-Era ruins in the Core plan are the exception:
+  the same style, weathered.)
 - **Weathering:** the ruin's age takes structures down (fallen pillars, a lower ring wall, more segments missing
   from a shell dome) and darkens the colours. No textures.
 - **`sites.html`** beside `layouts.html`: each kind from above (plazas and their corridor rings, footprints, loose
@@ -406,6 +428,18 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
 - **In parallel:** L4.6 can go alongside L4.2 once L4.1 is in, and L4.4 alongside L4.3.
 - **The Core's story** (`plan-ember-reach-core.md`) needs L4.5's lodestones and Precursor vaults first.
 
+## Risks, and what to do about them
+
+| Risk | What to do |
+|---|---|
+| Sites too rare to matter | Outlying ruins (open question 1), crash sites wherever there's traffic, and star charts, tips and contracts pointing to them. The rates are counted in the node tests. |
+| Sites too common, so ruins stop feeling like finds | Ruin fields stay rare; outliers give half; every chance is a single constant in `sites.js` for playtests. |
+| Scooping canisters from the ground is fiddly | Canisters at a site don't expire while you're within 20 km; a tractor beam pulls them up; the landing assist holds the descent. |
+| Unstable ground feels unfair | The ground scan shows it, it warns 1.5 s ahead, and lifting off at once escapes it. |
+| Wardens and rivals cost frames on the software renderer | Wardens reuse the forward bases' turrets (already within budget); at most two salvagers in flight at once; sites at low detail beyond 8 km. |
+| The save grows with sites | A few bytes each; salvage expires with the season; trimmed under the save's budget (a test). |
+| Colonies (L3.5) change while L4 waits | L4.8 is last and small; the rest touches colonies only through the planner's listing. |
+
 ## Open questions for the owner
 
 1. **Outlying ruins.** Only about 22% of ruin worlds can be landed on (most have air). Should a ruin system's other
@@ -444,6 +478,11 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
 8. **Rift outliers.** Should open question 1's answer apply to Precursor sites too? The Rift already has about 42,000
    landable Precursor ruins.
    - **Recommended: no outliers in the Rift.** There are plenty already.
+
+9. **The orbital ruin cache is not reproducible.** Surveying a ruin from orbit rolls its Artefacts or Relics with
+   `Math.random` (`play.js`, the survey's cache), so the same ruin gives different amounts on different saves.
+   - (a) Leave it. (b) Seed it from the ruin, as everything else about a ruin is.
+   - **Recommended: (b),** as a one-line change with L4.1, so orbit and ground yields are both fixed per ruin.
 
 **The owner's earlier open questions this plan touches** (not decided here):
 - **The WOS "rich galaxy" mix** (`plan-ember-reach.md`): it doesn't change the ruins' Drake rate, so not the number

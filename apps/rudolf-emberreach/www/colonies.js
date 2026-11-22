@@ -116,6 +116,25 @@ function groundCheck(star, kind, world) {
 	const p = world && worldOf(star, world), S = Su();
 	return {why: !ok.length ? star.name + ' has no airless world that can take a ' + PORTS[kind].name.toLowerCase() + '.' : !p ? 'No such world.' : !S.landable(p).ok ? p.name + ': ' + S.landable(p).why + '.' : p.Ts > GROUND.ts ? p.name + ' is too hot for anyone to live on (' + Math.round(p.Ts) + ' K).' : p.name + ' is too small for a ' + PORTS[kind].name.toLowerCase() + '\'s site.'};
 }
+/* (0.5.1) where the colony's surface mines (and the deposits found for more) lie from its port on the ground:
+   metres east and north of the site's centre on the port's world (in the site's own axes, as play.js stands the
+   port: x east, y north), the distance over the ground and the compass point; on another world, just the world.
+   [{id, res, body, mine, done, x, y, dist, dir}] */
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+function siteMap(P, c, star, day) {
+	if (!c.site) return [];
+	const p = worldOf(star, c.site.world), Rm = p ? p.R * 6.371e6 * (G.WORLD_SCALE || 1) : 0, la = c.site.lat * Math.PI / 180, lo = c.site.lon * Math.PI / 180;
+	const d = [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)], e0 = Math.hypot(d[0], d[1]) > 1e-6 ? [-d[1], d[0], 0] : [1, 0, 0], el = Math.hypot(...e0), e = e0.map(x => x / el);
+	const n = [d[1] * e[2] - d[2] * e[1], d[2] * e[0] - d[0] * e[2], d[0] * e[1] - d[1] * e[0]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+	const one = (id, dep, body, b) => {
+		const out = {id, res: dep.res, body, mine: !!b, done: !!(b && b.done), left: b ? mineLeft(b, star, day || 0) : dep.tons};
+		if (body != c.site.world || !dep.dir || dep.dir.length != 3 || !Rm) return out;
+		const v = dep.dir, x = dot(v, e), y = dot(v, n), h = Math.hypot(x, y) || 1, ang = Math.atan2(h, dot(v, d));   /* (atan2: acos loses metres near 1) */
+		return Object.assign(out, {x: x / h * ang * Rm, y: y / h * ang * Rm, dist: ang * Rm, dir: COMPASS[Math.round((Math.atan2(x, y) * 180 / Math.PI + 360) % 360 / 45) % 8]});
+	};
+	const mines = (c.builds || []).filter(b => b.dep).map(b => one(b.dep.id, b.dep, b.body, b));
+	return mines.concat(openDeposits(P, c).map(dp => one(dp.id, dp, dp.body, null)));
+}
 /* a finished colony's surface port, as travel.js portsAt lists ports: open the day after it's built; a starport
    (0.5.1 L3.5 step 3) with its heavy landing field */
 function groundPorts(P, star, day) {
@@ -547,6 +566,6 @@ function starOf(c) {
 	STARS.set(c.id, s); return s;
 }
 
-const EmberColonies = {isGround, worldsOf, worldOf, groundWorlds, groundSite, portGoods, groundPorts, slotOf, colonySlots, GROUND, noteDeposit, minedBy, openDeposits, mineRate, mineLeft, feeds, raided, scripCode, registerScrips, carriers, rent, rented, FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
+const EmberColonies = {siteMap, isGround, worldsOf, worldOf, groundWorlds, groundSite, portGoods, groundPorts, slotOf, colonySlots, GROUND, noteDeposit, minedBy, openDeposits, mineRate, mineLeft, feeds, raided, scripCode, registerScrips, carriers, rent, rented, FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
 if (isNode) module.exports = EmberColonies; else root.EmberColonies = EmberColonies;
 })(typeof window != 'undefined' ? window : this);
