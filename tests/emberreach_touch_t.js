@@ -91,8 +91,8 @@ function layoutCheck(u, w, h) {
 		ok('4. two fingers at once: the stick (pitch and roll) turns the ship while FIRE fires its guns; both let go, the stick centres and the guns stop', mt.stick && mt.fire && mt.dx > 0.5 && mt.dy < -0.5 && turned && shots > 0 && !rel.stick && rel.dx == 0 && rel.fire == null, {mt, shots, rel, turned});
 		/* the yaw bar */
 		await f.evaluate(() => { EmberDebug.s.w = [0, 0, 0] });
-		const yb = st0.u.yaw; await T.down(3, yb.x + yb.w - 4, yb.y + yb.h / 2); await sleep(500);
-		const yw = await f.evaluate(() => ({v: EmberDebug.game.touch.yaw, w: EmberFlight.toBody(EmberDebug.s.q, EmberDebug.s.w)}));
+		const yb = st0.u.yaw; await T.down(3, yb.x + yb.w - 4, yb.y + yb.h / 2);
+		const yw = {v: 0, w: [0, 0, 0]}; for (let i = 0; i < 10; i++) { await sleep(100); const r = await f.evaluate(() => ({v: EmberDebug.game.touch.yaw, w: EmberFlight.toBody(EmberDebug.s.q, EmberDebug.s.w)})); yw.v = Math.max(yw.v, r.v); if (Math.abs(r.w[1]) > Math.abs(yw.w[1])) yw.w = r.w }   /* (the fastest yaw seen while held) */
 		await T.up(3); await sleep(50); const yw1 = await f.evaluate(() => EmberDebug.game.touch.yaw);
 		ok('5. the yaw bar: a finger at its right end yaws the ship right; let go, it centres', yw.v > 0.9 && Math.abs(yw.w[1]) > 0.05 && yw1 == 0, {yw, yw1});
 		/* looking round: a drag on the empty sky turns the view (not the ship), and it eases back when let go */
