@@ -195,7 +195,7 @@ function enterSystem(star) {
 	G.realm(star.rift ? 'rift' : 'normal');   /* the map, routes and everything near you: in the Rift, or this side */
 	const capHome = star.id == game.home.star.id;
 	/* the ports here (L2.1: a list, by id); game.port is the space port, the one the scene builds */
-	game.ports = T.portsAt(star, game.day, capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day));
+	game.ports = T.portsAt(star, game.day, capHome ? {cls: game.homePort, world: game.home.home.name, owner: game.home.id, capital: true} : Co.portOf(game.P, star, game.day)).concat(Co.groundPorts(game.P, star, game.day));   /* (0.5.1: and your colony's port on the ground) */
 	game.port = T.portById(game.ports, T.ORBITAL);
 	scene = Sc.build(star, {day: game.day, port: game.port ? game.port.cls : null, portWorld: game.port ? game.port.world : undefined});
 	/* the surface ports' sites, levelled into their worlds' ground (L2.2), and their models (L2.3: uploaded when first
@@ -773,7 +773,7 @@ function requestDock() {
 		if (game.cruise.on) { apEngage('cruise'); return }
 		const c0 = game.clearance; if (c0 && c0.pad && !c0.queued && !game.docked && !game.landed) { apEngage('dock'); return }
 	}
-	if (!st && Co.colonyAt(game.P, game.star.id)) { colonyAct(); return }
+	if (!st && game.site) { colonyAct(); return }   /* (0.5.1: a claim or build here; a built colony's surface port is docked at like any) */
 	const near = portsNear();
 	if (!near.length) { say('There is no port in this system', '#f2a33a'); Snd.cue('refused'); return }
 	const at = near[0], d = at.d;
@@ -1399,9 +1399,21 @@ function site() {
 	game.site = null;
 	if (!c || (c.stage != 'claimed' && c.stage != 'building')) return;
 	const w = scene.bodies.find(b => b.kind == 'planet' && b.name == c.world); if (!w) return;
+	if (c.site && c.stage == 'building') { groundSite(c, w); return }
 	const out = norm(add(mul(norm(w.pos), -1), [0.2, 0.3, 0.1]));
 	game.site = {kind: 'site', colony: c, world: w, name: c.stage == 'building' ? 'Constructor · ' + c.star.name : 'Beacon site · ' + pname(w), pos: c.stage == 'building' ? add(w.pos, mul(out, w.radius * 3)) : w.pos, radius: c.stage == 'building' ? 300 : w.radius};
 }
+/* (0.5.1) a claim on the ground, being built: its site levelled into the world, and the constructor holding 1.5 km
+   over it, turning with the world */
+const GROUND_SITE = {over: 1500};
+function groundSite(c, w) {
+	const Su = window.EmberSurface, kind = Co.PORTS[c.port].surface, q = Object.assign({surface: true, id: 'surface:' + c.world + ':colony', kind}, c.site);
+	if (Su) Su.level(scene.bodies, [q]);
+	const sp = {q, body: w, dir: Su ? Su.siteDir(q) : [1, 0, 0]};
+	game.site = {kind: 'site', colony: c, world: w, ground: sp, name: 'Constructor · ' + c.star.name, radius: 300, get pos() { const at = surfacePortAt(sp); return add(at.pos, mul(at.up, GROUND_SITE.over)) }};
+}
+/* the ship's speed against what it's delivering to: the turning ground's, for a site on a world */
+const siteSpeed = S0 => S0.ground ? len(sub(s.v, Fl.frameAt(Sc.worldFrame(S0.world), s.p).v)) : len(s.v);
 /* N in a claimed system: drop the beacon near the world, or hand over goods at the constructor */
 function colonyAct() {
 	const c = Co.colonyAt(game.P, game.star.id), w = game.site && game.site.world;
@@ -1415,7 +1427,7 @@ function colonyAct() {
 	}
 	if (c.stage == 'building') {
 		const d = len(sub(s.p, game.site.pos)) - game.site.radius;
-		if (d > Co.COL.deliverRange || len(s.v) > 60) { game.tgt = game.site; say('Deliver within ' + H.fmtDist(Co.COL.deliverRange) + ' of the constructor, under 60 m/s (' + H.fmtDist(Math.max(0, d)) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
+		if (d > Co.COL.deliverRange || siteSpeed(game.site) > 60) { game.tgt = game.site; say('Deliver within ' + H.fmtDist(Co.COL.deliverRange) + ' of the constructor, under 60 m/s (' + H.fmtDist(Math.max(0, d)) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
 		const r = Co.deliver(game.P, c, game.day), list = Object.entries(r.gave);
 		if (!list.length) { say('Nothing in your hold the build needs: ' + Object.keys(Co.left(c)).join(', '), '#f2a33a'); Snd.cue('refused'); return }
 		say('Delivered ' + list.map(([g, t]) => t + ' t ' + g).join(', ') + ' · ' + Math.round(Co.progress(c) * 100) + '% built', '#7fd1a8'); Snd.cue('scoop');
@@ -1429,8 +1441,9 @@ function colonyTurn() { for (const n of Co.turn(game.P, game.day)) { say(n.text,
 /* a populated system's nav beacon, near its main planet on the sunward side */
 function beaconAt() {
 	game.beacon = null;
-	if (!game.port || !scene) return;
-	const w = scene.bodies.find(b => b.kind == 'planet' && b.name == game.port.world) || scene.bodies.find(b => b.kind == 'planet'); if (!w) return;
+	const pw = game.port ? game.port.world : ((game.ports || []).find(q => q.colony) || {}).world;   /* (0.5.1: a colony's port on the ground keeps a beacon too) */
+	if (!pw || !scene) return;
+	const w = scene.bodies.find(b => b.kind == 'planet' && b.name == pw) || scene.bodies.find(b => b.kind == 'planet'); if (!w) return;
 	const sun = scene.bodies[0], d = norm(sub(sun.pos, w.pos));
 	game.beacon = {kind: 'beacon', name: 'Nav beacon · ' + w.name, pos: add(w.pos, mul(d, w.radius * 8)), radius: 30, world: w, dir: d};
 }
