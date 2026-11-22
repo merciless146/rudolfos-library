@@ -199,6 +199,7 @@ function buildOut(c, office) {
 	const rent = active.length ? carrierRow(c) : '';
 	return '<dl><dt>Population</dt><dd>' + fmt(c.pop || 0) + ' of ' + fmt(st.cap) + '</dd><dt>Security · wealth · tech</dt><dd>' + pct(st.security) + ' · ' + pct(st.wealth) + ' · ' + pct(st.tech) + '</dd><dt>Economy</dt><dd>' + esc(econText(st.econ)) + '</dd>'
 		+ '<dt>Points</dt><dd>tier 2: ' + c.points.t2 + ' · tier 3: ' + c.points.t3 + '</dd><dt>Next pay</dt><dd>day ' + (c.paid + Co.COL.seasonDays) + ' · about ' + money(Co.payment(c, star) * E.rate(payCode(c), d), payCode(c)) + (c.independent ? ' (its own scrip)' : '') + '</dd></dl>'
+		+ groundPlans(c, star, pk)
 		+ (builds ? '<h3>Facilities</h3><div class="pt-table">' + builds + '</div>' : '')
 		+ (here && active.length ? '<div class="pt-btns"><button class="pt-primary" data-act="givebuild" data-c="' + esc(c.id) + '">Hand over goods from the hold</button></div>' : active.length ? '<p class="muted small">Hand over goods docked at ' + esc(c.star.name) + '\'s own port.</p>' : '')
 		+ (haul ? '<h3>Haulage from here</h3><div class="pt-btns pt-wrap">' + haul + '</div>' : '') + rent
@@ -207,6 +208,12 @@ function buildOut(c, office) {
 		+ '<p class="small">' + (ck.ok ? fmt(Object.values(ck.goods).reduce((t, v) => t + v, 0)) + ' t of goods' + (ck.cost.t2 ? ' · 1 tier 2 point' : ck.cost.t3 ? ' · ' + ck.cost.t3 + ' tier 3 points' : ' · earns a tier ' + (Co.FAC[pk.fac].tier + 1) + ' point') + (isMine ? ' · then ' + fmt(Co.mineRate(star)) + ' t ' + dep.res + ' a day to the port\'s market, about ' + fmt(Math.ceil(dep.tons / Co.mineRate(star))) + ' days' : '') + (preview ? '<br>' + esc(preview) : '') : '<span class="bad">' + esc(ck.why) + '</span>') + '</p>'
 		+ '<div class="pt-btns"><button class="pt-ghost" data-act="startbuild" data-c="' + esc(c.id) + '"' + (ck.ok ? '' : ' disabled') + '>Start building</button></div>';
 }
+/* (0.5.1) a colony's port on the ground: its site with its mines, and the site it grows into (planned or growing) */
+function groundPlans(c, star, pk) {
+	if (!c.site || !Co.isGround(c.port)) return '';
+	const marks = Co.siteMap(P(), c, star, env.day), growing = c.builds.find(b => !b.done && Co.FAC[b.fac].upgrade), up = growing ? Co.FAC[growing.fac].upgrade : Co.FAC[pk.fac].upgrade && Co.FAC[pk.fac].upgrade.from == c.port ? Co.FAC[pk.fac].upgrade : null;
+	return '<h3>The site</h3><div class="pt-plans">' + sitePlan(Co.PORTS[c.port].surface, c.site.seed, Co.PORTS[c.port].name + ' on ' + c.world, marks) + (up ? sitePlan(Co.PORTS[up.to].surface, c.site.seed, (growing ? 'Growing into: ' : 'If it grows: ') + Co.PORTS[up.to].name.toLowerCase(), marks) : '') + '</div>' + mineList(marks);
+}
 function colonies() {
 	const me = P(), o = holder(), d = env.day, office = {star: env.star, owner: o}, mine = (me.colonies || []), jump = env.ship.jump || 0;
 	const goodsRow = c => Object.entries(c.need).map(([g, t]) => { const got = Math.min(t, c.got[g] || 0), coming = (c.coming || {})[g] || 0; return '<div class="pt-rep"><span>' + g + '</span><span class="num">' + fmt(got) + ' / ' + fmt(t) + ' t</span><span class="muted">' + (coming ? fmt(coming) + ' t coming' : got >= t ? 'done' : (me.cargo[g] ? fmt(me.cargo[g]) + ' t aboard' : '')) + '</span></div>' }).join('');
@@ -214,6 +221,7 @@ function colonies() {
 	const card = c => '<section class="pt-card"><h2>' + esc(c.star.name) + ' · ' + esc(Co.PORTS[c.port].name) + '</h2><dl><dt>Sponsor</dt><dd>' + (c.independent ? 'Independent · scrip ' + esc(c.scrip) : esc(nm(c.sponsor)) + (Co.PORTS[c.port].base ? ' · forward base' : '')) + '</dd><dt>Stage</dt><dd>' + STAGE[c.stage] + '</dd><dt>World</dt><dd>' + esc(c.world) + '</dd>'
 		+ (c.stage == 'claimed' ? '<dt>Beacon by</dt><dd>day ' + c.beaconBy + '</dd>' : c.stage == 'building' ? '<dt>Due</dt><dd>day ' + c.due + ' · ' + Math.round(Co.progress(c) * 100) + '% built</dd>' : c.stage == 'done' ? '<dt>Opens</dt><dd>day ' + c.opens + '</dd>' : '') + '</dl>'
 		+ (c.stage == 'building' || c.stage == 'claimed' ? '<div class="pt-table">' + goodsRow(c) + '</div>' : '')
+		+ ((c.stage == 'building' || c.stage == 'claimed') && c.site ? '<div class="pt-plans">' + sitePlan(Co.PORTS[c.port].surface, c.site.seed, (c.stage == 'claimed' ? 'To be built: ' : 'Being built: ') + Co.PORTS[c.port].name.toLowerCase() + ' on ' + c.world) + '</div>' : '')
 		+ (c.stage == 'building' ? carrierRow(c) : '')
 		+ (c.stage == 'building' ? '<h3>Haulage from here</h3>' + (mkt.currency == 'SU' ? '<p class="muted small">Haulers here want a power\'s coin.</p>' : '<div class="pt-btns pt-wrap">' + (haulBtns(c) || '<span class="muted small">Everything is delivered or on its way.</span>') + '</div><p class="muted small">10–25% over this market, more the farther they go; paid now, delivered after the days shown.</p>') : '')
 		+ (c.stage == 'claimed' ? '<p class="small">Fly to ' + esc(c.star.name) + ' and press N near ' + esc(c.world) + ' to drop the beacon.</p>' : '')
@@ -236,6 +244,34 @@ function colonies() {
 		+ (mine.length ? '<div class="pt-cols">' + mine.map(card).join('') + '</div>' : '')
 		+ '<div class="pt-split"><section class="pt-card pt-table" role="list"><h2>Planner · within one jump (' + jump + ' pc)</h2>' + (rows || '') + '</section><aside class="pt-card pt-side">' + side + '</aside></div>';
 }
+/* (0.5.1, landing L3.5) a surface port's site from above, as layouts.html draws it: the pads (ringed in their size's
+   colour, numbered; H for one in a hangar), the buildings, and the colony's mines (filled when working, outlined
+   while being built) and the deposits found for more (hollow) where they lie on its world; a 100 m bar */
+const PLAN_COL = {crane: '#6a707a', hab: '#bdbdb5', silo: '#8f97a3', plant: '#7b828c', mast: '#5a5f68', tank: '#9aa1ab', pit: '#3a3632', solar: '#3d4350', hangar: '#757b85', dome: '#f2dca0', greenhouse: '#6fc76f', tower: '#a9b0ba', bunker: '#6d737c', turret: '#4b5058'};
+const PLAN_PAD = {S: '#73ccff', M: '#ffbf4d', L: '#ff734d', XL: '#d980ff', C: '#ff4d8c'};
+const PLAN = {px: 240, near: 12000};
+function sitePlan(kind, seed, title, marks) {
+	const Su = window.EmberSurface; if (!Su || !Su.KIND[kind]) return '';
+	const L = Su.layout(kind, seed), shown = (marks || []).filter(m => m.dist != null && m.dist <= PLAN.near), R = Math.max(L.radius * 1.12, ...shown.map(m => m.dist * 1.15)), W = PLAN.px, k = (W / 2 - 8) / R;
+	const X = c => (W / 2 + c[0] * k).toFixed(1), Y = c => (W / 2 - c[1] * k).toFixed(1), r = v => Math.max(1.2, v * k).toFixed(1);
+	let g = '<circle cx="' + W / 2 + '" cy="' + W / 2 + '" r="' + (L.radius * k).toFixed(1) + '" fill="#11141c" stroke="#2a3142" stroke-dasharray="2 4"/>';
+	for (const b of L.blds) {
+		if (b.type == 'hangar' && L.pads.some(p => p.hangar && p.c[0] == b.c[0] && p.c[1] == b.c[1])) { g += '<rect x="' + (W / 2 + (b.c[0] - b.r) * k).toFixed(1) + '" y="' + (W / 2 - (b.c[1] + b.r * 0.8) * k).toFixed(1) + '" width="' + (b.r * 2 * k).toFixed(1) + '" height="' + (b.r * 1.6 * k).toFixed(1) + '" fill="none" stroke="' + PLAN_COL.hangar + '"/>'; continue }
+		g += ['plant', 'hangar', 'solar'].includes(b.type) ? '<rect x="' + (W / 2 + (b.c[0] - b.r) * k).toFixed(1) + '" y="' + (W / 2 - (b.c[1] + b.r * 0.5) * k).toFixed(1) + '" width="' + (b.r * 2 * k).toFixed(1) + '" height="' + (b.r * k).toFixed(1) + '" fill="' + PLAN_COL[b.type] + '" transform="rotate(' + (-b.rot * 180 / Math.PI).toFixed(0) + ' ' + X(b.c) + ' ' + Y(b.c) + ')"/>'
+			: '<circle cx="' + X(b.c) + '" cy="' + Y(b.c) + '" r="' + r(b.r) + '" fill="' + PLAN_COL[b.type] + '"/>';
+	}
+	for (const p of L.pads) g += '<circle class="pad" data-size="' + p.size + '" cx="' + X(p.c) + '" cy="' + Y(p.c) + '" r="' + r(p.r) + '" fill="#2b2f37" stroke="' + PLAN_PAD[p.size] + '" stroke-width="1.4"/>' + (p.r * k > 5 ? '<text x="' + X(p.c) + '" y="' + (+Y(p.c) + 3) + '" fill="' + PLAN_PAD[p.size] + '" font-size="9" text-anchor="middle">' + (p.hangar ? 'H' : '') + p.n + '</text>' : '');
+	for (const m of shown) { const cx = +X([m.x, m.y]), cy = +Y([m.x, m.y]); g += '<path class="mine" d="M' + cx + ' ' + (cy - 5) + 'l5 5-5 5-5-5z" fill="' + (m.done ? '#c9a46a' : 'none') + '" stroke="' + (m.mine ? '#c9a46a' : '#8a93a6') + '" stroke-width="1.3"' + (m.mine ? '' : ' stroke-dasharray="2 2"') + '/><text x="' + (cx + 7) + '" y="' + (cy + 3) + '" fill="#c9a46a" font-size="9">' + esc(m.res) + '</text>' }
+	const bar = 100 * k >= 8 ? 100 : 1000;
+	g += '<rect x="8" y="' + (W - 10) + '" width="' + (bar * k).toFixed(1) + '" height="2" fill="#9aa6bb"/><text x="8" y="' + (W - 14) + '" fill="#9aa6bb" font-size="9">' + (bar == 100 ? '100 m' : '1 km') + '</text>';
+	const pads = Object.entries(Su.KIND[kind].pads).map(([z, n]) => n + ' ' + z).join(', ');
+	return '<figure class="pt-plan-site"><svg class="site-plan" data-kind="' + kind + '" width="' + W + '" height="' + W + '" viewBox="0 0 ' + W + ' ' + W + '" role="img" aria-label="' + esc(title + ': ' + pads + ' pads') + '">' + g + '</svg><figcaption><b>' + esc(title) + '</b> · ' + pads + ' pads · ' + L.blds.length + ' buildings · ' + fmt(L.radius * 2) + ' m across' + (kind == 'starport' ? ' · its heavy landing field (1 capital berth, 2 XL) 8 km off' : '') + '</figcaption></figure>';
+}
+/* the colony's mines, from its port: where each lies, and what it does */
+function mineList(marks) {
+	const ms = marks.filter(m => m.mine); if (!ms.length) return '';
+	return '<p class="small muted">Surface mines: ' + ms.map(m => esc(m.res) + ' ' + (m.dist != null ? fmt(m.dist / 1000, m.dist < 10000 ? 1 : 0) + ' km ' + m.dir + ' of the port' : 'on ' + esc(m.body)) + (m.done ? (m.left > 0 ? ' (' + fmt(Math.round(m.left)) + ' t left)' : ' (worked out)') : ' (being built)')).join(' · ') + '</p>';
+}
 /* (0.5.1, landing L3.5) claims on the ground: a world for the port (airless, under 500 K, with room for the site),
    and the surface kinds it can take, sponsored or independent */
 const padText = kind => { const K = window.EmberSurface && window.EmberSurface.KIND[kind]; return K ? Object.entries(K.pads).map(([z, n]) => n + ' ' + z).join(', ') + ' pads' : '' };
@@ -250,6 +286,7 @@ function groundClaims(s, o, cl, office, jump) {
 		return '<div class="pt-claim"><div><b>' + (indep ? 'Independent ' + K.name.toLowerCase() : K.name) + '</b><span class="muted small">' + fmt(sum(Co.portGoods(k, s, w.name))) + ' t of goods in a season · ' + padText(K.surface) + (w.g > Co.GROUND.heavy ? ' · 25% more over 1.5 g' : '') + '</span></div><button class="pt-' + (indep ? 'ghost' : 'primary') + '" data-act="' + (indep ? 'claimi' : 'claim') + '" data-k="' + k + '" data-w="' + esc(w.name) + '"' + (ck.ok && afford ? '' : ' disabled') + '>Claim · ' + money(fee, code) + '</button>' + (ck.ok ? '' : '<span class="bad small">' + esc(ck.why) + '</span>') + '</div>';
 	};
 	return '<h3>On the ground</h3><p class="muted small">A port on an airless world, landed at on its pads: an outpost first, growing into a settlement.</p><div class="pt-form"><label>World<select data-pick="gw" data-c="' + esc(key) + '">' + worlds.map(x => '<option value="' + esc(x.name) + '"' + (x.name == w.name ? ' selected' : '') + '>' + esc(x.name + ' · ' + (x.moon ? 'moon · ' : '') + x.g.toFixed(2) + ' g · ' + Math.round(x.Ts) + ' K') + '</option>').join('') + '</select></label></div>'
+		+ '<div class="pt-plans">' + sitePlan('outpost', Co.groundSite(s, w.name).seed, 'Surface outpost on ' + w.name) + (Co.groundWorlds(s, 'ssettle').some(x => x.name == w.name) ? sitePlan('settlement', Co.groundSite(s, w.name).seed, 'Surface settlement on ' + w.name) : '') + '</div>'
 		+ (o ? ['soutpost', 'ssettle'].map(k => row(k, false)).join('') : '') + (!cl.owner ? ['soutpost', 'ssettle'].map(k => row(k, true)).join('') : '');
 }
 /* ---------- outfitting: four categories of modules ---------- */
