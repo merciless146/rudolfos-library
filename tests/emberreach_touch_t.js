@@ -156,6 +156,21 @@ const centre = b => b.round ? {x: b.x + b.r, y: b.y + b.r} : {x: b.x + b.w / 2, 
 		await f2.evaluate(() => { EmberDebug.game.settings.touch.show = 'on'; EmberDebug.game.settings.touch.left = true; EmberDebug.game.settings.touch.size = 125 }); await pg2.keyboard.press('KeyR'); await sleep(200);
 		const on = await f2.evaluate(() => ({touch: EmberDebug.game.hudData.touch, left: EmberDebug.game.hudData.touchUI.left, stickRight: EmberDebug.game.hudData.touchUI.stick.x > 640}));
 		ok('20. Settings: On shows them with a keyboard in use; left-handed puts the stick on the right', on.touch && on.left && on.stickRight, on);
+		/* (from #97) On: the mouse works the controls too (Rudolf OS's first phone gives touches as the mouse), and a press on
+		   a control is not also a click of the left button (which fires) */
+		{
+			const U = await f2.evaluate(() => EmberDebug.touchLayout()), thr = centre(U.thr), fb = centre(U.buttons.find(b => b.act == 'fire'));
+			const h0 = await f2.evaluate(() => ({heat: EmberDebug.game.pcs.heat, shots: EmberDebug.game.shots.length}));
+			await pg2.mouse.move(thr.x, thr.y + U.thr.h * 0.3); await pg2.mouse.down(); await pg2.mouse.move(thr.x, thr.y - U.thr.h * 0.25, {steps: 4}); await sleep(150);
+			const held = await f2.evaluate(() => ({grab: EmberDebug.game.touch.thrId != null, thr: EmberDebug.game.throttle}));
+			await pg2.mouse.up(); await sleep(400);
+			const h1 = await f2.evaluate(() => ({heat: EmberDebug.game.pcs.heat, shots: EmberDebug.game.shots.length}));
+			await pg2.mouse.move(fb.x, fb.y); await pg2.mouse.down(); await sleep(150);
+			const fire = await f2.evaluate(() => EmberDebug.game.touch.fire != null);
+			await pg2.mouse.up(); await sleep(150);
+			const rel = await f2.evaluate(() => EmberDebug.game.touch.fire == null);
+			ok('20b. On: a mouse drag works the throttle slider (without firing the guns) and a mouse press holds FIRE', held.grab && held.thr > 0.6 && h1.shots == h0.shots && fire && rel, {held, h0, h1, fire, rel});
+		}
 		await pg2.keyboard.press('Escape'); await sleep(300);
 		await f2.click('#ovBtns button:nth-child(2)'); await sleep(200); await f2.click('.st-tabs button[data-tab="1"]'); await sleep(200);
 		const page = await f2.evaluate(() => ({rows: [...document.querySelectorAll('.st-row label')].map(l => l.textContent), show: document.querySelector('select[data-set="touch.show"]').value, size: document.querySelector('input[data-set="touch.size"]').value}));
