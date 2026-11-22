@@ -45,6 +45,14 @@
      a deposit the ground scan has found (P.deposits) on one of the colony's worlds, one mine a deposit, taking no
      slot. Built, it works the deposit at 25 t a day (30 round a metal-rich star) and feeds that good to the colony
      port's market (feeds(): economy.js counts ten days of it as the market's stock), until the deposit runs out.
+   Colonies on the ground (0.5.1, landing L3.5): a claim may put its primary port on an airless world instead of in
+     orbit, as one of surface.js's kinds: a surface outpost (the outpost's fee and 1,500 t) or a surface settlement
+     (the station's fee; the surface port's 6,000 t with the first port's 20%). The world must be landable, under
+     500 K and big enough for the site (surface.js fits); goods cost 25% more over 1.5 g, as for every surface build.
+     The port takes a surface slot on its world (a moon's too: its surface slots count like a planet's). Built, it
+     stands on its world in flight like L2's surface ports (groundPorts: a flattened site, pads, the controller), in
+     its sponsor's coin. It grows by upgrades planned at the colonial office: an outpost into a settlement (tier 2,
+     3,000 t). Not in the Rift, which has no surface ports.
    The record (P.colonies, P.hauls, P.deposits) is plain data, kept in the save. GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -57,7 +65,10 @@ const PORTS = {
 	outpost: {name: 'Outpost', cls: 'trefoil', fee: 120000, goods: {Iron: 400, Aluminum: 300, Titanium: 150, Machinery: 200, Electronics: 100, Food: 150, Water: 150, Fuel: 50}},
 	station: {name: 'Station', cls: 'lantern', fee: 300000, goods: {Iron: 2000, Aluminum: 1600, Titanium: 900, Machinery: 1200, Electronics: 700, Food: 700, Water: 600, Fuel: 300}},
 	great: {name: 'Great port', cls: 'halo', fee: 750000, goods: {Iron: 6000, Aluminum: 5000, Titanium: 3000, Machinery: 4000, Electronics: 2500, Food: 2000, Water: 1800, Fuel: 700}},
-	base: {name: 'Forward base', cls: 'trefoil', fee: 200000, goods: {Iron: 625, Titanium: 500, Machinery: 375, Electronics: 375, Munitions: 625}, base: true}};
+	base: {name: 'Forward base', cls: 'trefoil', fee: 200000, goods: {Iron: 625, Titanium: 500, Machinery: 375, Electronics: 375, Munitions: 625}, base: true},
+	/* (0.5.1) on the ground: surface.js's kind in `surface`; a settlement also grows from an outpost (FAC usettle) */
+	soutpost: {name: 'Surface outpost', cls: 'trefoil', surface: 'outpost', fee: 120000, goods: {Iron: 400, Aluminum: 300, Titanium: 150, Machinery: 200, Electronics: 100, Food: 150, Water: 150, Fuel: 50}},
+	ssettle: {name: 'Surface settlement', cls: 'bloom', surface: 'settlement', fee: 300000, goods: {Iron: 1800, Aluminum: 1400, Titanium: 700, Machinery: 1100, Electronics: 600, Food: 700, Water: 600, Fuel: 300}}};
 const COL = {claimDays: 2, seasonDays: 30, salvage: 1 / 3, core: G.REGIONS[0][2], beaconRadii: 30, deliverRange: 3000, charter: 100, neutral: -100, perRep: 100, finishRep: 150,
 	raid: {unclaimed: 0.10, claimed: 0.05}, baseEffort: 5, rent: {fee: 40000, cut: 0.3}, scrip: {drift: 0.15}, takeover: 2, indep: {share: [0.10, 0.15], security: -0.15},
 	mine: {rate: 25, metals: 1.2, keep: 400},
@@ -67,6 +78,55 @@ const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const total = o => Object.values(o).reduce((t, v) => t + v, 0);
 const list = P => (P.colonies = P.colonies || []);
 const short = id => F.byId(id).name.replace(/^The /, '');
+const Su = () => req('surface.js', 'EmberSurface');
+
+/* ---- (0.5.1) colonies on the ground ---- */
+const isGround = kind => !!(PORTS[kind] && PORTS[kind].surface);
+/* every world of a system: the planets and their moons */
+const worldsOf = star => G.system(star).planets.flatMap(p => [p, ...(p.moons || [])]);
+const worldOf = (star, name) => worldsOf(star).find(p => p.name == name) || null;
+const GROUND = {ts: 500, heavy: 1.5, heavyK: 1.25, metals: ['Iron', 'Titanium', 'Copper', 'Aluminum', 'Gold', 'Uranium', 'Beryllium']};
+/* the worlds a surface port of this kind could stand on: airless and landable, under 500 K (as surface.js's ports),
+   with room for its site; the best ground first (surface.js's order: near 0.3 g, near 220 K, metals) */
+function groundWorlds(star, kind) {
+	const S = Su(), k = PORTS[kind] && PORTS[kind].surface; if (!S || !k) return [];
+	const score = p => -Math.abs(p.g - 0.3) - Math.abs(p.Ts - 220) / 400 + (p.res || []).filter(x => GROUND.metals.includes(x)).length * 0.08;
+	return worldsOf(star).filter(p => S.landable(p).ok && p.Ts <= GROUND.ts && S.fits(k, p)).sort((a, b) => score(b) - score(a) || (a.name < b.name ? -1 : 1));
+}
+/* where on its world a colony's surface port stands (as surface.js places a port: near the terminator on a locked
+   world, within 60° of the equator on others), and the seed of its layout; the same for every kind, so the port
+   grows where it stands */
+function groundSite(star, world) {
+	const p = worldOf(star, world), r = G.rng(G.hashStr('colony-site:' + star.id + ':' + world)), r4 = v => Math.round(v * 1e4) / 1e4;
+	const lat = (r() * 2 - 1) * (p.locked ? 25 : 60), lon = p.locked ? 90 + (r() * 2 - 1) * 15 : r() * 360 - 180;
+	return {world, moon: !!p.moon, lat: r4(lat), lon: r4(lon), seed: G.hashStr(star.id + ':' + world + ':colony')};
+}
+/* a primary port's goods at its world: a surface port over 1.5 g costs 25% more */
+function portGoods(kind, star, world) {
+	const g = PORTS[kind].goods, p = isGround(kind) && worldOf(star, world), k = p && p.g > GROUND.heavy ? GROUND.heavyK : 1;
+	return Object.fromEntries(Object.entries(g).map(([n, t]) => [n, Math.round(t * k)]));
+}
+/* a surface claim's world: the one asked for, or the best; {why} if there's none */
+function groundCheck(star, kind, world) {
+	if (!isGround(kind)) return null;
+	if (PORTS[kind].grown) return {why: 'A ' + PORTS[kind].name.toLowerCase() + ' grows from a smaller port: plan it at the colonial office.'};
+	if (star.rift) return {why: 'The Rift has no surface ports: its havens stay in orbit.'};
+	const ok = groundWorlds(star, kind), w = world ? ok.find(p => p.name == world) : ok[0];
+	if (w) return {world: w.name};
+	const p = world && worldOf(star, world), S = Su();
+	return {why: !ok.length ? star.name + ' has no airless world that can take a ' + PORTS[kind].name.toLowerCase() + '.' : !p ? 'No such world.' : !S.landable(p).ok ? p.name + ': ' + S.landable(p).why + '.' : p.Ts > GROUND.ts ? p.name + ' is too hot for anyone to live on (' + Math.round(p.Ts) + ' K).' : p.name + ' is too small for a ' + PORTS[kind].name.toLowerCase() + '\'s site.'};
+}
+/* a finished colony's surface port, as travel.js portsAt lists ports: open the day after it's built; a starport
+   (0.5.1 L3.5 step 3) with its heavy landing field */
+function groundPorts(P, star, day) {
+	const c = colonyAt(P, star.id), S = Su();
+	if (!c || !isGround(c.port) || c.stage != 'done' || day < c.opens || !c.site || !S) return [];
+	const kind = PORTS[c.port].surface, q = c.site, p = worldOf(star, q.world); if (!p) return [];
+	const one = (id, k, lat, seed, of) => ({id, kind: k, world: q.world, moon: !!q.moon, lat, lon: q.lon, g: p.g, Ts: p.Ts, seed, surface: true, name: q.world + ' ' + S.KIND[k].name, cls: S.KIND[k].tier, owner: c.sponsor, independent: !!c.independent, colony: true, of});
+	const out = [one('surface:' + q.world + ':colony', kind, q.lat, q.seed)];
+	if (kind == 'starport') out.push(one('surface:' + q.world + ':field', 'field', q.lat + 8e3 / (p.R * 6.371e6 * (G.WORLD_SCALE || 1)) * 180 / Math.PI, G.hashStr(star.id + ':' + q.world + ':colony-field'), out[0].id));
+	return out;
+}
 
 /* the world a primary port orbits: the most Earth-like, or the biggest */
 function portWorld(star) { const pl = G.system(star).planets.slice().sort((a, b) => b.esi - a.esi || b.R - a.R); return pl[0] ? pl[0].name : null }
@@ -79,7 +139,7 @@ const held = P => list(P).filter(c => !gone(c)).length;
 const colonyAt = (P, starId) => list(P).find(c => c.star.id == starId && !gone(c)) || null;
 
 /* can this office's sponsor claim this system for you? {ok, why, fee (sponsor's coin), salvage} */
-function canClaim(P, office, star, kind, day, jumpRange, plan, independent) {
+function canClaim(P, office, star, kind, day, jumpRange, plan, independent, world) {
 	if (star.heart) return {ok: false, why: 'Nothing can be built at the Maw.'};
 	/* the Rift (0.2.0): no power files claims there, but a pilot may build an independent colony, filed at one of
 	   its anchorages */
@@ -87,13 +147,14 @@ function canClaim(P, office, star, kind, day, jumpRange, plan, independent) {
 		if (!office.star || !office.star.rift) return {ok: false, why: 'Claims in the Rift are filed at a Rift anchorage.'};
 		if (!independent) return {ok: false, why: 'No power files claims in the Rift: only independent colonies.'};
 		if (!PORTS[kind]) return {ok: false, why: 'No such port.'};
-		return indepClaim(P, office, star, kind, day, jumpRange, plan);
+		if (isGround(kind)) return {ok: false, why: 'The Rift has no surface ports: its havens stay in orbit.'};
+		return indepClaim(P, office, star, kind, day, jumpRange, plan, world);
 	}
 	if (office.star && office.star.rift) return {ok: false, why: 'From a Rift anchorage, claims go only in the Rift.'};
 	const sp = F.byId(office.owner), K = PORTS[kind];
 	if (!sp || sp.kind != 'major') return {ok: false, why: 'Claims are filed at a great power\'s colonial office.'};
 	if (!K) return {ok: false, why: 'No such port.'};
-	if (independent) return indepClaim(P, office, star, kind, day, jumpRange, plan);
+	if (independent) return indepClaim(P, office, star, kind, day, jumpRange, plan, world);
 	if (K.base) return baseClaim(P, office, star, day, jumpRange, plan);
 	const p = at(star);
 	if (dist(p, at(office.star)) > jumpRange) return {ok: false, why: star.name + ' is more than one jump (' + jumpRange + ' pc) from here.'};
@@ -107,9 +168,10 @@ function canClaim(P, office, star, kind, day, jumpRange, plan, independent) {
 	if (c.owner) return {ok: false, why: star.name + ' lies in ' + short(c.owner) + ' space: its uninhabited systems stay uninhabited. Claims go only to unclaimed space.'};
 	if ((P.rep[sp.id] || 0) < COL.neutral) return {ok: false, why: 'The ' + short(sp.id) + ' won\'t sponsor an Unfriendly pilot.'};
 	if (!plan && open(P)) return {ok: false, why: 'You already have a claim in progress at ' + open(P).star.name + '.'};
+	const gc = groundCheck(star, kind, world); if (gc && gc.why) return {ok: false, why: gc.why};
 	if (!plan && held(P) >= budget(P, sp.id)) return {ok: false, why: 'Your standing with the ' + short(sp.id) + ' allows ' + budget(P, sp.id) + (budget(P, sp.id) == 1 ? ' colony' : ' colonies') + '.'};
 	const old = list(P).find(x => x.star.id == star.id && x.stage == 'lapsed'), salvage = !!old;
-	return {ok: true, fee: Math.round(K.fee * (salvage ? 1 - COL.salvage : 1) * E.rate(sp.currency.code, day)), currency: sp.currency.code, salvage, inside: false};
+	return {ok: true, fee: Math.round(K.fee * (salvage ? 1 - COL.salvage : 1) * E.rate(sp.currency.code, day)), currency: sp.currency.code, salvage, inside: false, world: gc ? gc.world : null};
 }
 /* the checks every claim shares: one jump, not the Core, planets, no port (0.3.6: of any kind, surface ports and
    outposts too: only a wild system, travel.js wildAt), not yours already */
@@ -138,14 +200,15 @@ function baseClaim(P, office, star, day, jumpRange, plan) {
 	return {ok: true, fee: Math.round(f.fee * E.rate(sp.currency.code, day)), currency: sp.currency.code, salvage: f.salvage, war: h.war, key: h.key};
 }
 /* an independent colony: unclaimed space only; the fee in SU, through free traders */
-function indepClaim(P, office, star, kind, day, jumpRange, plan) {
+function indepClaim(P, office, star, kind, day, jumpRange, plan, world) {
 	if (PORTS[kind].base) return {ok: false, why: 'Forward bases are a power\'s.'};
 	const why = common(P, office, star, day, jumpRange); if (why) return {ok: false, why};
 	const c = claimOf(star);
 	if (c.owner || c.contested) return {ok: false, why: 'Independent colonies go only in unclaimed space.'};
+	const gc = groundCheck(star, kind, world); if (gc && gc.why) return {ok: false, why: gc.why};
 	const best = Math.max(...F.majors().map(m => P.rep[m.id] || 0)), lim = limits(P, plan, 1 + Math.floor(Math.max(0, best - COL.charter) / COL.perRep)); if (lim) return {ok: false, why: lim};
 	const f = salvageFee(P, star, PORTS[kind].fee);
-	return {ok: true, fee: Math.round(f.fee), currency: 'SU', salvage: f.salvage, independent: true};
+	return {ok: true, fee: Math.round(f.fee), currency: 'SU', salvage: f.salvage, independent: true, world: gc ? gc.world : null};
 }
 /* candidate systems within one jump of an office: the nearest few that could be claimed (leaving out the limits of
    one open claim and the budget, which the planner reports separately) */
@@ -159,14 +222,15 @@ function candidates(P, office, day, jumpRange, n) {
 	return out.sort((a, b) => a.d - b.d);
 }
 /* claim: pay the fee; 2 days to drop the beacon */
-function claim(P, office, star, kind, day, jumpRange, independent) {
-	const ck = canClaim(P, office, star, kind, day, jumpRange, false, independent); if (!ck.ok) return ck;
+function claim(P, office, star, kind, day, jumpRange, independent, world) {
+	const ck = canClaim(P, office, star, kind, day, jumpRange, false, independent, world); if (!ck.ok) return ck;
 	if (ck.currency == 'SU') { const Tr = req('trade.js', 'EmberTrade'), r = Tr.pay(P, ck.fee, 'SU', day); if (!r.ok) return {ok: false, why: 'The fee is ' + ck.fee.toLocaleString('en') + ' SU, through free traders.'} }
 	else { if ((P.wallet[ck.currency] || 0) < ck.fee) return {ok: false, why: 'The fee is ' + ck.fee.toLocaleString('en') + ' ' + ck.currency + '.'}; P.wallet[ck.currency] -= ck.fee }
 	const old = list(P).find(x => x.star.id == star.id && x.stage == 'lapsed');
 	if (old) list(P).splice(list(P).indexOf(old), 1);
-	const c = {id: star.id, star: {id: star.id, name: star.name, at: at(star)}, sponsor: ck.independent ? null : office.owner, independent: !!ck.independent, war: ck.war || null, key: ck.key || null, port: kind, world: portWorld(star), stage: 'claimed', claimed: Math.floor(day), beaconBy: Math.floor(day) + COL.claimDays, due: null,
-		need: Object.assign({}, PORTS[kind].goods), got: old ? Object.assign({}, old.got) : {}, fee: ck.fee, currency: ck.currency};
+	const c = {id: star.id, star: {id: star.id, name: star.name, at: at(star)}, sponsor: ck.independent ? null : office.owner, independent: !!ck.independent, war: ck.war || null, key: ck.key || null, port: kind, world: ck.world || portWorld(star), stage: 'claimed', claimed: Math.floor(day), beaconBy: Math.floor(day) + COL.claimDays, due: null,
+		need: portGoods(kind, star, ck.world), got: old ? Object.assign({}, old.got) : {}, fee: ck.fee, currency: ck.currency};
+	if (isGround(kind)) c.site = groundSite(star, c.world);
 	if (c.independent) { c.scrip = scripCode(star); registerScrips(P) }
 	list(P).push(c);
 	return {ok: true, colony: c};
@@ -237,7 +301,7 @@ function turn(P, day) {
 		job.got[h.good] = (job.got[h.good] || 0) + h.tons; if (job.coming) job.coming[h.good] = Math.max(0, (job.coming[h.good] || 0) - h.tons);
 		out.push({text: 'Haulers delivered ' + h.tons.toLocaleString('en') + ' t of ' + h.good + ' to ' + c.star.name, ok: true});
 		if (job == c) { if (finish(P, c, day)) out.push({text: c.star.name + ': the ' + PORTS[c.port].name.toLowerCase() + ' is built. It opens tomorrow.', ok: true}) }
-		else if (finishBuild(c, job, day)) out.push({text: c.star.name + ': ' + FAC[job.fac].name + ' at ' + job.body + ' is built', ok: true});
+		else if (finishBuild(c, job, day)) out.push({text: FAC[job.fac].upgrade ? c.star.name + ': the port on ' + job.body + ' has grown into a ' + PORTS[c.port].name.toLowerCase() + '. It opens as one on your next arrival.' : c.star.name + ': ' + FAC[job.fac].name + ' at ' + job.body + ' is built', ok: true});
 	}
 	/* finished colonies: population, and the season's payment */
 	for (const c of list(P)) if (c.stage == 'done' && day >= c.opens) out.push(...grow(P, c, day));
@@ -250,12 +314,12 @@ function turn(P, day) {
 /* the port at a star, if it's your finished colony and open: like travel.portFor's answer */
 function portOf(P, star, day) {
 	const c = colonyAt(P, star.id);
-	if (!c || c.stage != 'done' || day < c.opens) return null;
+	if (!c || c.stage != 'done' || day < c.opens || isGround(c.port)) return null;
 	return {id: 'orbital', cls: PORTS[c.port].cls, world: c.world, owner: c.sponsor, capital: false, contested: false, colony: true, independent: !!c.independent, base: !!PORTS[c.port].base};
 }
 
 /* ---------------- part 2: building out ---------------- */
-const PORT_TIER = {outpost: 1, station: 2, great: 3};
+const PORT_TIER = {outpost: 1, station: 2, great: 3, soutpost: 1, ssettle: 2, sstarport: 3};
 /* the goods mix for a facility (shares of its tonnage) */
 const MIX = {base: {Iron: .3, Aluminum: .2, Titanium: .1, Machinery: .15, Electronics: .1, Food: .05, Water: .05, Fuel: .05},
 	farm: {Iron: .15, Aluminum: .15, Machinery: .2, Water: .3, Food: .1, Electronics: .1}, military: {Iron: .25, Titanium: .2, Machinery: .15, Electronics: .15, Munitions: .25},
@@ -278,7 +342,9 @@ const FAC = {
 	sport: {name: 'Surface port', where: 'surface', tier: 2, t: 6000, pop: 100000, port: true},
 	station: {name: 'Station', where: 'orbit', tier: 2, t: 8000, pop: 100000, port: true},
 	city: {name: 'Surface city', where: 'surface', tier: 3, t: 20000, pop: 500000, port: true, wealth: 0.1},
-	great: {name: 'Great port', where: 'orbit', tier: 3, t: 25000, pop: 500000, port: true, tech: 0.1}};
+	great: {name: 'Great port', where: 'orbit', tier: 3, t: 25000, pop: 500000, port: true, tech: 0.1},
+	/* (0.5.1) a colony's surface port grows where it stands: no slot of its own, on the port's world */
+	usettle: {name: 'Grow into a settlement', where: 'surface', tier: 2, t: 3000, mix: 'habitat', upgrade: {from: 'soutpost', to: 'ssettle'}}};
 /* the goods for a facility: its mix times its tonnage; surface builds on worlds over 1.5 g cost 25% more */
 function facGoods(fac, body, where) {
 	const F0 = FAC[fac], mix = MIX[F0.mix || 'base'], k = where == 'surface' && body.g > 1.5 ? 1.25 : 1, out = {};
@@ -286,15 +352,20 @@ function facGoods(fac, body, where) {
 	return out;
 }
 /* slots per body */
+const surfaceSlots = p => p.gas || p.g >= 2.5 ? 0 : (p.R < 0.8 ? 1 : p.R < 1.5 ? 2 : 3) + (p.atmo && p.water ? 1 : 0);
 function slots(star) {
 	return G.system(star).planets.map(p => {
 		const orbit = p.gas ? Math.min(4, 2 + (p.ring ? 1 : 0) + Math.floor(p.R / 6)) : 1 + Math.floor(p.R / 2) + (p.ring ? 1 : 0);
-		const surface = p.gas || p.g >= 2.5 ? 0 : (p.R < 0.8 ? 1 : p.R < 1.5 ? 2 : 3) + (p.atmo && p.water ? 1 : 0);
-		return {body: p.name, type: p.type, orbit, surface, p};
+		return {body: p.name, type: p.type, orbit, surface: surfaceSlots(p), p};
 	});
 }
-/* what's taken: the primary port (an orbital slot at its world) and the builds */
-function used(c, body, where) { return (where == 'orbit' && body == c.world ? 1 : 0) + (c.builds || []).filter(b => b.body == body && b.where == where && !FAC[b.fac].deposit).length }
+/* (0.5.1) a body's slots: a planet's, or a moon's (no orbital slots: its surface only) */
+function slotOf(star, body) { const sl = slots(star).find(x => x.body == body); if (sl) return sl; const m = worldOf(star, body); return m ? {body: m.name, type: m.type, orbit: 0, surface: surfaceSlots(m), p: m, moon: true} : null }
+/* a colony's slots: the planets', and its port's moon's if it stands on one */
+function colonySlots(c, star) { const sl = slots(star); if (!sl.some(x => x.body == c.world)) { const m = slotOf(star, c.world); if (m) sl.push(m) } return sl }
+/* what's taken: the primary port (an orbital slot at its world, or a surface one for a port on the ground) and the
+   builds (mines and a port's growing take none) */
+function used(c, body, where) { return (where == (isGround(c.port) ? 'surface' : 'orbit') && body == c.world ? 1 : 0) + (c.builds || []).filter(b => b.body == body && b.where == where && !FAC[b.fac].deposit && !FAC[b.fac].upgrade).length }
 /* ---- (0.4.9) surface mines ---- */
 /* a deposit the ground scan marked, into the record: {id: {star, body, res, tons}} (the latest few hundred) */
 function noteDeposit(P, starId, body, d) {
@@ -324,11 +395,23 @@ function canBuild(c, star, fac, body, where, dep, P) {
 		if (!dep) return {ok: false, why: 'A surface mine goes at a deposit: land on one of ' + c.star.name + '\'s worlds and let the ground scan find one.'};
 		if (dep.star != c.id || dep.body != body) return {ok: false, why: 'That deposit isn\'t on ' + body + '.'};
 		if (P && minedBy(P, dep.id)) return {ok: false, why: 'That deposit has a mine already.'};
-		const sl = slots(star).find(x => x.body == body); if (!sl) return {ok: false, why: 'No such body.'};
+		const sl = slotOf(star, body); if (!sl) return {ok: false, why: 'No such body.'};
 		return {ok: true, goods: facGoods(fac, sl.p, 'surface'), cost: {}};
 	}
+	/* (0.5.1) a port growing: the next kind, where it stands, one growth at a time, with room for the bigger site */
+	if (F0.upgrade) {
+		const U = F0.upgrade, p = worldOf(star, c.world), S = Su();
+		if (c.port != U.from) return {ok: false, why: F0.name + ': only a ' + PORTS[U.from].name.toLowerCase() + ' grows into a ' + PORTS[U.to].name.toLowerCase() + '.'};
+		if (body != c.world) return {ok: false, why: 'The port grows where it stands, on ' + c.world + '.'};
+		if ((c.builds || []).some(b => !b.done && FAC[b.fac].upgrade)) return {ok: false, why: 'The port is growing already.'};
+		if (!p || !S || !S.fits(PORTS[U.to].surface, p)) return {ok: false, why: c.world + ' is too small for a ' + PORTS[U.to].name.toLowerCase() + '\'s site.'};
+		const k = cost(c, fac), pts = c.points || {t2: 0, t3: 0};
+		if ((k.t2 || 0) > pts.t2) return {ok: false, why: 'Needs a tier 2 point: build a tier 1 facility first.'};
+		if ((k.t3 || 0) > pts.t3) return {ok: false, why: 'Needs ' + k.t3 + ' tier 3 points (you have ' + pts.t3 + ').'};
+		return {ok: true, goods: facGoods(fac, p, 'surface'), cost: k};
+	}
 	if (F0.where != 'either' && F0.where != where) return {ok: false, why: F0.name + ' goes ' + (F0.where == 'orbit' ? 'in orbit' : 'on the surface') + '.'};
-	const sl = slots(star).find(x => x.body == body); if (!sl) return {ok: false, why: 'No such body.'};
+	const sl = slotOf(star, body); if (!sl) return {ok: false, why: 'No such body.'};
 	if (used(c, body, where) >= sl[where]) return {ok: false, why: sl[where] ? 'Every ' + where + ' slot at ' + body + ' is taken.' : body + ' has no ' + (where == 'orbit' ? 'orbital' : 'surface') + ' slots.'};
 	if (F0.needs && !F0.needs(sl.p, where)) return {ok: false, why: F0.name + ' needs ' + F0.needsText + '.'};
 	const k = cost(c, fac), pts = c.points || {t2: 0, t3: 0};
@@ -347,6 +430,7 @@ function startBuild(c, star, fac, body, where, day, dep, P) {
 function finishBuild(c, b, day) {
 	if (b.done || Object.keys(left(b)).length) return false;
 	b.done = true; b.finished = Math.floor(day);
+	if (FAC[b.fac].upgrade) { c.port = FAC[b.fac].upgrade.to; c.grown = Math.floor(day) }
 	const tier = FAC[b.fac].tier; if (tier == 1) c.points.t2 += 1; else if (tier == 2) c.points.t3 += 1;
 	return true;
 }
@@ -378,7 +462,7 @@ function boost(econ, p, star) {
 /* the port's economy: strong links from its own world, weak (5%) from elsewhere; shares that add to 1 (or {} with
    nothing built) */
 function economy(c, star) {
-	const by = {}, bodies = Object.fromEntries(G.system(star).planets.map(p => [p.name, p]));
+	const by = {}, bodies = Object.fromEntries(worldsOf(star).map(p => [p.name, p]));
 	for (const b of (c.builds || []).filter(x => x.done)) {
 		const e = FAC[b.fac].econ; if (!e) continue;
 		by[e] = (by[e] || 0) + (b.body == c.world ? 1 : 0.05) * boost(e, bodies[b.body] || {}, star);
@@ -390,7 +474,7 @@ function economy(c, star) {
 function popCap(c, star) {
 	const best = G.system(star).planets.reduce((m, p) => Math.max(m, p.alive ? 5e6 : p.atmo && p.esi >= 0.8 ? 1e6 : p.atmo ? 2e5 : 2e4), 0);
 	const extra = (c.builds || []).filter(b => b.done).reduce((t, b) => t + (FAC[b.fac].pop || 0), 0);
-	return best + extra + ({outpost: 0, station: 100000, great: 500000, base: 5000}[c.port] || 0);
+	return best + extra + ({outpost: 0, station: 100000, great: 500000, base: 5000, soutpost: 0, ssettle: 100000, sstarport: 500000}[c.port] || 0);
 }
 /* ---- part 3 helpers ---- */
 /* haulers raided on the way: by the space the colony is in; none past a military outpost there */
@@ -463,6 +547,6 @@ function starOf(c) {
 	STARS.set(c.id, s); return s;
 }
 
-const EmberColonies = {noteDeposit, minedBy, openDeposits, mineRate, mineLeft, feeds, raided, scripCode, registerScrips, carriers, rent, rented, FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
+const EmberColonies = {isGround, worldsOf, worldOf, groundWorlds, groundSite, portGoods, groundPorts, slotOf, colonySlots, GROUND, noteDeposit, minedBy, openDeposits, mineRate, mineLeft, feeds, raided, scripCode, registerScrips, carriers, rent, rented, FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
 if (isNode) module.exports = EmberColonies; else root.EmberColonies = EmberColonies;
 })(typeof window != 'undefined' ? window : this);
