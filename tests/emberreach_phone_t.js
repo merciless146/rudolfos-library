@@ -89,8 +89,11 @@ const clean = a => !a.scroll && !a.wide.length && !a.small.length && !a.tiny.len
 			const ctx = await br.newContext({viewport: {width: 360, height: 780}, hasTouch: true, isMobile: true}), pg = await ctx.newPage();
 			await pg.goto(`http://127.0.0.1:${PORT}/desk.html#debug&duel`);
 			const f = await frame(pg, () => !!document.querySelector('#ovBody input[name=duelShip]')); await sleep(300);
-			const a = await f.evaluate(audit, '#ov'), lab = await f.evaluate(() => [...document.querySelectorAll('.duel-ship, .duel-opp label')].every(l => l.getBoundingClientRect().height >= 44 && l.getBoundingClientRect().right <= innerWidth));
+			const a = await f.evaluate(audit, '#ov'), lab = await f.evaluate(() => [...document.querySelectorAll('.duel-ship, .duel-opp label')].filter(l => l.getClientRects().length).every(l => l.getBoundingClientRect().height >= 44 && l.getBoundingClientRect().right <= innerWidth));
 			await pg.screenshot({path: path.join(W, 'phone-duel.png')});
+			const subs = [];
+			for (const v of ['lan', 'ws']) { const r = await f.$('#ovBody input[name=duelOpp][value=' + v + ']'); if (r && await r.isEnabled()) { await r.click(); await sleep(200); subs.push(await f.evaluate(audit, '#ov')) } }
+			ok(n++ + '. 360 px: the duel menu\'s LAN and Online choices (where the build has them) fit, with tap targets of 44 px or more', subs.every(a => !a.scroll && !a.wide.length && !a.small.length), subs);
 			ok(n++ + '. 360 px: the duel menu fits, its ships and opponents each a tap target of 44 px or more', !a.scroll && !a.wide.length && !a.tiny.length && lab, a);
 			await ctx.close();
 		}
