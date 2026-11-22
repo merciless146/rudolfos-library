@@ -21,6 +21,10 @@ const S = req('ships.js', 'EmberShips'), F = req('factions.js', 'EmberFactions')
 const SIZE = {XS: 1, S: 2, M: 3, L: 4, XL: 5, Capital: 6};
 /* P: Precursor, built only from the blueprints in the Rift's ruins (better than anything sold) */
 const GRADE = {C: {k: 1, price: 1}, B: {k: 1.15, price: 2.6}, A: {k: 1.3, price: 6.5}, P: {k: 1.6, price: 18}};
+/* (0.5.7) contraband (contraband.js): a variant a fifth stronger than its grade (an A's 1.3 becomes 1.56, still under
+   the Precursor's 1.6), at 1.6 times the price. m.cb marks it; m.by is the pilot it's bound to */
+const CB = {k: 1.2, price: 1.6};
+const kOf = m => GRADE[m.grade].k * (m.cb ? CB.k : 1);
 /* internal slots by hull size (largest first); freighters, miners and carriers get a bigger second slot */
 const INTERNAL = {XS: [2, 1, 1], S: [3, 3, 2, 1], M: [4, 4, 3, 2, 2], L: [5, 5, 4, 3, 3, 2], XL: [7, 6, 5, 5, 4, 3], Capital: [7, 7, 7, 6, 6, 5, 5]};
 const UTILITY = {XS: 2, S: 3, M: 4, L: 5, XL: 6, Capital: 8};
@@ -90,18 +94,18 @@ function layout(ship) {
 }
 /* ---- what each module does ---- */
 const rack = size => Math.round(2.5 * Math.pow(4, size - 1));
-const shieldOf = (ship, m) => ship.shield * Math.pow(1.6, m.size - shieldSize(ship)) * GRADE[m.grade].k;
+const shieldOf = (ship, m) => ship.shield * Math.pow(1.6, m.size - shieldSize(ship)) * kOf(m);
 function shieldSize(ship) { const L = layout(ship).internal; return Math.max(1, Math.min(L[0], coreSize(ship) + 1)) }
-const armourOf = (ship, m) => ship.hull * 0.08 * m.size * GRADE[m.grade].k;
-const relayOf = m => m.id == 'alien' ? 1.5 * m.size : 0.35 * m.size * GRADE[m.grade].k;
-const powerOf = (ship, m) => (3 + 3.5 * m.size) * GRADE[m.grade].k * (ship.size == 'Capital' ? 3 : ship.size == 'XL' ? 1.6 : 1);
+const armourOf = (ship, m) => ship.hull * 0.08 * m.size * kOf(m);
+const relayOf = m => m.id == 'alien' ? 1.5 * m.size : 0.35 * m.size * kOf(m);
+const powerOf = (ship, m) => (3 + 3.5 * m.size) * kOf(m) * (ship.size == 'Capital' ? 3 : ship.size == 'XL' ? 1.6 : 1);
 function drawOf(m) { const d = CAT[m.id].draw; return CAT[m.id].cat == 'utility' ? d : d * (m.size || 1) * (m.grade == 'A' ? 1.2 : m.grade == 'P' ? 1.1 : 1) }
 /* the price of a module, in SU */
 function price(m) {
 	const c = CAT[m.id]; if (!c) return 0;
 	if (c.ruins) return c.value * m.size;
 	const sz = c.cat == 'utility' ? 1 : Math.pow(2.4, (m.size || 1) - 1);
-	return Math.round(c.price * sz * GRADE[m.grade || 'C'].price + (m.id == 'decoder' ? LANG_PRICE * ((m.langs || []).length) : 0));
+	return Math.round((c.price * sz * GRADE[m.grade || 'C'].price + (m.id == 'decoder' ? LANG_PRICE * ((m.langs || []).length) : 0)) * (m.cb ? CB.price : 1));
 }
 
 /* ---- the stock loadout: today's hold, shields and guns ---- */
@@ -152,7 +156,7 @@ function power(ship, fit) {
 /* ---- a ship as its modules make it: the hull's figures, with these in place ---- */
 function derive(ship, fit) {
 	fit = fit || stock(ship);
-	const g = k => fit.core[k] ? GRADE[fit.core[k].grade].k : 0, ints = fit.internal.filter(Boolean), ut = fit.utility.filter(Boolean);
+	const g = k => fit.core[k] ? kOf(fit.core[k]) : 0, ints = fit.internal.filter(Boolean), ut = fit.utility.filter(Boolean);
 	const out = Object.assign({}, ship);
 	out.cargo = ints.filter(m => m.id == 'cargo').reduce((t, m) => t + rack(m.size), 0);
 	out.shield = ints.filter(m => m.id == 'shield').reduce((t, m) => Math.max(t, shieldOf(ship, m)), 0);
@@ -164,6 +168,7 @@ function derive(ship, fit) {
 	out.canopyK = 1 + (g('canopy') - 1) * 4; out.lifeK = 1 + (g('life') - 1) * 4;
 	out.guns = fit.external.filter(m => m && CAT[m.id].weapon).map(m => m.id);
 	/* (0.4.5) which hardpoint each gun is in, so it fires from that hardpoint's mount (combat.js mounts) */
+	out.gunK = fit.external.filter(m => m && CAT[m.id].weapon).map(m => m.cb ? CB.k : 1);   /* (0.5.7: a contraband gun's damage, by out.guns) */
 	out.gunSlots = fit.external.map((m, i) => m && CAT[m.id].weapon && m.id != 'missile' ? i : -1).filter(i => i >= 0); out.hardSlots = fit.external.length;
 	out.mining = fit.external.filter(m => m && m.id == 'mining').length; out.tractor = fit.external.filter(m => m && m.id == 'tractor').length;
 	out.refinery = ints.filter(m => m.id == 'refinery').reduce((t, m) => t + m.size + 1, 0);
@@ -234,7 +239,16 @@ function remove(ship, fit, slot) {
 /* the hold left if a fit changed: cargo has to fit */
 const holdOf = (ship, fit) => fit.internal.filter(m => m && m.id == 'cargo').reduce((t, m) => t + rack(m.size), 0);
 /* worth of a fit beyond stock (added to a ship's trade-in) */
-const extra = (ship, fit) => Math.max(0, modules(fit).reduce((t, m) => t + price(m), 0) - modules(stock(ship)).reduce((t, m) => t + price(m), 0));
+/* (0.5.7) contraband (bound to its pilot) counts by mode: 'trade' (a trade-in, the default) and 'hc' (insured while
+   Hardcore is on) not at all, a core one as the ordinary C module that would stand in its slot; 'insure' (Hardcore
+   off) at twice its ordinary counterpart's worth */
+function worth(m, mode) {
+	if (!m.cb) return price(m);
+	const base = Object.assign({}, m); delete base.cb; delete base.by;
+	if (mode == 'insure') return 2 * price(base);
+	return CAT[m.id].cat == 'core' ? price(Object.assign(base, {grade: 'C'})) : 0;
+}
+const extra = (ship, fit, mode) => Math.max(0, modules(fit).reduce((t, m) => t + worth(m, mode || 'trade'), 0) - modules(stock(ship)).reduce((t, m) => t + price(m), 0));
 
 /* ---- alien blueprints (found in ruins) and the artifact broker's recipes ---- */
 /* what building one takes: goods from the hold, and the broker's fee in SU */
@@ -302,6 +316,7 @@ function recycleRoom(P, stationId, day) { const L = ((P.recycled || {})[stationI
 /* recycle a stored module (index j in P.stored) at a station: materials to the hold (if they fit), a blueprint back */
 function recycle(P, j, stationId, day, capacity) {
 	const m = (P.stored || [])[j]; if (!m) return {ok: false, why: 'No such module.'};
+	if (m.cb) return {ok: false, why: 'Contraband is bound to you for good: it can\'t be recycled.'};
 	const room = recycleRoom(P, stationId, day);
 	if (room.left <= 0) return {ok: false, why: 'This station\'s recyclers are busy: ' + RECYCLE.perStation + ' modules a ' + RECYCLE.days + '-day spell. Again from day ' + room.next + '.'};
 	const mat = materials(m), t = Object.values(mat.goods).reduce((a, b) => a + b, 0), held = Object.values(P.cargo).reduce((a, b) => a + b, 0);
@@ -351,6 +366,6 @@ function valid(ship, fit) {
 	} catch (e) { return false }
 }
 
-const EmberOutfit = {starter, withAutopilot, PRECURSOR_MODS, precursorFrom, bpName, recipe, RECYCLE, materials, recycleRoom, recycle, RECIPES, BLUEPRINT, blueprintFrom, learn, build, broker, SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
+const EmberOutfit = {CB, kOf, worth, starter, withAutopilot, PRECURSOR_MODS, precursorFrom, bpName, recipe, RECYCLE, materials, recycleRoom, recycle, RECIPES, BLUEPRINT, blueprintFrom, learn, build, broker, SIZE, GRADE, CAT, DECODER, LANG_PRICE, layout, rack, stock, power, derive, stocks, offers, at, install, remove, holdOf, extra, price, modules, langOf, langName, understands, garble, valid, drawOf, powerOf};
 if (isNode) module.exports = EmberOutfit; else root.EmberOutfit = EmberOutfit;
 })(typeof window != 'undefined' ? window : this);

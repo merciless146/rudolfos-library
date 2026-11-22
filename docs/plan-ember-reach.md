@@ -1468,6 +1468,12 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.5.7, the Contraband Merchant (P3 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** for
+  Hardcore pilots, at a great power's major starports: six pieces a week of weapons and modules a fifth stronger
+  than their grade (still under Precursor work), at 1.6 times the price. Bound to the pilot for good (never sold,
+  traded in or recycled; a ship that leaves keeps its contraband in storage), not illegal; uninsured while Hardcore
+  is on, twice the premium after. Fixed: the insurer's quote and first week left out the difficulty. Tested in
+  `tests/emberreach_contraband_t.js` and `tests/emberreach_contraband_browser_t.js`.
 - **0.5.6, careers (P2 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** a new pilot's name,
   difficulty (Rookie, Pilot or Admiral: rewards, damage taken, insurance and how enemies fight) and Hardcore
   (×1.5 rewards, Admiral until it ends; a destroyed ship loses the pilot, the galaxy keeping their colonies as

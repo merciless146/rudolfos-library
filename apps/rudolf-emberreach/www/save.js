@@ -102,7 +102,7 @@ function landed(x) { return x && typeof x == 'object' && typeof x.world == 'stri
 function packPlayer(P) {
 	const r = (o, d) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v).map(([k, v]) => [k, +v.toFixed(d)]));
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
-		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
+		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], contraband: P.contraband || undefined, blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
 		mined: P.mined || {}, charted: P.charted && Object.keys(P.charted).length ? P.charted : undefined, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
 		colonies: P.colonies || [], hauls: P.hauls || [], deposits: P.deposits && Object.keys(P.deposits).length ? P.deposits : undefined, rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance, policeKills: (P.policeKills || []).slice(-60),
 		/* (0.3.7) the ports' markets as your trades left them: {key: {day, s: {good: t}, d: {good: t}}} */
@@ -138,6 +138,8 @@ function unpackPlayer0(x) {
 		/* modules in storage (bought, taken out, or found) */
 		/* (0.3.8: each kept where it was left, or on its way: a place and a day; older saves' have none, and the next
 		   port docked at takes them in) */
+		/* (0.5.7) what was bought from the Contraband Merchant this week (contraband.js) */
+		contraband: obj(x.contraband) && num(x.contraband.w) && Array.isArray(x.contraband.got) ? {w: x.contraband.w, got: x.contraband.got.filter(k => typeof k == 'string' && k.length <= 80).slice(0, 60)} : undefined,
 		stored: Array.isArray(x.stored) ? x.stored.filter(m => obj(m) && O && O.CAT[m.id] && O.GRADE[m.grade] && (m.at === undefined || place(m.at))).slice(0, 120) : [],
 		hangar: Array.isArray(x.hangar) ? x.hangar.filter(h => obj(h) && obj(h.ship) && typeof h.ship.model == 'string' && place(h.at) && numMap(h.modules || {}) && numMap(h.cargo || {}) && numMap(h.cost || {}) && (h.fuel == null || num(h.fuel))).slice(0, 20)
 			.map(h => Object.assign({}, h, {ship: Object.assign({}, h.ship, {fit: shipFit(h.ship)})})) : [],

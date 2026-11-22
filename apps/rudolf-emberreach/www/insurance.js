@@ -22,11 +22,16 @@ const INSURE = {weekly: 0.10, week: 7, reachLy: 1000, ly: 3.26156, local: 6};
 const reachPc = () => INSURE.reachLy / INSURE.ly;   /* (read when asked, so a test can narrow it) */
 
 /* the ship's whole value (SU): its hull, and what's fitted beyond the stock modules */
-const shipValue = (hull, fit) => S.value(hull) + (fit ? O.extra(hull, fit) : 0);
+/* (0.5.7) P given: contraband counts as contraband.js says (nothing while Hardcore is on, twice its ordinary
+   counterpart's after); without P, as an ordinary module would */
+const shipValue = (hull, fit, P) => S.value(hull) + (fit ? O.extra(hull, fit, P ? (Ca.hcOf(P) == 'on' ? 'hc' : 'insure') : 'insure') : 0);
 const issuerOf = code => F.majors().find(m => m.currency.code == code) || null;
 /* a week's premium, in the policy's currency */
-function premium(P, hull, fit, day) { const c = P.insurance ? P.insurance.code : F.byId(P.origin).currency.code; return {code: c, amount: INSURE.weekly * shipValue(hull, fit) * E.rate(c, day) * Ca.premiumK(P)} }   /* (0.5.6: the difficulty's premium) */
+function premium(P, hull, fit, day) { const c = P.insurance ? P.insurance.code : F.byId(P.origin).currency.code; return {code: c, amount: INSURE.weekly * shipValue(hull, fit, P) * E.rate(c, day) * Ca.premiumK(P)} }   /* (0.5.6: the difficulty's premium) */
 
+/* (0.5.7) a week's premium in a currency: the quote at a power's insurer, and the first week paid (the difficulty's
+   premium too: 0.5.6 left it out of these two) */
+const quote = (P, code, hull, fit, day) => INSURE.weekly * shipValue(hull, fit, P) * E.rate(code, day) * Ca.premiumK(P);
 /* every pilot starts covered: their home power's policy, the first week paid */
 function starterCover(P, day) { const o = F.byId(P.origin); return {provider: o.id, code: o.currency.code, since: day, paidTo: day + INSURE.week, owed: 0} }
 function ensure(P, day) { if (P.insurance === undefined) P.insurance = starterCover(P, day || 0); return P.insurance }
@@ -35,7 +40,7 @@ function ensure(P, day) { if (P.insurance === undefined) P.insurance = starterCo
 function insure(P, holder, hull, fit, day) {
 	const m = F.byId(holder); if (!m || m.kind != 'major') return {ok: false, why: 'Only a great power\'s port sells insurance.'};
 	if (P.insurance && P.insurance.owed > 0) return {ok: false, why: 'Settle what you owe on your policy first.'};
-	const code = m.currency.code, amt = INSURE.weekly * shipValue(hull, fit) * E.rate(code, day);
+	const code = m.currency.code, amt = quote(P, code, hull, fit, day);
 	if ((P.wallet[code] || 0) + 1e-9 < amt) return {ok: false, why: 'The first week\'s premium is ' + Math.round(amt).toLocaleString('en-US') + ' ' + code + '.'};
 	P.wallet[code] -= amt;
 	P.insurance = {provider: m.id, code, since: day, paidTo: day + INSURE.week, owed: 0};
@@ -114,6 +119,6 @@ function claim(P, hull, fit, at, ctx, day) {
 	return {star: where.star, portId: where.portId || 'orbital', model: hull.id, starter: false, why: where.why, paid: st.paid, changed: st.changed, code: I.code};
 }
 
-const EmberInsurance = {INSURE, shipValue, premium, starterCover, ensure, insure, cancel, tick, candidates, exchangeTakes, respawnAt, settle, claim};
+const EmberInsurance = {INSURE, shipValue, quote, premium, starterCover, ensure, insure, cancel, tick, candidates, exchangeTakes, respawnAt, settle, claim};
 if (isNode) module.exports = EmberInsurance; else root.EmberInsurance = EmberInsurance;
 })(typeof window != 'undefined' ? window : globalThis);
