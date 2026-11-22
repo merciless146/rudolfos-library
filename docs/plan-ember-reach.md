@@ -1351,7 +1351,8 @@ also arms the first ships and adds fire groups:
     ships both take it, the lighter more, and they bounce apart.
   - **Opponents:** the AI pilot now. Online (WebSocket) and LAN come next (below).
   - Tested in `tests/emberreach_duel_t.js` (node) and `tests/emberreach_duel_browser_t.js` (a match in Chromium).
-- **Duels online and on a LAN (next):** the player picks either.
+- **Duels online and on a LAN:** the player picks either (0.5.2, below: LAN with Rudolf OS 1.6.1; online once the
+  relay is put up).
   - **The protocol:** one pilot's game hosts (it decides hits, kills, collisions and the clock: `duel.js`'s match);
     the other sends its controls and its own ship's state 30 times a second, flies its own ship at once, and smooths
     the host's updates. The arena is seeded, so only the ships and the shots travel. Both run the same version.
@@ -1361,8 +1362,33 @@ also arms the first ships and adds fire groups:
   - **LAN:** a browser can't take connections, so one computer on the network runs the relay: a small Rudolf OS
     service the host's game asks for (through the game kit), found by the other on the network (mDNS). Nothing goes
     over the internet.
+- **0.5.2, duels over a network:** a duel against a pilot on this network or online, from the duel screen. The
+  protocol is in `docs/duel-protocol.md`.
+  - **`net.js`:** the relay's handshake and the session (both say hello; the same version or it's refused with a
+    message), what travels (ships relative to the arena's centre, shots, the match swapped for the guest's side), and
+    smoothing (the other's ship carried on by its velocity and eased to where its last state says it is, snapped if
+    400 m off). Transports are one interface: LAN and online are the same code, a WebSocket to a relay.
+  - **In the game (`play.js`, its own functions):** the host's game decides, as against the AI (duel.js's match: hits
+    both ways, kills, rams, the clock); the guest flies its own ship at once and takes its shields, hull and the match
+    from the host; 30 messages a second each way; a rock the guest hits is felt there and its damage sent. The duel
+    goes on while a window is hidden or a menu is up. Rematch when both are ready (the host starts it), Choose ship
+    and Ready, Leave. A closed connection, 10 s of silence, a version mismatch or leaving ends it cleanly on both
+    sides with a message. The round trip shows beside the clock.
+  - **The duel screen:** AI; LAN (host on this computer, or join a duel found on the network; needs Rudolf OS 1.6.1,
+    through the game kit 1.3.0's `RG.lan`); Online (quick match, host with a code, join with one). Online shows
+    "not set up yet" until the relay has an address (`RELAY` in `net.js`).
+  - **The relay (`tools/duel-relay`):** room codes, the quick-match queue, both versions checked, no addresses passed
+    on, limits on size, rate and time; in Node (`relay.mjs`) and for Cloudflare Workers with a Durable Object per
+    match (`worker.mjs`), the same `protocol.mjs`. **Online status: not deployed.** It waits for the owner: an
+    account, then the steps in `tools/duel-relay/README.md`, then `RELAY` set to its `wss://` address.
+  - **LAN status:** Rudolf OS 1.6.1's duel service (`rudolf-duel`: the same protocol, one room; run as the account's
+    own user only while hosting, the firewall opened to the local network for its port only then; mDNS). A duel
+    between two computers on a home network is on the owner's checklist.
+  - Tested in `tests/emberreach_duel_t.js` (the protocol, the version check, smoothing, disconnects) and
+    `tests/emberreach_duel_net_browser_t.js` (two Chromium pages dueling through the relay: online with a code, the
+    rounds, a kill, the clock and sudden death, a rematch; quick match; LAN; versions; a dropped connection).
 
-Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
+Still to come: the online relay put up (0.5.2 has it ready), the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
 
 ## Open questions
