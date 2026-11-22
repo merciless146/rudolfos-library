@@ -2217,7 +2217,7 @@ async function duelLanHost() {
 function duelNetConnect(url, o) {
 	const D = game.duel;
 	D.netHow = o.how; D.netWait = {text: 'Connecting…'}; D.again = null; D.netOut = []; D.netEv = []; D.netAcc = 0; D.netN = 0;
-	const N = Ne.session(Ne.ws(url), {ver: BUILD.version, want: o.want, code: o.code, ship: D.pick});
+	const N = Ne.session(Ne.ws(Ne.helloUrl(url, {want: o.want, ver: BUILD.version, code: o.code})), {ver: BUILD.version, want: o.want, code: o.code, ship: D.pick});
 	D.net = N;
 	N.on('room', code => { D.netWait = o.how == 'lan' ? {text: 'Hosting a duel on this network: waiting for the other pilot to join…'} : {code, text: 'Waiting for the other pilot to join with it…'}; overlay('duelWait') })
 		.on('waiting', () => { D.netWait = {text: 'Looking for a pilot running Ember Reach ' + BUILD.version + '…'}; overlay('duelWait') })

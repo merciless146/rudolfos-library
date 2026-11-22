@@ -43,6 +43,12 @@ function relayUrl(search) {
 	return RELAY;
 }
 
+/* the relay's address with the hello's routing in its query (want, ver, code): a relay that routes before it reads
+   any message (Cloudflare's Worker, to the match's Durable Object) needs it; the others ignore it */
+function helloUrl(url, o) {
+	return String(url).replace(/[?#].*$/, '') + '?want=' + encodeURIComponent(o.want) + '&ver=' + encodeURIComponent(o.ver) + (o.code ? '&code=' + encodeURIComponent(o.code) : '');
+}
+
 /* ---------- transports ---------- */
 /* a WebSocket (the browser's, or one given: node's) */
 function ws(url, WS) {
@@ -191,6 +197,6 @@ function ghostStep(g, s, dt, now) {
 	return e;
 }
 
-const EmberNet = {NET, RELAY, relayUrl, makeCode, normCode, validCode, ws, pipe, session, whyText, packShip, unpackShip, packShot, unpackShot, packMatch, mirror, packCond, condOk, ghost, ghostSet, ghostStep, nlerp};
+const EmberNet = {NET, RELAY, relayUrl, helloUrl, makeCode, normCode, validCode, ws, pipe, session, whyText, packShip, unpackShip, packShot, unpackShot, packMatch, mirror, packCond, condOk, ghost, ghostSet, ghostStep, nlerp};
 if (isNode) module.exports = EmberNet; else root.EmberNet = EmberNet;
 })(typeof window != 'undefined' ? window : globalThis);
