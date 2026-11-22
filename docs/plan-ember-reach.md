@@ -1053,14 +1053,18 @@ landscape, tap targets at least 44 px and text at least 10 px:
   row, rows of 44 px, the function bar's buttons smaller (and without icons in landscape); under 600 px wide the
   market's table shows the good, the price, stock or demand, and what you hold (the value in SU and the price paid on
   the selected good's card). The bulletin board's missions wrap.
+- **A phone's home bar:** the starport's function bar leaves room for it (the safe area's bottom); the colonial
+  office's site plans keep their labels at 10 px (both from #100, the other draft of this step).
 - **The cards and settings:** narrower padding; the Controls page's keys as a row of three buttons under each action.
 - **The star map:** its buttons narrower, the scale under them, the panel's long lines set smaller (down to 10 px).
 - **The duel menu:** its ships one to a row, the opponents' choices 44 px tall.
 - **Low-power mode (Settings › Graphics; tested in `tests/emberreach_power_t.js`):** Auto (on for a phone: a touch
   screen as the main pointer, its short side under 600 px), On, Off. It draws the 3D view at the screen's CSS pixels
-  times 0.8 instead of its device pixels (a fourteenth of the pixels on a 3× phone), every other frame (the game still
-  steps 60 times a second), the low-detail models, asteroids within 15 km instead of 40, and the terrain's detail on
-  half the budget, split sooner (less fine detail far off). Measured in Chromium with the CPU slowed four times on a
+  times 0.8 instead of its device pixels (a fourteenth of the pixels on a 3× phone), at most 30 frames a second by
+  the clock, also on a 120 Hz screen (the game still steps 60 times a second), the low-detail models, no glow,
+  asteroids within 15 km instead of 40 (the small ones, under 40 m, within 5 km), and the terrain's detail on half the
+  budget, split sooner (less fine detail far off). (The 30 frames by the clock, no glow and the small asteroids came
+  from #101, the other draft of this step.) Measured in Chromium with the CPU slowed four times on a
   390 × 844 phone at 3×: off, 4.6 frames a second; on, 32 (16 drawn), the game keeping time. A desktop is as before.
 - **The desktop is untouched:** all of it is under those sizes; checked by drawing the HUD from one state with the old
   and new code (identical at 1280 × 720 and 1920 × 1080) and screenshots of every starport screen and the settings.
