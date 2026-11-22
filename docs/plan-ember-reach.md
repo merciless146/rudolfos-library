@@ -1449,7 +1449,7 @@ also arms the first ships and adds fire groups:
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`).
 
 Still to come: the online relay put up (0.5.2 has it ready), the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
-phones' small screens and low power (0.5.3's parts 2 and 3), and multiplayer.
+phones' low power (0.5.3's part 3), and multiplayer.
 - **The plans for what follows L3:** ground sites (L4: ruins, Precursor sites and crash sites) in
   [plan-ember-reach-sites.md](plan-ember-reach-sites.md); the Core's story (M6) and the later landing items
   (atmospheres, surface vehicles, night lights) in [plan-ember-reach-core.md](plan-ember-reach-core.md).
