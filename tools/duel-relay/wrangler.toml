@@ -1,0 +1,18 @@
+# The duel relay on Cloudflare Workers (worker.mjs): a Durable Object per match (DuelRoom) and the quick-match queue
+# (DuelQueue). Deploying needs a Cloudflare account: the owner's (README.md). GPL-2.0-or-later.
+name = "ember-duel-relay"
+main = "worker.mjs"
+compatibility_date = "2026-11-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "DuelRoom"
+
+[[durable_objects.bindings]]
+name = "QUEUE"
+class_name = "DuelQueue"
+
+# (SQLite-backed objects: what Workers' free plan offers; the relay keeps nothing in storage)
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DuelRoom", "DuelQueue"]

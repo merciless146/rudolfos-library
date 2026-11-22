@@ -175,6 +175,14 @@ try {
 			{fits, port: gc.port, q2});
 		const bk = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(pg)))), gb = bk.colonies.find(x => x.id == gc.id);
 		ok('52. the save keeps a colony on the ground exactly (its port, its site, its growth), and the port comes back where it stood', JSON.stringify(gb) == JSON.stringify(gc) && JSON.stringify(Co.groundPorts(bk, gs, gc.opens + 3)) == JSON.stringify(Co.groundPorts(pg, gs, gc.opens + 3)));
+		/* (step 2) where the colony's mines lie from its port: a deposit 1 km north of the site, mined; another world's */
+		const Rm = gp.R * 6.371e6 * G.WORLD_SCALE, la = (gc.site.lat + 1000 / Rm * 180 / Math.PI) * Math.PI / 180, lo = gc.site.lon * Math.PI / 180;
+		const dN = {id: 'dep:' + gc.world + ':n:0', res: 'Iron', tons: 900, dir: [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)]}, other = Co.worldsOf(gs).find(p => p.name != gc.world && !p.gas);
+		Co.noteDeposit(pg, gs.id, gc.world, dN); const mN = Co.startBuild(gc, gs, 'mine', gc.world, 'surface', gc.opens + 4, Object.assign({id: dN.id}, pg.deposits[dN.id]), pg);
+		if (other) Co.noteDeposit(pg, gs.id, other.name, {id: 'dep:' + other.name + ':o:0', res: 'Titanium', tons: 500, dir: [1, 0, 0]});
+		const map = Co.siteMap(pg, gc, gs, gc.opens + 4), mm = map.find(m => m.id == dN.id), mo = map.find(m => m.body != gc.world);
+		ok('55. the planner knows where the colony\'s mines lie from its port: a mine 1 km north of the site is 1 km N (x east, y north, in metres), a deposit on another world is just on that world', mN.ok && mm && mm.mine && Math.abs(mm.dist - 1000) < 2 && Math.abs(mm.y - 1000) < 2 && Math.abs(mm.x) < 2 && mm.dir == 'N' && (!other || (mo && !mo.mine && mo.dist == null && mo.body == other.name)), JSON.stringify({mm, mo, why: mN.why}));
+		gc.builds.splice(gc.builds.indexOf(mN.build), 1);
 		/* a settlement claimed at once; independent on the ground; never in the Rift; orbital claims as before */
 		const ps = Tr.newPlayer(home.id); ps.wallet[cur] = 1e9; ps.rep[home.id] = 400;
 		const sw = Co.groundWorlds(gs, 'ssettle'), cs2 = sw.length ? Co.canClaim(ps, office, gs, 'ssettle', day, JUMP, false, false, sw[0].name) : null;
