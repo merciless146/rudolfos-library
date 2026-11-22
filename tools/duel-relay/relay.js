@@ -48,6 +48,7 @@ function wsConn(sock, max, onText, onClose) {
 		}
 	});
 	sock.on('close', () => { if (!closed) { closed = true; onClose() } });
+	sock.on('end', () => C.close(1000));   /* (the other end gone without a close frame: the HTTP server's sockets are half-open) */
 	sock.on('error', () => {});
 	return C;
 }
