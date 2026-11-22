@@ -94,6 +94,26 @@ function duelBar(ctx, W, H, d) {
 	text(ctx, d.dealt, cx, 66, {size: 11, mono: true, align: 'center', col: C.muted});
 	if (d.banner) { text(ctx, d.banner.text, cx, H * 0.3, {size: 30, weight: 700, align: 'center', col: d.banner.col}); if (d.banner.sub) text(ctx, d.banner.sub, cx, H * 0.3 + 28, {size: 15, align: 'center', col: C.text}) }
 }
+/* ---- a phone's HUD (0.5.3) ----
+   the panels' places round the touch controls (touch.js), worked out once for each screen and HUD size */
+const SCAN_PHONE = [100, 30];
+let placed = null;
+function phonePlaces(W, H, h, k) {
+	const th = h.target && h.target.land ? 138 : 118, key = W + 'x' + H + ':' + k + ':' + h.touchUI.k + ':' + h.touchUI.left + ':' + th;
+	if (!placed || placed.key != key) placed = {key, at: root.EmberTouch.places(W, H, h.touchUI, {flight: [240 * k, 118 * k], combat: [240 * k, 78 * k], target: [210 * k, th * k], scanner: [(SCAN_PHONE[0] * 2 + 8) * k, (SCAN_PHONE[1] * 2 + 14) * k]})};
+	return placed.at;
+}
+/* the console on a phone: each message wrapped to the box, the newest kept when they don't all fit */
+function phoneMsgs(ctx, msgs, x, y, w, hMax, t, MT) {
+	ctx.font = '500 11px ' + MONO;
+	const lines = [];
+	for (const m of msgs) { let cur = '> '; for (const word of String(m.text).split(' ')) { const tryL = cur + (cur == '> ' ? '' : ' ') + word; if (ctx.measureText(tryL).width > w - 16 && cur != '> ') { lines.push({s: cur, m}); cur = '  ' + word } else cur = tryL } lines.push({s: cur, m}) }
+	const n = Math.max(1, Math.floor((hMax - 8) / 15)), show = lines.slice(-n);
+	ctx.fillStyle = 'rgba(3,6,12,0.8)'; ctx.fillRect(x, y, w, 8 + show.length * 15);
+	ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, hMax); ctx.clip();
+	show.forEach((l, i) => { ctx.globalAlpha = Math.min(1, (MT - (t - l.m.t)) / 1.5); text(ctx, l.s, x + 8, y + 16 + i * 15, {mono: true, size: 11, col: pal(l.m.col) || C.green}) });
+	ctx.restore(); ctx.globalAlpha = 1;
+}
 function draw(ctx, W, H, h, t) {
 	ctx.save();
 	const cx = W / 2, cy = H / 2, small = W < 700;
@@ -175,15 +195,18 @@ function draw(ctx, W, H, h, t) {
 	if (h.gimbal && h.gimbal.charge > 0) { const k = Math.min(1, h.gimbal.charge), over = h.gimbal.charge > 1; ctx.strokeStyle = over ? C.red : C.amber; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, 30, Math.PI * 0.75, Math.PI * (0.75 + 1.5 * k)); ctx.stroke() }
 	/* ---- the panels, at the HUD's size (Settings); the markers above stay where they point ---- */
 	const W0 = W, H0 = H, k0 = OPT.size || 1; ctx.save(); ctx.scale(k0, k0); W = W / k0; H = H / k0;
-	const cxk = W / 2, small2 = W < 700;
-	/* (0.5.3) with the touch controls up, the panels stand above them: the top of each side's controls, at this scale */
+	/* (0.5.3) a phone (the touch controls up on a small screen): each panel in its place round the controls (touch.js's
+	   places, in screen px); otherwise, with the touch controls up, the panels stand above them */
+	const Tch = root.EmberTouch, phone = !!(Tch && h.touch && h.touchUI && (W0 < 700 || H0 < 500));
+	const cxk = W / 2, small2 = W < 700 || phone;
 	const lift = side => h.touchUI && h.touchUI.top ? (h.touchUI.top[side] - 8) / k0 : H - 16;
+	const PL = phone ? phonePlaces(W0, H0, h, k0) : null, at = r => r && {x: r.x / k0, y: r.y / k0, w: r.w / k0, h: r.h / k0};
 	/* sound captions, above the scanner */
-	if (h.captions && h.captions.length) { const cy2 = H - (h.touch ? H - lift('all') + 150 : 150); h.captions.slice(-3).forEach((c, i, a) => { const yy = cy2 - (a.length - 1 - i) * 22; ctx.font = '600 13px ' + SANS; const w = ctx.measureText('[ ' + c.text + ' ]').width + 16; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(cxk - w / 2, yy - 15, w, 20); text(ctx, '[ ' + c.text + ' ]', cxk, yy, {align: 'center', size: 13, weight: 600, col: '#ffffff'}) }) }
+	if (h.captions && h.captions.length) { const cy2 = PL ? at(PL.flight).y - 12 : H - (h.touch ? H - lift('all') + 150 : 150); h.captions.slice(-3).forEach((c, i, a) => { const yy = cy2 - (a.length - 1 - i) * 22; ctx.font = '600 13px ' + SANS; const w = ctx.measureText('[ ' + c.text + ' ]').width + 16; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(cxk - w / 2, yy - 15, w, 20); text(ctx, '[ ' + c.text + ' ]', cxk, yy, {align: 'center', size: 13, weight: 600, col: '#ffffff'}) }) }
 	if (h.fps != null) text(ctx, Math.round(h.fps) + ' FPS', W - 16, 14, {mono: true, size: 10, col: C.muted, align: 'right'});
 	/* ---- bottom centre: the scanner ---- */
-	if (h.scanner) {
-		const sc = h.scanner, rw = small2 ? 110 : 150, rh = small2 ? 38 : 50, sx = cxk, sy = H - rh - (h.touch ? H - lift('all') + 12 : 26), R = sc.range;
+	if (h.scanner && (!PL || PL.scanner)) {
+		const sc = h.scanner, rw = PL ? SCAN_PHONE[0] : small2 ? 110 : 150, rh = PL ? SCAN_PHONE[1] : small2 ? 38 : 50, sx = PL ? at(PL.scanner).x + rw : cxk, sy = PL ? at(PL.scanner).y + rh : H - rh - (h.touch ? H - lift('all') + 12 : 26), R = sc.range;
 		ctx.fillStyle = 'rgba(8,14,26,0.6)'; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.fill();
 		ctx.strokeStyle = 'rgba(108,201,232,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.ellipse(sx, sy, rw / 2, rh / 2, 0, 0, 7); ctx.moveTo(sx - rw, sy); ctx.lineTo(sx + rw, sy); ctx.moveTo(sx, sy - rh); ctx.lineTo(sx, sy + rh); ctx.stroke();
 		for (const b of sc.blips) {
@@ -196,9 +219,10 @@ function draw(ctx, W, H, h, t) {
 		text(ctx, (R / 1000) + ' km', sx + rw - 4, sy + rh + 12, {mono: true, size: 10, col: C.muted, align: 'right'});
 	}
 	/* ---- bottom left: flight ---- */
-	const bw = small2 ? 240 : 290, bh = 118, bx = 16, by = H - bh - (h.touch ? H - lift('left') : 16);
+	const bw = PL ? at(PL.flight).w : small2 ? 240 : 290, bh = 118, bx = PL ? at(PL.flight).x : 16, by = PL ? at(PL.flight).y : H - bh - (h.touch ? H - lift('left') : 16);
 	box(ctx, bx, by, bw, bh);
 	if (h.combat) {
+		ctx.save(); if (PL && PL.combat) ctx.translate(at(PL.combat).x - bx, at(PL.combat).y - (by - 84));   /* (a phone: in its own place) */
 		const k = h.combat, py = by - 84;
 		box(ctx, bx, py, bw, 78);
 		const rows = [[TT('SHLD'), k.shield, C.cyan], [TT('HULL'), k.hull, k.hull < 0.3 ? C.red : k.hull < 0.6 ? C.amber : C.green], [TT('HEAT'), k.heat, k.hot ? C.red : k.heat > 0.75 ? C.amber : '#c9a46a']];
@@ -217,6 +241,7 @@ function draw(ctx, W, H, h, t) {
 		if (h.refinery) sts.push([TT('REFINERY') + ' ' + h.refinery, '#c9a46a']);
 		if (!k.armed && !sts.length) sts.push([TT('UNARMED'), C.muted]);
 		let sx2 = bx + 10; for (const [t2, col] of sts) { text(ctx, t2, sx2, py + 68, {mono: true, size: 10, weight: 700, col}); ctx.font = '700 10px ' + MONO; sx2 += ctx.measureText(t2).width + 14 }
+		ctx.restore();
 	}
 	const sf = h.surface;
 	if (sf) surfacePanel(ctx, bx, by, bw, bh, sf);   /* below 30 km over a world: altitude, vertical and ground speed, the horizon */
@@ -248,7 +273,7 @@ function draw(ctx, W, H, h, t) {
 	else text(ctx, h.fa ? TT('Set') + ' ' + fmtSpeed(Math.max(0, thr) * h.vmax) : (h.thrustNote || TT('Thrust') + ' ' + Math.round(thr * 100) + '%'), bx + 12, by + 110, {size: 11, col: C.muted});
 	/* ---- bottom right: target ---- */
 	if (h.target) {
-		const T = h.target, w = small2 ? 210 : 280, th = T.land ? 138 : 118, x = W - w - 16, y = H - th - (h.touch ? H - lift('right') : 16);
+		const T = h.target, w = PL ? at(PL.target).w : small2 ? 210 : 280, th = T.land ? 138 : 118, x = PL ? at(PL.target).x : W - w - 16, y = PL ? at(PL.target).y : H - th - (h.touch ? H - lift('right') : 16);
 		box(ctx, x, y, w, th);
 		if (T.land) text(ctx, T.land.line, x + 12, y + 128, {size: 11, col: T.land.ok ? C.green : C.muted, weight: 600});
 		text(ctx, T.kind.toUpperCase(), x + 12, y + 20, {mono: true, size: 11, col: C.muted});
@@ -274,7 +299,7 @@ function draw(ctx, W, H, h, t) {
 	}
 	/* ---- top left: alerts, or the console ---- */
 	const al = h.alerts || [];
-	const lx = 16, ly = 16, lw = small2 ? Math.min(W - 32, 300) : 340;
+	const lx = PL ? at(PL.msgs).x : 16, ly = PL ? at(PL.msgs).y : 16, lw = PL ? at(PL.msgs).w : small2 ? Math.min(W - 32, 300) : 340;
 	let y = ly;
 	if (al.length) {
 		box(ctx, lx, y, lw, 120);
@@ -299,15 +324,16 @@ function draw(ctx, W, H, h, t) {
 		y += ch + 8;
 	}
 	const MT = OPT.msgTime || 8, msgs = OPT.messages > 0 ? (h.messages || []).filter(m => t - m.t < MT).slice(-OPT.messages) : [];
-	if (msgs.length) {
+	if (msgs.length && PL) phoneMsgs(ctx, msgs, lx, y, lw, at(PL.msgs).h, t, MT);
+	else if (msgs.length) {
 		const ch = 10 + msgs.length * 20;
 		ctx.fillStyle = 'rgba(3,6,12,0.8)'; ctx.fillRect(lx, y, lw, ch);
 		msgs.forEach((m, i) => { ctx.globalAlpha = Math.min(1, (MT - (t - m.t)) / 1.5); text(ctx, '> ' + m.text, lx + 10, y + 20 + i * 20, {mono: true, size: 12, col: pal(m.col) || C.green}) });
 		ctx.globalAlpha = 1;
 	}
 	/* ---- right: the system the next jump goes to (0.3.6): distance, government, superpower, population ---- */
-	if (h.system && h.system.rows) {
-		const Y = h.system, w = small2 ? 200 : 236, x = W - w - 16, sysH = h.showSystems && h.modules ? 34 + h.modules.length * 26 + 12 : 0, y0 = Math.max(16 + sysH, Math.round(H * 0.3)), ph = 40 + Y.rows.length * 20;
+	if (h.system && h.system.rows && (!PL || !h.target)) {
+		const Y = h.system, w = PL ? at(PL.target).w : small2 ? 200 : 236, x = PL ? at(PL.target).x : W - w - 16, sysH = h.showSystems && h.modules ? 34 + h.modules.length * 26 + 12 : 0, y0 = PL ? at(PL.target).y : Math.max(16 + sysH, Math.round(H * 0.3)), ph = 40 + Y.rows.length * 20;
 		box(ctx, x, y0, w, ph);
 		text(ctx, Y.name, x + 12, y0 + 22, {size: 14, weight: 600, col: Y.aligned ? C.green : C.cyan});
 		text(ctx, Y.note, x + w - 12, y0 + 22, {mono: true, size: 11, col: Y.aligned ? C.green : C.muted, align: 'right'});
@@ -328,7 +354,6 @@ function draw(ctx, W, H, h, t) {
 	}
 	ctx.restore(); W = W0; H = H0;
 	/* ---- touch controls (0.5.3, touch.js: where the touches land, so not scaled), and the radial menu by touch ---- */
-	const Tch = root.EmberTouch;
 	if (Tch && h.touch && h.touchUI) Tch.draw(ctx, h.touchUI, h, C, text);
 	if (Tch && h.radial && h.radial.rects) Tch.drawRadial(ctx, W, H, h.radial, C, text, TT('Radial menu') + ' · ' + TT('Tap outside to close'));
 	if (h.duel) duelBar(ctx, W, H, h.duel);

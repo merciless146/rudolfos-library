@@ -201,6 +201,8 @@ function create() {
 		const small = W < 700, pw = small ? W - 32 : 340, px = 16, extra = M.sel && (M.info || (M.info = describe(M.sel))).surface ? 18 : 0, ph = (small ? 230 : 214) + extra, py = H - ph - 16;
 		box(ctx, px, py, pw, ph);
 		let y = py + 22;
+		/* (0.5.3) a phone's narrow panel: a line too long for it is set smaller (down to 10 px), then clipped */
+		const text = (c, s0, x, yy, o) => { if (small && !o.align) { c.font = (o.weight || 500) + ' ' + (o.size || 12) + 'px ' + (o.mono ? MONO : SANS); const w = c.measureText(s0).width, room = pw - 24; if (w > room) o = Object.assign({}, o, {size: Math.max(10, Math.floor((o.size || 12) * room / w))}) } if (!small) return textAt(c, s0, x, yy, o); c.save(); c.beginPath(); c.rect(px, py, pw, ph); c.clip(); textAt(c, s0, x, yy, o); c.restore() };
 		if (M.sel) {
 			const s = M.sel, i = M.info || (M.info = describe(s));
 			text(ctx, s.name, px + 12, y, {size: 17, weight: 600}); y += 20;
@@ -218,10 +220,11 @@ function create() {
 			for (const l of ['Drag to turn, wheel or pinch to zoom', 'Tap a star to pick it; Enter plots a route', 'Home: back to you · G: close the map', 'Long lanes: dashed amber · lanes: in each power\'s colour', 'Contested space: dashed red · borders: grey']) { text(ctx, l, px + 12, y, {size: 12, col: C.muted}); y += 18 }
 		}
 		/* buttons */
-		const bw = 74, bh = 44, by = 16, bx = W - 16 - bw * 5 - 6 * 4;
+		const bw = Math.max(44, Math.min(74, Math.floor((W - 32 - 24) / 5))), bh = 44, by = 16, bx = W - 16 - bw * 5 - 6 * 4;
 		M.buttons = [['Close', 'close'], ['You', 'home'], ['Route', 'route'], ['−', 'out'], ['+', 'in']].map(([label, act], i) => ({label, act, x: bx + i * (bw + 6), y: by, w: bw, h: bh}));
-		for (const b of M.buttons) { ctx.fillStyle = 'rgba(8,14,26,0.85)'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = C.line; ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1); text(ctx, b.label, b.x + b.w / 2, b.y + 27, {align: 'center', size: 13, weight: 600}) }
-		text(ctx, scaleText(), 16, 30, {mono: true, size: 12, col: C.muted});
+		for (const b of M.buttons) { ctx.fillStyle = 'rgba(8,14,26,0.85)'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = C.line; ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1); textAt(ctx, b.label, b.x + b.w / 2, b.y + 27, {align: 'center', size: 13, weight: 600}) }
+		/* (the scale beside the buttons, or under them where they leave no room) */
+		textAt(ctx, scaleText(), 16, bx < 260 ? by + bh + 20 : 30, {mono: true, size: 12, col: C.muted});
 	}
 	function scaleText() { const D = M.D; return 'View ' + (D < 10 ? D.toFixed(1) : Math.round(D).toLocaleString('en-US')) + ' pc out' + (D > FAR ? ' · the galaxy' : D > 25 ? ' · a region' : ' · nearby stars') }
 	function describe(s) {
@@ -238,6 +241,7 @@ function create() {
 			dist: d < 1000 ? d.toFixed(d < 10 ? 2 : 1) + ' pc' : Math.round(d).toLocaleString('en-US') + ' pc', misjump: mj > 0.005 ? Math.round(mj * 100) + '%' : null};
 	}
 	function box(ctx, x, y, w, h) { ctx.fillStyle = C.panel; ctx.fillRect(x, y, w, h); ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1) }
+	function textAt(ctx, s, x, y, o) { return text(ctx, s, x, y, o) }
 	function text(ctx, s, x, y, o) { o = o || {}; ctx.font = (o.weight || 500) + ' ' + (o.size || 13) + 'px ' + (o.mono ? MONO : SANS); ctx.fillStyle = o.col || C.text; ctx.textAlign = o.align || 'left'; ctx.fillText(s, x, y) }
 
 	/* ---- control ---- */
