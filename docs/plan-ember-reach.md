@@ -1041,6 +1041,24 @@ quality and sound carry over.
 - **Boost:** the game has none (flight is Newtonian, the throttle sets the speed); a BOOST button comes if boost does.
 - A tap is no longer also a left click (which fires): touch's pointer events stop the mouse events after them.
 
+**Phones: small screens (0.5.3; tested in `tests/emberreach_phone_t.js`).** From about 360 px wide, portrait and
+landscape, tap targets at least 44 px and text at least 10 px:
+- **The HUD round the touch controls** (on a screen under 700 px wide or 500 px tall, with the controls up): each panel
+  has its place (`touch.js`'s `places`), clear of the controls, of the other panels and of the reticle. Portrait: the
+  console beside MAP and II (each message wrapped), the target, the combat panel and the scanner (where it fits above
+  the reticle) from the top down, the flight panel just above the controls. Landscape: the flight panel low between
+  the stick and the triggers, the console, the combat panel and the target at the top, the scanner where it fits.
+  The panels keep their sizes; the jump card takes the target's place when nothing is targeted.
+- **The starport** (index.html's CSS, under 600 px wide or 500 px tall): a compact header, the three services in one
+  row, rows of 44 px, the function bar's buttons smaller (and without icons in landscape); under 600 px wide the
+  market's table shows the good, the price, stock or demand, and what you hold (the value in SU and the price paid on
+  the selected good's card). The bulletin board's missions wrap.
+- **The cards and settings:** narrower padding; the Controls page's keys as a row of three buttons under each action.
+- **The star map:** its buttons narrower, the scale under them, the panel's long lines set smaller (down to 10 px).
+- **The duel menu:** its ships one to a row, the opponents' choices 44 px tall.
+- **The desktop is untouched:** all of it is under those sizes; checked by drawing the HUD from one state with the old
+  and new code (identical at 1280 × 720 and 1920 × 1080) and screenshots of every starport screen and the settings.
+
 ### Ship insurance
 
 In the game since this change (`insurance.js`; tested in `tests/emberreach_insurance_t.js`, 15 checks).
@@ -1201,7 +1219,7 @@ In the game since this change (`insurance.js`; tested in `tests/emberreach_insur
    population and the architect's pay; forward bases on the fronts, raids, independent colonies with their scrip,
    and rented carriers.
 8. **M6:** the Core, the black hole, polish; phones (1.6.0). **The Maw and the Rift are playable** (see "The Rift").
-   **Phones:** touch flight in 0.5.3 ("Phones" under Settings); the small-screen layout and a low-power preset next.
+   **Phones:** touch flight and the small-screen layout in 0.5.3 ("Phones" under Settings); a low-power preset next.
    The phone's own interface is Rudolf OS 2.0's (Wayland); the game runs in an app's page there, full screen, which
    keeps its own touches (docs/plan-1.6.1.md Part 2 in RudolfOS).
 
@@ -1429,10 +1447,11 @@ also arms the first ships and adds fire groups:
   sliders, FIRE and FIRE 2 held together with the stick, TARGET, DOCK, CRUISE, GEAR, FA, the radial menu by touch,
   MAP and pause, looking round by a drag; shown only while touch is in use; size, left-handed, opacity and
   sensitivity in Settings. Tested in `tests/emberreach_touch_t.js` (a game flown, docked and traded in by taps on a
-  390 × 844 phone).
+  390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
+  the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`).
 
 Still to come: the online relay put up (0.5.2 has it ready), the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
-phones' small screens and low power (0.5.3's parts 2 and 3), and multiplayer.
+phones' low power (0.5.3's part 3), and multiplayer.
 - **The plans for what follows L3:** ground sites (L4: ruins, Precursor sites and crash sites) in
   [plan-ember-reach-sites.md](plan-ember-reach-sites.md); the Core's story (M6) and the later landing items
   (atmospheres, surface vehicles, night lights) in [plan-ember-reach-core.md](plan-ember-reach-core.md).

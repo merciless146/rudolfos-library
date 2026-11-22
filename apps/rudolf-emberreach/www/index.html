@@ -99,6 +99,25 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 .st-key.on{border-color:#f2a33a;color:#f2a33a}
 .st-wait{color:#f2a33a;font-weight:600}.st-note{color:#9fb0cc;font-size:12px}
 .st-reset{background:#2a1a1a;color:#ffd0c8;border:1px solid #5c2a2a;padding:6px 12px;cursor:pointer}
+/* (0.5.3) phones and small screens: the starport, the cards and the settings from 360 px wide, portrait and landscape;
+   every tap target at least 44 px. Nothing here reaches a desktop's window (wider than 600 px and taller than 500) */
+@media (max-width:600px),(max-height:500px){
+.pt-top{padding:4px 12px;gap:2px 14px;min-height:0}.pt-name{flex-basis:100%}.pt-name b{font-size:15px}.pt-stats{gap:2px 12px;font-size:12px}
+.pt-svc{flex-wrap:nowrap;gap:6px;padding:6px 12px}.pt-svcb{min-width:0;flex:1 1 0;padding:2px 8px}.pt-svcb b{font-size:13px}.pt-svcb span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.pt-svc .pt-fill,.pt-svc .pt-ship{display:none}
+.pt-main{padding:10px 12px;gap:10px}.pt-h h1{font-size:19px}.pt-card{padding:12px}
+.pt-thead,.pt-row{padding:6px 10px;gap:6px}.pt-row{min-height:44px;font-size:12px}.pt-thead>*,.pt-row>*{min-width:0;overflow-wrap:anywhere}
+.pt-tabs{flex-wrap:wrap}.pt-tabs button,.pt-form select,.pt-form input,.pt-name-row input{min-height:44px}
+.pt-bar{padding:6px 8px;gap:4px}.pt-bar button{flex:0 0 70px;min-height:52px;font-size:11px}
+.card{padding:16px 14px;max-height:94vh}.card h1{font-size:19px}.btns button{padding:0 14px}
+.st-tabs button,.st-key,.st-reset{min-height:44px}.st-row{flex-wrap:wrap}.st-row select{min-height:44px;max-width:100%}.st-r input{width:120px;height:28px}
+.st-keys,.st-keys tbody{display:block}.st-keys tr{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px 0;border-bottom:1px solid #172340}.st-keys td{padding:0;border:0}.st-keys td:first-child,.st-keys th:first-child{grid-column:1/-1}.st-keys th:first-child{display:none}.st-key{min-width:0;width:100%;padding:2px 4px;font-size:12px}
+.pt-ad{flex-wrap:wrap}.pt-ad div{flex:1 1 55%;min-width:0}
+.duel-ships{grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr))}.duel-opp label,.duel-sub label{min-height:44px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}.duel-sub{margin-left:12px}.duel-sub input[type=text],#duelCode,#duelLanFind{min-height:44px;box-sizing:border-box}
+}
+/* (the market's table on a narrow screen: the good, the price, stock or demand, and what you hold) */
+@media (max-width:600px){.pt-thead:not(.pt-row4):not(.pt-row3),.pt-row:not(.pt-row4):not(.pt-row3){grid-template-columns:1.5fr 1fr 1fr .7fr}
+.pt-thead:not(.pt-row4):not(.pt-row3)>:nth-child(3),.pt-thead:not(.pt-row4):not(.pt-row3)>:nth-child(6),.pt-row:not(.pt-row4):not(.pt-row3)>:nth-child(3),.pt-row:not(.pt-row4):not(.pt-row3)>:nth-child(6){display:none}}
+@media (max-height:500px){.pt-bar button{min-height:44px}.pt-bar button svg{display:none}.pt-top{flex-wrap:nowrap}.pt-name{flex-basis:auto}}
 </style>
 </head>
 <body>

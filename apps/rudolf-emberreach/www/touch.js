@@ -148,6 +148,50 @@ function lookQ(q, T) {
 	return qmul(q, qmul([Math.cos(y), 0, Math.sin(y), 0], [Math.cos(x), Math.sin(x), 0, 0]));
 }
 
+/* ---- the HUD on a phone (0.5.3): where its panels go round the touch controls ----
+   W × H the screen, U the controls' layout; sz: each panel's size in screen px ({target, combat, flight: [w, h]; scanner:
+   [w, h] the ellipse's box and its label}). Portrait: the messages, the target, the combat panel and the scanner from
+   the top down (the scanner left out if it would reach the reticle), the flight panel just above the controls.
+   Landscape: the messages and the target top left, the combat panel beside the target, the scanner between the
+   messages and the buttons at the top (or left out), the flight panel at the bottom between the stick and the triggers.
+   Returns {msgs, target, combat, flight, scanner: {x, y, w, h}} in screen px (msgs: the console's box, its height the
+   most it may take). */
+function places(W, H, U, sz) {
+	const m = 12, g = 8, out = {}, top = Math.min(...U.buttons.filter(b => b.y < H / 3).map(b => b.y)), row = U.buttons.filter(b => b.y < H / 3), rowL = Math.min(...row.map(b => b.x)), rowR = Math.max(...row.map(b => b.x + b.w));
+	const mirrored = U.left, retTop = H / 2 - 36;
+	if (H > W) {
+		/* the console beside the top buttons (on the other side of them when left-handed) */
+		out.msgs = mirrored ? rect(rowR + g, m, W - m - rowR - g, 56) : rect(m, m, rowL - g - m, 56);
+		let y = m + 56 + g;
+		out.target = rect(m, y, Math.min(W - 2 * m, 320), sz.target[1]); y += sz.target[1] + g;
+		out.combat = rect(m, y, sz.combat[0], sz.combat[1]); y += sz.combat[1] + g;
+		if (y + sz.scanner[1] <= retTop) out.scanner = rect(W / 2 - sz.scanner[0] / 2, y, sz.scanner[0], sz.scanner[1]);
+		const fw = Math.min(W - 2 * m, sz.flight[0]);
+		out.flight = rect(mirrored ? W - m - fw : m, U.top.all - g - sz.flight[1], fw, sz.flight[1]);
+	} else {
+		/* landscape: each panel in the first free place in its own order, clear of the controls, of the panels placed
+		   before it and of the reticle; the flight panel first (low, between the stick and the triggers) */
+		const busy = boxes(U).map(b => rect(b.x - 4, b.y - 4, b.w + 8, b.h + 8)); busy.push(rect(W / 2 - 34, H / 2 - 34, 68, 68));
+		const free = r => r.x >= m && r.y >= m && r.x + r.w <= W - m && r.y + r.h <= H - m && !busy.some(b => overlap(r, b));
+		const cx = r => r.x + r.w / 2, put = (name, w, h, score) => {
+			let best = null, bs = Infinity;
+			for (let y = m; y + h <= H - m; y += 4) for (let x = m; x + w <= W - m; x += 4) { const r = rect(x, y, w, h), sc = score(r); if (sc < bs && free(r)) { bs = sc; best = r } }
+			if (best) { out[name] = best; busy.push(rect(best.x - 4, best.y - 4, best.w + 8, best.h + 8)) }
+			return best;
+		};
+		const side = r => mirrored ? W - r.x - r.w : r.x;   /* (from the console's side) */
+		put('flight', sz.flight[0], sz.flight[1], r => (H - r.y - r.h) * 4 + Math.abs(cx(r) - W / 2)) || put('flight', Math.round(sz.flight[0] * 0.86), sz.flight[1], r => (H - r.y - r.h) * 4 + Math.abs(cx(r) - W / 2));
+		const scores = {msgs: r => r.y * 6 + side(r), combat: r => r.y * 2 + side(r), target: r => r.y * 2 + side(r) * 0.5}, dims = {msgs: [Math.max(240, Math.min(300, Math.round(W * 0.3))), 56], combat: sz.combat, target: sz.target};
+		put('msgs', ...dims.msgs, scores.msgs); put('combat', ...dims.combat, scores.combat); put('target', ...dims.target, scores.target);
+		put('scanner', sz.scanner[0], sz.scanner[1], r => r.y + Math.abs(cx(r) - W / 2));
+		/* (no room left on a small screen: the console, the target and the combat panel still go up, over other panels
+		   but never over the controls; the scanner is left out) */
+		busy.length = 0; busy.push(...boxes(U).map(b => rect(b.x - 4, b.y - 4, b.w + 8, b.h + 8)));
+		for (const k of ['msgs', 'target', 'combat']) if (!out[k]) put(k, ...dims[k], scores[k]);
+	}
+	return out;
+}
+
 /* ---- the radial menu by touch: its items as a sheet of buttons in the middle of the screen, tapped ---- */
 function radialRects(W, H, n) {
 	const cols = W >= 700 ? 3 : 2, w = Math.min(200, Math.floor((W - 32 - (cols - 1) * 8) / cols)), h = 48, rows = Math.ceil(n / cols);
@@ -204,6 +248,6 @@ function drawRadial(ctx, W, H, R, C, text, title) {
 	ctx.restore();
 }
 
-const EmberTouch = {MIN, DEFAULTS, sanitise, shown, BUTTONS, layout, boxes, fits, overlap, create, down, move, up, release, step, axes, lookQ, radialRects, radialHit, draw, drawRadial};
+const EmberTouch = {MIN, DEFAULTS, sanitise, shown, BUTTONS, layout, boxes, fits, overlap, create, down, move, up, release, step, axes, lookQ, radialRects, radialHit, places, draw, drawRadial};
 if (typeof module != 'undefined') module.exports = EmberTouch; else root.EmberTouch = EmberTouch;
 })(typeof window != 'undefined' ? window : globalThis);
