@@ -191,6 +191,25 @@ try {
 		ok('53. a surface settlement can be claimed at once (the station\'s fee; 7,200 t); an independent claim on the ground pays SU and mints its scrip; there are no surface claims in the Rift, nor a starport claimed outright',
 			(!sw.length || (cs2.ok && Math.abs(cs2.fee - 300000 * E.rate(cur, day)) < 2 && Math.abs(sum(Co.portGoods('ssettle', gs, sw[0].name)) - 7200 * (sw[0].g > 1.5 ? 1.25 : 1)) <= 10)) && ci && ci.independent && ci.site && /^X[A-Z]{2}$/.test(ci.scrip)
 			&& /Rift has no surface ports/.test(Co.canClaim(pind, {star: rift, owner: null}, rift, 'soutpost', day, JUMP, false, true).why || '') && !Co.canClaim(ps, office, gs, 'sstarport', day, JUMP).ok, cs2);
+		/* (step 3) a settlement grows into a surface starport, with its heavy landing field */
+		const pst = Tr.newPlayer(home.id); pst.wallet[cur] = 1e9; pst.rep[home.id] = 400;
+		const big = all.map(x => ({x, w: Co.groundWorlds(x, 'ssettle').find(p => Su.fits('starport', p))})).find(o => o.w), small = all.map(x => ({x, w: Co.groundWorlds(x, 'ssettle').find(p => !Su.fits('starport', p))})).find(o => o.w);
+		const cst = big && Co.claim(pst, office, big.x, 'ssettle', day, JUMP, false, big.w.name).colony;
+		if (cst) { Co.beacon(pst, cst, day); for (const [g, t] of Object.entries(Co.left(cst))) pst.cargo[g] = t; Co.deliver(pst, cst, day) }
+		const t3 = cst && cst.points.t3, noPts = cst && Co.canBuild(cst, big.x, 'ustarport', cst.world, 'surface'), cap1 = cst && Co.popCap(cst, big.x);
+		if (cst) cst.points.t3 = 4;
+		const us = cst && Co.startBuild(cst, big.x, 'ustarport', cst.world, 'surface', day + 3), smallWhy = small && Co.canBuild({stage: 'done', port: 'ssettle', world: small.w.name, builds: [], points: {t2: 9, t3: 9}, site: {}}, small.x, 'ustarport', small.w.name, 'surface').why;
+		ok('56. a settlement grows into a surface starport where it stands: tier 3 (4 tier 3 points, 20,000 t), only on a world with room for its site and its landing field; an outpost can\'t skip to it',
+			cst && cst.stage == 'done' && t3 == 1 && !noPts.ok && /tier 3 points/.test(noPts.why) && us.ok && cst.points.t3 == 0 && Math.abs(sum(us.build.need) - 20000 * (big.w.g > 1.5 ? 1.25 : 1)) <= 20 && (!small || /too small/.test(smallWhy))
+			&& !Co.canBuild(Object.assign({}, cst, {port: 'soutpost', builds: [], points: {t2: 9, t3: 9}}), big.x, 'ustarport', cst.world, 'surface').ok, {big: big && big.w.name, why: us && us.why, smallWhy});
+		if (cst) { for (const [g, t] of Object.entries(Co.left(us.build))) pst.cargo[g] = t; Co.deliverBuilds(pst, cst, day + 4) }
+		const sq = cst ? Co.groundPorts(pst, big.x, day + 5) : [], sl3 = sq[0] && Su.layout(sq[0].kind, sq[0].seed), pads3 = sl3 ? sl3.pads.map(p => p.size).sort().join('') : '', fl = sq[1] && Su.layout(sq[1].kind, sq[1].seed);
+		ok('57. grown, it is a surface starport (6 S in hangars, 4 M, an L and an XL pad) under the same id at the same site, with its heavy landing field (a capital berth, 2 XL) 8 km off; it counts as a great port (500,000 more people) and earns no tier 3 point',
+			cst && cst.port == 'sstarport' && sq.length == 2 && sq[0].kind == 'starport' && sq[0].id == 'surface:' + cst.world + ':colony' && sq[0].lat == cst.site.lat && sq[1].kind == 'field' && sq[1].of == sq[0].id && T.PORT_ID.test(sq[1].id) && sq[1].colony
+			&& pads3 == 'LMMMMSSSSSSXL' && sl3.pads.filter(p => p.hangar).length == 6 && !Su.check(sl3).length && fl.pads.some(p => p.size == 'C') && Co.popCap(cst, big.x) == cap1 + 400000 && cst.points.t3 == 0
+			&& Math.abs((sq[1].lat - sq[0].lat) * Math.PI / 180 * Co.worldOf(big.x, cst.world).R * 6.371e6 * G.WORLD_SCALE - 8000) < 1, {port: cst && cst.port, pads3, sq});
+		const bks = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(pst))));
+		ok('58. the save keeps the grown starport', cst && JSON.stringify(Co.groundPorts(bks, big.x, day + 5)) == JSON.stringify(sq));
 		const po = Tr.newPlayer(home.id); po.wallet[cur] = 1e9; const co = Co.claim(po, office, gs, 'outpost', day, JUMP).colony;
 		ok('54. orbital claims are as before: the most Earth-like world, an orbital slot, no site on the ground', co && co.world == Co.portWorld(gs) && !co.site && Co.used(Object.assign({}, co, {builds: []}), co.world, 'orbit') == 1);
 	}

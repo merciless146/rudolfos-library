@@ -789,7 +789,14 @@ decided after 0.4.8).
   east and north of the port, filled when working, outlined while being built, hollow for deposits found and not
   yet mined), and listed with their distance and compass point from the port (or their world, if elsewhere).
   Tested in the colony test's 55 and the browser test's 2b and 10.
-- **Still to do in L3.5:** a settlement growing into a surface starport.
+- **A colony's port grows into a surface starport** ("Grow into a surface starport": tier 3, 20,000 t, the tier 3
+  points of any tier 3 build: 4, then 2 more for each tier 3 build before), from a settlement, on a world with room
+  for the starport's 3.8 km site and its heavy landing field (`surface.js` `fits`). Grown, it keeps its site and
+  id, and the next arrival finds the starport there (6 S pads in hangars, 4 M, an L and an XL), its site levelled
+  out wider, with its heavy landing field 8 km off (a capital berth and 2 XL pads). It counts as a great port does
+  (500,000 more people, tier 3 security and tech). Tested in the colony test's 56 to 58 and the browser test's 11b.
+- **L3.5 is done** (0.5.1). Its open questions are the colonies plan's: claim fees scaling with distance, great
+  powers colonizing on their own, and naming colonized systems.
 
 ### L3.6 Raids
 

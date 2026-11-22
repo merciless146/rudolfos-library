@@ -132,6 +132,15 @@ async function frame(pg, test) {
 		await sleep(800);
 		const rs = await f.evaluate(() => { const g = EmberDebug.game; return {star: g.star.id, docked: g.docked, port: g.portId, landed: !!g.landed, open: !document.getElementById('port').hidden, colony: (g.P.colonies || []).some(c => c.port == 'soutpost' && c.stage == 'done')} });
 		ok('11. the save keeps it: reloaded, still docked on the outpost\'s pad, its screens open', rs.star == (await f.evaluate(() => EmberDebug.game.star.id)) && rs.docked && rs.port == sp.id && rs.landed && rs.open && rs.colony, rs);
+		/* (step 3) grown into a surface starport (where the world has room: else as a settlement), the next arrival
+		   finds the bigger port at the same site, with its landing field */
+		const sg = await f.evaluate(async () => { window.__target = EmberDebug.game.star; const g = EmberDebug.game, c = g.P.colonies.find(x => x.id == window.__target.id), w = EmberColonies.worldOf(window.__target, c.world), big = EmberSurface.fits('starport', w);
+			c.port = big ? 'sstarport' : 'ssettle'; g.docked = false; g.landed = null; g.dockPort = null; document.getElementById('port').hidden = true; EmberDebug.go(window.__target); g.npcs = [];
+			await new Promise(r => setTimeout(r, 300));
+			const q = g.ports.filter(x => x.colony), sp = g.surfacePorts.find(x => x.q.id.endsWith(':colony')), b = EmberDebug.scene.bodies.find(x => x.name == c.world);
+			return {big, kinds: q.map(x => x.kind).join(' '), id: sp && sp.q.id, pads: sp && EmberSurface.layout(sp.q.kind, sp.q.seed).pads.length, flats: EmberTerrain.params(b).flats.length} });
+		ok('11b. (step 3) grown, the next arrival finds the bigger port at the same site under the same id (a surface starport with its landing field where the world has room, its site levelled out wider)',
+			sg.id == sp.id && (sg.big ? sg.kinds == 'starport field' && sg.pads == 12 && sg.flats >= 2 : sg.kinds == 'settlement' && sg.pads == 5), sg);
 		ok('12. no errors on the way', errs.length == 0, errs);
 	} catch (e) { F++; console.log('FAIL (error) ' + (e.stack || e)) }
 	finally { await br.close(); srv.kill() }
