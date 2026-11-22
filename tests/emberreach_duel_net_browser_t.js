@@ -8,9 +8,9 @@
 const {chromium} = require('playwright');
 const {spawn} = require('child_process');
 const fs = require('fs'), path = require('path'), os = require('os');
+/* the game's own version (PKGINFO), so the checks follow each release; OLD is another one */
+const VER = /^version = (.*)$/m.exec(fs.readFileSync(path.join(__dirname, '../apps/rudolf-emberreach/PKGINFO'), 'utf8'))[1].trim(), OLD = '0.5.1', VRE = VER.replace(/\./g, '\\.');
 const PORT = +(process.argv[2] || 8770), RELAY = PORT + 1, LAN = PORT + 2, TOP = path.join(__dirname, '..');
-/* (the game's version, from play.js's BUILD: a duel pairs only games of the same version) */
-const VER = /const BUILD = \{[^}]*version: '([\d.]+)'/.exec(fs.readFileSync(path.join(__dirname, '..', 'apps/rudolf-emberreach/www/play.js'), 'utf8'))[1], VER_RE = VER.replace(/\./g, '\\.');
 const W = fs.mkdtempSync(path.join(os.tmpdir(), 'ern-'));
 let P = 0, F = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { F++; console.log('FAIL ' + n + (d !== undefined ? ' - ' + (typeof d == 'string' ? d : JSON.stringify(d)) : '')) } };
@@ -90,7 +90,7 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 			await Fb.evaluate(at => { const s = EmberDebug.s, D = EmberDebug.game.duel; s.p = at.p.map((v, i) => v + D.c[i]); s.v = [0, 0, 0]; s.w = [0, 0, 0] }, at);
 			await sleep(400);
 		};
-		const fire = async (Fx, ms) => { await Fx.evaluate(() => { EmberDebug.game.tgt = EmberDebug.game.npcs.find(n => n.remote); EmberDebug.game.touch.fire = EmberDebug.game.touch.fire2 = 0 }); await sleep(ms); await Fx.evaluate(() => { EmberDebug.game.touch.fire = EmberDebug.game.touch.fire2 = null }) };
+		const fire = async (Fx, ms) => { await Fx.evaluate(() => { EmberDebug.game.tgt = EmberDebug.game.npcs.find(n => n.remote); EmberDebug.game.touch.fire = 0; EmberDebug.game.touch.fire2 = 0 }); await sleep(ms); await Fx.evaluate(() => { EmberDebug.game.touch.fire = EmberDebug.game.touch.fire2 = null }) };   /* (0.5.3: touch's FIRE is the primary group, FIRE 2 the secondary: both held) */
 		await place(A, B, 700); await fire(A, 1500); await sleep(400);
 		a = await view(A); b = await view(B);
 		ok('7. the host\'s hits on the guest: counted in the host\'s match, the guest\'s shields down on both screens (the host decides)', a.m.dealt[0] > 5 && Math.abs(b.m.dealt[1] - a.m.dealt[0]) < 0.5 && b.mine.sh < 0.99 * (await B.evaluate(() => EmberDebug.game.pcs.shieldMax)) && Math.abs(b.mine.sh - a.theirCs.sh) < 25, {a: a.m.dealt, b: b.m.dealt, bMine: b.mine, aTheirs: a.theirCs});
@@ -146,7 +146,7 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 		A = await frame(pa, () => EmberDebug.game.duel.m && document.getElementById('ov').hidden, 80);
 		Cc = await frame(pc, () => EmberDebug.game.duel.m && document.getElementById('ov').hidden, 80);
 		a = await view(A); const c = await view(Cc);
-		ok('16. quick match: the first waits in the queue, the next pilot looking (same version) is paired with them', new RegExp('Looking for a pilot running Ember Reach ' + VER_RE).test(looking) && a.state == 'ready' && c.state == 'ready' && a.role != c.role && a.m.phase == 'fight' && c.m.phase == 'fight', {looking, a: [a.role, a.m], c: [c.role, c.m]});
+		ok('16. quick match: the first waits in the queue, the next pilot looking (same version) is paired with them', new RegExp('Looking for a pilot running Ember Reach ' + VRE).test(looking) && a.state == 'ready' && c.state == 'ready' && a.role != c.role && a.m.phase == 'fight' && c.m.phase == 'fight', {looking, a: [a.role, a.m], c: [c.role, c.m]});
 		/* leaving: the other is told, at once */
 		await Cc.evaluate(() => EmberDebug.game.duel.net.leave());
 		A = await frame(pa, () => document.getElementById('ovT').textContent == 'The duel is over', 50);
@@ -180,7 +180,7 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 		await Ee.click('#ovBody input[name=duelOpp][value=lan]');
 		Ee = await frame(pe, () => !!document.querySelector('#duelLanList input'), 60);
 		const other = await Ee.evaluate(() => ({text: document.getElementById('duelLanList').textContent, disabled: document.querySelector('#duelLanList input').disabled}));
-		ok('20. another version is refused: the relay won\'t pair a 0.5.1 game with this 0.5.2 one (it says which), and a LAN duel of another version can\'t be joined (and says why)', old.t == 'error' && old.why == 'version' && old.ver == VER && other.disabled && /0\.5\.1: both need the same version/.test(other.text), {old, other});
+		ok('20. another version is refused: the relay won\'t pair a 0.5.1 game with this one (it says which), and a LAN duel of another version can\'t be joined (and says why)', old.t == 'error' && old.why == 'version' && old.ver == VER && other.disabled && /0\.5\.1: both need the same version/.test(other.text), {old, other});
 		ok('21. no errors on any page', errs.length == 0, errs);
 	} catch (e) { F++; console.log('FAIL (threw) ' + (e.stack || e)) }
 	finally { await br.close(); srv.kill(); relay.kill(); lan.kill() }

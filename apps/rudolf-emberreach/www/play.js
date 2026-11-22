@@ -58,7 +58,7 @@
 const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
-	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel, Ne = window.EmberNet, Tc = window.EmberTouch;
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel, Tc = window.EmberTouch, Ne = window.EmberNet;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
@@ -177,7 +177,7 @@ async function start() {
 	hud.addEventListener('wheel', e => { e.preventDefault(); if (game.mapOpen) { map.zoom(Math.exp(e.deltaY * 0.0015)); return } if (!game.docked) RG.wheel(e.deltaY) }, {passive: false});
 	/* mouse buttons in flight, bindable (0.3.4: left fires the primary guns, right the secondary): from the HUD only,
 	   not on the map or while docked; each button on its own (pointer events miss a second button held with a first) */
-	hud.addEventListener('mousedown', e => { if (!game.mapOpen && !game.docked) RG.mouse(e.button, true) });
+	hud.addEventListener('mousedown', e => { if (game.ptrTouchAt && performance.now() - game.ptrTouchAt < 800) return; if (!game.mapOpen && !game.docked) RG.mouse(e.button, true) });
 	addEventListener('mouseup', e => RG.mouse(e.button, false));
 	hud.addEventListener('contextmenu', e => { if (!game.mapOpen) e.preventDefault() });
 	RG.on('pause', () => { Snd.hold(true); persist() }); RG.on('resume', () => Snd.hold(false));
@@ -2066,14 +2066,18 @@ function touchAct(act) {
 function pointers() {
 	const pt = e => { const p = view.toGame(e.clientX, e.clientY); return {x: p.x, y: p.y, touch: e.pointerType == 'touch', id: e.pointerId} };
 	const Tt = game.touch;
-	hud.addEventListener('pointermove', e => { game.ptr = pt(e); if (game.mapOpen) { map.move(game.ptr); return } if (e.pointerType == 'touch' && game.touchU) Tc.move(Tt, game.touchU, game.ptr, e.pointerId, game.settings.touch.sens) });
+	/* (0.5.3, from #97) with the controls set to On, any pointer works them: on Rudolf OS's first phone (X11) a touch
+	   reaches the game as the mouse. Auto and Off keep the mouse as the mouse */
+	const asTouch = e => e.pointerType == 'touch' || (game.settings.touch.show == 'on' && touchShown());
+	hud.addEventListener('pointermove', e => { game.ptr = pt(e); if (game.mapOpen) { map.move(game.ptr); return } if (asTouch(e) && game.touchU) Tc.move(Tt, game.touchU, game.ptr, e.pointerId, game.settings.touch.sens) });
 	hud.addEventListener('pointerdown', e => {
 		const p = pt(e); game.ptr = p; hud.focus();
 		RG.lastInput = e.pointerType == 'touch' ? 'touch' : 'mouse'; game.touchAuto = e.pointerType == 'touch';
 		try { hud.setPointerCapture(e.pointerId) } catch (x) {}
 		if (e.pointerType == 'touch') e.preventDefault();   /* (no mouse events after it: a tap is not a click of the left button, which fires) */
 		if (game.mapOpen) { const act = map.down(p); if (act) mapAct(act); return }
-		if (e.pointerType != 'touch' || !touchShown()) return;   /* (mouse buttons: mousedown, below) */
+		if (!asTouch(e) || !touchShown()) return;   /* (mouse buttons: mousedown, below) */
+		if (e.pointerType != 'touch') game.ptrTouchAt = performance.now();   /* (a mouse press taken as a touch: not a click as well) */
 		/* the touch radial menu: an item tapped runs it; anywhere else closes it */
 		if (game.radial && game.radial.touch) { const L = radialList(), i = Tc.radialHit(Tc.radialRects(W, Hh, L.length), p); game.radial = null; if (i >= 0) L[i][2](); return }
 		const r = Tc.down(Tt, touchLayout(), p, e.pointerId);
