@@ -137,8 +137,8 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
     it can be fitted, taken off and kept in the pilot's own storage;
   - it's marked as such in outfitting;
   - it's kept if Hardcore later ends by hand; the pilot just can't buy more.
-- **It's illegal in the great powers' space** (owner's answer): a police or Marshal scan finds it. That means a fine
-  and some lost standing with that power, or a fight if you run. Free ports and independent colonies don't care.
+- **It's not illegal, only exclusive** (owner's answer): no power, police or Marshal minds it, and scans don't treat
+  it differently. Only Hardcore pilots can buy it, and it never leaves the pilot who bought it.
 - **Insurance** (owner's answer):
   - while Hardcore is on, contraband gear **can't be insured** (its value is left out of the policy, and it's lost
     with the ship);
@@ -189,7 +189,7 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 |---|---|---|---|
 | **P1** | The game kit's slots; the galaxy/pilot split of the save (the sweep, the two packs, migration, trimming each); the slot screen; delete a pilot; wipe the galaxy; export and import of the set | — | L |
 | **P2** | Difficulty (the table above, the slot and status; changed while docked; Admiral while Hardcore is on); Hardcore's states and the pilot-made-only switch; the wipe on death; rewards' multipliers; saving often | P1 | M |
-| **P3** | The Contraband Merchant: the contact, contraband variants (outfit.js), stock, prices; bound to the pilot (never traded); illegal (scans, fines, standing, fights); its insurance (none while Hardcore is on, twice the premium after) | P2 | M |
+| **P3** | The Contraband Merchant: the contact, contraband variants (outfit.js), stock, prices; bound to the pilot (never traded); not illegal; its insurance (none while Hardcore is on, twice the premium after) | P2 | M |
 | **P4** | The cloaking device: the module, radar and scanners ignoring it, transparency, heat, firing showing it; the award hook (test-only until M6) | P2 | M |
 | **P5** | Co-op, wing first: rooms of four in `net.js`, the relay and Rudolf OS's LAN service; the host's galaxy shared; guests' pilots saved at home; the Hardcore rule; docking, markets, NPCs, jumps together | P1 (P2 for the Hardcore rule) | L |
 | **P6** | Co-op free roaming (if chosen) | P5 | L |
@@ -208,8 +208,7 @@ P3, P4 and P5 can be built at the same time once P1 and P2 are in.
 ## Decided by the owner (2026-11-22)
 
 - **Wiping the galaxy deletes the six pilots too**, as New game does today.
-- **Contraband is illegal** in the great powers' space (a scan, a fine and lost standing, or a fight), **bound to its
-  pilot for good** (never traded), **uninsurable while Hardcore is on**, and insured at **twice** its ordinary
+- **Contraband is not illegal, only exclusive** (nobody minds carrying it), **bound to its pilot for good** (never traded), **uninsurable while Hardcore is on**, and insured at **twice** its ordinary
   counterpart's premium once Hardcore is off.
 - **Co-op: the wing stays together first** (the host leads jumps); free roaming is a later step (P6).
 - **Difficulty can be changed while docked**, but **a Hardcore pilot is Admiral** until Hardcore ends (by hand or at
