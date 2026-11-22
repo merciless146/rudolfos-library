@@ -56,10 +56,21 @@ const setPower = (f, v) => f.evaluate(v => { EmberDebug.game.settings.graphics.p
 		console.log('  off: ' + JSON.stringify(off) + '\n  on:  ' + JSON.stringify(on));
 		ok('2. on: the 3D view at the CSS pixels times 0.8 (312 × 675, not the device\'s 1170 × 2532): a fourteenth of the pixels (the automatic resolution aside)', szOn[0] == 312 && szOn[1] == 675 && szOff[0] == 1170 && szOff[1] == 2532, {szOff, szOn});
 		ok('3. with the CPU four times slower (and the automatic resolution on, as it is by default), low-power mode keeps the game running better: more of the browser\'s frames go by (the main thread has room), and the game keeps time at least as well', on.raf > off.raf * 1.2 && on.gameRate >= off.gameRate * 0.95, {off, on});
-		ok('4. it draws about every other frame the browser offers', on.drawn < on.raf * 0.6 && on.drawn > on.raf * 0.4, on);
+		/* unthrottled (the browser offering 60 frames a second): 30 drawn, by the clock */
+		const free = await measure(f, 3000);
+		ok('4. it draws at most 30 frames a second, by the clock (about every other frame at 60 Hz; so too at 120 Hz)', on.drawn <= 31.5 && free.drawn <= 31.5 && free.drawn > 24 && free.raf > 45, {on, free});
 		const det = await f.evaluate(() => ({quality: EmberDebug.quality}));
 		ok('5. on, the models are the low-detail ones', det.quality == 'low', det);
 		await ctx.close();
+		/* asteroids: a duel's field, off and on (the small ones, under 40 m, only within 5 km; the rest within 15 km) */
+		const ctx3 = await br.newContext({viewport: {width: 390, height: 844}, hasTouch: true, isMobile: true}), pg3 = await ctx3.newPage();
+		await pg3.goto(`http://127.0.0.1:${PORT}/desk.html#debug&duel`);
+		const f3 = await frame(pg3, () => !!document.querySelector('#ovBody input[name=duelShip]'));
+		await f3.click('#ovBtns button.primary'); await sleep(1500);
+		const rocks = async v => { await setPower(f3, v); await sleep(800); return f3.evaluate(() => EmberDebug.game.lod.rocks) };
+		const rOff = await rocks('off'), rOn = await rocks('on'), total = await f3.evaluate(() => EmberDebug.game.rocks.length);
+		ok('5b. in a duel\'s asteroid field, low-power mode draws fewer asteroids (the far and the small ones left out)', rOff > 0 && rOn < rOff && rOff <= total, {total, rOff, rOn});
+		await ctx3.close();
 		/* a desktop: Auto leaves it as it was (full resolution, every frame, the models at the Quality setting) */
 		const ctx2 = await br.newContext({viewport: {width: 1280, height: 720}}), pg2 = await ctx2.newPage();
 		await pg2.goto(`http://127.0.0.1:${PORT}/desk.html#debug&power=0&spawn=2500`);

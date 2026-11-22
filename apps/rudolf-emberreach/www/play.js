@@ -100,9 +100,10 @@ const CAPTION = {warning: 'Warning', critical: 'Critical alarm', clearance: 'Cle
 	emergency: 'Emergency drop', faOn: 'Flight assist on', faOff: 'Flight assist off', blackout: 'Blackout', wake: 'Waking', jump: 'Jump', arrive: 'Arrived', destroyed: 'Ship destroyed', pulse: 'Weapons fire', driver: 'Weapons fire', heavy: 'Weapons fire',
 	missile: 'Missile launched', flare: 'Flare', shieldHit: 'Shield hit', hullHit: 'Hull hit', boom: 'Explosion', lock: 'Missile lock', chart: 'System charted', hatch: 'Cargo hatch', scoop: 'Canister scooped', incoming: 'Missile incoming'};
 /* (0.5.3) low-power mode (Settings › Graphics: Auto, on a phone; On; Off): the 3D view at the screen's CSS pixels (not
-   its device pixels) times 0.8, every other frame drawn, the low-detail models, asteroids drawn within 15 km (not 40),
-   and the terrain's detail split sooner and on half the budget */
-const LOWPOWER = {res: 0.8, rocks: 15000, rocksFar: 40000, terBudget: 0.5, split: 1.6};
+   its device pixels) times 0.8, at most 30 frames a second, the low-detail models, no glow, asteroids drawn within 15 km
+   (not 40; the small ones, under 40 m, within 5 km), and the terrain's detail split sooner and on half the budget.
+   (The 30 frames by the clock, no glow and the small asteroids are from #101, the other draft of this step.) */
+const LOWPOWER = {res: 0.8, fps: 30, rocks: 15000, rocksFar: 40000, small: 40, smallRock: 5000, terBudget: 0.5, split: 1.6};
 const lowPower = () => { const p = game.settings ? game.settings.graphics.power : 'off'; return p == 'on' || (p == 'auto' && !!game.phone) };
 /* apply what changed (or everything) */
 function applySettings(what) {
@@ -1818,9 +1819,9 @@ function draw() {
 	/* docked, the port's screens cover the view: nothing to draw behind them */
 	if (game.docked && Port.isOpen()) return;
 	adaptRes();
-	/* (0.5.3) low-power mode draws every other frame (the game itself still steps 60 times a second; the automatic
-	   resolution, above, counts the browser's frames) */
-	if (lowPower() && (game.skipFrame = !game.skipFrame)) return;
+	/* (0.5.3) low-power mode draws at most 30 frames a second, by the clock, whatever the screen's rate (the game itself
+	   still steps 60 times a second; the automatic resolution, above, counts the browser's frames) */
+	if (lowPower()) { const now = performance.now(); if (game.drawAt && now - game.drawAt < 1000 / LOWPOWER.fps - 4) return; game.drawAt = now }
 	/* the cockpit, or (0.4.3) third person: a little above and behind the ship, looking where it looks */
 	const B = R.basis(s.q), cam = game.chase ? {p: add(add(s.p, mul(B.f, -ship.length * VIEW.back)), mul(B.u, ship.length * VIEW.up)), q: s.q} : {p: add(s.p, mul(B.f, ship.length * 0.3)), q: s.q};
 	cam.q = Tc.lookQ(s.q, game.touch);   /* (0.5.3: looking round, by a drag on a touch screen) */
@@ -1888,8 +1889,9 @@ function draw() {
 		items.push({id: 'npc:' + n.ship.length, pos: n.s.p, rot: mat3(nb.r, nb.u, nb.f), light: norm(sub(sun.pos, n.s.p)), amb: 0.15});
 	}
 	if (game.site && game.site.kind == 'site' && game.site.colony.stage == 'building') items.push({id: 'constructor', pos: game.site.pos, rot: mat3([1, 0, 0], [0, 1, 0], [0, 0, 1]), light: norm(sub(sun.pos, game.site.pos)), amb: 0.2});
-	const rockFar = lowPower() ? LOWPOWER.rocks : LOWPOWER.rocksFar;
-	for (const r of game.rocks) { if (len(sub(r.pos, cam.p)) > rockFar) continue; const a = r.radius * 0.001 + game.t * 0.02, co = Math.cos(a), si = Math.sin(a); items.push({id: r.mesh, pos: r.pos, rot: mat3([co, si, 0], [-si, co, 0], [0, 0, 1]), light: norm(sub(sun.pos, r.pos)), amb: 0.12}) }
+	const lowP = lowPower(), rockFar = r => !lowP ? LOWPOWER.rocksFar : r.radius < LOWPOWER.small ? LOWPOWER.smallRock : LOWPOWER.rocks;
+	game.lod.rocks = 0;
+	for (const r of game.rocks) { if (len(sub(r.pos, cam.p)) > rockFar(r)) continue; game.lod.rocks++; const a = r.radius * 0.001 + game.t * 0.02, co = Math.cos(a), si = Math.sin(a); items.push({id: r.mesh, pos: r.pos, rot: mat3([co, si, 0], [-si, co, 0], [0, 0, 1]), light: norm(sub(sun.pos, r.pos)), amb: 0.12}) }
 	for (const c of game.cans) {
 		if (len(sub(c.p, cam.p)) > 20000) continue;
 		const ax = norm(c.spin), a = c.angle, co = Math.cos(a), si = Math.sin(a), rotAx = v => add(add(mul(v, co), mul(cross(ax, v), si)), mul(ax, dot(ax, v) * (1 - co)));
@@ -1905,7 +1907,7 @@ function draw() {
 	if (game.lights && !M.works(fit, 'power')) game.lights = false;
 	if (game.nv && !M.works(fit, 'sensors')) game.nv = false;
 	const fw = Fl.forward(s), spot = game.lights && !game.docked ? {pos: add(s.p, mul(fw, ship.length * 0.5)), dir: fw, strength: SPOT.strength, cos: Math.cos(SPOT.angle * Math.PI / 180), range: SPOT.range} : null;
-	R.frame({cam, fov: fovNow(), items, glows: game.settings.graphics.glow ? glows : [], spot, nightVision: game.nvK});
+	R.frame({cam, fov: fovNow(), items, glows: game.settings.graphics.glow && !lowP ? glows : [], spot, nightVision: game.nvK});
 	gl.style.filter = game.vision && game.vision.blur > 0.01 && pilot.conscious ? 'blur(' + (game.vision.blur * 5).toFixed(1) + 'px)' : '';
 	if (game.mapOpen) { const ctx = view.begin(); map.day = game.day; map.fuel = game.fuel; map.draw(ctx, W, Hh, game.t); return }
 	hudDraw(cam);
