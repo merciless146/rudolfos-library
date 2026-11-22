@@ -88,10 +88,11 @@ function surfacePanel(ctx, bx, by, bw, bh, sf) {
 /* (0.5.0) a duel's clock, round and score at the top centre; a banner between rounds */
 function duelBar(ctx, W, H, d) {
 	const cx = W / 2;
-	ctx.fillStyle = 'rgba(8,10,18,0.55)'; ctx.fillRect(cx - 150, 8, 300, 62);
+	ctx.fillStyle = 'rgba(8,10,18,0.55)'; ctx.fillRect(cx - 150, 8, 300, d.net ? 82 : 62);
 	text(ctx, d.clock, cx, 34, {mono: true, size: d.clock.length > 6 ? 20 : 26, weight: 700, align: 'center', col: d.urgent ? C.red : C.text});
 	text(ctx, d.round, cx, 52, {size: 12, align: 'center', col: C.muted});
 	text(ctx, d.dealt, cx, 66, {size: 11, mono: true, align: 'center', col: C.muted});
+	if (d.net) text(ctx, d.net, cx, 82, {size: 11, align: 'center', col: C.muted});   /* (0.5.2: LAN or Online, and the round trip) */
 	if (d.banner) { text(ctx, d.banner.text, cx, H * 0.3, {size: 30, weight: 700, align: 'center', col: d.banner.col}); if (d.banner.sub) text(ctx, d.banner.sub, cx, H * 0.3 + 28, {size: 15, align: 'center', col: C.text}) }
 }
 function draw(ctx, W, H, h, t) {

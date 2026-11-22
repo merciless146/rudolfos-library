@@ -35,9 +35,9 @@ async function frame(pg, test) {
 		pg.on('console', m => { if (m.type() == 'error') errs.push(m.text()) }); pg.on('pageerror', e => errs.push(String(e)));
 		await pg.goto(`http://127.0.0.1:${PORT}/desk.html#debug&duel`);
 		let f = await frame(pg, () => !!document.querySelector('#ovBody input[name=duelShip]'));
-		const pick = await f.evaluate(() => ({h: document.getElementById('ovT').textContent, ships: document.querySelectorAll('#ovBody input[name=duelShip]').length, ai: !document.querySelector('input[value=ai]').disabled, later: ['ws', 'lan'].every(v => document.querySelector('input[name=duelOpp][value=' + v + ']').disabled)}));
+		const pick = await f.evaluate(() => ({h: document.getElementById('ovT').textContent, ships: document.querySelectorAll('#ovBody input[name=duelShip]').length, ai: document.querySelector('input[value=ai]').checked, net: ['lan', 'online'].every(v => document.querySelector('input[name=duelOpp][value=' + v + ']')), off: /not set up yet/.test(document.querySelector('input[name=duelOpp][value=online]').parentNode.textContent)}));
 		await pg.screenshot({path: path.join(W, 'duel-pick.png')});
-		ok('1. ?duel opens the duel screen: four ships to pick from; the AI to fly against (online and LAN shown, coming next)', pick.h == 'Duel' && pick.ships == 4 && pick.ai && pick.later, pick);
+		ok('1. ?duel opens the duel screen: four ships to pick from; the AI to fly against, or LAN, or Online (not set up yet: no relay address)', pick.h == 'Duel' && pick.ships == 4 && pick.ai && pick.net && pick.off, pick);
 		await f.click('#ovBody input[value=jackal]'); await f.click('#ovBtns button.primary'); await sleep(1500);
 		const st = await f.evaluate(() => { const g = EmberDebug.game, D = g.duel, s = EmberDebug.s, n = g.npcs[0], d = Math.hypot(...n.s.p.map((v, i) => v - s.p[i])); return {phase: D.m.phase, ship: EmberDebug.ship.name, me: D.m.ships[0], npcs: g.npcs.length, hostile: n.duel, d: Math.round(d), rocks: g.rocks.length, t: D.m.t, scan: g.hudData.scanner && g.hudData.scanner.range, blip: g.hudData.scanner && g.hudData.scanner.blips.some(b => b.col == '#e5484d'), clock: g.hudData.duel && g.hudData.duel.clock, open: !document.getElementById('ov').hidden} });
 		await pg.screenshot({path: path.join(W, 'duel-start.png')});

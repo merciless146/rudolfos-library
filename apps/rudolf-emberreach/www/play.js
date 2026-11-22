@@ -58,11 +58,11 @@
 const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
-	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel;
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel, Nt = window.EmberNet;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.0'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.2'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -134,7 +134,7 @@ async function start() {
 	const ok = sv && sv.ship;
 	/* the player: from the save; or, for a new game, the origin from the URL or chosen here */
 	/* (0.5.0) duels: their own game, nothing saved but the settings */
-	const duel = Q.has('duel'); if (duel) game.duel = {m: null, pick: Du.ROSTER[0].id, opp: null, seed: 1 + Math.floor(Math.random() * 1e6)};
+	const duel = Q.has('duel'); if (duel) game.duel = {m: null, pick: Du.ROSTER[0].id, opp: null, seed: 1 + Math.floor(Math.random() * 1e6), net: null, screen: null};
 	let originIdx = duel ? 0 : ok ? sv.power : Q.has('power') ? Math.max(0, Math.min(majors.length - 1, +Q.get('power'))) : null;
 	if (originIdx == null) { $('load').style.display = 'none'; originIdx = await chooseOrigin(sv && sv.oldGalaxy); $('load').style.display = '' }
 	game.power = originIdx;
@@ -185,7 +185,7 @@ async function start() {
 	say('Press H for the controls, G for the star map', '#9fb0cc');
 	RG.onPause(() => { if (!$('ov').hidden) return; overlay('pause') });
 	if (game.docked) openPort();
-	RG.loop(update, draw);
+	RG.loop(update, draw, {get whilePaused() { return duelNetOn() }});   /* (0.5.2: a duel on a network goes on while a menu is open) */
 	if (duel) overlay('duel');
 	hud.focus();
 }
@@ -1223,6 +1223,7 @@ function combat(dt) {
 	for (const n of game.npcs) {
 		if (n.cs.dead) continue;
 		C.tick(n.cs, game.t, dt);
+		if (n.remote) { duelRemote(n, dt); continue }   /* (0.5.2: the other pilot's ship, on a network) */
 		if (n.role == 'depot') continue;
 		/* (0.3.11) traffic on its autopilot, until someone fires on it; a forward base's turrets */
 		if (n.traffic && !n.provoked && n.cs.lastHit < 0) { trafficFly(n, dt); continue }
@@ -2054,18 +2055,19 @@ function duelArena() {
 const duelLive = () => !game.duel.m || game.duel.m.phase == 'fight' || game.duel.m.phase == 'sudden';
 /* the two ships at their starts: fresh, repaired, rearmed */
 function duelPlace() {
-	const D = game.duel, A = D.A, at = i => ({p: add(D.c, A.starts[i].p), q: Sc.lookRotation(A.starts[i].face, [0, 0, 1]), v: [0, 0, 0]});
+	const D = game.duel, A = D.A, at = i => ({p: add(D.c, A.starts[i].p), q: Sc.lookRotation(A.starts[i].face, [0, 0, 1]), v: [0, 0, 0]}), me = duelGuest() ? 1 : 0;   /* (the guest starts where the host's rival does) */
 	if (D.m) { const b = Du.build(D.m.ships[0]); baseShip = b.hull; game.P.ship.model = b.hull.id; game.P.ship.fit = b.fit; ship = b.ship; R.upload('ship', Me.ship(ship.length, quality)) }
-	s = Fl.create(ship, at(0)); s.radius = Math.max(2, ship.length / 2); s.mass = ship.mass;
+	s = Fl.create(ship, at(me)); s.radius = Math.max(2, ship.length / 2); s.mass = ship.mass;
 	fit = M.fit(ship); pilot = Pi.create(); M.apply(fit, s); game.pcs = C.state(ship, fit); game.pcs.id = 'me';
 	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = 0; game.ap = null; game.jump = null; game.tgt = null; game.nav = null;
 	game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null;
 	if (!D.m) return;
 	const ob = Du.build(D.m.ships[1]), n = {id: 'duelist', role: 'duelist', duel: true, faction: 'duel', ship: ob.ship, name: 'Rival ' + ob.ship.name, cargo: [], wanted: null, scanned: null, scanT: 0, wasHostile: true, provoked: true};
-	n.s = Fl.create(ob.ship, at(1)); n.s.radius = Math.max(2, ob.ship.length / 2); n.s.mass = ob.ship.mass;
+	n.s = Fl.create(ob.ship, at(1 - me)); n.s.radius = Math.max(2, ob.ship.length / 2); n.s.mass = ob.ship.mass;
 	n.cs = C.state(ob.ship); n.cs.id = n.id; n.ai = {mode: 'attack', base: 'attack', fleeAt: 0};
 	n.home = n.s.p; n.pos = n.s.p; n.radius = n.s.radius; n.kind = 'ship'; n.next = 0; n.foe = null;
 	npcMesh(n); game.npcs.push(n); game.tgt = n;
+	if (D.net) duelNetPlace(n);
 }
 function duelBegin() {
 	const D = game.duel, others = Du.ROSTER.map(r => r.id);
@@ -2076,14 +2078,19 @@ function duelBegin() {
 }
 function duelStep(dt) {
 	const D = game.duel, m = D.m; if (!m) return;
+	/* (0.5.2: the guest's clock runs on between the host's updates; the host says what happens) */
+	if (duelGuest()) { if (m.phase == 'fight' || m.phase == 'sudden') m.t += dt; duelNetSend(dt); return }
 	const ev = Du.step(m, dt);
-	if (ev == 'sudden') { say('Level at 5:00: sudden death. The next hit wins the round', '#e5484d'); Snd.cue('critical'); D.banner = {text: 'SUDDEN DEATH', sub: 'The next hit wins the round', until: game.t + 4, col: '#e5484d'} }
+	if (ev == 'sudden') { duelSudden(); duelNetEvent('sudden') }
 	else if (ev == 'time') duelSaid(m.last);
-	else if (ev == 'next') { duelPlace(); say('Round ' + m.round + ' of 3', '#e5484d'); D.banner = {text: 'ROUND ' + m.round, sub: 'You ' + m.wins[0] + ' · Rival ' + m.wins[1], until: game.t + 3, col: '#f2d36a'}; Snd.cue('launch') }
+	else if (ev == 'next') { duelNext(); duelNetEvent('next') }
+	if (D.net) duelNetSend(dt);
 }
-function duelHit(by, amount) { const D = game.duel; if (!D || !D.m) return; const r = Du.hit(D.m, by, amount); if (r) duelSaid(r) }
+function duelSudden() { const D = game.duel; say('Level at 5:00: sudden death. The next hit wins the round', '#e5484d'); Snd.cue('critical'); D.banner = {text: 'SUDDEN DEATH', sub: 'The next hit wins the round', until: game.t + 4, col: '#e5484d'} }
+function duelNext() { const D = game.duel, m = D.m; duelPlace(); say('Round ' + m.round + ' of 3', '#e5484d'); D.banner = {text: 'ROUND ' + m.round, sub: 'You ' + m.wins[0] + ' · Rival ' + m.wins[1], until: game.t + 3, col: '#f2d36a'}; Snd.cue('launch') }
+function duelHit(by, amount) { const D = game.duel; if (!D || !D.m || duelGuest()) return; const r = Du.hit(D.m, by, amount); if (r) duelSaid(r) }
 function duelDown(who) {
-	const D = game.duel; if (!D || !D.m) return;
+	const D = game.duel; if (!D || !D.m || duelGuest()) return;   /* (on the guest the host's word: duelNetMsg) */
 	if (who == 0) { game.booms.push({pos: s.p.slice(), t: game.t, r: s.radius * 4, col: [1, 0.72, 0.4], life: 1.8}); Snd.cue('destroyed') }
 	const both = who == 0 ? game.npcs.some(n => n.duel && n.cs.dead) : game.pcs.dead, r = Du.killed(D.m, who, both); if (r) duelSaid(r);
 }
@@ -2093,30 +2100,246 @@ function duelSaid(r) {
 	D.banner = {text: m.phase == 'over' ? (m.wins[0] > m.wins[1] ? 'YOU WIN THE DUEL' : 'THE RIVAL WINS THE DUEL') : mine ? 'ROUND ' + r.round + ' TO YOU' : 'ROUND ' + r.round + ' TO THE RIVAL', sub: why + ' · ' + m.wins[0] + '–' + m.wins[1], until: game.t + Du.DUEL.between, col: mine ? '#7fd1a8' : '#e5484d'};
 	Snd.cue(mine ? 'clearance' : 'warning');
 	if (m.phase == 'over') setTimeout(() => { if (game.duel.m == m) overlay('duelOver') }, 3500);
+	duelNetEvent('end', r);
 }
 const clock = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
 function duelHud() {
 	const D = game.duel; if (!D || !D.m) return null; const m = D.m;
 	return {clock: m.phase == 'sudden' ? 'SUDDEN DEATH' : m.phase == 'over' ? 'FINAL' : clock(Math.ceil(Du.left(m))), urgent: m.phase == 'sudden' || (m.phase == 'fight' && Du.left(m) < 30), round: 'Round ' + m.round + ' of 3 · You ' + m.wins[0] + ' – ' + m.wins[1] + ' Rival',
-		dealt: 'Damage ' + Math.round(m.dealt[0]) + ' – ' + Math.round(m.dealt[1]), banner: D.banner && game.t < D.banner.until ? D.banner : null};
+		dealt: 'Damage ' + Math.round(m.dealt[0]) + ' – ' + Math.round(m.dealt[1]), banner: D.banner && game.t < D.banner.until ? D.banner : null,
+		net: D.net ? duelNetLabel(D.net) + (D.net.role ? ' · ' + (D.net.role == 'host' ? 'hosting' : 'joined') + ' · ' + Math.round(D.net.S.rtt * 1000) + ' ms' : '') : null};
 }
-/* the duel's screens: picking a ship (and how to play: the AI now; online and LAN come next), and the result */
+/* the duel's screens: picking a ship and the opponent (the AI, LAN or Online: 0.5.2), and the result */
 function duelPick(body, button, close) {
 	RG.pause();
 	const D = game.duel, row = r => { const b = Du.build(r.id), x = Du.rating(b.ship); return '<label class="duel-ship"><input type="radio" name="duelShip" value="' + r.id + '"' + (r.id == D.pick ? ' checked' : '') + '> <b>' + esc(b.ship.name) + '</b> · ' + esc(r.role) + '<br><span>' + esc(r.text) + '</span><br><span class="duel-num">hull ' + b.ship.hull + ' · shields ' + b.ship.shield + ' · ' + x.dps.toFixed(0) + ' damage a second' + (x.msl ? ' · missiles' : '') + ' · ' + b.ship.speed + ' m/s · turn ' + b.ship.agility + '</span></label>' };
+	const N = D.net && D.net.S.state == 'ready' ? D.net : null;
 	body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">Duel</h1><p>Two pilots, an asteroid field, 20 km apart. Best of three rounds of 5:00: destroy the other ship, or do more damage by the end; level, and the next hit wins. Rocks and rams hurt in proportion to your speed.</p>'
 		+ '<h2>Your ship</h2><div class="duel-ships">' + Du.ROSTER.map(row).join('') + '</div>'
-		+ '<h2>Opponent</h2><div class="duel-opp"><label><input type="radio" name="duelOpp" value="ai" checked> AI pilot (practice)</label> <label class="muted"><input type="radio" name="duelOpp" value="ws" disabled> Online (WebSocket): coming next</label> <label class="muted"><input type="radio" name="duelOpp" value="lan" disabled> LAN: coming next</label></div>';
-	button('Start', () => { const c = body.querySelector('input[name=duelShip]:checked'); D.pick = c ? c.value : D.pick; D.opp = null; close(); duelBegin() }, true).focus();
-	button('Leave duels', () => { location.href = location.pathname });
+		+ (N ? '<h2>Opponent</h2><p id="duelWith">Connected to the other pilot (' + esc(duelNetLabel(N)) + ')' + (N.peerReady ? ': they are ready.' : '.') + '</p>'
+			: '<h2>Opponent</h2><div class="duel-opp"><label><input type="radio" name="duelOpp" value="ai"' + (D.oppKind == 'lan' || D.oppKind == 'online' ? '' : ' checked') + '> AI pilot (practice)</label> <label><input type="radio" name="duelOpp" value="lan"' + (D.oppKind == 'lan' ? ' checked' : '') + '> LAN (your home network)</label> <label><input type="radio" name="duelOpp" value="online"' + (D.oppKind == 'online' ? ' checked' : '') + '> Online (WebSocket)' + (relayUrl() ? '' : ': not set up yet') + '</label></div><div id="duelOppPanel"></div>');
+	const pickShip = () => { const c = body.querySelector('input[name=duelShip]:checked'); D.pick = c ? c.value : D.pick };
+	if (N) {
+		button('Ready', () => { pickShip(); overlay('duelNet'); duelNetReady() }, true).focus();
+		button('Leave the match', () => { duelNetEnd('left'); overlay('duel') });
+		button('Leave duels', duelLeave);
+		return;
+	}
+	const panel = () => { const c = body.querySelector('input[name=duelOpp]:checked'); D.oppKind = c ? c.value : 'ai'; duelOppPanel($('duelOppPanel'), D.oppKind); const st = $('ovBtns').querySelector('button.primary'); if (st) st.disabled = D.oppKind != 'ai' };
+	body.querySelectorAll('input[name=duelOpp]').forEach(x => { x.onchange = panel });
+	button('Start', () => { pickShip(); D.opp = null; close(); duelBegin() }, true).focus();
+	button('Leave duels', duelLeave);
+	panel();
 }
 function duelOver(body, button, close) {
 	RG.pause();
 	const D = game.duel, m = D.m, won = m.wins[0] > m.wins[1];
 	body.innerHTML = '<p class="build">Ember Reach · duel</p><h1 id="ovT">' + (won ? 'You win the duel' : 'The rival wins the duel') + ' · ' + m.wins[0] + '–' + m.wins[1] + '</h1><p>Your ' + esc(Du.build(m.ships[0]).ship.name) + ' against the rival\'s ' + esc(Du.build(m.ships[1]).ship.name) + '.</p>';
-	button('Rematch', () => { D.opp = m.ships[1]; close(); duelBegin() }, true).focus();
-	button('Choose ship', () => overlay('duel'));
-	button('Leave duels', () => { location.href = location.pathname });
+	if (D.net) { button('Rematch', () => { overlay('duelNet'); duelNetReady() }, true).focus(); button('Choose ship', () => overlay('duel')); button('Leave the match', () => { duelNetEnd('left'); overlay('duel') }) }
+	else { button('Rematch', () => { D.opp = m.ships[1]; close(); duelBegin() }, true).focus(); button('Choose ship', () => overlay('duel')) }
+	button('Leave duels', duelLeave);
+}
+/* ---------------- duels over a network (0.5.2: net.js) ----------------
+   LAN (Rudolf OS's LAN duel service, through the game kit; or any relay's address) or Online (the Library's relay:
+   a room code or quick match). One pilot's game hosts and decides (duel.js's match: hits, kills, collisions, the
+   clock); the other, the guest, flies its own ship at once and is told the rest. On either side the rival is then
+   the other pilot (n.remote): its ship moved by their updates, smoothed (duelRemote), its shots theirs */
+const nowS = () => performance.now() / 1000;
+const duelNetOn = () => !!(game.duel && game.duel.net && game.duel.net.S && game.duel.net.S.state != 'closed');
+const duelGuest = () => !!(game.duel && game.duel.net && game.duel.net.role == 'guest');
+const relayUrl = () => (Q.get('relay') || Nt.RELAY || '').trim();
+const duelRival = () => game.npcs.find(n => n.remote);
+function ovClose() { $('ov').hidden = true; RG.resume(); hud.focus() }
+/* connect: url (a relay), mode host|join|quick, the code to join; where {lan: true|false, name} */
+function duelNetOpen(url, mode, code, where) {
+	const D = game.duel; duelNetEnd('left');
+	const N = D.net = {role: null, where, mode, code: null, peerReady: null, meReady: false, seq: 0, sm: Nt.smoother(), sendAt: 0, flares: null, me: {hull: 1, shield: 0}, them: {hull: 1, shield: 0},
+		status: mode == 'host' ? 'Opening a game…' : mode == 'join' ? 'Joining ' + Nt.normCode(code) + '…' : 'Looking for a pilot of the same version…'};
+	N.S = Nt.connect(Nt.ws(url), {v: BUILD.version, mode, code}, {
+		room: c => { N.code = c; N.status = where.lan ? 'Waiting on your network for the other pilot to join' + (where.name ? ' ' + where.name : '') + '.' : 'Waiting for the other pilot: tell them the room code.'; duelNetShow() },
+		paired: role => { N.role = role; N.status = 'Connected: checking the other pilot\'s game…'; duelNetShow() },
+		ready: () => { N.status = 'Connected to the other pilot.'; duelNetReady() },
+		peer: m => duelNetMsg(N, m),
+		error: (why, text) => { N.error = text || why },
+		close: why => duelNetClosed(N, why)});
+	if (DEBUG) window.EmberDuelNet = N;
+	overlay('duelNet');
+}
+/* leaving on purpose: closed quietly (the other is told) */
+function duelNetEnd(why) {
+	const D = game.duel, N = D && D.net; if (!N) return;
+	N.quiet = true; D.net = null; N.S.close(why || 'left');
+	if (N.where.lanHost && RG.lan) RG.lan.stop();
+	D.m = null; D.banner = null;
+	game.npcs = game.npcs.filter(n => !n.remote); duelPlace();
+}
+function duelLeave() { duelNetEnd('left'); location.href = location.pathname }
+const GONE = {gone: 'The other pilot left the duel.', timeout: 'Nothing was heard from the other pilot for 5 seconds: the connection dropped.', lost: 'The connection to the relay was lost.', refused: '', version: '', 'bad address': 'That isn\'t a relay\'s address (ws://… or wss://…).'};
+function duelNetClosed(N, why) {
+	const D = game.duel; if (N.quiet || D.net !== N) return;
+	const was = D.m && D.m.phase != 'over';
+	D.net = null; if (N.where.lanHost && RG.lan) RG.lan.stop();
+	D.gone = {text: N.error || GONE[why] || 'The connection closed.', during: !!was, title: N.role ? (was ? 'The duel was cut short' : 'The other pilot has gone') : 'Couldn\'t start the duel'};
+	D.m = null; D.banner = null;
+	game.npcs = game.npcs.filter(n => !n.remote); duelPlace();
+	say(D.gone.text, '#f2a33a'); Snd.cue('warning');
+	overlay('duelGone');
+}
+/* this pilot is ready (paired, a rematch, or a new ship): the host starts once both are */
+function duelNetReady() {
+	const D = game.duel, N = D.net; if (!N || N.S.state != 'ready') return;
+	N.meReady = true; N.S.send({t: 'ready', ship: D.pick});
+	N.status = N.peerReady ? 'Starting…' : 'Waiting for the other pilot to be ready…';
+	if (N.role == 'host' && N.peerReady) duelNetGo(); else duelNetShow();
+}
+function duelNetGo() {
+	const D = game.duel, N = D.net; if (D.m && D.m.phase != 'over') return;
+	D.opp = N.peerReady; N.meReady = false; N.peerReady = null;
+	N.S.send({t: 'start', seed: D.seed, ships: [D.pick, D.opp]});
+	ovClose(); duelBegin();
+}
+const shipOk = id => typeof id == 'string' && Du.ROSTER.some(r => r.id == id);
+function duelNetMsg(N, o) {
+	const D = game.duel; if (D.net !== N) return;
+	if (o.t == 'ready') { if (!shipOk(o.ship)) return; N.peerReady = o.ship; if (N.role == 'host' && N.meReady) duelNetGo(); else { N.status = N.meReady ? 'Starting…' : 'The other pilot is ready: choose your ship.'; duelNetShow() } return }
+	if (o.t == 'start' && N.role == 'guest') {
+		if (!(o.seed > 0 && o.seed < 1e7) || !Array.isArray(o.ships) || !shipOk(o.ships[0]) || !shipOk(o.ships[1])) return;
+		N.meReady = false; N.peerReady = null;
+		if (o.seed != D.seed) { D.seed = o.seed | 0; D.m = null; duelArena() }
+		D.pick = o.ships[1]; D.opp = o.ships[0]; ovClose(); duelBegin(); return;
+	}
+	if (!D.m) return;
+	const rv = duelRival();
+	if (o.t == 'st') {
+		if (o.r !== D.m.round) return;   /* (an update from the round before) */
+		N.sm.push(Nt.unpackShip(o.s, D.c), nowS());
+		if (rv && typeof o.h == 'number') rv.cs.heat = Math.max(0, Math.min(2, o.h));
+		if (N.role != 'guest') return;
+		const hm = Nt.unpackMatch(o.m);
+		if (hm && hm.round == D.m.round) { const mm = Nt.mirror(hm); D.m.phase = mm.phase; D.m.t = mm.t; D.m.wins = mm.wins; D.m.dealt = mm.dealt }
+		if (Array.isArray(o.hp) && o.hp.length == 4 && o.hp.every(x => typeof x == 'number')) { N.them.hull = o.hp[0]; N.them.shield = o.hp[1]; N.me.hull = o.hp[2]; N.me.shield = o.hp[3] }
+		if (Array.isArray(o.mods) && o.mods.length == fit.modules.length) fit.modules.forEach((m, i) => { if (typeof o.mods[i] == 'number') m.hp = Math.max(0, Math.min(m.max, o.mods[i])) });
+		/* missiles: those the host still has in flight, and those flares fooled */
+		if (Array.isArray(o.al) && Array.isArray(o.dc)) {
+			const al = new Set(o.al), dc = new Set(o.dc);
+			for (let i = game.shots.length - 1; i >= 0; i--) { const x = game.shots[i]; if (!x.nid || !C.WEAPONS[x.kind].homing) continue; if (!al.has(x.nid) && game.t - (x.born || 0) > 0.5) { game.shots.splice(i, 1); continue } x.target = dc.has(x.nid) ? null : x.tgt0 != null ? x.tgt0 : x.target }
+		}
+		return;
+	}
+	if (o.t == 'shot') { const x = Nt.unpackShot(o.s, D.c, N.S.rtt / 2); if (!x || !duelLive()) return; x.born = game.t; if (x.target != null) x.tgt0 = x.target; Array.prototype.push.call(game.shots, x); return }
+	if (o.t == 'flare' && N.role == 'host') { if (rv && !rv.cs.dead) C.flare(rv.cs, game.shots); return }
+	if (o.t == 'ev' && N.role == 'guest') {
+		const hm = Nt.unpackMatch(o.m);
+		if (o.e == 'end' && o.r && typeof o.r.winner == 'number' && hm) {
+			const mm = Nt.mirror(hm); Object.assign(D.m, {phase: mm.phase, t: mm.t, wins: mm.wins, dealt: mm.dealt}); D.m.last = Nt.mirrorLast(o.r);
+			if (D.m.last.how == 'kill') { const loser = D.m.last.winner == 0 ? rv && rv.s : s; if (loser && !game.booms.some(b => b.r >= loser.radius * 4 && game.t - b.t < 1)) { game.booms.push({pos: loser.p.slice(), t: game.t, r: loser.radius * 4, col: [1, 0.72, 0.4], life: 1.8}); Snd.cue(loser == s ? 'destroyed' : 'boom', 1) } }
+			duelSaid(D.m.last);
+		} else if (o.e == 'sudden') { D.m.phase = 'sudden'; duelSudden() }
+		else if (o.e == 'next' && hm) { Object.assign(D.m, {round: hm.round, phase: 'fight', t: 0, dealt: [0, 0], wait: 0}); duelNext() }
+	}
+}
+/* the ships at their starts for a network match: the rival is the other pilot; on the guest, hull and shields are
+   the host's to say (writes there change nothing) */
+function duelNetPlace(n) {
+	const N = game.duel.net;
+	n.remote = true; n.name = 'Rival ' + n.ship.name; N.sm = Nt.smoother(); N.flares = null;
+	game.shots = duelNetShots();
+	if (N.role != 'guest') return;
+	const hold = (cs, box) => { box.hull = cs.hullMax; box.shield = cs.shieldMax; for (const k of ['hull', 'shield']) Object.defineProperty(cs, k, {get: () => box[k], set() {}, configurable: true}); Object.defineProperty(cs, 'dead', {get: () => box.hull <= 0, set() {}, configurable: true}) };
+	hold(game.pcs, N.me); hold(n.cs, N.them);
+}
+/* the shots list: those this ship fires go to the other pilot as they are made (lasers are settled in the same step) */
+function duelNetShots() {
+	const a = [];
+	a.push = function (...x) { for (const m of x) if (m.owner == 'me' && !m.nid) duelNetShot(m); return Array.prototype.push.apply(this, x) };
+	return a;
+}
+function duelNetShot(m) {
+	const N = game.duel.net; if (!N || N.S.state != 'ready') return;
+	m.nid = (N.role == 'host' ? 'h' : 'g') + (++N.seq); m.born = game.t; if (m.target != null) m.tgt0 = m.target;
+	N.S.send({t: 'shot', s: Nt.packShot(m, game.duel.c)});
+}
+/* the other pilot's ship, every step: toward where their updates put it */
+function duelRemote(n, dt) { const N = game.duel.net; if (N) N.sm.step(n.s, nowS(), dt); n.pos = n.s.p }
+/* 30 times a second: this ship, and from the host the match */
+function duelNetSend(dt) {
+	const D = game.duel, N = D.net, m = D.m; if (!N || N.S.state != 'ready' || !m) return;
+	if (N.role == 'guest') { const f = game.pcs.load.flares; if (N.flares != null && f < N.flares) N.S.send({t: 'flare'}); N.flares = f }
+	N.sendAt -= dt; if (N.sendAt > 0) return; N.sendAt += 1 / Nt.NET.rate; if (N.sendAt < 0) N.sendAt = 0;
+	const o = {t: 'st', r: m.round, s: Nt.packShip(s, D.c, nowS()), c: {th: Math.round(game.throttle * 100) / 100}, h: Math.round(game.pcs.heat * 100) / 100};
+	if (N.role == 'host') {
+		const rv = duelRival(), r1 = x => Math.round(x * 10) / 10;
+		o.m = Nt.packMatch(m);
+		if (rv) { o.hp = [game.pcs.hull, game.pcs.shield, rv.cs.hull, rv.cs.shield].map(r1); o.mods = rv.cs.fit.modules.map(x => Math.round(x.hp)) }
+		const hm = game.shots.filter(x => x.nid && C.WEAPONS[x.kind].homing); o.al = hm.map(x => x.nid); o.dc = hm.filter(x => x.target == null).map(x => x.nid);
+	}
+	N.S.send(o);
+}
+/* the host's events for the guest */
+function duelNetEvent(e, r) { const N = game.duel.net; if (N && N.role == 'host' && N.S.state == 'ready') N.S.send({t: 'ev', e, r: r || null, m: Nt.packMatch(game.duel.m)}) }
+function duelNetShow() { if (game.duel.screen == 'duelNet' && !$('ov').hidden) overlay('duelNet') }
+const duelNetLabel = N => N.where.lan ? 'LAN' : 'Online';
+/* the screens: waiting for the other pilot; the connection gone */
+function duelNetScreen(body, button) {
+	RG.pause();
+	const D = game.duel, N = D.net; if (!N) { overlay('duel'); return }
+	body.innerHTML = '<p class="build">Ember Reach · duel · ' + esc(duelNetLabel(N)) + '</p><h1 id="ovT">' + esc(N.role ? 'Duel: connected' : N.mode == 'quick' ? 'Quick match' : N.mode == 'host' ? 'Hosting a duel' : 'Joining a duel') + '</h1>'
+		+ (N.code && !N.role ? '<p class="duel-code">Room code <b id="duelRoom">' + esc(N.code) + '</b>' + (N.where.lan ? '' : ': the other pilot joins with it.') + '</p>' : '')
+		+ '<p id="duelNetSt">' + esc(N.status) + '</p><p class="small">Your ship: ' + esc(Du.build(D.pick).ship.name) + '. Both pilots need Ember Reach ' + esc(BUILD.version) + '.</p>';
+	button('Cancel', () => { duelNetEnd('left'); overlay('duel') }, true).focus();
+}
+function duelGoneScreen(body, button) {
+	RG.pause();
+	const g = game.duel.gone || {title: 'The duel is over', text: ''};
+	body.innerHTML = '<p class="build">Ember Reach · duel</p><h1 id="ovT">' + esc(g.title) + '</h1><p id="duelGone">' + esc(g.text) + '</p>';
+	button('Choose ship', () => overlay('duel'), true).focus();
+	button('Leave duels', duelLeave);
+}
+/* the duel screen's opponent: the AI, LAN or Online, and what each needs */
+function duelOppPanel(el, which) {
+	const D = game.duel, pick = () => { const c = $('ovBody').querySelector('input[name=duelShip]:checked'); D.pick = c ? c.value : D.pick };
+	const go = (url, mode, code, where) => { pick(); duelNetOpen(url, mode, code, where) };
+	if (which == 'ai') { el.innerHTML = '<p class="small">A practice duel against the AI pilot.</p>'; return }
+	if (which == 'online') {
+		const url = relayUrl();
+		if (!url) { el.innerHTML = '<p class="small" id="duelOnlineOff">Online duels are not set up yet: the Library\'s relay isn\'t online. LAN duels work now.</p>'; return }
+		el.innerHTML = '<p class="small">Through the relay at ' + esc(url.replace(/^wss?:\/\//, '').split('/')[0]) + ': it passes your ship and shots to the other pilot, never your address.</p><p><button id="duelQuick">Quick match</button> <button id="duelHost">Host: get a room code</button></p><p><label>Room code <input id="duelCode" maxlength="7" size="8" autocomplete="off" spellcheck="false"></label> <button id="duelJoin">Join</button></p>';
+		$('duelQuick').onclick = () => go(url, 'quick', null, {lan: false});
+		$('duelHost').onclick = () => go(url, 'host', null, {lan: false});
+		$('duelJoin').onclick = () => { const c = $('duelCode').value; if (!Nt.validCode(c)) { $('duelCode').focus(); say('A room code is six letters and digits', '#f2a33a'); return } go(url, 'join', c, {lan: false}) };
+		return;
+	}
+	/* LAN: Rudolf OS runs the relay on the hosting computer and finds games on the network; or any relay's address */
+	const os = RG.inDesktop && !!RG.lan;
+	el.innerHTML = (os ? '<p class="small">On your home network: one computer hosts (Rudolf OS runs the relay there while you play), the other finds it. Nothing goes over the internet.</p><p><button id="duelLanHost">Host on this network</button> <button id="duelLanFind">Find games</button></p><div id="duelFound"></div>'
+		: '<p class="small">Hosting and finding games on a network needs Rudolf OS, which runs the relay on the hosting computer. Without it, run the Library\'s relay (tools/duel-relay) on one computer and give its address.</p>')
+		+ '<details' + (os ? '' : ' open') + '><summary class="small">A relay\'s address</summary><p><input id="duelAddr" size="28" placeholder="ws://192.168.1.20:8765" autocomplete="off" spellcheck="false"> <button id="duelAddrHost">Host</button></p><p><label>Room code <input id="duelAddrCode" maxlength="7" size="8" autocomplete="off" spellcheck="false"></label> <button id="duelAddrJoin">Join</button></p></details>';
+	const addr = () => { const a = $('duelAddr').value.trim(); return /^wss?:\/\//.test(a) ? a : a ? 'ws://' + a : '' };
+	$('duelAddrHost').onclick = () => { if (!addr()) return $('duelAddr').focus(); go(addr(), 'host', null, {lan: true}) };
+	$('duelAddrJoin').onclick = () => { const c = $('duelAddrCode').value; if (!addr()) return $('duelAddr').focus(); if (!Nt.validCode(c)) return $('duelAddrCode').focus(); go(addr(), 'join', c, {lan: true}) };
+	if (!os) return;
+	$('duelLanHost').onclick = async () => {
+		const b = $('duelLanHost'); b.disabled = true; b.textContent = 'Starting…';
+		const r = await RG.lan.host({v: BUILD.version});
+		if (!r || !r.ok) { b.disabled = false; b.textContent = 'Host on this network'; $('duelFound').innerHTML = '<p class="small bad" id="duelLanErr">' + esc((r && r.error) || 'Rudolf OS couldn\'t start the LAN duel service.') + '</p>'; return }
+		go(r.url, 'host', null, {lan: true, lanHost: true, name: r.name ? 'as ' + r.name : ''});
+	};
+	$('duelLanFind').onclick = async () => {
+		const b = $('duelLanFind'), out = $('duelFound'); b.disabled = true; out.innerHTML = '<p class="small">Looking on your network…</p>';
+		const r = await RG.lan.find(); b.disabled = false;
+		if (!r || !r.ok) { out.innerHTML = '<p class="small bad" id="duelLanErr">' + esc((r && r.error) || 'Rudolf OS couldn\'t look on the network.') + '</p>'; return }
+		const games = (r.games || []).filter(g => g && typeof g.url == 'string' && /^ws:\/\//.test(g.url) && Nt.validCode(g.code)).slice(0, 12);
+		if (!games.length) { out.innerHTML = '<p class="small" id="duelNone">No duels hosted on your network right now. Ask the other pilot to press Host on this network, then look again.</p>'; return }
+		out.innerHTML = '<ul class="duel-found">' + games.map((g, i) => '<li>' + esc(String(g.name || 'A computer').slice(0, 40)) + ' · Ember Reach ' + esc(String(g.v || '?').slice(0, 20)) + ' <button data-i="' + i + '"' + (g.v == BUILD.version ? '' : ' disabled title="Not the same version"') + '>Join</button></li>').join('') + '</ul>';
+		out.querySelectorAll('button[data-i]').forEach(x => { x.onclick = () => { const g = games[+x.dataset.i]; go(g.url, 'join', g.code, {lan: true, name: String(g.name || '')}) } });
+	};
+}
+if (DEBUG) window.EmberDuelDebug = {overlay: k => overlay(k), end: why => duelNetEnd(why)};
+/* the pause menu in a duel: on a network the match goes on (the other pilot is still flying) */
+function duelPauseButtons(button) {
+	if (game.duel.net) { button('Leave the match', () => { duelNetEnd('left'); overlay('duel') }) }
+	else button('Choose ship', () => overlay('duel'));
+	button('Leave duels', duelLeave);
 }
 function overlay(kind) {
 	const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns');
@@ -2131,13 +2354,16 @@ function overlay(kind) {
 		button(tr('Resume'), close, true).focus();
 		button(tr('Settings'), () => openSettings(() => overlay(kind)));
 		/* (0.5.0) duels: their own page; nothing of the game is touched */
-		if (game.duel) { button('Choose ship', () => overlay('duel')); button('Leave duels', () => { location.href = location.pathname }); ov.hidden = false; return }
+		if (game.duel) { duelPauseButtons(button); ov.hidden = false; return }
 		button('Duels', () => { persist(); setTimeout(() => { location.href = location.pathname + '?duel' }, 300) });
 		button(tr('Save to a file'), () => { persist(); setTimeout(() => RG.exportSave(), 300) });
 		button(tr('Load from a file'), () => RG.importSave().then(() => location.reload(), e => say(e.message, '#f2a33a')));
 		button(tr('New game'), e => { if (e.target.dataset.sure) { RG.save({settingsOnly: true, settings: game.settings}).then(() => { location.href = location.pathname }) } else { e.target.dataset.sure = 1; e.target.textContent = tr('New game: sure? (the save is lost)') } });
 	}
+	if (game.duel) game.duel.screen = kind;
 	if (kind == 'duel') duelPick(body, button, close);
+	if (kind == 'duelNet') duelNetScreen(body, button);
+	if (kind == 'duelGone') duelGoneScreen(body, button);
 	if (kind == 'duelOver') duelOver(body, button, close);
 	ov.hidden = false;
 }

@@ -1351,7 +1351,7 @@ also arms the first ships and adds fire groups:
     ships both take it, the lighter more, and they bounce apart.
   - **Opponents:** the AI pilot now. Online (WebSocket) and LAN come next (below).
   - Tested in `tests/emberreach_duel_t.js` (node) and `tests/emberreach_duel_browser_t.js` (a match in Chromium).
-- **Duels online and on a LAN (next):** the player picks either.
+- **Duels online and on a LAN (0.5.2: LAN done; online built, its relay not yet online):** the player picks either.
   - **The protocol:** one pilot's game hosts (it decides hits, kills, collisions and the clock: `duel.js`'s match);
     the other sends its controls and its own ship's state 30 times a second, flies its own ship at once, and smooths
     the host's updates. The arena is seeded, so only the ships and the shots travel. Both run the same version.
@@ -1361,8 +1361,32 @@ also arms the first ships and adds fire groups:
   - **LAN:** a browser can't take connections, so one computer on the network runs the relay: a small Rudolf OS
     service the host's game asks for (through the game kit), found by the other on the network (mDNS). Nothing goes
     over the internet.
+- **0.5.2, duels on a network:** the duel screen's opponent is the AI, LAN or Online (`net.js`, one module for both:
+  each is a WebSocket to a relay).
+  - **The relay** (`tools/duel-relay`: `relay-core.js` the rules, `relay.js` on Node with no packages): room codes
+    (six letters and digits, "join ABC123"), a quick-match queue for the same version, both versions checked (another
+    is refused with a message), players never seeing each other's addresses (it passes on only what they send), 8 KB
+    a message, 120 a second (240 at once), 8 connections from one address, 400 in all, rooms closed after 10 minutes
+    unjoined, connections after a minute silent.
+  - **The match:** the host's game decides (duel.js's match: hits, kills, collisions, the clock, sudden death); the
+    guest flies its own ship at once and sends its state and controls 30 times a second; its shots go to the host as
+    they're fired, and the host's to it. The guest's hull and shields (and modules) are the host's to say. The other
+    ship is smoothed: carried on by its velocity from its last update, a tenth of a second to close a gap, the
+    jitter taken out by the updates' send times; 400 m off, it jumps. The arena is seeded and everything travels
+    relative to its centre, so only ships and shots travel. Rematch when both ask; Choose ship keeps the connection.
+  - **Dropped connections:** nothing heard for 5 s, the relay saying the other has gone, or the other leaving ends the
+    match cleanly ("The duel was cut short"), back to choosing.
+  - **LAN:** on Rudolf OS, Host on this network asks the desktop (the game kit 1.3.0's `RG.lan`) for its LAN duel
+    service: the relay on the hosting computer, as the account's own user, on the local network only, announced by
+    mDNS and stopped when the match ends; Find games lists those on the network (another version can't be joined).
+    Without Rudolf OS: `node tools/duel-relay/relay.js --host 0.0.0.0` on one computer and its address in the game.
+  - **Online:** shown as "not set up yet" until the Library's relay is deployed (net.js's `RELAY`; `?relay=` for
+    another). Deploying it waits for the owner: an account, then `RELAY` set.
+  - Tested in `tests/emberreach_duel_t.js` (what travels, smoothing, the session through the relay, versions,
+    limits, drops, the relay on a port) and `tests/emberreach_duelnet_browser_t.js` (two Chromium pages dueling
+    through the relay: rounds, kills, the clock, a rematch, quick match, leaving, another version, LAN).
 
-Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
+Still to come: duels online (the relay put online), the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
 
 ## Open questions
