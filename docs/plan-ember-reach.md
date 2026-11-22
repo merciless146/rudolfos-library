@@ -671,6 +671,9 @@ Only the player's own changes are saved: ship, cargo, credits, reputation, disco
 and market drift. The galaxy is rebuilt from the model every time. Saves go through rudolfd with export and import,
 like every Library game.
 
+**Planned:** six pilots in one galaxy shared by them, difficulty, Hardcore, the Contraband Merchant, the Precursor
+cloaking device and co-op for four: [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md).
+
 ## Factions, wars and money
 
 The model is in `apps/rudolf-emberreach/www/factions.js`, `economy.js`, `reputation.js` and `ships.js` (51 checks in
@@ -1469,6 +1472,9 @@ also arms the first ships and adds fire groups:
 
 Still to come: the online relay put up (0.5.2 has it ready), the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 and multiplayer.
+- **The plan for pilots and co-op:** six save slots in one shared galaxy, Rookie/Pilot/Admiral, Hardcore and its
+  Contraband Merchant and cloak, co-op for four, in [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md) (steps
+  P1–P6).
 - **The plans for what follows L3:** ground sites (L4: ruins, Precursor sites and crash sites) in
   [plan-ember-reach-sites.md](plan-ember-reach-sites.md); the Core's story (M6) and the later landing items
   (atmospheres, surface vehicles, night lights) in [plan-ember-reach-core.md](plan-ember-reach-core.md).
