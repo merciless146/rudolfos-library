@@ -66,6 +66,22 @@ Rift, and the Rift's Maw leads home.
   be torn apart. The game leaves tides out today (open question 2).
 - **Stars are torn up** passing closer than about 9.5 million km, far outside the horizon: tidal disruption flares.
 
+## Principles
+
+- **Played offline, in one save.** The story's state is in the save; the galaxy, the wars and the markets go on round
+  it as they do now.
+- **Nothing breaks.** The Maw stays a wormhole to the Rift; the Rift stays as built; no existing star, ruin, port or
+  save changes. New things (the vaults, the Lock, the woken anchorages) come from new draws with their own seeds.
+- **Any origin.** It works for a pilot of any of the 12 powers, written round placeholders ("your people", the
+  patron, the generated names) filled in when the text is shown.
+- **Built from what exists.** Story missions use the mission kinds the game has (survey, stay, kills, deliver, sites),
+  so the story is mostly content, not new systems.
+- **Nothing is timed against the player.** Story missions don't fail and don't expire; the pressure is in the world
+  (the tide, the rival), not a clock.
+- **Text only.** Voices in comms and on starport screens, with no portraits and no drawn characters. The Precursors
+  are never shown, only their work.
+- **Its own story.** Written for Ember Reach, not drawn from any other game's plot.
+
 ## The story: "The Lock"
 
 A story that can be played offline from the save alone, in three acts. It's the endgame, as the plan places the
@@ -129,6 +145,11 @@ voice and one structure.
   | **A syndicate** | grey or outlaw pilots | money, and its dreadnought at the Maw for repairs and munitions |
   | **Nobody** | anyone | nothing; and nobody else knows |
 
+- **The rival:** whoever the patron's enemies are want the bearings too. At the second and third vaults a rival
+  wing waits; losing the fight there loses that bearing to the rival's flagship (a seeded system in the Glow), where
+  it must be taken back. The rival by patron: a power's enemies send their navy; the Marshals' patronage brings a
+  syndicate; a free port's or nobody's brings a syndicate's relic hunters; a syndicate's brings the Marshals
+  themselves. A bearing is a story good: it can't be sold or dropped, and the insurer gives it back with the ship.
 - Choosing a patron changes standing by the usual spread: its allies are pleased, its enemies not, and a syndicate
   makes the powers cool.
 
@@ -223,6 +244,17 @@ Every ending keeps the Rift open to phasers, and no ending stops the game.
   triangles and no extra fill.
 - **The Core's sky:** "a wall of light". The precomputed sky gets brighter towards the centre and the nearest
   thousands of stars crowd it; on low quality, fewer points and a brighter backdrop instead.
+- **The Core as a place,** so the story's trips are worth it:
+  - **Chart packs:** besides the Steward's Core chart, nomad carriers and prospector guilds in the Glow sell packs
+    charting the Core's systems within 0.5 pc of a point (5,000 SU); a charted target's misjump chance falls by three
+    quarters. Kept as charts in `P.explore`.
+  - **Rich veins:** the Core's rings and belts take an extra hotspot draw (its own seed), so about half have one;
+    no existing hotspot moves.
+  - **Crowded light:** neighbours under 0.02 pc are drawn as small discs, not points; and now and then (once a
+    season in a tenth of Core systems, seeded) a system is mid-pass, a neighbour's light on the far side of every
+    world (one more light term in the shader, as the spotlight is).
+  - **Heat:** in Core systems the heat gauge creeps up in open space (a twentieth of a laser's heat): lasers run
+    hotter, nothing cooks. Starting values for playtests.
 - **Tidal flares** (optional): now and then near the Maw, a passing star torn up, as a bright arc in the sky for a
   few days of game time.
 
@@ -299,11 +331,11 @@ The largest of the three. It's what would open the living worlds, and so the gre
 
 | Step | What | Depends on | Size |
 |---|---|---|---|
-| **M6.1** | The Maw and the Core, polished: shadow, photon ring, disc; lensing on WebGL; the Core's sky | | medium |
+| **M6.1** | The Maw and the Core, polished: shadow, photon ring, disc; lensing on WebGL; the Core's sky; chart packs, rich veins, crowded light and heat | | medium |
 | **M6.2** | Night lights | | small |
 | **M6.3** | `story.js`: state, triggers, mission kinds, the journal, the Steward contact, places, the save; node tests | L4.1 | large |
 | **M6.4** | Act I: the Steward, lodestones read, the Riftborn on the near side | M6.3, L4.5 | medium |
-| **M6.5** | Act II: the Core chart, the vaults and their sites, patrons, woken anchorages | M6.4, L4.2 | large |
+| **M6.5** | Act II: the Core chart, the vaults and their sites, patrons and the rival, woken anchorages | M6.4, L4.2 | large |
 | **M6.6** | Act III: the tide, holding the anchorages, the Lock, the Echo | M6.5 | large |
 | **M6.7** | The endings and after: the settings' effects, the Deep Archive, seasonal tides, news, charted wormholes if wanted | M6.6 | medium |
 | **M6.8** | Release (its number is the owner's: open question 8) | M6.1–M6.7 | small |
@@ -311,6 +343,18 @@ The largest of the three. It's what would open the living worlds, and so the gre
 | V1 | Surface vehicles | L4, the owner's decision (question 12) | large |
 
 - **In parallel:** M6.1 and M6.2 can go any time, even before L4. M6.3 can start once L4.1 is in.
+
+## Risks, and what to do about them
+
+| Risk | What to do |
+|---|---|
+| The story needs the Rift, which needs a phaser, which needs luck with blueprints | Precursor vaults (L4.5) make Precursor blueprints sure, and question 14's rumour opens the story earlier. |
+| An ending the pilot dislikes makes the galaxy worse | Each setting is explained in full before it's chosen, none removes anything (the Rift and the Maw stay open in all), and "Leave it" is allowed. |
+| Generated names make the text read oddly | Text is written round placeholders with grammatical forms (the power, its people, its coin), checked over all 12 powers in the tests. |
+| Story text in English only, while the menus have nine languages | Through i18n keys from the start (question 7), so it can be translated later. |
+| Core flying is too punishing | The Steward's chart, chart packs and woken anchorages; the numbers are constants for playtests. |
+| The tide spoils the Hearth for pilots who don't want the story | It begins only with Act III, which needs the pilot's own acts (two bearings found). |
+| A lost fight with the rival feels like losing the story | A lost bearing waits at the rival's flagship until taken back; nothing is lost for good. |
 
 ## Open questions for the owner
 
