@@ -57,11 +57,14 @@ async function frame(pg, test) {
 		await f.click('#port [data-screen="colonies"]'); await sleep(200);
 		await f.click('#port [data-col="' + (await f.evaluate(() => window.__target.id)) + '"]'); await sleep(200);
 		const pl = await f.evaluate(() => { const h = document.getElementById('port'), t = h.textContent, b = h.querySelector('[data-act="claim"][data-k="soutpost"]'), sel = h.querySelector('select[data-pick="gw"]');
-			return {ground: /On the ground/.test(t), world: b && b.dataset.w, worlds: sel ? [...sel.options].map(o => o.value) : [], enabled: b && !b.disabled, settle: !!h.querySelector('[data-act="claim"][data-k="ssettle"]'), indep: !!h.querySelector('[data-act="claimi"][data-k="soutpost"]')} });
+			return {ground: /On the ground/.test(t), world: b && b.dataset.w, worlds: sel ? [...sel.options].map(o => o.value) : [], enabled: b && !b.disabled, settle: !!h.querySelector('[data-act="claim"][data-k="ssettle"]'), indep: !!h.querySelector('[data-act="claimi"][data-k="soutpost"]'),
+				plan: [...h.querySelectorAll('svg.site-plan')].map(x => ({kind: x.dataset.kind, pads: [...x.querySelectorAll('.pad')].map(p => p.dataset.size).join('')}))} });
+		await f.evaluate(() => { const x = document.querySelector('#port svg.site-plan'); x && x.scrollIntoView() }); await sleep(100);
 		await pg.screenshot({path: path.join(W, 'planner-ground.png')});
 		ok('2. the planner offers the ground: a world to pick (airless, with room) and a surface outpost or settlement to claim on it, sponsored or independent', pl.ground && pl.enabled && pl.worlds.length == at.worlds.length && pl.worlds.includes(pl.world) && pl.settle && pl.indep, pl);
 		await f.click('#port [data-act="claim"][data-k="soutpost"]'); await sleep(200);
 		const cl = await f.evaluate(() => { const c = EmberDebug.game.P.colonies.find(x => x.id == window.__target.id); return c && {port: c.port, world: c.world, stage: c.stage, site: c.site, need: Object.values(c.need).reduce((a, b) => a + b, 0)} });
+		ok('2b. (step 2) the planner draws the site\'s layout on that world before it\'s claimed: the outpost\'s 3 S pads and its buildings (and a settlement\'s 4 S and an M, if the world has room)', pl.plan.length >= 1 && pl.plan[0].kind == 'outpost' && pl.plan[0].pads == 'SSS' && pl.plan.every(x => x.kind == 'outpost' || x.pads.split('').sort().join('') == 'MSSSS'), pl.plan);
 		ok('3. the claim is filed: a surface outpost on that world, at a site on it, 1,500 t to bring (more over 1.5 g)', cl && cl.port == 'soutpost' && cl.world == pl.world && cl.stage == 'claimed' && cl.site && typeof cl.site.lat == 'number' && cl.need >= 1500, cl);
 		/* launch and jump there; the beacon near the world */
 		await f.evaluate(() => { const b = document.querySelector('#port [data-screen="launch"]'); b && b.click() }); await sleep(150);
@@ -118,8 +121,10 @@ async function frame(pg, test) {
 		/* the colonial office there: the colony, planning its growth into a settlement */
 		await f.click('[data-screen="contacts"]'); await sleep(150); await f.click('#port [data-screen="colonies"]'); await sleep(200);
 		await f.selectOption('#port select[data-pick="fac"][data-c="' + (await f.evaluate(() => window.__target.id)) + '"]', 'usettle'); await sleep(200);
-		const gr = await f.evaluate(() => { const h = document.getElementById('port'), t = h.textContent, b = h.querySelector('[data-act="startbuild"]'); return {built: /Built/.test(t), grow: /the port, where it stands/.test(t), ok: b && !b.disabled, line: (h.querySelector('[data-act="startbuild"]').closest('section').querySelector('p.small:last-of-type') || {}).textContent} });
-		ok('10. its colonial office offers to grow it into a settlement, where it stands (a tier 2 point, 3,000 t)', gr.built && gr.grow && gr.ok, gr);
+		const gr = await f.evaluate(() => { const h = document.getElementById('port'), t = h.textContent, b = h.querySelector('[data-act="startbuild"]'); return {plans: [...h.querySelectorAll('.pt-cols svg.site-plan')].map(x => x.dataset.kind + ':' + x.querySelectorAll('.pad').length).join(' '), built: /Built/.test(t), grow: /the port, where it stands/.test(t), ok: b && !b.disabled, line: (h.querySelector('[data-act="startbuild"]').closest('section').querySelector('p.small:last-of-type') || {}).textContent} });
+		await f.evaluate(() => { const x = document.querySelector('#port svg.site-plan'); x && x.scrollIntoView() }); await sleep(100);
+		await pg.screenshot({path: path.join(W, 'office-site.png')});
+		ok('10. its colonial office offers to grow it into a settlement, where it stands (a tier 2 point, 3,000 t), drawing the site as it is and as it would be', gr.built && gr.grow && gr.ok && gr.plans == 'outpost:3 settlement:5', gr);
 		/* the save: reloaded, docked at the outpost on its world */
 		await f.evaluate(() => { window.__saved = false; EmberDebug.game.saving = false; });
 		await sleep(1500);
