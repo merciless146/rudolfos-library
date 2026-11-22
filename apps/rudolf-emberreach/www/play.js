@@ -99,13 +99,18 @@ game.captions = []; game.fps = null;
 const CAPTION = {warning: 'Warning', critical: 'Critical alarm', clearance: 'Clearance granted', refused: 'Refused', docked: 'Docked', launch: 'Launched', collide: 'Collision', charge: 'Drive charging', cruise: 'Cruise', drop: 'Dropped out of cruise',
 	emergency: 'Emergency drop', faOn: 'Flight assist on', faOff: 'Flight assist off', blackout: 'Blackout', wake: 'Waking', jump: 'Jump', arrive: 'Arrived', destroyed: 'Ship destroyed', pulse: 'Weapons fire', driver: 'Weapons fire', heavy: 'Weapons fire',
 	missile: 'Missile launched', flare: 'Flare', shieldHit: 'Shield hit', hullHit: 'Hull hit', boom: 'Explosion', lock: 'Missile lock', chart: 'System charted', hatch: 'Cargo hatch', scoop: 'Canister scooped', incoming: 'Missile incoming'};
+/* (0.5.3) low-power mode (Settings › Graphics: Auto, on a phone; On; Off): the 3D view at the screen's CSS pixels (not
+   its device pixels) times 0.8, every other frame drawn, the low-detail models, asteroids drawn within 15 km (not 40),
+   and the terrain's detail split sooner and on half the budget */
+const LOWPOWER = {res: 0.8, rocks: 15000, rocksFar: 40000, terBudget: 0.5, split: 1.6};
+const lowPower = () => { const p = game.settings ? game.settings.graphics.power : 'off'; return p == 'on' || (p == 'auto' && !!game.phone) };
 /* apply what changed (or everything) */
 function applySettings(what) {
 	const S = game.settings, all = !what;
 	if (all || what == 'lang') I18.setLang(I18.resolve(S.lang, RG.lang, navigator.language));
 	if (all || what == 'controls') RG.bind(St.bindings(KEYS, S));
 	if (all || what == 'audio') { Snd.setOn(S.audio.on); Snd.setVolumes && Snd.setVolumes(S.audio) }
-	if (all || what == 'graphics') { if (S.graphics.quality != quality) { quality = S.graphics.quality; if (R && scene) meshes() } if (game.lastView) RG.emit ? RG.emit('resize', game.lastView) : view && view.refit() }
+	if (all || what == 'graphics') { const q = lowPower() ? 'low' : S.graphics.quality; if (q != quality) { quality = q; if (R && scene) meshes() } if (game.lastView) RG.emit ? RG.emit('resize', game.lastView) : view && view.refit() }
 	if (all || what == 'hud' || what == 'a11y') { H.setOptions && H.setOptions({size: S.hud.size / 100, messages: S.hud.messages, msgTime: S.hud.msgTime, palette: S.a11y.palette, contrast: S.a11y.contrast}); hud.style.opacity = S.hud.opacity / 100 }
 	Snd.onCue = S.a11y.captions ? k => { if (CAPTION[k]) { const t = tr(CAPTION[k]), last = game.captions[game.captions.length - 1]; if (last && last.text == t && game.t - last.t < 1) last.t = game.t; else game.captions.push({text: t, t: game.t}); if (game.captions.length > 4) game.captions.shift() } } : null;
 }
@@ -126,6 +131,8 @@ async function start() {
 	const fresh = ['power', 'port', 'ship', 'day'].some(k => Q.has(k));
 	/* the settings: the save's (a first game follows Rudolf OS's language, or the browser's) */
 	game.settings = St.sanitise(sv && sv.settings, Object.keys(KEYS), I18.LANGS.map(l => l[0]));
+	/* (0.5.3) a phone: a touch screen as the main pointer, its short side under 600 px (low-power mode's Auto) */
+	try { game.phone = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600 } catch (e) { game.phone = false }
 	if (Q.get('quality')) game.settings.graphics.quality = Q.get('quality') == 'low' ? 'low' : 'high';
 	applySettings();
 	/* Rudolf OS's language changed, or stopped being shared: follow it if that's the choice */
@@ -1336,7 +1343,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () => duelBegin(), seesSites: () => seesSites(), navList: () => navList(), scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get st() { return st }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () => duelBegin(), seesSites: () => seesSites(), navList: () => navList(), scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get st() { return st }, lowPower: () => lowPower(), applySettings: w => applySettings(w), get quality() { return quality }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -1749,10 +1756,10 @@ function terrainItems(b, items, bf, sun) {
 	if (R.kind != 'webgl' || b.kind != 'planet' || b.atmo || (b.src && b.src.gas)) return false;
 	const camD = sub(game.camP || s.p, b.pos), alt = len(camD) - b.radius;
 	if (alt > Te.prebuildOf(b)) return false;
-	const low = quality == 'low', res = low ? Te.TER.lowRes : Te.TER.res, budget = (low ? Te.TER.lowBudget : Te.TER.budget) * (game.dynTer || 1);
+	const low = quality == 'low', res = low ? Te.TER.lowRes : Te.TER.res, budget = (low ? Te.TER.lowBudget : Te.TER.budget) * (game.dynTer || 1) * (lowPower() ? LOWPOWER.terBudget : 1);
 	if (TILES.world != b.name || TILES.res != res) { for (const k of TILES.built.keys()) R.drop(k); TILES.built.clear(); TILES.used.clear(); TILES.world = b.name; TILES.res = res }
 	const id = t => 'ter:' + res + ':' + Te.key(t), camL = [dot(camD, bf.x), dot(camD, bf.y), dot(camD, bf.z)];
-	const sel = Te.select(b, camL, {res, budget, built: k => TILES.built.has('ter:' + res + ':' + k)});
+	const sel = Te.select(b, camL, {res, budget, split: lowPower() ? LOWPOWER.split : undefined, built: k => TILES.built.has('ter:' + res + ':' + k)});
 	/* build: what's drawn first (the six faces to start with), then the children wanted, nearest first, in about 2 ms */
 	const need = sel.draw.filter(t => !TILES.built.has(id(t))).concat(sel.want), t0 = performance.now();
 	for (const t of need) {
@@ -1786,7 +1793,7 @@ function surfacePortAt(sp) {
 /* the 3D view's resolution: the screen's, times the Resolution setting, times the automatic resolution's scale */
 function sizeCanvas() {
 	const v = game.lastView; if (!v) return;
-	const gl = $('gl'), d = v.dpr * game.settings.graphics.res / 100 * (game.dynRes || 1);
+	const gl = $('gl'), d = (lowPower() ? Math.min(v.dpr, 1) * LOWPOWER.res : v.dpr) * game.settings.graphics.res / 100 * (game.dynRes || 1);
 	gl.width = Math.max(64, Math.round(v.cw * d)); gl.height = Math.max(48, Math.round(v.ch * d));
 }
 /* automatic resolution: every 2 s, under 28 fps the scale steps down (to half the screen's resolution at most), and
@@ -1811,6 +1818,9 @@ function draw() {
 	/* docked, the port's screens cover the view: nothing to draw behind them */
 	if (game.docked && Port.isOpen()) return;
 	adaptRes();
+	/* (0.5.3) low-power mode draws every other frame (the game itself still steps 60 times a second; the automatic
+	   resolution, above, counts the browser's frames) */
+	if (lowPower() && (game.skipFrame = !game.skipFrame)) return;
 	/* the cockpit, or (0.4.3) third person: a little above and behind the ship, looking where it looks */
 	const B = R.basis(s.q), cam = game.chase ? {p: add(add(s.p, mul(B.f, -ship.length * VIEW.back)), mul(B.u, ship.length * VIEW.up)), q: s.q} : {p: add(s.p, mul(B.f, ship.length * 0.3)), q: s.q};
 	cam.q = Tc.lookQ(s.q, game.touch);   /* (0.5.3: looking round, by a drag on a touch screen) */
@@ -1878,7 +1888,8 @@ function draw() {
 		items.push({id: 'npc:' + n.ship.length, pos: n.s.p, rot: mat3(nb.r, nb.u, nb.f), light: norm(sub(sun.pos, n.s.p)), amb: 0.15});
 	}
 	if (game.site && game.site.kind == 'site' && game.site.colony.stage == 'building') items.push({id: 'constructor', pos: game.site.pos, rot: mat3([1, 0, 0], [0, 1, 0], [0, 0, 1]), light: norm(sub(sun.pos, game.site.pos)), amb: 0.2});
-	for (const r of game.rocks) { if (len(sub(r.pos, cam.p)) > 40000) continue; const a = r.radius * 0.001 + game.t * 0.02, co = Math.cos(a), si = Math.sin(a); items.push({id: r.mesh, pos: r.pos, rot: mat3([co, si, 0], [-si, co, 0], [0, 0, 1]), light: norm(sub(sun.pos, r.pos)), amb: 0.12}) }
+	const rockFar = lowPower() ? LOWPOWER.rocks : LOWPOWER.rocksFar;
+	for (const r of game.rocks) { if (len(sub(r.pos, cam.p)) > rockFar) continue; const a = r.radius * 0.001 + game.t * 0.02, co = Math.cos(a), si = Math.sin(a); items.push({id: r.mesh, pos: r.pos, rot: mat3([co, si, 0], [-si, co, 0], [0, 0, 1]), light: norm(sub(sun.pos, r.pos)), amb: 0.12}) }
 	for (const c of game.cans) {
 		if (len(sub(c.p, cam.p)) > 20000) continue;
 		const ax = norm(c.spin), a = c.angle, co = Math.cos(a), si = Math.sin(a), rotAx = v => add(add(mul(v, co), mul(cross(ax, v), si)), mul(ax, dot(ax, v) * (1 - co)));

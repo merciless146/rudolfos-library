@@ -123,7 +123,7 @@ const maxLevel = b => Math.max(0, Math.ceil(Math.log2(b.radius * Math.PI / 2 / T
    wholly beyond the horizon are left out. Returns {draw: [tiles], want: [tiles to build, nearest first]} */
 function select(b, cam, opts) {
 	opts = opts || {};
-	const res = opts.res || TER.res, per = 2 * res * res + 8 * res, budget = opts.budget || TER.budget, built = opts.built || (() => true), top = maxLevel(b);
+	const res = opts.res || TER.res, split = opts.split || TER.split, per = 2 * res * res + 8 * res, budget = opts.budget || TER.budget, built = opts.built || (() => true), top = maxLevel(b);
 	const r = Math.hypot(...cam), up = cam.map(v => v / (r || 1)), Rl = b.radius - bound(b), hor = Math.acos(Math.max(-1, Math.min(1, Rl / Math.max(r, Rl + 1))));
 	const dist = t => { const I = t.I || (t.I = tileInfo(b, t)), p = I.c.map(v => v * b.radius); return Math.max(0, Math.hypot(p[0] - cam[0], p[1] - cam[1], p[2] - cam[2]) - I.size * 0.7) };
 	const seen = t => { const I = t.I || (t.I = tileInfo(b, t)); return Math.acos(Math.max(-1, Math.min(1, dot(I.c, up)))) - I.spread <= hor + 0.02 };
@@ -131,7 +131,7 @@ function select(b, cam, opts) {
 	const want = [];
 	for (let guard = 0; guard < 4000; guard++) {
 		let best = null, bd = Infinity;
-		for (const t of draw) { if (t.done || t.L >= top) continue; const d = dist(t); if (d < TER.split * t.I.size && d < bd) { bd = d; best = t } }
+		for (const t of draw) { if (t.done || t.L >= top) continue; const d = dist(t); if (d < split * t.I.size && d < bd) { bd = d; best = t } }
 		if (!best) break;
 		const kids = children(best).filter(seen);
 		/* (the budget first: children that could never be drawn aren't asked for) */

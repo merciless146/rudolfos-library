@@ -1,6 +1,6 @@
 /* ===== Ember Reach: settings =====
    Three pages, opened from the pause screen:
-   - Graphics, audio and HUD: quality, resolution, field of view, glow, the frame rate; master, engines and ambience,
+   - Graphics, audio and HUD: quality, (0.5.3) low-power mode, resolution, field of view, glow, the frame rate; master, engines and ambience,
      effects, alerts; the HUD's size and opacity, how many messages and for how long, the scanner and markers.
    - Controls: every action's two keys and gamepad button, rebound by pressing what you want (a key taken from
      another action is moved, and the menu says from which); mouse sensitivity and pitch, gamepad pitch and dead
@@ -17,7 +17,7 @@ const I = root.EmberI18n || (typeof module != 'undefined' ? require('./i18n.js')
 const Tc = root.EmberTouch || (typeof module != 'undefined' ? require('./touch.js') : null);
 
 const DEFAULTS = () => ({
-	graphics: {quality: 'high', res: 100, fov: 70, glow: true, fps: false, aa: 'auto', autoRes: true},
+	graphics: {quality: 'high', res: 100, fov: 70, glow: true, fps: false, aa: 'auto', autoRes: true, power: 'auto'},
 	audio: {on: true, master: 80, engines: 80, effects: 80, alerts: 100},
 	hud: {size: 100, opacity: 100, messages: 3, msgTime: 8, scanner: true, prograde: true, lead: true},
 	/* the control scheme (Simple: the core keys, the rest in the radial menu, and the assists on; Full: every key) and
@@ -77,7 +77,7 @@ function sanitise(x, actions, langs) {
 	/* (before 0.3.4 the left mouse button always fired: a Fire the player rebound gets it, unless something else has it) */
 	if (c.mice !== 1 && keys.fire && !Object.values(keys).some(v => v.includes('mouse:0'))) keys.fire = [...keys.fire.filter(z => !z.startsWith('pad:')).slice(0, 1), 'mouse:0', ...keys.fire.filter(z => z.startsWith('pad:'))];
 	return {
-		graphics: {quality: one(g.quality || x.quality, ['high', 'low'], 'high'), res: num(g.res, 50, 100, 100), fov: num(g.fov, 50, 100, 70), glow: bool(g.glow, true), fps: bool(g.fps, false), aa: one(g.aa, ['auto', 'on', 'off'], 'auto'), autoRes: bool(g.autoRes, true)},
+		graphics: {quality: one(g.quality || x.quality, ['high', 'low'], 'high'), res: num(g.res, 50, 100, 100), fov: num(g.fov, 50, 100, 70), glow: bool(g.glow, true), fps: bool(g.fps, false), aa: one(g.aa, ['auto', 'on', 'off'], 'auto'), autoRes: bool(g.autoRes, true), power: one(g.power, ['auto', 'on', 'off'], 'auto')},
 		audio: {on: bool(a.on, x.sound === undefined ? true : x.sound !== false), master: num(a.master, 0, 100, 80), engines: num(a.engines, 0, 100, 80), effects: num(a.effects, 0, 100, 80), alerts: num(a.alerts, 0, 100, 100)},
 		hud: {size: num(h.size, 75, 150, 100), opacity: num(h.opacity, 30, 100, 100), messages: num(h.messages, 0, 8, 3), msgTime: num(h.msgTime, 3, 20, 8), scanner: bool(h.scanner, true), prograde: bool(h.prograde, true), lead: bool(h.lead, true)},
 		controls: (() => {
@@ -118,6 +118,7 @@ function open(el, S, env) {
 		const g = S.graphics, a = S.audio, h = S.hud;
 		return head('Graphics') + row('Quality', pick('graphics.quality', g.quality, [['high', T('High')], ['low', T('Low')]])) + row('Resolution', range('graphics.res', g.res, 50, 100, 5, '%')) + row('Field of view', range('graphics.fov', g.fov, 50, 100, 1, '°'))
 			+ row('Automatic resolution', onOff('graphics.autoRes', g.autoRes)) + row('Antialiasing', pick('graphics.aa', g.aa, [['auto', T('Auto')], ['on', T('On')], ['off', T('Off')]])) + '<p class="st-note">' + esc(T('Automatic resolution lowers the resolution while the frame rate is under 30, and raises it again when there is room. Antialiasing changes take effect when the game next starts.')) + '</p>'
+			+ row('Low-power mode', pick('graphics.power', g.power, [['auto', T('Auto')], ['on', T('On')], ['off', T('Off')]])) + '<p class="st-note">' + esc(T('Low-power mode draws fewer pixels and frames, low-detail models, nearer asteroids and less distant terrain detail. Auto turns it on for phones.')) + '</p>'
 			+ row('Glow effects', onOff('graphics.glow', g.glow)) + row('Show frame rate', onOff('graphics.fps', g.fps))
 			+ head('Audio') + row('Sound', onOff('audio.on', a.on)) + row('Master volume', range('audio.master', a.master, 0, 100, 5, '%')) + row('Engines and ambience', range('audio.engines', a.engines, 0, 100, 5, '%'))
 			+ row('Effects', range('audio.effects', a.effects, 0, 100, 5, '%')) + row('Alerts and warnings', range('audio.alerts', a.alerts, 0, 100, 5, '%'))
