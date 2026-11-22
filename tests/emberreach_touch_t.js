@@ -7,6 +7,7 @@
 const {chromium} = require('playwright');
 const {spawn} = require('child_process');
 const fs = require('fs'), path = require('path'), os = require('os');
+const VER = /^version = (.*)$/m.exec(fs.readFileSync(path.join(__dirname, '../apps/rudolf-emberreach/PKGINFO'), 'utf8'))[1].trim();   /* the game's own version */
 const PORT = +(process.argv[2] || 8810), TOP = path.join(__dirname, '..');
 const Tc = require(path.join(TOP, 'apps/rudolf-emberreach/www/touch.js'));
 const W = fs.mkdtempSync(path.join(os.tmpdir(), 'er-touch-'));
@@ -64,7 +65,7 @@ const centre = b => b.round ? {x: b.x + b.r, y: b.y + b.r} : {x: b.x + b.w / 2, 
 		const U = await f.evaluate(() => EmberDebug.touchLayout()), btn = a => centre(U.buttons.find(b => b.act == a));
 		const st0 = await f.evaluate(() => ({shown: EmberDebug.game.hudData.touch, ver: EmberDebug.BUILD.version, p: EmberDebug.s.p.slice(), q: EmberDebug.s.q.slice()}));
 		await pg.screenshot({path: path.join(W, 'touch-portrait.png')});
-		ok('6. on a phone the touch controls are up from the start (a coarse pointer, nothing else used yet); the build is 0.5.3', st0.shown === true && st0.ver == '0.5.3', st0);
+		ok('6. on a phone the touch controls are up from the start (a coarse pointer, nothing else used yet); the build is the package\'s version', st0.shown === true && st0.ver == VER, st0);
 		/* the throttle: dragged up to about half */
 		const thrX = U.thr.x + U.thr.w / 2;
 		await touches('touchStart', [[thrX, U.thr.y + U.thr.h - 4, 1]]); for (let k = 1; k <= 6; k++) { await touches('touchMove', [[thrX, U.thr.y + U.thr.h - 4 - k * (U.thr.h / 2 - 4) / 6, 1]]); await sleep(30) } await touches('touchEnd', []);

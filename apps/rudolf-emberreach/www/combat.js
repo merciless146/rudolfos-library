@@ -30,30 +30,34 @@ const len = a => Math.sqrt(dot(a, a)), norm = a => mul(a, 1 / (len(a) || 1));
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 
 /* the weapons, by hardpoint size. dmg per hit; rate per second; speed m/s; range m; heat per shot (of the ship's
-   capacity); vs shields and hull multipliers; ammo (null: lasers need none) */
+   capacity); vs shields and hull multipliers; ammo (null: lasers need none). (0.5.4) type: energy (lasers: they heat
+   the ship), ballistic (gatlings, torpedoes, missiles: no heat at all) or hybrid (the mass driver, the disruptor:
+   energy-driven rounds, which still heat the ship) */
 /* tuned so a fighter duel lasts about a minute: a Thylacine's two lasers strip a Thylacine's shields in ~6 s of hits and
    its hull in ~12 s more; a missile takes a third of a fighter's hull */
 const WEAPONS = {
-	pulse: {name: 'Pulse laser', size: 0, dmg: 1.2, rate: 6, hitscan: true, range: 2500, heat: 0.022, vsShield: 1.2, vsHull: 0.7, ammo: null, col: [1, 0.45, 0.25], beam: 0.07},
+	pulse: {name: 'Pulse laser', type: 'energy', size: 0, dmg: 1.2, rate: 6, hitscan: true, range: 2500, heat: 0.022, vsShield: 1.2, vsHull: 0.7, ammo: null, col: [1, 0.45, 0.25], beam: 0.07},
 	/* the mass driver: dmg at full charge (charge s); a shot let go
 	   early hits for its share of the charge (at least minCharge); held past full, holdHeat a second; recover s between */
-	driver: {name: 'Mass driver', size: 1, dmg: 9, rate: 4, charge: 0.6, minCharge: 0.15, holdHeat: 0.3, speed: 6000, range: 4000, heat: 0.02, vsShield: 1, vsHull: 1, ammo: 150, perTon: 150, col: [0.55, 0.85, 1]},
-	heavy: {name: 'Heavy laser', size: 2, dmg: 9, rate: 1.5, hitscan: true, range: 4000, heat: 0.08, vsShield: 1.2, vsHull: 0.8, ammo: null, col: [0.5, 0.8, 1], beam: 0.12},
+	driver: {name: 'Mass driver', type: 'hybrid', size: 1, dmg: 9, rate: 4, charge: 0.6, minCharge: 0.15, holdHeat: 0.3, speed: 6000, range: 4000, heat: 0.02, vsShield: 1, vsHull: 1, ammo: 150, perTon: 150, col: [0.55, 0.85, 1]},
+	heavy: {name: 'Heavy laser', type: 'energy', size: 2, dmg: 9, rate: 1.5, hitscan: true, range: 4000, heat: 0.08, vsShield: 1.2, vsHull: 0.8, ammo: null, col: [0.5, 0.8, 1], beam: 0.12},
 	/* gatlings: a stream of rounds, better against hulls */
-	gatling: {name: 'Light gatling', size: 0, dmg: 0.5, rate: 14, speed: 2200, range: 2200, heat: 0.004, vsShield: 0.6, vsHull: 1.4, ammo: 1500, perTon: 1500, col: [1, 0.8, 0.45]},
-	gatlingM: {name: 'Gatling', size: 1, dmg: 0.9, rate: 12, speed: 2200, range: 2600, heat: 0.005, vsShield: 0.6, vsHull: 1.4, ammo: 2000, perTon: 1000, col: [1, 0.8, 0.45]},
-	gatlingL: {name: 'Heavy gatling', size: 2, dmg: 1.6, rate: 10, speed: 2400, range: 3000, heat: 0.007, vsShield: 0.6, vsHull: 1.4, ammo: 2500, perTon: 800, col: [1, 0.8, 0.45]},
-	torpedo: {name: 'Torpedo rack', size: 3, dmg: 150, rate: 0.2, speed: 400, range: 9000, heat: 0, vsShield: 0.8, vsHull: 1.6, ammo: 8, perTon: 1, homing: 1.2, col: [1, 1, 0.9]},
-	mining: {name: 'Mining laser', size: 0, dmg: 0.4, rate: 4, hitscan: true, beam: 0.05, range: 600, heat: 0.008, vsShield: 0.5, vsHull: 0.5, ammo: null, col: [0.45, 1, 0.55]},
+	gatling: {name: 'Light gatling', type: 'ballistic', size: 0, dmg: 0.5, rate: 14, speed: 2200, range: 2200, heat: 0, vsShield: 0.6, vsHull: 1.4, ammo: 1500, perTon: 1500, col: [1, 0.8, 0.45]},
+	gatlingM: {name: 'Gatling', type: 'ballistic', size: 1, dmg: 0.9, rate: 12, speed: 2200, range: 2600, heat: 0, vsShield: 0.6, vsHull: 1.4, ammo: 2000, perTon: 1000, col: [1, 0.8, 0.45]},
+	gatlingL: {name: 'Heavy gatling', type: 'ballistic', size: 2, dmg: 1.6, rate: 10, speed: 2400, range: 3000, heat: 0, vsShield: 0.6, vsHull: 1.4, ammo: 2500, perTon: 800, col: [1, 0.8, 0.45]},
+	torpedo: {name: 'Torpedo rack', type: 'ballistic', size: 3, dmg: 150, rate: 0.2, speed: 400, range: 9000, heat: 0, vsShield: 0.8, vsHull: 1.6, ammo: 8, perTon: 1, homing: 1.2, col: [1, 1, 0.9]},
+	mining: {name: 'Mining laser', type: 'energy', size: 0, dmg: 0.4, rate: 4, hitscan: true, beam: 0.05, range: 600, heat: 0.008, vsShield: 0.5, vsHull: 0.5, ammo: null, col: [0.45, 1, 0.55]},
 	/* Precursor work (outfit.js): hits like the next size up, and runs cool */
-	needle: {name: 'Precursor needle', size: 0, dmg: 3, rate: 6, hitscan: true, beam: 0.05, range: 3000, heat: 0.012, vsShield: 1.2, vsHull: 1.1, ammo: null, col: [0.75, 0.55, 1]},
-	lance: {name: 'Precursor lance', size: 2, dmg: 26, rate: 1.5, hitscan: true, beam: 0.12, range: 5000, heat: 0.05, vsShield: 1.2, vsHull: 1.2, ammo: null, col: [0.85, 0.6, 1]},
+	needle: {name: 'Precursor needle', type: 'energy', size: 0, dmg: 3, rate: 6, hitscan: true, beam: 0.05, range: 3000, heat: 0.012, vsShield: 1.2, vsHull: 1.1, ammo: null, col: [0.75, 0.55, 1]},
+	lance: {name: 'Precursor lance', type: 'energy', size: 2, dmg: 26, rate: 1.5, hitscan: true, beam: 0.12, range: 5000, heat: 0.05, vsShield: 1.2, vsHull: 1.2, ammo: null, col: [0.85, 0.6, 1]},
 	/* the Interstellar Marshals' (encounters.js): each hit also cuts into the shield generator itself, shields up or
 	   not, a twenty-fifth of it, so a wing's disruptors put shields out in seconds */
-	disruptor: {name: 'Marshal disruptor', size: 1, dmg: 5, rate: 2, speed: 3500, range: 3500, heat: 0.01, vsShield: 1, vsHull: 1, ammo: null, col: [0.4, 0.9, 1], module: 'shields', moduleShare: 0.04},
+	disruptor: {name: 'Marshal disruptor', type: 'hybrid', size: 1, dmg: 5, rate: 2, speed: 3500, range: 3500, heat: 0.01, vsShield: 1, vsHull: 1, ammo: null, col: [0.4, 0.9, 1], module: 'shields', moduleShare: 0.04},
 	/* (0.5.0) not a weapon: a collision's damage (duel.js bump), even against shields and hulls */
-	ram: {name: 'Collision', size: -9, dmg: 0, rate: 0, speed: 0, range: 0, heat: 0, vsShield: 1, vsHull: 1, ammo: null, col: [1, 0.8, 0.6]},
-	missile: {name: 'Missile', size: -1, dmg: 30, rate: 1, speed: 600, range: 7000, heat: 0, vsShield: 1, vsHull: 1.5, ammo: 4, homing: 2.2, col: [1, 1, 1]}};
+	ram: {name: 'Collision', type: 'ballistic', size: -9, dmg: 0, rate: 0, speed: 0, range: 0, heat: 0, vsShield: 1, vsHull: 1, ammo: null, col: [1, 0.8, 0.6]},
+	missile: {name: 'Missile', type: 'ballistic', size: -1, dmg: 30, rate: 1, speed: 600, range: 7000, heat: 0, vsShield: 1, vsHull: 1.5, ammo: 4, homing: 2.2, col: [1, 1, 1]}};
+/* (0.5.4) a shot's heat: none from a ballistic weapon, whatever a variant (or an old save's numbers) say */
+const shotHeat = W => W.type == 'ballistic' ? 0 : W.heat;
 const BY_SIZE = ['pulse', 'driver', 'heavy', 'torpedo'];
 /* gimballed mounts: their module ids (outfit.js), the gun each carries */
 const GIMBALLED = {pulseG: 'pulse', heavyG: 'heavy', needleG: 'needle', gatlingG: 'gatling', gatlingMG: 'gatlingM', gatlingLG: 'gatlingL'};
@@ -178,7 +182,7 @@ function fire(cs, s, t, target, out, only) {
 		const W = WEAPONS[g.kind];
 		if (g.cool > 0 || W.homing || W.charge || (g.ammo != null && g.ammo <= 0)) continue;
 		shoot(cs, s, g, W, aimOf(cs, s, g, target).dir, out);
-		g.cool = 1 / W.rate; cs.heat += W.heat; n++;
+		g.cool = 1 / W.rate; cs.heat += shotHeat(W); n++;
 	}
 	return n;
 }
@@ -195,7 +199,7 @@ function railStep(cs, s, t, target, out, holding, dt) {
 		const k = Math.min(1, g.charge / W.charge); g.charge = 0;
 		if (k < W.minCharge) continue;
 		shoot(cs, s, g, W, aimOf(cs, s, g, target).dir, out, k);
-		g.cool = 1 / W.rate; cs.heat += W.heat; n++;
+		g.cool = 1 / W.rate; cs.heat += shotHeat(W); n++;
 	}
 	return n;
 }
@@ -351,6 +355,6 @@ function missing(ship, k) {
 }
 function refill(ship, k) { const full = loadout(ship); return {hull: k && typeof k.hull == 'number' ? k.hull : 1, ammo: full.guns.map(g => g.ammo), missiles: full.missiles, flares: full.flares} }
 
-const EmberCombat = {mounts, muzzle, CONVERGE, groupOf, GIMBALLED, gunOf, gimbalFor, track, aimOf, railStep, railReady, heatK, GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
+const EmberCombat = {shotHeat, mounts, muzzle, CONVERGE, groupOf, GIMBALLED, gunOf, gimbalFor, track, aimOf, railStep, railReady, heatK, GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
 if (isNode) module.exports = EmberCombat; else root.EmberCombat = EmberCombat;
 })(typeof window != 'undefined' ? window : this);
