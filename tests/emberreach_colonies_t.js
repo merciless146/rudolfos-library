@@ -141,6 +141,51 @@ try {
 		const back4 = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(pl))));
 		ok('45. the save keeps the deposits found and the mine on its deposit', back4.deposits[dep.id].res == dep.res && back4.deposits[dep.id].dir.length == 3 && back4.colonies.find(x => x.id == c.id).builds.some(b => b.dep && b.dep.id == dep.id));
 	}
+	/* 0.5.1 (L3.5): colonies on the ground: a surface outpost or settlement on an airless world, built, in flight as a
+	   surface port, grown into a settlement */
+	{
+		const Su = require(path.join(DIR, 'surface.js')), L = require(path.join(DIR, 'landing.js'));
+		const pg = Tr.newPlayer(home.id); pg.wallet[cur] = 1e9; pg.rep[home.id] = 400;
+		const all = Co.candidates(pg, office, day, JUMP, 12), gs = all.find(x => Co.groundWorlds(x, 'soutpost').length), gw = gs && Co.groundWorlds(gs, 'soutpost');
+		const everyW = all.flatMap(x => Co.groundWorlds(x, 'soutpost')), gas = gs && Co.worldsOf(gs).find(p => !L.landable(p).ok);
+		ok('46. the ground a surface port can take: airless, landable, under 500 K, with room for its site; moons too; a world with air or no ground refused, saying why',
+			gs && everyW.length && everyW.every(p => L.landable(p).ok && p.Ts <= 500 && Su.fits('outpost', p)) && (!gas || /^.+: /.test(Co.canClaim(pg, office, gs, 'soutpost', day, JUMP, false, false, gas.name).why)) && !Co.canClaim(pg, office, gs, 'soutpost', day, JUMP, false, false, 'Nowhere').ok,
+			gs ? gw.map(p => p.name).join(', ') : 'no system with landable ground');
+		const w0 = pg.wallet[cur], gc = Co.claim(pg, office, gs, 'soutpost', day, JUMP, false, gw[0].name).colony, gp = Co.worldOf(gs, gw[0].name);
+		const heavy = gp.g > 1.5 ? 1.25 : 1, site2 = Co.groundSite(gs, gw[0].name);
+		ok('47. a surface outpost is claimed like an outpost: its fee in the sponsor\'s coin, its 1,500 t (25% more over 1.5 g), on the chosen world, at a site that is the same every time',
+			gc && gc.port == 'soutpost' && gc.world == gw[0].name && Math.abs(w0 - pg.wallet[cur] - Co.PORTS.soutpost.fee * E.rate(cur, day)) < 1 && Math.abs(sum(gc.need) - 1500 * heavy) <= 8 && JSON.stringify(gc.site) == JSON.stringify(site2) && Math.abs(gc.site.lat) <= 60, gc && gc.site);
+		const before = Co.groundPorts(pg, gs, day + 5);
+		Co.beacon(pg, gc, day + 1); for (const [g, t] of Object.entries(Co.left(gc))) pg.cargo[g] = t; Co.deliver(pg, gc, day + 2);
+		const qs = Co.groundPorts(pg, gs, gc.opens), q = qs[0], lay = q && Su.layout(q.kind, q.seed);
+		ok('48. built, it opens the next day as a surface port on its world (not in orbit): an outpost\'s three S pads in a layout that keeps the rules, held by the sponsor, the colony\'s',
+			!before.length && gc.stage == 'done' && !Co.groundPorts(pg, gs, gc.opens - 1).length && !Co.portOf(pg, gs, gc.opens) && qs.length == 1 && q.id == 'surface:' + gc.world + ':colony' && T.PORT_ID.test(q.id) && q.kind == 'outpost' && q.surface && q.colony && q.owner == home.id && q.world == gc.world
+			&& lay.pads.length == 3 && lay.pads.every(p => p.size == 'S') && !Su.check(lay).length && gc.points.t2 == 1 && Co.used(gc, gc.world, 'surface') == 1 && Co.used(gc, gc.world, 'orbit') == 0, q);
+		const mk = E.market(gs, gc.opens, {port: q, holder: q.owner, econ: Co.economy(gc, gs), people: 100, P: pg});
+		ok('49. its market trades in the sponsor\'s coin, kept under the port\'s own id', mk.currency == cur && mk.key == gs.id + ':' + q.id && mk.port == q.id, {cur: mk.currency, key: mk.key});
+		const noPt = Object.assign({}, gc, {points: {t2: 0, t3: 0}, builds: []}), up = Co.startBuild(gc, gs, 'usettle', gc.world, 'surface', gc.opens + 1), cap0 = Co.popCap(Object.assign({}, gc, {port: 'soutpost'}), gs);
+		ok('50. it grows into a settlement where it stands (tier 2: a tier 2 point, 3,000 t, no slot of its own); one growth at a time, only from an outpost',
+			!Co.canBuild(noPt, gs, 'usettle', gc.world, 'surface').ok && up.ok && gc.points.t2 == 0 && Math.abs(sum(up.build.need) - 3000 * heavy) <= 8 && Co.used(gc, gc.world, 'surface') == 1 && /already/.test(Co.canBuild(Object.assign({}, gc, {points: {t2: 5, t3: 5}}), gs, 'usettle', gc.world, 'surface').why)
+			&& !Co.canBuild(Object.assign({}, gc, {port: 'ssettle', builds: [], points: {t2: 5, t3: 5}}), gs, 'usettle', gc.world, 'surface').ok && !Co.canBuild(Object.assign({}, gc, {builds: [], points: {t2: 5, t3: 5}}), gs, 'usettle', 'Elsewhere', 'surface').ok, up.why);
+		const fits = Su.fits('settlement', gp);
+		if (fits) { for (const [g, t] of Object.entries(Co.left(up.build))) pg.cargo[g] = t; Co.deliverBuilds(pg, gc, gc.opens + 2) }
+		const q2 = Co.groundPorts(pg, gs, gc.opens + 3)[0], lay2 = q2 && Su.layout(q2.kind, q2.seed);
+		ok('51. grown, the port is a settlement (4 S and an M pad) at the same site, under the same id; it earns a tier 3 point and room for 100,000 more people',
+			!fits ? /too small/.test(Co.canBuild(gc, gs, 'usettle', gc.world, 'surface').why || 'too small') : gc.port == 'ssettle' && up.build.done && q2.kind == 'settlement' && q2.id == q.id && q2.lat == q.lat && q2.lon == q.lon && lay2.pads.filter(p => p.size == 'M').length == 1 && gc.points.t3 == 1 && Co.popCap(gc, gs) == cap0 + 100000 && Co.stats(gc, gs).tech > 0.3,
+			{fits, port: gc.port, q2});
+		const bk = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(pg)))), gb = bk.colonies.find(x => x.id == gc.id);
+		ok('52. the save keeps a colony on the ground exactly (its port, its site, its growth), and the port comes back where it stood', JSON.stringify(gb) == JSON.stringify(gc) && JSON.stringify(Co.groundPorts(bk, gs, gc.opens + 3)) == JSON.stringify(Co.groundPorts(pg, gs, gc.opens + 3)));
+		/* a settlement claimed at once; independent on the ground; never in the Rift; orbital claims as before */
+		const ps = Tr.newPlayer(home.id); ps.wallet[cur] = 1e9; ps.rep[home.id] = 400;
+		const sw = Co.groundWorlds(gs, 'ssettle'), cs2 = sw.length ? Co.canClaim(ps, office, gs, 'ssettle', day, JUMP, false, false, sw[0].name) : null;
+		const pind = Tr.newPlayer(home.id); pind.wallet[cur] = 1e9; const ci = Co.claim(pind, office, gs, 'soutpost', day, JUMP, true).colony;
+		const rift = {id: 'R:test', name: 'Rift star', rift: true, x: 0, y: 0, z: 0};
+		ok('53. a surface settlement can be claimed at once (the station\'s fee; 7,200 t); an independent claim on the ground pays SU and mints its scrip; there are no surface claims in the Rift, nor a starport claimed outright',
+			(!sw.length || (cs2.ok && Math.abs(cs2.fee - 300000 * E.rate(cur, day)) < 2 && Math.abs(sum(Co.portGoods('ssettle', gs, sw[0].name)) - 7200 * (sw[0].g > 1.5 ? 1.25 : 1)) <= 10)) && ci && ci.independent && ci.site && /^X[A-Z]{2}$/.test(ci.scrip)
+			&& /Rift has no surface ports/.test(Co.canClaim(pind, {star: rift, owner: null}, rift, 'soutpost', day, JUMP, false, true).why || '') && !Co.canClaim(ps, office, gs, 'sstarport', day, JUMP).ok, cs2);
+		const po = Tr.newPlayer(home.id); po.wallet[cur] = 1e9; const co = Co.claim(po, office, gs, 'outpost', day, JUMP).colony;
+		ok('54. orbital claims are as before: the most Earth-like world, an orbital slot, no site on the ground', co && co.world == Co.portWorld(gs) && !co.site && Co.used(Object.assign({}, co, {builds: []}), co.world, 'orbit') == 1);
+	}
 	const t0 = Date.now(); Co.candidates(pl, office, day, JUMP, 12);
 	ok('19. the planner\'s listing is quick', Date.now() - t0 < 500, (Date.now() - t0) + ' ms');
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
