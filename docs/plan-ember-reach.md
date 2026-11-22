@@ -986,7 +986,7 @@ In the game since 0.1.1 (`settings.js`, `i18n.js`; tested in `tests/emberreach_s
 checks, and the browser test's checks 9 and 9b). Opened from the pause screen's **Settings** button. Three pages:
 
 - **Graphics, audio and HUD**
-  - **Graphics:** quality (high/low), resolution (50–100% of the screen's), field of view (50–100°), glow
+  - **Graphics:** quality (high/low), (0.5.3) low-power mode (Auto, On, Off: see "Phones" below), resolution (50–100% of the screen's), field of view (50–100°), glow
     effects, and a frame-rate counter.
   - **Audio:** sound on/off, and four volumes: master, engines and ambience, effects, and alerts and warnings.
     Alerts are the warning, critical, clearance, refused, lock, incoming and blackout cues.
@@ -1056,6 +1056,12 @@ landscape, tap targets at least 44 px and text at least 10 px:
 - **The cards and settings:** narrower padding; the Controls page's keys as a row of three buttons under each action.
 - **The star map:** its buttons narrower, the scale under them, the panel's long lines set smaller (down to 10 px).
 - **The duel menu:** its ships one to a row, the opponents' choices 44 px tall.
+- **Low-power mode (Settings › Graphics; tested in `tests/emberreach_power_t.js`):** Auto (on for a phone: a touch
+  screen as the main pointer, its short side under 600 px), On, Off. It draws the 3D view at the screen's CSS pixels
+  times 0.8 instead of its device pixels (a fourteenth of the pixels on a 3× phone), every other frame (the game still
+  steps 60 times a second), the low-detail models, asteroids within 15 km instead of 40, and the terrain's detail on
+  half the budget, split sooner (less fine detail far off). Measured in Chromium with the CPU slowed four times on a
+  390 × 844 phone at 3×: off, 4.6 frames a second; on, 32 (16 drawn), the game keeping time. A desktop is as before.
 - **The desktop is untouched:** all of it is under those sizes; checked by drawing the HUD from one state with the old
   and new code (identical at 1280 × 720 and 1920 × 1080) and screenshots of every starport screen and the settings.
 
@@ -1219,7 +1225,8 @@ In the game since this change (`insurance.js`; tested in `tests/emberreach_insur
    population and the architect's pay; forward bases on the fronts, raids, independent colonies with their scrip,
    and rented carriers.
 8. **M6:** the Core, the black hole, polish; phones (1.6.0). **The Maw and the Rift are playable** (see "The Rift").
-   **Phones:** touch flight and the small-screen layout in 0.5.3 ("Phones" under Settings); a low-power preset next.
+   **Phones:** touch flight, the small-screen layout and low-power mode in 0.5.3 ("Phones" under Settings); left
+   for the owner's real phone: the checks in 0.5.3's pull requests.
    The phone's own interface is Rudolf OS 2.0's (Wayland); the game runs in an app's page there, full screen, which
    keeps its own touches (docs/plan-1.6.1.md Part 2 in RudolfOS).
 
@@ -1420,7 +1427,8 @@ also arms the first ships and adds fire groups:
   MAP and pause, looking round by a drag; shown only while touch is in use; size, left-handed, opacity and
   sensitivity in Settings. Tested in `tests/emberreach_touch_t.js` (a game flown, docked and traded in by taps on a
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
-  the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`).
+  the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
+  mode, on by itself on phones (`tests/emberreach_power_t.js`).
 
 Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
