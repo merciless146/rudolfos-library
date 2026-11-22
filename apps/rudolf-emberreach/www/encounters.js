@@ -15,7 +15,7 @@
 'use strict';
 const isNode = typeof module != 'undefined';
 const req = (n, g) => isNode ? require('./' + n) : root[g];
-const F = req('factions.js', 'EmberFactions'), R = req('reputation.js', 'EmberReputation'), S = req('ships.js', 'EmberShips'), T = req('travel.js', 'EmberTravel'), E = req('economy.js', 'EmberEconomy');
+const Ca = req('career.js', 'EmberCareer'), F = req('factions.js', 'EmberFactions'), R = req('reputation.js', 'EmberReputation'), S = req('ships.js', 'EmberShips'), T = req('travel.js', 'EmberTravel'), E = req('economy.js', 'EmberEconomy');
 
 const ENC = {pirateOdds: {unclaimed: 0.5, contested: 0.45, claimed: 0.18, capital: 0.04}, missionDays: 10, maxMissions: 3, kills: 3, reconTime: 30, supplyTons: 5, bountyShare: 0.01, gangHarm: 40};
 const NEEDS = {strike: 'kills', blockade: 'kills', defend: 'kills', escort: 'kills', recon: 'stay', sabotage: 'depot', supply: 'deliver', survey: 'surveyed', ruin: 'surveyed',
@@ -178,12 +178,12 @@ function killed(P, npc, ctx) {
 	else if (npc.role == 'marshal') msg.push('A Marshal ship destroyed. The Marshals count it against you: ' + policeKills(P, day) + ' police ship' + (policeKills(P, day) == 1 ? '' : 's') + ' in ' + MARSHALS.window + ' days');
 	else if (npc.role != 'pirate' && npc.wanted && npc.role != 'depot') {
 		/* a wanted ship: no crime to kill it; its bounty is paid if you scanned the warrant */
-		if (warrant) { P.wallet[npc.wanted.code] = (P.wallet[npc.wanted.code] || 0) + npc.wanted.amount; pay.push({code: npc.wanted.code, amount: npc.wanted.amount}); msg.push('Warrant claimed: ' + npc.wanted.amount.toLocaleString('en') + ' ' + npc.wanted.code) }
+		if (warrant) { const got = Ca.reward(P, npc.wanted.amount); P.wallet[npc.wanted.code] = (P.wallet[npc.wanted.code] || 0) + got; pay.push({code: npc.wanted.code, amount: got}); msg.push('Warrant claimed: ' + got.toLocaleString('en') + ' ' + npc.wanted.code) }
 		else msg.push('They were wanted: no crime. (A warrant scan first would have paid their bounty.)');
 	}
 	else if (npc.role == 'pirate') {
-		if (warrant) { const extra = Math.round(npc.wanted.amount * 0.5); P.wallet[npc.wanted.code] = (P.wallet[npc.wanted.code] || 0) + extra; msg.push('Warrants from other jurisdictions: ' + extra.toLocaleString('en') + ' ' + npc.wanted.code) }
-		const owner = own.owner || P.origin, code = currencyOf(owner) || currencyOf(P.origin), amount = Math.round(Math.max(50, value * ENC.bountyShare) * E.rate(code, day));
+		if (warrant) { const extra = Ca.reward(P, Math.round(npc.wanted.amount * 0.5)); P.wallet[npc.wanted.code] = (P.wallet[npc.wanted.code] || 0) + extra; msg.push('Warrants from other jurisdictions: ' + extra.toLocaleString('en') + ' ' + npc.wanted.code) }
+		const owner = own.owner || P.origin, code = currencyOf(owner) || currencyOf(P.origin), amount = Ca.reward(P, Math.round(Math.max(50, value * ENC.bountyShare) * E.rate(code, day)));   /* (0.5.6: the pilot's reward multiplier) */
 		P.wallet[code] = (P.wallet[code] || 0) + amount; pay.push({code, amount});
 		if (own.owner) R.act(P, 'killPirate', own.owner);
 		P.rep[npc.faction] = Math.max(-1000, (P.rep[npc.faction] || 0) - ENC.gangHarm);
@@ -255,8 +255,8 @@ function settle(P, day) {
 		if (m.done) continue;
 		if (complete(m)) {
 			/* war missions play into the front; exploration contracts are paid and please the issuer */
-			if (m.war) R.warEffort(P, m, day); else { R.act(P, 'mission', m.issuer); P.wallet[m.currency] = (P.wallet[m.currency] || 0) + m.reward }
-			m.done = true; out.push({mission: m, ok: true, text: 'Mission complete: ' + m.text + '. Paid ' + m.reward.toLocaleString('en') + ' ' + m.currency});
+			const paid = Ca.reward(P, m.reward); if (m.war) R.warEffort(P, m, day); else { R.act(P, 'mission', m.issuer); P.wallet[m.currency] = (P.wallet[m.currency] || 0) + paid }
+			m.done = true; out.push({mission: m, ok: true, text: 'Mission complete: ' + m.text + '. Paid ' + paid.toLocaleString('en') + ' ' + m.currency});
 		}
 		else if (day > m.due) { R.act(P, 'missionFailed', m.issuer); m.done = true; out.push({mission: m, ok: false, text: 'Mission failed: ' + m.text}) }
 	}

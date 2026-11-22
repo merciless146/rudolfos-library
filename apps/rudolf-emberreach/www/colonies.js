@@ -60,7 +60,7 @@
 'use strict';
 const isNode = typeof module != 'undefined';
 const req = (n, g) => isNode ? require('./' + n) : root[g];
-const G = req('galaxy.js', 'EmberGalaxy'), F = req('factions.js', 'EmberFactions'), E = req('economy.js', 'EmberEconomy'), R = req('reputation.js', 'EmberReputation'), T = req('travel.js', 'EmberTravel');
+const Ca = req('career.js', 'EmberCareer'), G = req('galaxy.js', 'EmberGalaxy'), F = req('factions.js', 'EmberFactions'), E = req('economy.js', 'EmberEconomy'), R = req('reputation.js', 'EmberReputation'), T = req('travel.js', 'EmberTravel');
 
 /* the primary ports: fee (SU), station class when built, and the goods (tonnes, with the first port's +20% in) */
 const PORTS = {
@@ -566,7 +566,7 @@ function grow(P, c, day) {
 			if (c.low >= COL.takeover) { c.stage = 'lost'; out.push({text: 'A syndicate has taken over ' + c.star.name + '. The colony is lost.', ok: false}); break }
 			if (c.low) out.push({text: c.star.name + '\'s security is low: build a military outpost or a bigger port, or a syndicate will move in', ok: false});
 		}
-		const su = payment(c, star), code = c.independent ? c.scrip : F.byId(c.sponsor).currency.code, amount = su * E.rate(code, c.paid);
+		const su = payment(c, star), code = c.independent ? c.scrip : F.byId(c.sponsor).currency.code, amount = su * E.rate(code, c.paid) * Ca.rewardK(P);   /* (0.5.6: the pilot's reward multiplier) */
 		P.wallet[code] = (P.wallet[code] || 0) + amount;
 		out.push({text: c.star.name + ' pays its architect: ' + Math.round(amount).toLocaleString('en') + ' ' + code + ' for the season', ok: true});
 	}

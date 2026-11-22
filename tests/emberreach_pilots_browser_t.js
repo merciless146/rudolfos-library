@@ -43,6 +43,7 @@ async function frame(pg, test) {
 		await open('debug');
 		let f = await frame(pg, () => !!document.querySelector('#ovBody button[data-i]'));
 		await f.click('#ovBody button[data-i="0"]');
+		f = await frame(pg, () => !!document.getElementById('crStart')); await f.click('#crStart');   /* (0.5.6: the new pilot's name and difficulty, as offered) */
 		f = await frame(pg, () => window.EmberDebug && EmberDebug.game.docked);
 		const a0 = await f.evaluate(() => ({slot: EmberDebug.game.slot, id: EmberDebug.game.pilotId, origin: EmberDebug.game.P.origin, code: EmberDebug.game.home.currency.code}));
 		await f.evaluate(c => { EmberDebug.game.P.wallet[c] = 4321; EmberDebug.game.P.mined['rock:pilots-test'] = 9 }, a0.code); await saveNow(f);
@@ -62,6 +63,7 @@ async function frame(pg, test) {
 		await f.click('[data-new="2"]');
 		f = await frame(pg, () => !!document.querySelector('#ovBody button[data-i]'));
 		await f.click('#ovBody button[data-i="5"]');
+		f = await frame(pg, () => !!document.getElementById('crStart')); await f.click('#crStart');   /* (0.5.6: the new pilot's name and difficulty, as offered) */
 		f = await frame(pg, () => window.EmberDebug && EmberDebug.game.docked);
 		const b0 = await f.evaluate(c => ({slot: EmberDebug.game.slot, id: EmberDebug.game.pilotId, origin: EmberDebug.game.P.origin, money: EmberDebug.game.P.wallet[c] || 0, mined: EmberDebug.game.P.mined['rock:pilots-test']}), a0.code);
 		ok('4. a second pilot (slot 3, another origin) has their own money, and finds the galaxy pilot 1 left (the asteroid they mined)', b0.slot == 2 && b0.id == 'p2' && b0.origin != a0.origin && b0.money != 4321 && b0.mined == 9, b0);
@@ -107,6 +109,7 @@ async function frame(pg, test) {
 		await f.click('[data-new="0"]');
 		f = await frame(pg, () => !!document.querySelector('#ovBody button[data-i]'));
 		await f.click('#ovBody button[data-i="1"]');
+		f = await frame(pg, () => !!document.getElementById('crStart')); await f.click('#crStart');   /* (0.5.6: the new pilot's name and difficulty, as offered) */
 		f = await frame(pg, () => window.EmberDebug && EmberDebug.game.docked);
 		const fresh = await f.evaluate(() => ({id: EmberDebug.game.pilotId, mined: Object.keys(EmberDebug.game.P.mined).length}));
 		ok('11. after the wipe, a new pilot starts a new galaxy (pilot 1 again, nothing mined)', fresh.id == 'p1' && fresh.mined == 0, fresh);

@@ -15,7 +15,7 @@
 (function (root) {
 'use strict';
 const isNode = typeof module != 'undefined';
-const F = isNode ? require('./factions.js') : root.EmberFactions, E = isNode ? require('./economy.js') : root.EmberEconomy;
+const F = isNode ? require('./factions.js') : root.EmberFactions, E = isNode ? require('./economy.js') : root.EmberEconomy, Ca = isNode ? require('./career.js') : root.EmberCareer;
 const TIERS = [[-1000, 'Hostile'], [-500, 'Unfriendly'], [-100, 'Neutral'], [100, 'Friendly'], [500, 'Allied']];
 const tier = v => TIERS.filter(([lo]) => v >= lo).pop()[1];
 const clamp = v => Math.max(-1000, Math.min(1000, v));
@@ -82,7 +82,7 @@ function warEffort(P, mission, day) {
 	const out = act(P, 'warMission', mission.issuer);
 	/* the other side takes it as harm, on top of the spread */
 	P.rep[mission.against] = clamp(P.rep[mission.against] - ACTIONS.warMission.rep * (double > 1 ? 1.5 : 1));
-	if (P.wallet) P.wallet[mission.currency] = (P.wallet[mission.currency] || 0) + mission.reward;
+	if (P.wallet) P.wallet[mission.currency] = (P.wallet[mission.currency] || 0) + (Ca ? Ca.reward(P, mission.reward) : mission.reward);   /* (0.5.6: the pilot's reward multiplier) */
 	return {rep: out, war: mission.war, events: P.warEvents.length};
 }
 /* destroying an enemy's ship in a contested system, for a side: war effort, like a small strike */

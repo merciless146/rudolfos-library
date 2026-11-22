@@ -17,7 +17,7 @@
 const isNode = typeof module != 'undefined';
 const req = (n, g) => isNode ? require('./' + n) : root[g];
 const G = req('galaxy.js', 'EmberGalaxy'), F = req('factions.js', 'EmberFactions'), E = req('economy.js', 'EmberEconomy'),
-	T = req('travel.js', 'EmberTravel'), S = req('ships.js', 'EmberShips'), O = req('outfit.js', 'EmberOutfit'), R = req('reputation.js', 'EmberReputation');
+	T = req('travel.js', 'EmberTravel'), S = req('ships.js', 'EmberShips'), O = req('outfit.js', 'EmberOutfit'), R = req('reputation.js', 'EmberReputation'), Ca = req('career.js', 'EmberCareer');
 const INSURE = {weekly: 0.10, week: 7, reachLy: 1000, ly: 3.26156, local: 6};
 const reachPc = () => INSURE.reachLy / INSURE.ly;   /* (read when asked, so a test can narrow it) */
 
@@ -25,7 +25,7 @@ const reachPc = () => INSURE.reachLy / INSURE.ly;   /* (read when asked, so a te
 const shipValue = (hull, fit) => S.value(hull) + (fit ? O.extra(hull, fit) : 0);
 const issuerOf = code => F.majors().find(m => m.currency.code == code) || null;
 /* a week's premium, in the policy's currency */
-function premium(P, hull, fit, day) { const c = P.insurance ? P.insurance.code : F.byId(P.origin).currency.code; return {code: c, amount: INSURE.weekly * shipValue(hull, fit) * E.rate(c, day)} }
+function premium(P, hull, fit, day) { const c = P.insurance ? P.insurance.code : F.byId(P.origin).currency.code; return {code: c, amount: INSURE.weekly * shipValue(hull, fit) * E.rate(c, day) * Ca.premiumK(P)} }   /* (0.5.6: the difficulty's premium) */
 
 /* every pilot starts covered: their home power's policy, the first week paid */
 function starterCover(P, day) { const o = F.byId(P.origin); return {provider: o.id, code: o.currency.code, since: day, paidTo: day + INSURE.week, owed: 0} }

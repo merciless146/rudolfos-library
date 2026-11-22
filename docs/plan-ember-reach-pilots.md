@@ -203,11 +203,31 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 - **Save to a file** carries the galaxy and all six pilots.
 - **Tests:** `tests/emberreach_pilots_t.js` (13, node) and `tests/emberreach_pilots_browser_t.js` (12, Chromium).
 
-**Left for P2:**
-- A pilot's name, and the difficulty and Hardcore box on the new-pilot screen. Today a new pilot goes straight to
-  the origins.
-- A deleted pilot's colonies stay in the galaxy as another pilot's. Hardcore's death rule (P2) makes them
-  independent.
+**P2 is built (0.5.6):**
+- **A new pilot** chooses a name (optional), a difficulty (Pilot is chosen) and Hardcore, after the origin.
+  Ticking Hardcore fixes the difficulty at Admiral.
+- **The difficulties** (`career.js`):
+
+  | | Rookie | Pilot | Admiral |
+  |---|---|---|---|
+  | Rewards | ×0.75 | ×1 | ×1.25 |
+  | Damage taken | ×0.7 | ×1 | ×1.3 |
+  | Insurance premiums | ×0.6 | ×1 | ×1.5 |
+  | Enemies | aim wanders, flee sooner | as before | jink more, flee later, open fire on a wider line |
+
+- **What counts as a reward:** mission and bounty payouts, warrant claims, war missions, exploration data and
+  colony income. Trade is never multiplied, so every pilot's markets stay the same. Duels are never changed.
+- **Hardcore's states:** none, on, off or done. On gives ×1.5 on rewards (on top of the difficulty) and holds the
+  pilot at Admiral. Off is for good. Done (the questline finished on Hardcore, the M6 link) keeps the ×1.5 and the
+  Merchant and frees the difficulty. Only `make()` turns Hardcore on, and only for a new pilot.
+- **Your pilot** (the pause menu): the name, the difficulty (changed while docked; held at Admiral while Hardcore
+  is on, saying why), Hardcore's state, and Turn Hardcore off (asked twice).
+- **A Hardcore death:** "Pilot lost". The pilot's save is cleared and their slot freed. The galaxy keeps what they
+  did, and their colonies become independent. A deleted pilot's colonies become independent too.
+- **The pilots' screen** shows each pilot's name, difficulty and Hardcore (a red edge).
+- **Fixed on the way:** an overlay opened while docked (the pause menu, or the desktop pausing the game) was
+  hidden behind the port's screens.
+- **Tests:** `tests/emberreach_career_t.js` (16, node) and `tests/emberreach_career_browser_t.js` (10, Chromium).
 
 ## Steps
 
@@ -215,6 +235,7 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 |---|---|---|---|
 | **P1** | The game kit's slots; the galaxy/pilot split of the save (the sweep, the two packs, migration, trimming each); the slot screen; delete a pilot; wipe the galaxy; export and import of the set | — | L |
 | **P2** | Difficulty (the table above, the slot and status; changed while docked; Admiral while Hardcore is on); Hardcore's states and the pilot-made-only switch; the wipe on death; rewards' multipliers; saving often | P1 | M |
+| **P2b** | The galaxy's storage: split by region over up to 10 records of 6 MB; a compact format for colonies, first discoveries and names; only changed regions written; the regions near the pilot loaded first; a warning at 48 MB. Needs Rudolf OS and the game kit at 6 MB a record | P2 | M |
 | **P3** | The Contraband Merchant: the contact, contraband variants (outfit.js), stock, prices; bound to the pilot (never traded); not illegal; its insurance (none while Hardcore is on, twice the premium after) | P2 | M |
 | **P4** | The cloaking device: the module, radar and scanners ignoring it, transparency, heat, firing showing it; the award hook (test-only until M6) | P2 | M |
 | **P5** | Co-op, wing first: rooms of four in `net.js`, the relay and Rudolf OS's LAN service; the host's galaxy shared; guests' pilots saved at home; the Hardcore rule; docking, markets, NPCs, jumps together | P1 (P2 for the Hardcore rule) | L |
@@ -239,6 +260,11 @@ P3, P4 and P5 can be built at the same time once P1 and P2 are in.
 - **Co-op: the wing stays together first** (the host leads jumps); free roaming is a later step (P6).
 - **Difficulty can be changed while docked**, but **a Hardcore pilot is Admiral** until Hardcore ends (by hand or at
   the questline's end).
+
+- **Save sizes:** a save record may be up to **6 MB** (up from 256 KB: Rudolf OS's desktop and the game kit), and
+  **the galaxy up to 60 MB** in all (10 records), with a warning at 80% (48 MB). Pilots' saves are separate. With a
+  compact format that holds roughly 1.5 million colonies besides discoveries and names. Today, at 256 KB, the
+  galaxy would stop saving at about 600 colonies or 9,000 first discoveries, since those are never trimmed.
 
 ## Open questions for the owner
 

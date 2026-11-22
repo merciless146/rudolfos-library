@@ -38,6 +38,7 @@ async function frame(pg, test) {
 		await pg.goto(`http://127.0.0.1:${PORT}/desk.html#debug`);
 		let f = await frame(pg, () => !!document.querySelector('#ovBody button[data-i]'));
 		await f.click('#ovBody button[data-i="5"]');
+		f = await frame(pg, () => !!document.getElementById('crStart')); await f.click('#crStart');   /* (0.5.6: the new pilot's name and difficulty, as offered) */
 		f = await frame(pg, () => window.EmberDebug && EmberDebug.game.docked && !!document.querySelector('[data-screen="launch"]'));
 		/* a border port of the power's with unclaimed systems within a jump, and one of them with ground for a port
 		   (found as the colony test finds its office) */

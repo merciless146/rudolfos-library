@@ -11,7 +11,7 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 #gl,#hud{position:fixed;inset:0;width:100%;height:100%;display:block}
 #gl{transition:filter .15s linear}
 #hud{touch-action:none;outline:none}
-#ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(1,2,4,.72)}
+#ov{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(1,2,4,.72)}
 #ov[hidden]{display:none}
 /* (0.5.0) the duel screen: ships to pick from */
 .duel-ships{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin:6px 0 10px}.duel-ship{display:block;padding:8px 10px;border:1px solid #2a3a5c;border-radius:6px;cursor:pointer;text-align:left}.duel-ship:has(input:checked){border-color:#6cc9e8;background:rgba(108,201,232,.08)}.duel-ship span{font-size:13px;color:#9fb0cc}.duel-num{font-family:monospace;font-size:12px!important}.duel-opp label{display:block;margin:4px 0}.duel-opp .muted{opacity:.55}
@@ -76,6 +76,14 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 .pt-bar button{flex:1 0 84px;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:transparent;border:1px solid #243352;color:#c3cde0;font-size:12px}
 .pt-bar button small{font:10px ui-monospace,Menlo,monospace;color:#9fb0cc}.pt-bar button.on{background:#1d2a45;border-color:#f2a33a;color:#f6c27a}
 /* the origin picker */
+/* (0.5.6) a new pilot's choices and the pilot's own screen */
+.cr-row{display:flex;flex-direction:column;gap:4px;margin:10px 0;font:13px Inter,system-ui,sans-serif;color:#9fb0cc}
+.cr-row input{box-sizing:border-box;min-height:40px;padding:0 10px;background:#101a2d;border:1px solid #243352;color:#e8edf6;font:14px Inter,system-ui,sans-serif;max-width:320px}
+.cr-diff{display:flex;flex-direction:column;gap:6px}
+.cr-diff label,.cr-hc{box-sizing:border-box;align-items:center;display:flex;gap:8px;flex-wrap:wrap;padding:8px 12px;min-height:44px;background:#101a2d;border:1px solid #243352;color:#e8edf6;font:13px Inter,system-ui,sans-serif;cursor:pointer}
+.cr-diff label span,.cr-hc span{flex:1 1 220px;color:#9fb0cc;font-size:12px}.cr-diff label:has(input:disabled){opacity:.55;cursor:default}
+.cr-hc{margin-top:12px;border-color:#7a3b3b}.cr-hc b{color:#f28b6e}
+.pt-slot.hc{border-color:#7a3b3b}
 /* (0.5.5) the pilots' screen: one row per slot */
 .pt-slots{display:flex;flex-direction:column;gap:6px;margin:12px 0}
 .pt-slot{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 12px;min-height:44px;background:#101a2d;border:1px solid #243352;color:#e8edf6;font:13px Inter,system-ui,sans-serif}
@@ -145,6 +153,7 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 <script src="ships.js"></script>
 <script src="outfit.js"></script>
 <script src="hangar.js"></script>
+<script src="career.js"></script>
 <script src="reputation.js"></script>
 <script src="trade.js"></script>
 <script src="flight.js"></script>

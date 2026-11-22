@@ -108,12 +108,14 @@ function packPlayer(P) {
 		/* (0.3.7) the ports' markets as your trades left them: {key: {day, s: {good: t}, d: {good: t}}} */
 		markets: P.markets && Object.keys(P.markets).length ? P.markets : undefined,
 		/* (0.3.8) ships kept in storage, where and in what state (hangar.js) */
-		hangar: P.hangar && P.hangar.length ? P.hangar : undefined, hangarSeq: P.hangarSeq || undefined};
+		hangar: P.hangar && P.hangar.length ? P.hangar : undefined, hangarSeq: P.hangarSeq || undefined,
+		/* (0.5.6) the pilot's name, difficulty and Hardcore (career.js) */
+		name: P.name || undefined, diff: P.diff || undefined, hc: P.hc || undefined};
 }
 /* a place things are kept (hangar.js placeOf) */
 const place = a => obj(a) && typeof a.star == 'string' && Array.isArray(a.p) && a.p.length == 3 && a.p.every(num) && typeof a.port == 'string' && typeof a.name == 'string';
 const numMap = o => o && typeof o == 'object' && !Array.isArray(o) && Object.values(o).every(num);
-function unpackPlayer(x) {
+function unpackPlayer0(x) {
 	if (!x || typeof x != 'object' || typeof x.origin != 'string' || !numMap(x.wallet) || !numMap(x.cargo) || !numMap(x.rep) || !x.ship || typeof x.ship.model != 'string') return null;
 	if (Object.values(x.wallet).some(v => v < 0) || Object.values(x.cargo).some(v => v < 0 || !Number.isInteger(v))) return null;
 	return {v: 1, origin: x.origin, species: x.species || '', wallet: Object.assign({}, x.wallet), cargo: Object.assign({}, x.cargo), cost: numMap(x.cost) ? Object.assign({}, x.cost) : {}, rep: Object.assign({}, x.rep),
@@ -154,11 +156,14 @@ function unpackPlayer(x) {
 		hauls: Array.isArray(x.hauls) ? x.hauls.filter(h => obj(h) && typeof h.colony == 'string' && num(h.tons) && num(h.eta)) : [],
 		missions: Array.isArray(x.missions) ? x.missions.filter(m => m && typeof m.id == 'string' && m.star && typeof m.star.id == 'string' && Array.isArray(m.star.at) && num(m.due)) : []};
 }
+/* (0.5.6) unpackPlayer's pilot with their name, difficulty and Hardcore checked (career.js); older saves: Pilot, no Hardcore */
+const unpackPlayer = x => { const P = unpackPlayer0(x); return P && Ca ? Ca.unpack(x, P) : P };
 const obj = o => o && typeof o == 'object' && !Array.isArray(o);
 const O = typeof module != 'undefined' ? require('./outfit.js') : (typeof window != 'undefined' ? window.EmberOutfit : null);
 const S0 = typeof module != 'undefined' ? require('./ships.js') : (typeof window != 'undefined' ? window.EmberShips : null);
 const St = typeof module != 'undefined' ? require('./settings.js') : (typeof window != 'undefined' ? window.EmberSettings : null);
 const I18 = typeof module != 'undefined' ? require('./i18n.js') : (typeof window != 'undefined' ? window.EmberI18n : null);
+const Ca = typeof module != 'undefined' ? require('./career.js') : (typeof window != 'undefined' ? window.EmberCareer : null);
 /* the ship's fit, if it's a valid fit for that hull (else the stock fit is used on load) */
 function shipFit(sh) { const hull = S0 && (S0.hull ? S0.hull(sh.model) : S0.ships().find(s => s.id == sh.model)); return hull && O && O.valid(hull, sh.fit) ? sh.fit : null }
 function exploreOk(e) {
@@ -189,7 +194,7 @@ const newGalaxy = day => ({gv: GV, galaxy: GALAXY, day: num(day) ? day : 0, seq:
    names given by the caller) */
 function summary(id, g, names) {
 	const P = g.player || {}, w = P.wallet || {};
-	return {id, origin: P.origin, power: g.power, ship: P.ship && P.ship.model, star: g.star ? g.star.name || g.star.id : null, starId: g.star ? g.star.id : null, docked: !!g.docked,
+	return {id, name: P.name || '', diff: P.diff || 'pilot', hc: P.hc || 'none', origin: P.origin, power: g.power, ship: P.ship && P.ship.model, star: g.star ? g.star.name || g.star.id : null, starId: g.star ? g.star.id : null, docked: !!g.docked,
 		cash: names && names.code ? {code: names.code, n: Math.round(w[names.code] || 0)} : null, day: Math.floor(g.day || 0), origName: names && names.origin || null, shipName: names && names.ship || null};
 }
 const slotOk = x => x === null || (obj(x) && typeof x.id == 'string' && /^p[0-9]{1,6}$/.test(x.id) && typeof x.origin == 'string');
@@ -270,7 +275,10 @@ function migrate(raw, names) {
 	return {galaxy: gal, pilot: pilotOnly(raw), settings: raw.settings};
 }
 
-const EmberSave = {BUDGET, trim, VERSION, GALAXY, pack, unpack, restoreModules, packPlayer, unpackPlayer,
+/* (0.5.6) a pilot gone (lost on Hardcore, or deleted): their colonies stay in the galaxy, independent, nobody's */
+function orphan(gal, id) { for (const c of gal.world.colonies) if (c.owner == id) { c.owner = ''; c.orphan = true } return gal }
+
+const EmberSave = {orphan, BUDGET, trim, VERSION, GALAXY, pack, unpack, restoreModules, packPlayer, unpackPlayer,
 	SLOTS, WORLD, newGalaxy, summary, unpackGalaxy, packGalaxy, pilotOnly, joinGalaxy, shiftDays, migrate};
 if (typeof module != 'undefined') module.exports = EmberSave; else root.EmberSave = EmberSave;
 })(typeof window != 'undefined' ? window : this);

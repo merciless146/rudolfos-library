@@ -303,17 +303,23 @@ function groundKeep(s, up, alt, c) {
 	if (ub[2] < 0.2) { const cl = v => Math.max(-1, Math.min(1, v)); out.pitch = -cl(Math.abs(ub[1]) < 0.05 && Math.abs(ub[0]) < 0.05 ? 1 : ub[1] * 3); out.yaw = cl(ub[0] * 3) }
 	return out;
 }
-function think(me, target, home, t, rnd) {
-	const s = me.s, A = me.ai, hp = me.cs.hull / me.cs.hullMax;
+/* (0.5.6) skill: how well a ship fights (1 as before; career.js gives it for ships fighting the player: 0.75 a Rookie's
+   enemies, 1.25 an Admiral's). Under 1 its aim wanders (a few degrees at 0.75) and it holds fire for a tighter line;
+   over 1 it fires on a wider line, jinks more when hit and flees later */
+const SKILL = {wander: 0.12, cone: 1, jink: 0.6, jinkPer: 0.8, flee: 0.8};
+function think(me, target, home, t, rnd, skill) {
+	const s = me.s, A = me.ai, hp = me.cs.hull / me.cs.hullMax, k = skill > 0 ? skill : 1;
 	const r = rnd || Math.random;
-	if (me.cs.lastHit > (A.lastHit || -1e9)) { A.lastHit = me.cs.lastHit; if (r() < 0.6) A.jinkUntil = t + 0.8 + r() * 1.2, A.jinkDir = [r() * 2 - 1, r() * 2 - 1] }
-	if (A.mode == 'attack' && hp < (A.fleeAt || 0.25)) A.mode = 'flee';
+	if (me.cs.lastHit > (A.lastHit || -1e9)) { A.lastHit = me.cs.lastHit; if (r() < Math.min(0.95, SKILL.jink + (k - 1) * SKILL.jinkPer)) A.jinkUntil = t + 0.8 + r() * 1.2, A.jinkDir = [r() * 2 - 1, r() * 2 - 1] }
+	if (A.mode == 'attack' && hp < (A.fleeAt || 0.25) * (k > 1 ? 1 - (k - 1) * SKILL.flee : 1)) A.mode = 'flee';
 	if (A.mode == 'flee' && target) {
 		const away = add(s.p, mul(norm(sub(s.p, target.p)), 5000)), c = steer(s, away);
 		return {pitch: c.pitch, yaw: c.yaw, roll: c.roll, throttle: 1, fire: false};
 	}
 	if (A.mode == 'attack' && target) {
 		const g0 = me.cs.load.guns.find(g => !WEAPONS[g.kind].homing) || {kind: 'pulse', mount: 'fixed'}, W = WEAPONS[g0.kind], aim = lead(s.p, s.v, target.p, target.v, W.hitscan ? 0 : W.speed, target.a), dist = len(sub(target.p, s.p));
+		/* a less skilled pilot's aim wanders round the lead point (a new offset every second or so) */
+		if (k < 1) { if (!A.wander || t > A.wander.until) A.wander = {d: [r() * 2 - 1, r() * 2 - 1, r() * 2 - 1], until: t + 0.8 + r() * 0.6}; const w = (1 - k) * SKILL.wander * dist; aim[0] += A.wander.d[0] * w; aim[1] += A.wander.d[1] * w; aim[2] += A.wander.d[2] * w }
 		let c = steer(s, aim);
 		/* too close: break off past them, then come round */
 		if (dist < 350) { A.breakUntil = t + 2.5 }
@@ -324,7 +330,7 @@ function think(me, target, home, t, rnd) {
 		const vmax = (s.spec && s.spec.vmax) || 300, want = len(target.v) + (dist - 600) * 0.25;
 		const throttle = dist > 2500 ? 1 : clamp(want / vmax, 0.08, 1);
 		/* (a gimballed gun fires once the target is inside its circle; a fixed one once the nose is within 2°) */
-		const fire = c.off < (g0.mount == 'gimbal' ? COMBAT.gimbalDeg : 2) * Math.PI / 180 && dist < W.range && t >= (A.breakUntil || 0);
+		const fire = c.off < (g0.mount == 'gimbal' ? COMBAT.gimbalDeg : 2) * Math.PI / 180 * (k > 1 ? 1 + (k - 1) * SKILL.cone : 1) && dist < W.range && t >= (A.breakUntil || 0);
 		return {pitch: c.pitch, yaw: c.yaw, roll: c.roll, throttle, fire, missile: dist < WEAPONS.missile.range && dist > 800};
 	}
 	if (A.mode == 'hold') return {pitch: 0, yaw: 0, roll: 0.05, throttle: 0, fire: !!target && me.cs.load.turrets};
@@ -355,6 +361,6 @@ function missing(ship, k) {
 }
 function refill(ship, k) { const full = loadout(ship); return {hull: k && typeof k.hull == 'number' ? k.hull : 1, ammo: full.guns.map(g => g.ammo), missiles: full.missiles, flares: full.flares} }
 
-const EmberCombat = {shotHeat, mounts, muzzle, CONVERGE, groupOf, GIMBALLED, gunOf, gimbalFor, track, aimOf, railStep, railReady, heatK, GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
+const EmberCombat = {SKILL, shotHeat, mounts, muzzle, CONVERGE, groupOf, GIMBALLED, gunOf, gimbalFor, track, aimOf, railStep, railReady, heatK, GROUND, groundKeep, keep, restore, missing, refill, WEAPONS, COMBAT, loadout, state, damage, tick, lead, fire, updateLock, launch, flare, stepProjectiles, steer, think, v: {add, sub, mul, dot, len, norm}};
 if (isNode) module.exports = EmberCombat; else root.EmberCombat = EmberCombat;
 })(typeof window != 'undefined' ? window : this);
