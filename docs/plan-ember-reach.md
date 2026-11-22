@@ -396,7 +396,10 @@ Distances are ellipsoidal radius from the centre. **Galactic north** is the shor
   | Huge | Torpedo rack | 150 × 0.2/s | 0.4 km/s, homing | 8 torpedoes, launched with the missiles |
   | (pylon) | Missile | 30 | 0.6 km/s, homing | needs a lock: the target 2 s inside a 15° cone |
 
-  Tuned so a duel between fighters lasts about a minute. Lasers heat the ship: past full the guns lock until it
+  Tuned so a duel between fighters lasts about a minute. (0.5.4) Each weapon is **energy** (the lasers), **ballistic**
+  (the gatlings, torpedoes and missiles) or **hybrid** (the mass driver and the Marshals' disruptor, energy-driven
+  rounds): ballistic weapons make no heat at all, energy and hybrid ones do (`combat.js`'s `type` and `shotHeat`).
+  Lasers heat the ship: past full the guns lock until it
   falls to 60%, and staying past 115% cooks the modules. Six **flares**: each decoys a missile chasing you with a
   70% chance.
 - **Shields and hull:** hits meet the shields first; they come back over 15 s after 2.5 s without a hit, if the
@@ -1461,6 +1464,8 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.5.4:** ballistic weapons (gatlings, torpedoes, missiles) make no heat; hybrid ones (the mass driver, the
+  disruptor) still do, as lasers do. Tested in `tests/emberreach_combat_t.js`.
 
 Still to come: the online relay put up (0.5.2 has it ready), the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 and multiplayer.

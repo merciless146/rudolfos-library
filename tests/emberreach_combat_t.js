@@ -114,5 +114,13 @@ try {
 	const two = C.state(Object.assign({}, kestrel, {guns: ['pulse', 'gatling']})); two.id = 'me'; const s28 = Fl.create(kestrel); s28.radius = 6; const o1 = [], o2 = [];
 	C.fire(two, s28, 0, null, o1, g => C.groupOf(g) == 1); two.load.guns.forEach(g => g.cool = 0); C.fire(two, s28, 0, null, o2, g => C.groupOf(g) == 2);
 	ok('29. each trigger fires only its own group', o1.length == 1 && o1[0].kind == 'pulse' && o2.length == 1 && o2[0].kind == 'gatling', [o1.map(x => x.kind), o2.map(x => x.kind)]);
+	/* (0.5.4) ballistic weapons make no heat; energy and hybrid ones do */
+	{ const run = guns => { const c = C.state(Object.assign({}, kestrel, {guns})); c.id = 'me'; const sh = Fl.create(kestrel); sh.radius = 6; let n = 0, peak = 0;
+	    for (let t = 0; t < 30; t += DT) { n += C.fire(c, sh, t, null, []); peak = Math.max(peak, c.heat); C.tick(c, t, DT) } return {n, peak, hot: c.hot} };
+	  const gat = run(['gatling', 'gatling']), big = run(['gatlingL']), dis = run(['disruptor']), las = run(['pulse', 'pulse']);
+	  const types = ['gatling', 'gatlingM', 'gatlingL', 'torpedo', 'missile'].every(k => C.WEAPONS[k].type == 'ballistic' && C.shotHeat(C.WEAPONS[k]) == 0)
+	    && ['driver', 'disruptor'].every(k => C.WEAPONS[k].type == 'hybrid' && C.shotHeat(C.WEAPONS[k]) > 0) && ['pulse', 'heavy', 'needle', 'lance', 'mining'].every(k => C.WEAPONS[k].type == 'energy' && C.shotHeat(C.WEAPONS[k]) > 0)
+	    && C.shotHeat(Object.assign({}, C.WEAPONS.gatling, {heat: 0.5})) == 0;
+	  ok('30. (0.5.4) ballistic weapons make no heat: two gatlings and a heavy one fired for 30 s stay at 0 (never locking); the hybrid disruptor and the lasers still heat the ship', types && gat.n > 300 && gat.peak == 0 && !gat.hot && big.n > 100 && big.peak == 0 && dis.peak > 0 && las.peak > 0, {gat, big, dis, las}) }
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
