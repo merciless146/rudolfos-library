@@ -20,6 +20,9 @@ addEventListener('message',e=>{const f=document.getElementById('f');if(e.source!
 window.send=o=>document.getElementById('f').contentWindow.postMessage(Object.assign({rudolfGame:1},o),'*');
 document.getElementById('f').src='www/index.html?'+(location.hash.slice(1)||'debug');</script>`);
 const errs = [];
+/* (0.5.8) the galaxy as the game reads it: the head and its parts (save.js merge) */
+const SvN = require(path.join(TOP, 'apps/rudolf-emberreach/www/save.js'));
+const galaxyOf = sv => SvN.merge(sv['ember-reach-galaxy'], Array.from({length: SvN.PARTS}, (_, k) => sv['ember-reach-galaxy-' + (k + 1)]));
 async function frame(pg, test) {
 	const fr = () => pg.frames().find(f => f.url().includes('/www/index.html'));
 	for (let i = 0; i < 300; i++) { const f = fr(); if (f && await f.evaluate(test).catch(() => false)) return f; await sleep(100) }
@@ -71,7 +74,7 @@ async function frame(pg, test) {
 		await f.click('[data-play="0"]'); f = await frame(pg, () => window.EmberDebug && EmberDebug.game.docked && EmberDebug.game.pilotId == 'p1');
 		/* a Hardcore death */
 		await f.evaluate(() => EmberDebug.lose('a test')); f = await frame(pg, () => !!document.getElementById('hcPilots')); await sleep(1200);
-		sv = await S(); const lostT = await f.evaluate(() => document.getElementById('ovT').textContent), col = (sv['ember-reach-galaxy'].world.colonies || []).find(c => c.id == 'hc-test');
+		sv = await S(); const lostT = await f.evaluate(() => document.getElementById('ovT').textContent), col = (galaxyOf(sv).world.colonies || []).find(c => c.id == 'hc-test');
 		ok('5. the ship destroyed with Hardcore on: Pilot lost; their save cleared and their slot freed; the galaxy keeps their colony, now independent', lostT == 'Pilot lost' && sv['ember-reach-pilot-1'] === null && sv['ember-reach-galaxy'].slots[0] === null && col && col.owner === '' && col.orphan, {lostT, slot: sv['ember-reach-galaxy'].slots[0], col});
 		await pg.screenshot({path: path.join(W, 'pilot-lost.png')});
 		/* a Rookie, then the difficulty changed while docked */

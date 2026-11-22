@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.6'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.8'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -124,6 +124,7 @@ function openSettings(back) {
 /* ---------------- start ---------------- */
 async function start() {
 	await RG.init('ember-reach');
+	Sv.setMax(RG.maxSave);   /* (0.5.8: a record's limit, as the desktop says) */
 	RG.bind(KEYS);
 	const majors = F.majors();
 	/* (0.5.5) the saves: the game's own value holds the settings; 'galaxy' the galaxy the pilots share; 'pilot-1' to
@@ -132,10 +133,10 @@ async function start() {
 	const fresh = ['power', 'port', 'ship', 'day'].some(k => Q.has(k)), duel = Q.has('duel');
 	let base = null, gal = null, oldGalaxy = false;
 	try { base = await RG.load() } catch (e) { base = null }
-	try { gal = Sv.unpackGalaxy(await RG.load('galaxy')) } catch (e) { gal = null }
+	try { gal = Sv.unpackGalaxy(await loadGalaxy()) } catch (e) { gal = null }
 	{ const b = Sv.unpack(base, known); if (b && b.oldGalaxy) oldGalaxy = true;
 	  /* a save from before 0.5.5 (one value, its pilot in it), or one loaded from such a file: the galaxy and pilot 1 */
-	  if (!duel && b && b.ship && b.player) { const m = Sv.migrate(base, migrateNames(base)); if (m) { gal = m.galaxy; await savesReset(); await RG.save(m.pilot, 'pilot-1'); await RG.save(gal, 'galaxy') } }
+	  if (!duel && b && b.ship && b.player) { const m = Sv.migrate(base, migrateNames(base)); if (m) { gal = m.galaxy; await savesReset(); await RG.save(m.pilot, 'pilot-1'); await saveGalaxy(gal) } }
 	  if (base && !base.settingsOnly) { base = {settingsOnly: true, settings: b && b.settings || base.settings}; if (!duel) await RG.save(base) } }
 	/* the settings: the account's (a first game follows Rudolf OS's language, or the browser's) */
 	const set0 = Sv.unpack(base, known);
@@ -323,7 +324,7 @@ function persist() {
 		star: game.star, at: game.docked ? game.portId || T.ORBITAL : null, fuel: game.fuel, lastPort: game.lastPort, lastPortId: game.lastPortId, routeTo, settings: game.settings, landed: game.landed, gear: game.gear, pilotOnly: true};
 	const gal = game.galaxy; gal.slots[game.slot] = Sv.summary(game.pilotId, g, slotNames(game.P, game.star)); gal.cur = game.slot;
 	const gv = Sv.packGalaxy(gal, game.P, game.pilotId, game.day); gal.day = gv.day;
-	Promise.all([RG.save(Sv.pack(g), 'pilot-' + (game.slot + 1)), RG.save(gv, 'galaxy'), RG.save({settingsOnly: true, settings: game.settings})])
+	Promise.all([RG.save(Sv.pack(g), 'pilot-' + (game.slot + 1)), saveGalaxy(gv), RG.save({settingsOnly: true, settings: game.settings})])
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
 		.then(() => { setTimeout(() => { game.saving = false; if (game.savePending) persist() }, 1000) });
 }
@@ -1769,10 +1770,33 @@ function slotNames(P, star) {
 }
 function migrateNames(raw) { try { return slotNames(raw.player, raw.star ? T.starAt(raw.star.id, raw.star.p) : null) } catch (e) { return null } }
 /* every pilot and the galaxy cleared (the settings stay) */
-async function savesReset() { for (let i = 1; i <= Sv.SLOTS; i++) await RG.save(null, 'pilot-' + i); await RG.save(null, 'galaxy') }
+async function savesReset() { for (let i = 1; i <= Sv.SLOTS; i++) await RG.save(null, 'pilot-' + i); await RG.save(null, 'galaxy'); for (let k = 1; k <= Sv.PARTS; k++) await RG.save(null, 'galaxy-' + k); GAL_LAST.clear() }
+/* (0.5.8) the galaxy over ten records (save.js split): the head, 'galaxy', and nine parts by region, 'galaxy-1' to
+   'galaxy-9'. A part is written only when it changed since it was last loaded or saved. An older single record is
+   read as it is, and split at the next save */
+const GAL_LAST = new globalThis.Map();   /* (Map here is the star map, map.js) */
+const galParts = () => Array.from({length: Sv.PARTS}, (_, k) => 'galaxy-' + (k + 1));
+async function loadGalaxy() {
+	const head = await RG.load('galaxy'); GAL_LAST.clear();
+	if (!head || typeof head.parts != 'number') return head;
+	const parts = await Promise.all(galParts().map(n => RG.load(n).catch(() => null)));
+	parts.forEach((p, k) => { if (p) GAL_LAST.set(k, JSON.stringify(p)) });
+	return Sv.merge(head, parts);
+}
+async function saveGalaxy(gv) {
+	const sp = Sv.split(gv), out = [RG.save(sp.head, 'galaxy')], full = Sv.fullness(sp);
+	sp.parts.forEach((p, k) => {
+		const t = JSON.stringify(p); if (GAL_LAST.get(k) === t) return;
+		GAL_LAST.set(k, t);
+		out.push(RG.save(p, 'galaxy-' + (k + 1)).catch(e => { GAL_LAST.delete(k); if (!game.galFull) { game.galFull = true; say('The galaxy is full: part of it (its colonies, discoveries and names in one region) can\'t be saved any more.', '#e5484d') } throw e }));
+	});
+	if (full.warn && !game.galWarned) { game.galWarned = true; say('The galaxy\'s save is ' + (full.total / 1048576).toFixed(1) + ' MB of its ' + Math.round(full.cap / 1048576) + ' MB: nearly full.', '#f2a33a') }
+	game.galFullness = full;
+	return Promise.all(out);
+}
 /* the page's address with the pilots' screen asked for (or not), keeping its other settings but not a new game's */
 function pilotsUrl(on) { const u = new URLSearchParams(location.search); for (const k of ['power', 'port', 'ship', 'day', 'duel', 'spawn', 'pilots']) u.delete(k); if (on) u.set('pilots', '1'); return u.toString() }
-const saveGalaxyOnly = () => RG.save(Sv.packGalaxy(game.galaxy, null, null, game.galaxy.day), 'galaxy');
+const saveGalaxyOnly = () => saveGalaxy(Sv.packGalaxy(game.galaxy, null, null, game.galaxy.day));
 /* the pilots' screen: play a pilot, start a new one in a free slot, delete one, or wipe the galaxy; resolves to the slot */
 function choosePilot() {
 	return new Promise(res => {
@@ -1840,7 +1864,7 @@ async function hardcoreLost(how) {
 	if (Port.isOpen()) Port.close();   /* (lost while the port's screens are up: they'd cover Pilot lost) */
 	const gal = game.galaxy, id = game.pilotId, packed = Sv.packGalaxy(gal, game.P, id, game.day);
 	Object.assign(gal, Sv.unpackGalaxy(packed) || gal); gal.slots[game.slot] = null; gal.cur = null; Sv.orphan(gal, id);
-	try { await RG.save(null, 'pilot-' + (game.slot + 1)); await RG.save(Sv.packGalaxy(gal, null, null, gal.day), 'galaxy') } catch (e) {}
+	try { await RG.save(null, 'pilot-' + (game.slot + 1)); await saveGalaxy(Sv.packGalaxy(gal, null, null, gal.day)) } catch (e) {}
 	const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns'); btns.textContent = '';
 	body.innerHTML = '<h1 id="ovT">' + esc(tr('Pilot lost')) + '</h1><p>' + esc((game.P.name ? game.P.name + ': ' : '') + how) + '</p><p class="small">' + esc(tr('Your ship was destroyed with Hardcore on: this pilot is gone. The galaxy keeps what they did.')) + '</p>';
 	const b = document.createElement('button'); b.className = 'primary'; b.textContent = tr('Pilots'); b.id = 'hcPilots'; b.onclick = () => { location.search = pilotsUrl(true) }; btns.appendChild(b);
@@ -2570,7 +2594,7 @@ function overlay(kind) {
 		/* (0.5.0) duels: their own page; nothing of the game is touched */
 		if (game.duel) { if (!game.duel.net) button('Choose ship', () => overlay('duel')); button('Leave duels', () => { location.href = location.pathname }); ov.hidden = false; return }
 		button('Duels', () => { persist(); setTimeout(() => { location.href = location.pathname + '?duel' }, 300) });
-		button(tr('Save to a file'), () => { persist(); setTimeout(() => RG.exportSave(['galaxy', ...Array.from({length: Sv.SLOTS}, (_, i) => 'pilot-' + (i + 1))]), 1300) });   /* (0.5.5: the galaxy and every pilot) */
+		button(tr('Save to a file'), () => { persist(); setTimeout(() => RG.exportSave(['galaxy', ...galParts(), ...Array.from({length: Sv.SLOTS}, (_, i) => 'pilot-' + (i + 1))]), 1300) });   /* (0.5.5: the galaxy and every pilot) */
 		button(tr('Load from a file'), () => RG.importSave().then(() => location.reload(), e => say(e.message, '#f2a33a')));
 		/* (0.5.5) the pilots' screen (a new pilot, another pilot, or wiping the galaxy) */
 		button(tr('Your pilot'), () => overlay('career'));

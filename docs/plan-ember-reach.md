@@ -1468,6 +1468,12 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.5.8, the galaxy's storage (P2b of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** the galaxy
+  over ten records (a head, and nine parts by region for colonies, first discoveries and names, written only when
+  they change), compact colonies (about 200 bytes), up to 6 MB a record where the desktop says so (Rudolf OS
+  1.6.2) and 256 KB where it doesn't (1.6.1): up to 60 MB, with a warning at 80%. An older one-record galaxy is
+  split at the next save. The game kit (1.4.0) follows the desktop's limit and keeps browser saves in IndexedDB.
+  Tested in `tests/emberreach_galaxystore_t.js` and `tests/emberreach_galaxystore_browser_t.js`.
 - **0.5.6, careers (P2 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** a new pilot's name,
   difficulty (Rookie, Pilot or Admiral: rewards, damage taken, insurance and how enemies fight) and Hardcore
   (×1.5 rewards, Admiral until it ends; a destroyed ship loses the pilot, the galaxy keeping their colonies as
