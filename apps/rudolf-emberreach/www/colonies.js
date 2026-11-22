@@ -142,7 +142,7 @@ function siteMap(P, c, star, day) {
 /* a finished colony's surface port, as travel.js portsAt lists ports: open the day after it's built; a starport
    (0.5.1 L3.5 step 3) with its heavy landing field */
 function groundPorts(P, star, day) {
-	const c = colonyAt(P, star.id), S = Su();
+	const c = worldColonyAt(P, star.id), S = Su();
 	if (!c || !isGround(c.port) || c.stage != 'done' || day < c.opens || !c.site || !S) return [];
 	const kind = PORTS[c.port].surface, q = c.site, p = worldOf(star, q.world); if (!p) return [];
 	const one = (id, k, lat, seed, of) => ({id, kind: k, world: q.world, moon: !!q.moon, lat, lon: q.lon, g: p.g, Ts: p.Ts, seed, surface: true, name: q.world + ' ' + S.KIND[k].name, cls: S.KIND[k].tier, owner: c.sponsor, independent: !!c.independent, colony: true, of});
@@ -160,6 +160,10 @@ const budget = (P, sponsor) => 1 + Math.floor(Math.max(0, (P.rep[sponsor] || 0) 
 const gone = c => c.stage == 'lapsed' || c.stage == 'lost';
 const held = P => list(P).filter(c => !gone(c)).length;
 const colonyAt = (P, starId) => list(P).find(c => c.star.id == starId && !gone(c)) || null;
+/* (0.5.5) another pilot's colony in the same galaxy (P.others, from save.js joinGalaxy; never saved with this pilot):
+   it is in the world, with its port, but not this pilot's to manage */
+const othersAt = (P, starId) => (P.others || []).find(c => c.star && c.star.id == starId && !gone(c)) || null;
+const worldColonyAt = (P, starId) => colonyAt(P, starId) || othersAt(P, starId);
 
 /* can this office's sponsor claim this system for you? {ok, why, fee (sponsor's coin), salvage} */
 function canClaim(P, office, star, kind, day, jumpRange, plan, independent, world) {
@@ -184,6 +188,7 @@ function canClaim(P, office, star, kind, day, jumpRange, plan, independent, worl
 	if (G.mRad(p[0], p[1], p[2]) < COL.core) return {ok: false, why: 'Nothing can be built in the Core.'};
 	if (!G.system(star).planets.length) return {ok: false, why: star.name + ' has no planets: nowhere to put a port.'};
 	if (colonyAt(P, star.id)) return {ok: false, why: 'You already hold a claim there.'};
+	if (othersAt(P, star.id)) return {ok: false, why: 'Another pilot\'s colony is there.'};
 	if (F.majors().some(m => m.star.id == star.id) || !T.wildAt(star, day)) return {ok: false, why: star.name + ' already has a port.'};
 	const c = F.claimAt(p);
 	if (c.contested) return {ok: false, why: star.name + ' is contested: no civilian colonies on a front (a forward base, with a commission).'};
@@ -204,6 +209,7 @@ function common(P, office, star, day, jumpRange) {
 	if (G.mRad(p[0], p[1], p[2]) < COL.core) return 'Nothing can be built in the Core.';
 	if (!G.system(star).planets.length) return star.name + ' has no planets: nowhere to put a port.';
 	if (colonyAt(P, star.id)) return 'You already hold a claim there.';
+	if (othersAt(P, star.id)) return 'Another pilot\'s colony is there.';
 	if (F.majors().some(m => m.star.id == star.id) || !T.wildAt(star, day)) return star.name + ' already has a port.';
 	return null;
 }
@@ -336,9 +342,9 @@ function turn(P, day) {
 }
 /* the port at a star, if it's your finished colony and open: like travel.portFor's answer */
 function portOf(P, star, day) {
-	const c = colonyAt(P, star.id);
+	const c = worldColonyAt(P, star.id);
 	if (!c || c.stage != 'done' || day < c.opens || isGround(c.port)) return null;
-	return {id: 'orbital', cls: PORTS[c.port].cls, world: c.world, owner: c.sponsor, capital: false, contested: false, colony: true, independent: !!c.independent, base: !!PORTS[c.port].base};
+	return {id: 'orbital', cls: PORTS[c.port].cls, world: c.world, owner: c.sponsor, capital: false, contested: false, colony: true, independent: !!c.independent, base: !!PORTS[c.port].base, foreign: !!c.foreign};
 }
 
 /* ---------------- part 2: building out ---------------- */
@@ -573,6 +579,6 @@ function starOf(c) {
 	STARS.set(c.id, s); return s;
 }
 
-const EmberColonies = {siteMap, isGround, worldsOf, worldOf, groundWorlds, groundSite, portGoods, groundPorts, slotOf, colonySlots, GROUND, noteDeposit, minedBy, openDeposits, mineRate, mineLeft, feeds, raided, scripCode, registerScrips, carriers, rent, rented, FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
+const EmberColonies = {othersAt, worldColonyAt, siteMap, isGround, worldsOf, worldOf, groundWorlds, groundSite, portGoods, groundPorts, slotOf, colonySlots, GROUND, noteDeposit, minedBy, openDeposits, mineRate, mineLeft, feeds, raided, scripCode, registerScrips, carriers, rent, rented, FAC, MIX, ECONS, slots, used, canBuild, startBuild, deliverBuilds, finishBuild, economy, boost, popCap, stats, payment, grow, facGoods, t3cost, PORT_TIER, starOf,PORTS, COL, portWorld, budget, colonyAt, canClaim, candidates, claim, beacon, left, progress, deliver, haulQuote, postHaul, turn, portOf, open};
 if (isNode) module.exports = EmberColonies; else root.EmberColonies = EmberColonies;
 })(typeof window != 'undefined' ? window : this);

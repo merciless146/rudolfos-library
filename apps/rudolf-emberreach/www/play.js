@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.4'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.5'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -126,28 +126,51 @@ async function start() {
 	await RG.init('ember-reach');
 	RG.bind(KEYS);
 	const majors = F.majors();
-	/* the save, unless the URL asks for a particular system, port or ship */
-	let sv = null;
-	try { sv = Sv.unpack(await RG.load(), {powers: majors.length, ports: Object.keys(Sc.STATION), ships: [...S.ships(), ...S.precursors()].map(x => x.id)}) } catch (e) { sv = null }
-	const fresh = ['power', 'port', 'ship', 'day'].some(k => Q.has(k));
-	/* the settings: the save's (a first game follows Rudolf OS's language, or the browser's) */
-	game.settings = St.sanitise(sv && sv.settings, Object.keys(KEYS), I18.LANGS.map(l => l[0]));
+	/* (0.5.5) the saves: the game's own value holds the settings; 'galaxy' the galaxy the pilots share; 'pilot-1' to
+	   'pilot-6' a pilot each (save.js). The save, unless the URL asks for a particular system, port or ship */
+	const known = {powers: majors.length, ports: Object.keys(Sc.STATION), ships: [...S.ships(), ...S.precursors()].map(x => x.id)};
+	const fresh = ['power', 'port', 'ship', 'day'].some(k => Q.has(k)), duel = Q.has('duel');
+	let base = null, gal = null, oldGalaxy = false;
+	try { base = await RG.load() } catch (e) { base = null }
+	try { gal = Sv.unpackGalaxy(await RG.load('galaxy')) } catch (e) { gal = null }
+	{ const b = Sv.unpack(base, known); if (b && b.oldGalaxy) oldGalaxy = true;
+	  /* a save from before 0.5.5 (one value, its pilot in it), or one loaded from such a file: the galaxy and pilot 1 */
+	  if (!duel && b && b.ship && b.player) { const m = Sv.migrate(base, migrateNames(base)); if (m) { gal = m.galaxy; await savesReset(); await RG.save(m.pilot, 'pilot-1'); await RG.save(gal, 'galaxy') } }
+	  if (base && !base.settingsOnly) { base = {settingsOnly: true, settings: b && b.settings || base.settings}; if (!duel) await RG.save(base) } }
+	/* the settings: the account's (a first game follows Rudolf OS's language, or the browser's) */
+	const set0 = Sv.unpack(base, known);
+	game.settings = St.sanitise(set0 && set0.settings, Object.keys(KEYS), I18.LANGS.map(l => l[0]));
+	if (!gal) gal = Sv.newGalaxy(+(Q.get('day') || 200));
+	game.galaxy = gal;
 	/* (0.5.3) a phone: a touch screen as the main pointer, its short side under 600 px (low-power mode's Auto) */
 	try { game.phone = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600 } catch (e) { game.phone = false }
 	if (Q.get('quality')) game.settings.graphics.quality = Q.get('quality') == 'low' ? 'low' : 'high';
 	applySettings();
 	/* Rudolf OS's language changed, or stopped being shared: follow it if that's the choice */
 	RG.on('settings', () => { if (game.settings.lang == 'os') applySettings('lang') });
-	if (fresh) sv = sv && {settings: sv.settings};
+	/* (0.5.5) which pilot: the one played last; the pilots' screen when asked for (?pilots) or when none was; a new
+	   pilot in the first free slot when there's none at all, or when the URL asks for a particular start */
+	let slot = null, sv = null;
+	if (!duel) {
+		const any = gal.slots.some(Boolean), free = gal.slots.findIndex(x => !x);
+		if (fresh) slot = free >= 0 ? free : 0;
+		else if (Q.has('pilots') || (gal.cur == null && any)) { $('load').style.display = 'none'; slot = await choosePilot(); $('load').style.display = ''; try { history.replaceState(null, '', location.pathname + (pilotsUrl(false) ? '?' + pilotsUrl(false) : '')) } catch (e) {} }
+		else slot = gal.cur != null ? gal.cur : free;
+		if (!fresh && gal.slots[slot]) try { sv = Sv.unpack(await RG.load('pilot-' + (slot + 1)), known) } catch (e) { sv = null }
+		if (sv && !(sv.ship && sv.player)) sv = null;
+		game.slot = slot; game.pilotId = sv && gal.slots[slot] ? gal.slots[slot].id : 'p' + (++gal.seq); gal.cur = slot;
+		if (sv) { Sv.joinGalaxy(sv.player, gal, game.pilotId); const dd = Math.floor(gal.day - sv.day); if (dd > 0) { Sv.shiftDays(sv.player, dd); sv.day += dd } }
+	}
 	const ok = sv && sv.ship;
-	/* the player: from the save; or, for a new game, the origin from the URL or chosen here */
+	/* the player: from the save; or, for a new pilot, the origin from the URL or chosen here */
 	/* (0.5.0) duels: their own game, nothing saved but the settings */
-	const duel = Q.has('duel'); if (duel) game.duel = {m: null, pick: Du.ROSTER[0].id, opp: null, seed: 1 + Math.floor(Math.random() * 1e6)};
+	if (duel) game.duel = {m: null, pick: Du.ROSTER[0].id, opp: null, seed: 1 + Math.floor(Math.random() * 1e6)};
 	let originIdx = duel ? 0 : ok ? sv.power : Q.has('power') ? Math.max(0, Math.min(majors.length - 1, +Q.get('power'))) : null;
-	if (originIdx == null) { $('load').style.display = 'none'; originIdx = await chooseOrigin(sv && sv.oldGalaxy); $('load').style.display = '' }
+	if (originIdx == null) { $('load').style.display = 'none'; originIdx = await chooseOrigin(oldGalaxy); $('load').style.display = '' }
 	game.power = originIdx;
 	game.home = majors[game.power];
 	game.P = !duel && ok && sv.player ? sv.player : Tr.newPlayer(game.home.id);
+	if (!duel && !ok) Sv.joinGalaxy(game.P, gal, game.pilotId);   /* (a new pilot arrives in the galaxy as it is) */
 	if (Q.has('ship') && !ok) game.P.ship.model = Q.get('ship');
 	Co.registerScrips(game.P);
 	game.homePort = !ok && Sc.STATION[Q.get('port')] ? Q.get('port') : ok && sv.version == 1 ? sv.port : 'halo';
@@ -156,7 +179,7 @@ async function start() {
 	if (!ok && !game.P.ship.fit) game.P.ship.fit = O.starter(baseShip);
 	if (!O.valid(baseShip, game.P.ship.fit)) game.P.ship.fit = O.stock(baseShip);
 	ship = O.derive(baseShip, game.P.ship.fit);
-	game.day = ok ? sv.day : +(Q.get('day') || 200);
+	game.day = ok ? sv.day : Q.has('day') ? +Q.get('day') : (gal.day || 200);
 	game.fuel = ok ? sv.fuel : 1;
 	const here = !duel && ok && sv.star ? T.starAt(sv.star.id, sv.star.p) : null;
 	game.lastPort = ok && sv.lastPort ? T.starAt(sv.lastPort.id, sv.lastPort.p) : null; game.lastPortId = ok && sv.lastPort && sv.lastPort.port || T.ORBITAL;
@@ -292,8 +315,13 @@ function persist() {
 	const routeTo = game.route && game.route.toStar ? game.route.toStar : null;
 	game.P.day = game.day;
 	if (game.pcs && !game.docked) game.P.combat = C.keep(game.pcs);
-	RG.save(Sv.pack({player: game.P, power: game.power, port: st ? st.cls : null, ship: ship.id, day: game.day, t: game.t, docked: game.docked, pad: game.clearance && game.clearance.pad, s, throttle: game.throttle, fit,
-		star: game.star, at: game.docked ? game.portId || T.ORBITAL : null, fuel: game.fuel, lastPort: game.lastPort, lastPortId: game.lastPortId, routeTo, settings: game.settings, landed: game.landed, gear: game.gear}))
+	/* (0.5.5) three values: the pilot (without the galaxy's part), the galaxy (with this pilot's part in it, and the
+	   slot's summary), and the account's settings */
+	const g = {player: game.P, power: game.power, port: st ? st.cls : null, ship: ship.id, day: game.day, t: game.t, docked: game.docked, pad: game.clearance && game.clearance.pad, s, throttle: game.throttle, fit,
+		star: game.star, at: game.docked ? game.portId || T.ORBITAL : null, fuel: game.fuel, lastPort: game.lastPort, lastPortId: game.lastPortId, routeTo, settings: game.settings, landed: game.landed, gear: game.gear, pilotOnly: true};
+	const gal = game.galaxy; gal.slots[game.slot] = Sv.summary(game.pilotId, g, slotNames(game.P, game.star)); gal.cur = game.slot;
+	const gv = Sv.packGalaxy(gal, game.P, game.pilotId, game.day); gal.day = gv.day;
+	Promise.all([RG.save(Sv.pack(g), 'pilot-' + (game.slot + 1)), RG.save(gv, 'galaxy'), RG.save({settingsOnly: true, settings: game.settings})])
 		.catch(e => { if (!game.saveWarned) { game.saveWarned = true; say('Could not save: ' + e.message, '#f2a33a') } })
 		.then(() => { setTimeout(() => { game.saving = false; if (game.savePending) persist() }, 1000) });
 }
@@ -1349,6 +1377,7 @@ if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () =
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
 	get scene() { return scene }};
+if (DEBUG) Object.assign(window.EmberDebug, {persist: () => persist()});   /* (0.5.5: the pilots' test saves now) */
 function provoke(n) {
 	En.provoke(n, game.npcs);
 	say('You fired on ' + n.name + (n.role == 'trader' ? ': a crime. The patrol will come.' : '. They are returning fire.'), '#f2a33a');
@@ -1726,6 +1755,48 @@ function openPort() {
 /* after buying a ship, reopen with the new one (same screen) */
 function openPortAgain() { const scr = document.querySelector('#port [aria-current="page"]'), k = scr && scr.dataset.screen; openPort(); if (k) { const b = document.querySelector('#port [data-screen="' + k + '"]'); if (b) b.click() } }
 /* a new game: choose your origin among the great powers */
+/* ---------------- (0.5.5) the pilots: up to six in one galaxy (save.js; docs/plan-ember-reach-pilots.md) ---------------- */
+/* the names a slot's summary shows: the origin, its currency, the ship, the system */
+function slotNames(P, star) {
+	const m = P && F.byId(P.origin), h = P && P.ship && S.hull(P.ship.model);
+	return {origin: m ? m.name.replace(/^The /, '') : (P && P.origin) || '', code: m ? m.currency.code : null, ship: h ? h.name : null, star: star ? star.name : null};
+}
+function migrateNames(raw) { try { return slotNames(raw.player, raw.star ? T.starAt(raw.star.id, raw.star.p) : null) } catch (e) { return null } }
+/* every pilot and the galaxy cleared (the settings stay) */
+async function savesReset() { for (let i = 1; i <= Sv.SLOTS; i++) await RG.save(null, 'pilot-' + i); await RG.save(null, 'galaxy') }
+/* the page's address with the pilots' screen asked for (or not), keeping its other settings but not a new game's */
+function pilotsUrl(on) { const u = new URLSearchParams(location.search); for (const k of ['power', 'port', 'ship', 'day', 'duel', 'spawn', 'pilots']) u.delete(k); if (on) u.set('pilots', '1'); return u.toString() }
+const saveGalaxyOnly = () => RG.save(Sv.packGalaxy(game.galaxy, null, null, game.galaxy.day), 'galaxy');
+/* the pilots' screen: play a pilot, start a new one in a free slot, delete one, or wipe the galaxy; resolves to the slot */
+function choosePilot() {
+	return new Promise(res => {
+		const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns'), gal = game.galaxy;
+		const draw = () => {
+			btns.textContent = '';
+			const row = (x, i) => x
+				? '<div class="pt-slot"><b>' + esc(tr('Pilot {n}', {n: i + 1})) + '</b> <span>' + esc([x.origName || x.origin, x.shipName || x.ship, x.star].filter(Boolean).join(' · ')) + '</span> <span class="small">'
+					+ esc((x.cash ? x.cash.n.toLocaleString('en-US') + ' ' + x.cash.code + ' · ' : '') + tr('Day {d}', {d: x.day})) + '</span> <button class="primary" data-play="' + i + '">' + esc(tr('Play')) + '</button> <button data-del="' + i + '">' + esc(tr('Delete')) + '</button></div>'
+				: '<div class="pt-slot"><b>' + esc(tr('Pilot {n}', {n: i + 1})) + '</b> <span class="small">' + esc(tr('Empty slot')) + '</span> <button data-new="' + i + '">' + esc(tr('New pilot')) + '</button></div>';
+			body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr('Your pilots')) + '</h1><p class="small">' + esc(tr('One galaxy, up to six pilots: what each pilot does stays in the galaxy for the others.')) + '</p>'
+				+ '<div class="pt-slots">' + gal.slots.map(row).join('') + '</div>';
+			const wipe = document.createElement('button'); wipe.textContent = tr('Wipe the galaxy'); wipe.id = 'wipeGalaxy';
+			wipe.onclick = async () => { if (!wipe.dataset.sure) { wipe.dataset.sure = 1; wipe.textContent = tr('Wipe the galaxy: sure? (all six pilots are lost)'); return }
+				await savesReset(); Object.assign(gal, Sv.newGalaxy(+(Q.get('day') || 200))); game.galaxy = gal; draw() };
+			btns.appendChild(wipe);
+			const first = body.querySelector('button[data-play], button[data-new]'); if (first) first.focus();
+		};
+		body.onclick = async e => {
+			const b = e.target.closest('button'); if (!b) return;
+			if (b.dataset.play != null || b.dataset.new != null) { ov.hidden = true; body.onclick = null; res(+(b.dataset.play != null ? b.dataset.play : b.dataset.new)); return }
+			if (b.dataset.del != null) {
+				if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = tr('Delete this pilot: sure? (the galaxy keeps what they did)'); return }
+				const i = +b.dataset.del; gal.slots[i] = null; if (gal.cur == i) gal.cur = null;
+				await RG.save(null, 'pilot-' + (i + 1)); await saveGalaxyOnly(); draw();
+			}
+		};
+		ov.hidden = false; draw();
+	});
+}
 function chooseOrigin(oldGalaxy) {
 	return new Promise(res => {
 		const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns'), majors = F.majors();
@@ -1921,7 +1992,7 @@ function project(cam, p) {
 function sysCard(leg, cam) {
 	const x = leg.star, dir = sysDir(x), pr = project(cam, add(cam.p, mul(dir, 1e9))), off = sysOff(x);
 	if (!game.sysInfo || game.sysInfo.id != x.id || game.sysInfo.day != game.day) {
-		const gv = T.government(x, game.day), col = Co.colonyAt(game.P, x.id), pop = T.population(x, game.day, col && col.pop || 0), d = leg.d;
+		const gv = T.government(x, game.day), col = Co.worldColonyAt(game.P, x.id), pop = T.population(x, game.day, col && col.pop || 0), d = leg.d;
 		game.sysInfo = {id: x.id, day: game.day, rows: [
 			[tr('DISTANCE'), d < 1000 ? d.toFixed(d < 10 ? 2 : 1) + ' pc' : Math.round(d).toLocaleString('en-US') + ' pc'],
 			[tr('GOVERNMENT'), gv.anarchy ? tr('Anarchy') : gv.government],
@@ -2450,9 +2521,10 @@ function overlay(kind) {
 		/* (0.5.0) duels: their own page; nothing of the game is touched */
 		if (game.duel) { if (!game.duel.net) button('Choose ship', () => overlay('duel')); button('Leave duels', () => { location.href = location.pathname }); ov.hidden = false; return }
 		button('Duels', () => { persist(); setTimeout(() => { location.href = location.pathname + '?duel' }, 300) });
-		button(tr('Save to a file'), () => { persist(); setTimeout(() => RG.exportSave(), 300) });
+		button(tr('Save to a file'), () => { persist(); setTimeout(() => RG.exportSave(['galaxy', ...Array.from({length: Sv.SLOTS}, (_, i) => 'pilot-' + (i + 1))]), 1300) });   /* (0.5.5: the galaxy and every pilot) */
 		button(tr('Load from a file'), () => RG.importSave().then(() => location.reload(), e => say(e.message, '#f2a33a')));
-		button(tr('New game'), e => { if (e.target.dataset.sure) { RG.save({settingsOnly: true, settings: game.settings}).then(() => { location.href = location.pathname }) } else { e.target.dataset.sure = 1; e.target.textContent = tr('New game: sure? (the save is lost)') } });
+		/* (0.5.5) the pilots' screen (a new pilot, another pilot, or wiping the galaxy) */
+		button(tr('Pilots'), () => { persist(); setTimeout(() => { location.search = pilotsUrl(true) }, 1300) });
 	}
 	if (kind == 'duel') duelPick(body, button, close);
 	if (kind == 'duelOver') duelOver(body, button, close);

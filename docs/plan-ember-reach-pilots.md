@@ -183,6 +183,32 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 - **What's shared:** ships, shots and NPCs in sight; docking (pads per player); markets; colonies' state on view.
   Missions stay each pilot's own, plus **wing missions** the host can share (rewards to each).
 
+## Status
+
+**P1 is built (0.5.5):**
+- **The game kit:** `RG.load(slot)` and `RG.save(v, slot)`, and files carrying several slots.
+- **The save, split:** the galaxy (`ember-reach-galaxy`) holds markets, mined asteroids, war events, every pilot's
+  colonies with their owner, first discoveries by whom, and names. Pilots 1–6 (`ember-reach-pilot-N`) hold the
+  rest. The game's own value keeps the settings.
+- **Pilots are known by an id** (p1, p2…), so a new pilot in a freed slot inherits nothing.
+- **Shared rules in force:** first discoveries are galaxy-wide (another pilot's first pays the ordinary rate and
+  can't be renamed). Another pilot's colony is in the world with its port, market and population, marked as
+  theirs, and its system can't be claimed. A pilot's own deadlines (missions, hauls, insurance, things on their
+  way, their colonies' days, the police record) move on by the days the galaxy lived without them.
+- **The pilots' screen:** six slots, each with its origin, ship, system, money and day, and Play, New pilot,
+  Delete (asked twice) and Wipe the galaxy (asked twice; every pilot goes). It opens from the pause menu's
+  **Pilots**, which replaces New game.
+- **Launching** resumes the pilot played last.
+- **An old save** becomes the galaxy and pilot 1.
+- **Save to a file** carries the galaxy and all six pilots.
+- **Tests:** `tests/emberreach_pilots_t.js` (13, node) and `tests/emberreach_pilots_browser_t.js` (12, Chromium).
+
+**Left for P2:**
+- A pilot's name, and the difficulty and Hardcore box on the new-pilot screen. Today a new pilot goes straight to
+  the origins.
+- A deleted pilot's colonies stay in the galaxy as another pilot's. Hardcore's death rule (P2) makes them
+  independent.
+
 ## Steps
 
 | Step | What | Needs | Size |

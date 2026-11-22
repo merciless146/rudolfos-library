@@ -81,8 +81,10 @@ async function frame(pg, test) {
 		const fly2 = await f.evaluate(() => ({v: Math.hypot(...EmberDebug.s.v), thr: EmberDebug.game.throttle}));
 		ok('4. it launches, and the throttle flies the ship', !fly.docked && (fly2.v > fly.v || fly2.thr > 0), [fly, fly2]);
 		await pg.screenshot({path: path.join(W, 'flight.png')});
-		const saved = await pg.evaluate(() => SAVES['ember-reach']);
-		ok('5. the desktop keeps the save (launching saves)', saved && saved.v == 4 && saved.player && saved.docked === false, saved && Object.keys(saved));
+		/* (0.5.5) three values: the settings (the game's own), the galaxy, and pilot 1 */
+		const saved = await pg.evaluate(() => ({p: SAVES['ember-reach-pilot-1'], g: SAVES['ember-reach-galaxy'], s: SAVES['ember-reach']}));
+		ok('5. the desktop keeps the save (launching saves): pilot 1 (without the galaxy\'s part), the galaxy with pilot 1 in its first slot, and the settings', saved.p && saved.p.v == 4 && saved.p.player && saved.p.docked === false && !('markets' in saved.p.player)
+			&& saved.g && saved.g.gv == 1 && saved.g.cur == 0 && saved.g.slots[0] && saved.g.slots[0].id == 'p1' && saved.s && saved.s.settingsOnly, {p: saved.p && Object.keys(saved.p), g: saved.g && saved.g.slots, s: saved.s && Object.keys(saved.s)});
 		const sp = await f.evaluate(() => { const g = EmberDebug.game, q = (g.ports || []).filter(x => x.surface), b = q.length && EmberDebug.scene.bodies.find(x => x.name == q[0].world); return {n: q.length, want: EmberSurface.ports(g.star, g.port && g.port.cls).length, star: g.star.name, kinds: q.map(x => x.kind), ids: q.every(x => EmberTravel.PORT_ID.test(x.id)), flats: b ? EmberTerrain.params(b).flats.length : 0, orbital: !!g.port && g.port.id == 'orbital'} });
 		ok('5b. L2.2: the home system lists its surface ports (if its worlds can take any) after its space port, and their sites are levelled into their worlds', sp.n == sp.want && sp.ids && (sp.n == 0 || sp.flats >= 1) && sp.orbital, sp);
 		await pg.keyboard.press('KeyG'); await sleep(1200); const mapOn = await f.evaluate(() => EmberDebug.game.mapOpen); await pg.screenshot({path: path.join(W, 'map.png')}); await pg.keyboard.press('KeyG'); await sleep(300); const mapOff = await f.evaluate(() => !EmberDebug.game.mapOpen);

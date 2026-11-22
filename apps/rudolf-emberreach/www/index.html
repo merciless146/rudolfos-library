@@ -76,6 +76,12 @@ html,body{margin:0;height:100%;background:#010204;color:#e8edf6;font-family:Inte
 .pt-bar button{flex:1 0 84px;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:transparent;border:1px solid #243352;color:#c3cde0;font-size:12px}
 .pt-bar button small{font:10px ui-monospace,Menlo,monospace;color:#9fb0cc}.pt-bar button.on{background:#1d2a45;border-color:#f2a33a;color:#f6c27a}
 /* the origin picker */
+/* (0.5.5) the pilots' screen: one row per slot */
+.pt-slots{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+.pt-slot{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 12px;min-height:44px;background:#101a2d;border:1px solid #243352;color:#e8edf6;font:13px Inter,system-ui,sans-serif}
+.pt-slot>span{flex:1 1 160px;color:#9fb0cc}.pt-slot>b{min-width:64px}
+.pt-slot button{min-height:36px;padding:0 14px;border:1px solid #f2a33a;background:transparent;color:#f6c27a;font:600 13px Inter,system-ui,sans-serif;cursor:pointer}
+.pt-slot button.primary{background:#f2a33a;color:#1a1205}.pt-slot button:focus-visible{outline:2px solid #6cc9e8;outline-offset:2px}.pt-slot button[data-del]{border-color:#5a6a86;color:#9fb0cc}
 .org-h{margin:14px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#9fb0cc}
 .org{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:8px}
 .org button{display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;padding:10px 12px;min-height:44px;background:#101a2d;border:1px solid #243352;color:#e8edf6;font:13px Inter,system-ui,sans-serif;cursor:pointer}
