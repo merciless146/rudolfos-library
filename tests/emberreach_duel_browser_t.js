@@ -43,7 +43,7 @@ async function frame(pg, test) {
 		await pg.screenshot({path: path.join(W, 'duel-start.png')});
 		ok('2. Start: your Jackal and a rival 20 km off in an asteroid field, red on the radar; the clock at the top running down from 5:00', st.phase == 'fight' && st.me == 'jackal' && st.npcs == 1 && st.hostile && Math.abs(st.d - 20000) < 300 && st.rocks > 100 && st.scan >= 20000 && st.blip && /^4:5\d$/.test(st.clock) && !st.open, st);
 		/* your guns on the rival, 700 m ahead: the damage you do counts */
-		const fire = async (ms) => { await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, n = g.npcs[0]; s.p = g.duel.c.map((v, i) => v + [0, 0, 6000][i]); s.v = [0, 0, 0]; s.w = [0, 0, 0]; const fw = EmberFlight.forward(s); n.s.p = s.p.map((v, i) => v + fw[i] * 700); n.s.v = s.v.slice(); n.pos = n.s.p; g.tgt = n; g.touch.fire = 0 }); await sleep(ms); await f.evaluate(() => { EmberDebug.game.touch.fire = null }) };
+		const fire = async (ms) => { await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, n = g.npcs[0]; s.p = g.duel.c.map((v, i) => v + [0, 0, 6000][i]); s.v = [0, 0, 0]; s.w = [0, 0, 0]; const fw = EmberFlight.forward(s); n.s.p = s.p.map((v, i) => v + fw[i] * 700); n.s.v = s.v.slice(); n.pos = n.s.p; g.tgt = n; g.touch.fire = g.touch.fire2 = 0 }); await sleep(ms); await f.evaluate(() => { EmberDebug.game.touch.fire = EmberDebug.game.touch.fire2 = null }) };
 		await fire(1500);
 		const hit = await f.evaluate(() => ({dealt: EmberDebug.game.duel.m.dealt.slice(), sh: EmberDebug.game.npcs[0].cs.shield, max: EmberDebug.game.npcs[0].cs.shieldMax}));
 		ok('3. your hits on the rival are counted as damage done', hit.dealt[0] > 5 && hit.sh < hit.max, hit);

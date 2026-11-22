@@ -58,11 +58,11 @@
 const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
 	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
-	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel, Ne = window.EmberNet;
+	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel, Tc = window.EmberTouch, Ne = window.EmberNet;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.2'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.3'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -85,7 +85,7 @@ const helpRows = () => St.GROUPS.flatMap(([g, acts]) => acts.filter(a => KEYS[a]
 let baseShip = null, W = 1, Hh = 1, view = null, R = null, scene = null, st = null, ship = null, s = null, fit = null, pilot = null, map = null;
 const game = {t: 0, day: 200, star: null, port: null, fuel: 1, route: null, jump: null, lastPort: null, mapOpen: false,
 	cruise: {on: false, v: 0, charge: 0}, throttle: 0, target: 0, clearance: null, docked: false, chase: false, systems: false, mouseFly: false, msgs: [], vision: null, gFelt: null, lastStep: null,
-	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: {stick: null, dx: 0, dy: 0, thr: null, fire: null, msl: false},
+	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: Tc.create(), touchAuto: false,
 	tgt: null, npcs: [], shots: [], beams: [], booms: [], cans: [], hatch: false, spill: {}, fields: [], field: null, rocks: [], sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, visits: 0, own: null};
 const say = (text, col) => { game.msgs.push({text, col, t: game.t}); if (game.msgs.length > 12) game.msgs.shift() };
 const at = x => [x.x, x.y, x.z];
@@ -177,7 +177,7 @@ async function start() {
 	hud.addEventListener('wheel', e => { e.preventDefault(); if (game.mapOpen) { map.zoom(Math.exp(e.deltaY * 0.0015)); return } if (!game.docked) RG.wheel(e.deltaY) }, {passive: false});
 	/* mouse buttons in flight, bindable (0.3.4: left fires the primary guns, right the secondary): from the HUD only,
 	   not on the map or while docked; each button on its own (pointer events miss a second button held with a first) */
-	hud.addEventListener('mousedown', e => { if (!game.mapOpen && !game.docked) RG.mouse(e.button, true) });
+	hud.addEventListener('mousedown', e => { if (game.ptrTouchAt && performance.now() - game.ptrTouchAt < 800) return; if (!game.mapOpen && !game.docked) RG.mouse(e.button, true) });
 	addEventListener('mouseup', e => RG.mouse(e.button, false));
 	hud.addEventListener('contextmenu', e => { if (!game.mapOpen) e.preventDefault() });
 	RG.on('pause', () => { Snd.hold(true); persist() }); RG.on('resume', () => Snd.hold(false));
@@ -339,22 +339,21 @@ function controls(dt) {
 	A.pitch = ease(A.pitch, d('pitchDown') - d('pitchUp'), 6); A.roll = ease(A.roll, d('rollLeft') - d('rollRight'), 6); A.yaw = ease(A.yaw, d('yawRight') - d('yawLeft'), 6);
 	let pitch = A.pitch, roll = A.roll, yaw = A.yaw, sx = d('strafeR') - d('strafeL'), sy = d('strafeU') - d('strafeD'), thr = 0;
 	const pad = readPad();
-	if (pad) { pitch += pad.pitch; roll += pad.roll; yaw += pad.yaw; thr += pad.thr }
+	if (pad) { pitch += pad.pitch; roll += pad.roll; yaw += pad.yaw; thr += pad.thr; if (Math.abs(pad.pitch) + Math.abs(pad.roll) + Math.abs(pad.yaw) + Math.abs(pad.thr) > 0.3) game.touchAuto = false }
 	if (game.mouseFly && game.ptr && !game.ptr.touch) { const mx = (game.ptr.x - W / 2) / (W / 2), my = (game.ptr.y - Hh / 2) / (Hh / 2), dz = v => Math.abs(v) < 0.06 ? 0 : v; const k = 1.4 * game.settings.controls.mouseSens / 100; roll -= dz(mx) * k; pitch += dz(my) * k * (game.settings.controls.invertMouse ? -1 : 1) }
-	const Tt = game.touch;
-	if (Tt.stick) { pitch += Tt.dy; roll -= Tt.dx }
-	if (Tt.vert) sy += Tt.vert;
+	const Tt = game.touch, ta = Tc.axes(Tt, game.settings.touch.sens);
+	pitch += ta.pitch; roll += ta.roll; yaw += ta.yaw; sy += ta.vert;
 	thr += d('faster') - d('slower');
 	game.thrIn = thr;   /* (the autopilot hands over when the pilot works the throttle) */
 	if (s.fa || game.cruise.on) {
 		game.throttle = Math.max(game.cruise.on ? 0 : -0.3, Math.min(1, game.throttle + thr * 0.6 * dt));
-		if (Tt.thr != null) game.throttle = Tt.thr;
+		if (Tt.thrId != null) game.throttle = Tt.thr;   /* (the slider while it's held: the keys and the autopilot move it otherwise) */
 		/* the hatch's trim: the set speed can't pass 12% of top speed */
 		if (s.hatch && !game.cruise.on) { const k = Fl.TUNE.hatch.speed; game.throttle = Math.max(-k, Math.min(k, game.throttle)) }
 		if (RG.pressed('stop')) game.throttle = 0;
 		/* the landing gear down: no faster than 100 m/s */
 		if (game.gear && !game.cruise.on) game.throttle = Math.min(game.throttle, GEAR.vmax / s.spec.vmax);
-	} else game.throttle = Math.max(-1, Math.min(1, Tt.thr != null ? Tt.thr * 2 - 1 : thr));
+	} else game.throttle = Math.max(-1, Math.min(1, Tt.thrId != null ? Tt.thr * 2 - 1 : thr));
 	const c = v => Math.max(-1, Math.min(1, v));
 	return {pitch: c(pitch), roll: c(roll), yaw: c(yaw), strafe: [c(sx), c(sy)], throttle: game.throttle, thrust: s.fa ? 0 : game.throttle};
 }
@@ -574,6 +573,7 @@ const RADIAL = [['gear', 'Landing gear', () => toggleGear()], ['hatch', 'Cargo h
 	['mouse', 'Mouse flight', () => toggleMouse()], ['fa', 'Flight assist', () => toggleFA()], ['autopilot', 'Autopilot', () => toggleAutopilot()], ['reboot', 'Reboot', () => reboot()], ['view', 'Third person', () => toggleView()]];
 function radialStep() {
 	const R0 = game.radial;
+	if (R0 && R0.touch) return true;   /* (0.5.3: opened by touch, it stays open until an item or the outside is tapped) */
 	if (RG.down('radial')) {
 		if (!R0) { game.radial = {sel: -1, at: game.t}; Snd.cue('tick') }
 		const g = game.radial;
@@ -1067,6 +1067,7 @@ function moduleAlert(a) { say(a.text, a.color); Snd.cue(a.level == 'critical' ? 
 function update(dt) {
 	if (!s) return;
 	actions(dt);
+	Tc.step(game.touch, dt);
 	if (game.docked) return;
 	game.t += dt;
 	game.nvK = Math.max(0, Math.min(1, (game.nvK || 0) + (game.nv ? 1 : -1) * dt * 4));
@@ -1274,9 +1275,10 @@ function combat(dt) {
 	const wasLocked = game.locked; game.locked = hasMsl && C.updateLock(pc, s, foe, dt); if (!hasMsl) pc.lock = {id: null, t: 0};
 	if (game.locked && !wasLocked) Snd.cue('lock');
 	/* the triggers (0.3.4): Fire (the left mouse button) the primary guns, Fire secondary (the right) the secondary; with
-	   guns in only one group, either fires them; touch's FIRE, and a gamepad's trigger, fire every gun */
+	   guns in only one group, either fires them; a gamepad's trigger fires every gun; (0.5.3) touch's FIRE the primary,
+	   FIRE 2 the secondary */
 	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned && (!game.duel || duelLive());
-	const allG = game.touch.fire != null || (RG.lastInput == 'pad' && RG.down('fire')), t1 = RG.down('fire') || allG, t2 = RG.down('fire2') || allG;
+	const allG = RG.lastInput == 'pad' && RG.down('fire'), t1 = RG.down('fire') || allG || game.touch.fire != null, t2 = RG.down('fire2') || allG || game.touch.fire2 != null;
 	const oneGroup = new Set(pc.load.guns.filter(g => !C.WEAPONS[g.kind].homing).map(C.groupOf)).size < 2, heldG = g => oneGroup ? t1 || t2 : C.groupOf(g) == 1 ? t1 : t2, trigger = heldG;
 	/* the mass drivers: held, they charge; let go, they fire (combat mode only; out of it, the charge is lost) */
 	if (!can || game.mode == 'analysis') { for (const g of pc.load.guns) g.charge = 0 }
@@ -1334,7 +1336,7 @@ function debugPirates(k) {
 	place([...Array(k)].map((_, i) => ({role: 'pirate', faction: gang.id, ship: hulls[i % hulls.length], where: 'arrival', range: 2500 + i * 300, ai: 'attack', wing: 'p', provoked: false})));
 	say(k + ' pirates ahead (debug)', '#e5484d');
 }
-if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () => duelBegin(), seesSites: () => seesSites(), navList: () => navList(), scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get ship() { return ship }, get fit() { return fit }, settle,
+if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () => duelBegin(), seesSites: () => seesSites(), navList: () => navList(), scanNow: () => scanNow(), shownFields: () => shownFields(), trafficEvent: (id, e) => trafficEvent(id, e), reboot: () => reboot(), sysDir: x => sysDir(x), navTarget: () => navTarget(), surfacePortAt: sp => surfacePortAt(sp), touchLayout: () => touchLayout(), toClient: (x, y) => { const a = view.toGame(0, 0), b = view.toGame(1000, 1000); return {x: (x - a.x) / (b.x - a.x) * 1000, y: (y - a.y) / (b.y - a.y) * 1000} }, get renderer() { return {software: R.software, antialias: R.antialias, renderer: R.renderer} }, meshIds: () => R.ids(), lose: how => lost(how || 'a test'), BUILD, game, pirates: debugPirates, get s() { return s }, get st() { return st }, get ship() { return ship }, get fit() { return fit }, settle,
 	/* jump straight to a star (no fuel or time), and dock at once where there's a port */
 	go: star => { enterSystem(star); const p = arrivalPoint(); s.p = p.p; s.q = p.q; s.v = [0, 0, 0]; s.w = [0, 0, 0]; populate() }, dock: () => { if (st) docked() }, near: (b, k) => { s.p = add(b.pos, mul(norm(sub(s.p, b.pos)), b.radius * k)); s.v = [0, 0, 0]; game.tgt = b; game.cruise = {on: false, v: 0, charge: 0} },
 	refit: () => { ship = O.derive(baseShip, game.P.ship.fit); fit = M.fit(ship); arm() },
@@ -1811,6 +1813,7 @@ function draw() {
 	adaptRes();
 	/* the cockpit, or (0.4.3) third person: a little above and behind the ship, looking where it looks */
 	const B = R.basis(s.q), cam = game.chase ? {p: add(add(s.p, mul(B.f, -ship.length * VIEW.back)), mul(B.u, ship.length * VIEW.up)), q: s.q} : {p: add(s.p, mul(B.f, ship.length * 0.3)), q: s.q};
+	cam.q = Tc.lookQ(s.q, game.touch);   /* (0.5.3: looking round, by a drag on a touch screen) */
 	const sun = scene.bodies[0], items = [], glows = [], CB = R.basis(cam.q), kpx = Hh / 2 / Math.tan(fovNow() / 2 * Math.PI / 180);
 	/* how many pixels across a thing of radius r at p looks */
 	/* (a thing behind the camera is out of sight, unless it's so close it reaches round: then in full) */
@@ -1993,7 +1996,7 @@ function hudDraw(cam) {
 		radial: game.radial ? {sel: game.radial.sel, items: RADIAL.map(([id, name]) => ({name: tr(name), on: id == 'gear' ? game.gear : id == 'hatch' ? game.hatch : id == 'lights' ? game.lights : id == 'nightVision' ? game.nv : id == 'systems' ? game.systems : id == 'view' ? !!game.chase : id == 'autopilot' ? !!game.ap : id == 'reboot' ? fit.reboot > 0 : id == 'mouse' ? game.mouseFly : id == 'fa' ? s.fa : null}))} : null, fps: game.settings.graphics.fps ? game.fps : null, captions: game.settings.a11y.captions ? game.captions.filter(c => game.t - c.t < 3) : null,
 		fuel: game.fuel, jumpCharge: J && J.tunnel == null ? J.charge : 0, witch: J && J.tunnel != null ? 1 - J.tunnel / JUMP.tunnel : null, witchTo: J && J.leg.star.name,
 		nextLeg: leg ? tr('Next') + ': ' + leg.star.name + ' · ' + leg.d.toFixed(1) + ' pc' + (leg.kind != 'jump' ? ' (lane)' : '') + ' · J' : null,
-		touch: RG.lastInput == 'touch', touchUI: touchLayout(),
+		...touchHud(cam),
 		sweep: game.sweep > 0 ? 1 - game.sweep / X.EXPLORE.sweep : 0, gscan: game.gscan ? Math.min(1, game.gscan.t / GSCAN.time) : 0,
 		refinery: Object.keys(game.P.refinery || {}).length ? Object.entries(game.P.refinery).map(([g, t]) => g + ' ' + t.toFixed(1)).join(' · ') : null,
 		hatch: !hasHatch() ? null : !M.works(fit, 'hatch') ? 'jammed' : game.hatch ? 'open' : null,
@@ -2019,39 +2022,75 @@ function dockCues(rel) {
 	return {line1: 'Pad ' + game.clearance.pad + ' · ' + (tips.length ? tips[0] : 'cleared to enter'), line2: tips[1] || (L[2] >= D.z ? 'Mouth ' + H.fmtDist(Math.max(0, L[2] - D.z)) + ' ahead' : ''), col: tips.length ? '#f2a33a' : '#7fd1a8'};
 }
 
-/* ---------------- touch and mouse ---------------- */
+/* ---------------- touch and mouse ----------------
+   (0.5.3) touch flight: touch.js lays the controls out and reads the fingers; here they're wired to the game. Shown
+   by the Touch controls setting: Auto (on a touch screen, hidden while a keyboard, mouse or gamepad is in use), On,
+   Off */
+const touchShown = () => !!(game.settings && Tc.shown(game.settings.touch, game.touchAuto)) && !game.docked && !game.mapOpen;
+/* the safe area (a phone's notch and rounded corners), from index.html's CSS */
+function safeInset() {
+	try { const cs = getComputedStyle($('safe')), v = k => parseFloat(cs[k]) || 0; return {l: v('paddingLeft'), r: v('paddingRight'), t: v('paddingTop'), b: v('paddingBottom')} } catch (e) { return {} }
+}
 function touchLayout() {
-	const Tt = game.touch, r = Math.min(80, W * 0.12);
-	const list = [['FIRE', 'fire', Tt.fire != null], ['MSL', 'missile', game.locked], ['FLARE', 'flare'], ['HOSTILE', 'hostile'], ['HATCH', 'hatch', game.hatch], ['FA', 'fa', s && s.fa], ['CRUISE', 'cruise', game.cruise.on], ['TARGET', 'target'], ['DOCK', 'dock'], ['MAP', 'map'], ['JUMP', 'jump', !!game.jump], ['VIEW', 'view'], ['GEAR', 'gear', game.gear], ['II', 'pause']];
-	return {stick: {x: r + 30, y: Hh - r - 30, r, dx: Tt.dx, dy: Tt.dy},
-		thr: {x: W - 70, y: Hh - 200, w: 48, h: 170},
-		/* the vertical thrusters: up and down from the middle, back to the middle when let go */
-		vert: {x: W - 136, y: Hh - 200, w: 40, h: 170, v: Tt.vert || 0},
-		buttons: list.map(([label, act, onFlag], i) => ({label, act, on: !!onFlag, x: W - 140 - (i % 4) * 72 - 80, y: Hh - 90 - Math.floor(i / 4) * 56, w: 64, h: 46}))};
+	const S = game.settings.touch, key = W + 'x' + Hh + ':' + S.size + ':' + S.left;
+	if (!game.touchU || game.touchU.key != key) { game.touchU = Tc.layout(W, Hh, {size: S.size, left: S.left, inset: safeInset()}); game.touchU.key = key }
+	return game.touchU;
+}
+/* the touch radial menu: the keyboard's, with what touch has no button for, and without mouse flight */
+const RADIAL_TOUCH = [['hostile', 'Nearest hostile', () => game.mode == 'analysis' ? nearestInterest() : nearestHostile()], ['flare', 'Flare', () => { game.touch.flare = true }], ['jump', 'Jump', () => requestJump()], ['mode', 'Combat / analysis mode', () => toggleMode()]];
+const radialList = () => game.radial && game.radial.touch ? [...RADIAL_TOUCH, ...RADIAL.filter(([id]) => id != 'mouse' && id != 'flare' && id != 'fa' && id != 'gear')] : RADIAL;
+function radialOn(id) { return id == 'gear' ? game.gear : id == 'hatch' ? game.hatch : id == 'lights' ? game.lights : id == 'nightVision' ? game.nv : id == 'systems' ? game.systems : id == 'view' ? !!game.chase : id == 'autopilot' ? !!game.ap : id == 'reboot' ? fit.reboot > 0 : id == 'mouse' ? game.mouseFly : id == 'fa' ? s.fa : null }
+function touchRadial() { if (game.radial) { game.radial = null; return } game.radial = {sel: -1, at: game.t, touch: true}; Tc.release(game.touch); Snd.cue('tick') }
+/* TARGET by touch: what's nearest the crosshair (within 20°), ships first; or the next target if nothing's there */
+function targetAhead() {
+	const f = Fl.forward(s), ang = x => { const d = sub(posOf(x), s.p), l = len(d); return l > 1 ? Math.acos(Math.max(-1, Math.min(1, dot(d, f) / l))) : 0 };
+	const L = [...instList().map(x => ({x, a: ang(x), nav: false})).filter(o => o.a < 20 * Math.PI / 180), ...navList().map(x => ({x, a: ang(x), nav: true})).filter(o => o.a < 8 * Math.PI / 180)].sort((a, b) => a.a - b.a);
+	if (!L.length) { game.mode == 'analysis' ? nextTarget(true) : nextTarget(); return }
+	if (L[0].nav) { game.tgt = null; game.nav = L[0].x; say('Navigation target: ' + pname(game.nav)) } else { game.tgt = L[0].x; say('Target: ' + pname(game.tgt)) }
+	Snd.cue('tick');
+}
+/* what the HUD needs of it */
+function touchHud(cam) {
+	const on = touchShown(), T = game.touch, out = {touch: on, touchUI: on ? touchLayout() : null};
+	if (on) { out.touchState = T; out.touchOpacity = game.settings.touch.opacity; out.touchOn = {cruise: game.cruise.on, gear: game.gear, fa: s.fa, missile: game.locked, radial: !!game.radial, dock: !!game.clearance} }
+	if (T.lookYaw || T.lookPitch) { const p = project(cam, add(cam.p, mul(Fl.forward(s), 1e6))); out.nose = {x: p.x, y: p.y, on: p.z > 0} }
+	if (game.radial && game.radial.touch) { const L = radialList(); out.radial = {touch: true, rects: Tc.radialRects(W, Hh, L.length), items: L.map(([id, name]) => { const v = radialOn(id); return {name: tr(name), on: v, onText: v == null ? '' : tr(v ? 'On' : 'Off')} })} }
+	return out;
+}
+function touchAct(act) {
+	if (!pilot.conscious && act != 'pause' && act != 'map') return;
+	const busy = game.docked || (game.jump && game.jump.tunnel != null);
+	if (busy && !['pause', 'map', 'radial'].includes(act)) return;
+	({missile: () => { game.touch.msl = true }, target: targetAhead, dock: requestDock, cruise: toggleCruise, gear: toggleGear, fa: toggleFA, radial: touchRadial, map: openMap, pause: () => RG.pause(), fire: () => {}, fire2: () => {}})[act]();
 }
 function pointers() {
 	const pt = e => { const p = view.toGame(e.clientX, e.clientY); return {x: p.x, y: p.y, touch: e.pointerType == 'touch', id: e.pointerId} };
 	const Tt = game.touch;
-	hud.addEventListener('pointermove', e => { game.ptr = pt(e); if (game.mapOpen) { map.move(game.ptr); return } if (Tt.stick && Tt.stick.id == e.pointerId) stickMove(game.ptr); if (Tt.vertId == e.pointerId) vertMove(game.ptr); if (Tt.thrId == e.pointerId) thrMove(game.ptr) });
+	/* (0.5.3, from #97) with the controls set to On, any pointer works them: on Rudolf OS's first phone (X11) a touch
+	   reaches the game as the mouse. Auto and Off keep the mouse as the mouse */
+	const asTouch = e => e.pointerType == 'touch' || (game.settings.touch.show == 'on' && touchShown());
+	hud.addEventListener('pointermove', e => { game.ptr = pt(e); if (game.mapOpen) { map.move(game.ptr); return } if (asTouch(e) && game.touchU) Tc.move(Tt, game.touchU, game.ptr, e.pointerId, game.settings.touch.sens) });
 	hud.addEventListener('pointerdown', e => {
 		const p = pt(e); game.ptr = p; hud.focus();
-		RG.lastInput = e.pointerType == 'touch' ? 'touch' : 'mouse';
+		RG.lastInput = e.pointerType == 'touch' ? 'touch' : 'mouse'; game.touchAuto = e.pointerType == 'touch';
 		try { hud.setPointerCapture(e.pointerId) } catch (x) {}
+		if (e.pointerType == 'touch') e.preventDefault();   /* (no mouse events after it: a tap is not a click of the left button, which fires) */
 		if (game.mapOpen) { const act = map.down(p); if (act) mapAct(act); return }
-		if (e.pointerType != 'touch') return;   /* (mouse buttons: mousedown, below) */
-		const u = touchLayout();
-		const b = u.buttons.find(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
-		if (b && b.act == 'fire') { Tt.fire = e.pointerId; return }
-		if (b) { ({missile: () => { Tt.msl = true }, flare: () => { Tt.flare = true }, hostile: nearestHostile, hatch: toggleHatch, fa: toggleFA, cruise: toggleCruise, target: nextTarget, dock: requestDock, map: openMap, jump: requestJump, view: toggleView, gear: toggleGear, pause: () => RG.pause()})[b.act](); return }
-		if (Math.hypot(p.x - u.stick.x, p.y - u.stick.y) < u.stick.r * 1.6) { Tt.stick = {id: e.pointerId}; stickMove(p); return }
-		if (p.x >= u.vert.x - 8 && p.x <= u.vert.x + u.vert.w + 8 && p.y >= u.vert.y - 20 && p.y <= u.vert.y + u.vert.h + 20) { Tt.vertId = e.pointerId; vertMove(p); return }
-		if (p.x >= u.thr.x - 20 && p.x <= u.thr.x + u.thr.w + 20 && p.y >= u.thr.y - 20 && p.y <= u.thr.y + u.thr.h + 20) { Tt.thrId = e.pointerId; thrMove(p) }
+		if (!asTouch(e) || !touchShown()) return;   /* (mouse buttons: mousedown, below) */
+		if (e.pointerType != 'touch') game.ptrTouchAt = performance.now();   /* (a mouse press taken as a touch: not a click as well) */
+		/* the touch radial menu: an item tapped runs it; anywhere else closes it */
+		if (game.radial && game.radial.touch) { const L = radialList(), i = Tc.radialHit(Tc.radialRects(W, Hh, L.length), p); game.radial = null; if (i >= 0) L[i][2](); return }
+		const r = Tc.down(Tt, touchLayout(), p, e.pointerId);
+		if (r.act) touchAct(r.act);
 	});
-	const up = e => { if (Tt.fire == e.pointerId) Tt.fire = null; if (game.mapOpen) { map.up(pt(e)); return } if (Tt.stick && Tt.stick.id == e.pointerId) { Tt.stick = null; Tt.dx = Tt.dy = 0 } if (Tt.vertId == e.pointerId) { Tt.vertId = null; Tt.vert = 0 } if (Tt.thrId == e.pointerId) Tt.thrId = null };
+	const up = e => { Tc.up(Tt, e.pointerId); if (game.mapOpen) { map.up(pt(e)); return } };
 	hud.addEventListener('pointerup', up); hud.addEventListener('pointercancel', up);
-	function stickMove(p) { const u = touchLayout().stick; let dx = (p.x - u.x) / u.r, dy = (p.y - u.y) / u.r; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l } Tt.dx = dx; Tt.dy = dy }
-	function vertMove(p) { const u = touchLayout().vert; Tt.vert = Math.max(-1, Math.min(1, 1 - 2 * (p.y - u.y) / u.h)) }
-	function thrMove(p) { const u = touchLayout().thr; Tt.thr = Math.max(0, Math.min(1, 1 - (p.y - u.y) / u.h)) }
+	/* a key or a gamepad in use hides the touch controls (Auto); the page hidden lets go of everything */
+	addEventListener('keydown', () => { game.touchAuto = false }, true);
+	addEventListener('gamepadconnected', () => { game.touchAuto = false });
+	document.addEventListener('visibilitychange', () => { if (document.hidden) Tc.release(Tt) });
+	/* a phone held so its screen is coarse, before any input: shown from the start */
+	try { game.touchAuto = matchMedia('(pointer: coarse)').matches && (navigator.maxTouchPoints || 0) > 0 } catch (e) {}
 }
 
 /* ---------------- overlays ---------------- */
@@ -2392,7 +2431,7 @@ function overlay(kind) {
 	const o = owner(), where = game.star.name + (o ? ' · ' + o.name.replace(/^The /, '') : ' · unclaimed space');
 	if (kind == 'help' || kind == 'pause') {
 		RG.pause();
-		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr(kind == 'pause' ? 'Paused' : 'Controls')) + '</h1><p>' + esc(ship.name) + ' · ' + esc(where) + ' · day ' + Math.floor(game.day) + ' · fuel ' + Math.round(game.fuel * 100) + '%. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + helpRows().map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table><p class="small">' + esc(tr('Mouse: the left button fires; with mouse flight on, point away from the centre to pitch and roll.')) + ' ' + esc(tr('Gamepad sticks: the left pitches and rolls, the right yaws and sets the throttle.')) + ' ' + esc(tr('Gamepad: the d-pad strafes (up and down are the vertical thrusters). A asks for docking; held half a second, it moves the landing gear.')) + ' ' + esc(tr('Touch: the VERT slider beside the throttle works the vertical thrusters, and GEAR moves the landing gear.')) + '</p><p class="small">' + esc(tr('Landing: target a world you can land on and cruise to it, and you drop out above it. Below its Kármán line its gravity pulls, and flight assist holds you up. Lower the gear, let down on the vertical thrusters (strafe up and down), and touch down slowly on level ground.')) + '</p>';
+		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr(kind == 'pause' ? 'Paused' : 'Controls')) + '</h1><p>' + esc(ship.name) + ' · ' + esc(where) + ' · day ' + Math.floor(game.day) + ' · fuel ' + Math.round(game.fuel * 100) + '%. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + helpRows().map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table><p class="small">' + esc(tr('Mouse: the left button fires; with mouse flight on, point away from the centre to pitch and roll.')) + ' ' + esc(tr('Gamepad sticks: the left pitches and rolls, the right yaws and sets the throttle.')) + ' ' + esc(tr('Gamepad: the d-pad strafes (up and down are the vertical thrusters). A asks for docking; held half a second, it moves the landing gear.')) + ' ' + esc(tr('Touch: the stick pitches and rolls, the YAW slider under it yaws, and THR sets the throttle. FIRE and FIRE 2 fire the primary and secondary guns, TARGET picks what is nearest the crosshair, and MENU opens the radial menu. Drag anywhere else to look around.')) + ' ' + esc(tr('Touch: the VERT slider beside the throttle works the vertical thrusters, and GEAR moves the landing gear.')) + '</p><p class="small">' + esc(tr('Landing: target a world you can land on and cruise to it, and you drop out above it. Below its Kármán line its gravity pulls, and flight assist holds you up. Lower the gear, let down on the vertical thrusters (strafe up and down), and touch down slowly on level ground.')) + '</p>';
 		button(tr('Resume'), close, true).focus();
 		button(tr('Settings'), () => openSettings(() => overlay(kind)));
 		/* (0.5.0) duels: their own page; nothing of the game is touched */

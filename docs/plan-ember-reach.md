@@ -314,14 +314,19 @@ FA, shown on the HUD. NPCs fly with FA on, through the same model and the same c
 | Keyboard | Gamepad | Touch | |
 |---|---|---|---|
 | ↑ ↓ or W S, ← → | left stick | the stick, bottom left | pitch (↑ noses down), roll |
-| A D | right stick, LB / RB | | yaw |
-| R F, X | triggers | the slider, bottom right | throttle up / down; X to zero |
-| J L I K | right stick (vertical), d-pad | | strafe |
+| A D | right stick, LB / RB | the YAW slider under the stick | yaw |
+| R F, X | triggers | the THR slider, bottom right | throttle up / down; X to zero |
+| J L I K | right stick (vertical), d-pad | VERT, beside THR (up and down) | strafe |
 | Z | B | FA | flight assist |
 | C | Y | CRUISE | cruise |
-| T or Tab | X | TARGET | next target |
+| T or Tab | X | TARGET (what's nearest the crosshair) | next target |
 | N | A | DOCK | docking clearance |
-| V, O, M, H, P or Esc | Back, Start | VIEW, II | chase view, internal systems, mouse flight, help, pause |
+| ; and ', K | RT, LT | FIRE, FIRE 2, MSL | fire primary, secondary, missile |
+| ~ | | MENU (tapped open, an item tapped) | the radial menu |
+| V, O, M, H, P or Esc | Back, Start | the radial menu, MAP, II | chase view, internal systems, mouse flight, help, pause |
+| mouse flight | | a drag anywhere else | look around (touch: the view eases back when let go) |
+
+**Touch (0.5.3, `touch.js`):** see "Phones" under Settings.
 
 **Docking** (`scene.js`): ask for clearance within 10 km (a pad is assigned), then fly through the dock mouth on
 the port's axis, nose in, under 60 m/s. At a spinning port (Trefoil, Bloom) the ship must also turn with it, within
@@ -1013,6 +1018,29 @@ checks, and the browser test's checks 9 and 9b). Opened from the pause screen's 
 The save keeps the settings, clamped and cleaned (`St.sanitise`), and a new game keeps them. Older saves'
 quality and sound carry over.
 
+**Phones: touch flight (0.5.3, `touch.js`; tested in `tests/emberreach_touch_t.js`).**
+- **Shown** only while touch is what's in use: on a phone (a coarse pointer) from the start, on a laptop's touch screen
+  from the first touch; a key, a click or a gamepad hides them again. Settings › Controls › Touch controls: **Auto**
+  (that), **On** (always: also for a touch screen that reaches the game as a mouse, as Rudolf OS 1.6.1's X11 phone
+  build passes touches), **Off**.
+- **The controls,** laid out for the screen (portrait or landscape, from 360 px wide; every tap target at least 44 px;
+  smaller when they wouldn't fit; inside the safe area of a phone's notch):
+  - the **stick** (pitch and roll, as the gamepad's left stick) and the **YAW** slider under it, both back to the
+    middle when let go;
+  - the **THR** slider (the throttle: it stays where it's left; the keys and the autopilot still move it) and the
+    **VERT** slider beside it (the vertical thrusters, back to the middle);
+  - **FIRE** (the primary guns) and **FIRE 2** (the secondary), held; **MSL** (a missile, or a scan in Analysis mode);
+  - **TARGET** (what's nearest the crosshair, within 20°; a world or port within 8°; else the next target), **DOCK**,
+    **CRUISE**, **GEAR**, **FA**, **MENU**, **MAP** and **II**, lit when what they switch is on;
+  - **MENU** opens the radial menu as a sheet of buttons: tap an item, or outside to close. Touch's has Nearest hostile
+    (or point of interest), Flare, Jump and Combat / analysis mode, and leaves out what has its own button;
+  - a **drag anywhere else looks around** (the reticle follows the nose); let go and the view eases back.
+  - Several fingers at once: fly, yaw, set the throttle and fire together.
+- **Settings:** size (75–150%), a left-handed layout (mirrored: the stick on the right), opacity (20–100%) and
+  sensitivity (25–300%, the stick, the yaw slider and looking round). Kept in the save's settings (`touch`).
+- **Boost:** the game has none (flight is Newtonian, the throttle sets the speed); a BOOST button comes if boost does.
+- A tap is no longer also a left click (which fires): touch's pointer events stop the mouse events after them.
+
 ### Ship insurance
 
 In the game since this change (`insurance.js`; tested in `tests/emberreach_insurance_t.js`, 15 checks).
@@ -1173,6 +1201,9 @@ In the game since this change (`insurance.js`; tested in `tests/emberreach_insur
    population and the architect's pay; forward bases on the fronts, raids, independent colonies with their scrip,
    and rented carriers.
 8. **M6:** the Core, the black hole, polish; phones (1.6.0). **The Maw and the Rift are playable** (see "The Rift").
+   **Phones:** touch flight in 0.5.3 ("Phones" under Settings); the small-screen layout and a low-power preset next.
+   The phone's own interface is Rudolf OS 2.0's (Wayland); the game runs in an app's page there, full screen, which
+   keeps its own touches (docs/plan-1.6.1.md Part 2 in RudolfOS).
 
 **Released: the Single-Player Alpha Build (SPAB), 0.1.0**, in the Rudolf OS Library (`rudolf-emberreach`). It has
 everything through M5b, and the Maw and the Rift from M6. The release brought these fixes:
@@ -1394,8 +1425,14 @@ also arms the first ships and adds fire groups:
     `tests/emberreach_duel_net_browser_t.js` (two Chromium pages dueling through the relay: online with a code, the
     rounds, a kill, the clock and sudden death, a rematch; quick match; LAN; versions; a dropped connection).
 
+- **0.5.3, phones (M6):** touch flight (`touch.js`, "Phones" under Settings): the stick, yaw, throttle and vertical
+  sliders, FIRE and FIRE 2 held together with the stick, TARGET, DOCK, CRUISE, GEAR, FA, the radial menu by touch,
+  MAP and pause, looking round by a drag; shown only while touch is in use; size, left-handed, opacity and
+  sensitivity in Settings. Tested in `tests/emberreach_touch_t.js` (a game flown, docked and traded in by taps on a
+  390 × 844 phone).
+
 Still to come: the online relay put up (0.5.2 has it ready), the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
-phones (1.6.0), and multiplayer.
+phones' small screens and low power (0.5.3's parts 2 and 3), and multiplayer.
 - **The plans for what follows L3:** ground sites (L4: ruins, Precursor sites and crash sites) in
   [plan-ember-reach-sites.md](plan-ember-reach-sites.md); the Core's story (M6) and the later landing items
   (atmospheres, surface vehicles, night lights) in [plan-ember-reach-core.md](plan-ember-reach-core.md).
