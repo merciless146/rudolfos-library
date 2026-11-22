@@ -1,0 +1,14 @@
+# Ember Reach's duel relay on Cloudflare Workers (README.md here). Copy to wrangler.toml; no account id is needed in it
+# (wrangler asks for the account when you log in). GPL-2.0-or-later.
+name = "ember-reach-duel-relay"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+[[durable_objects.bindings]]
+name = "RELAY"
+class_name = "Relay"
+
+# (SQLite-backed Durable Objects are the ones the Workers free plan offers; the relay stores nothing in it)
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Relay"]

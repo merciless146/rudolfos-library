@@ -6,7 +6,7 @@
      {t: 'quick', v, proto}        the next player waiting with the same version ({t: 'queued'} until then)
    Paired, both get {t: 'paired', role: 'host'|'guest'}, and from then on every message one sends goes to the other as
    it is (the game's own protocol: apps/rudolf-emberreach/www/net.js). When one leaves the other gets {t: 'gone'}.
-   Refusals: {t: 'error', why, text}: version (not the same version of the game), proto, room (no such room), full,
+   Refusals: {t: 'error', why, text}: version (not the same version of the game), proto, room (no room waiting with that code),
    bad (not a message the relay knows), size (over 8 KB), rate (over 120 a second, 240 at once), busy (too many players,
    or too many from one address), idle (nothing for 60 s).
    While waiting a game may send {t: 'ping'} (every 15 s) to keep its place.
@@ -20,7 +20,6 @@ const TEXT = {
 	version: (a, b) => 'That game runs Ember Reach ' + a + ', and you have ' + b + '. Both need the same version to duel.',
 	proto: 'That relay speaks a different duel protocol: update Ember Reach.',
 	room: 'No game is waiting with that code. Check it with the other pilot.',
-	full: 'That game already has two pilots.',
 	bad: 'The relay did not understand the game.',
 	size: 'A message was too large.',
 	rate: 'Too many messages.',

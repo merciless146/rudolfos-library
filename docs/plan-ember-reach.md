@@ -1381,7 +1381,10 @@ also arms the first ships and adds fire groups:
     mDNS and stopped when the match ends; Find games lists those on the network (another version can't be joined).
     Without Rudolf OS: `node tools/duel-relay/relay.js --host 0.0.0.0` on one computer and its address in the game.
   - **Online:** shown as "not set up yet" until the Library's relay is deployed (net.js's `RELAY`; `?relay=` for
-    another). Deploying it waits for the owner: an account, then `RELAY` set.
+    another). `tools/duel-relay/worker.js` is the same relay on Cloudflare Workers, one Durable Object holding the
+    rooms and the queue in memory (tested in Cloudflare's own runtime, workerd, by `tests/emberreach_relay_t.js`).
+    Deploying it waits for the owner: the steps are in `tools/duel-relay/README.md` (an account, `wrangler deploy`,
+    then `RELAY` set).
   - Tested in `tests/emberreach_duel_t.js` (what travels, smoothing, the session through the relay, versions,
     limits, drops, the relay on a port) and `tests/emberreach_duelnet_browser_t.js` (two Chromium pages dueling
     through the relay: rounds, kills, the clock, a rematch, quick match, leaving, another version, LAN).
