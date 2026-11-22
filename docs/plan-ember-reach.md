@@ -1368,6 +1368,9 @@ also arms the first ships and adds fire groups:
 
 Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
+- **The plans for what follows L3:** ground sites (L4: ruins, Precursor sites and crash sites) in
+  [plan-ember-reach-sites.md](plan-ember-reach-sites.md); the Core's story (M6) and the later landing items
+  (atmospheres, surface vehicles, night lights) in [plan-ember-reach-core.md](plan-ember-reach-core.md).
 
 ## Open questions
 
