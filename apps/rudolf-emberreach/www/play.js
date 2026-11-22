@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.6'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.7'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -1755,7 +1755,7 @@ function openPort() {
 			game.fuel = r.fuel == null ? 1 : r.fuel; if (!game.P.combat) game.P.combat = C.refill(ship, {hull: 1});
 			env.ship = ship; env.hullShip = baseShip; env.fit = fit; arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist();
 		},
-		say: t => say(t), cue: k => Snd.cue(k)};
+		say: t => say(t), cue: k => Snd.cue(k), pilotId: game.pilotId};   /* (pilotId: what contraband is bound to, 0.5.7) */
 	Port.open(env);
 }
 /* after buying a ship, reopen with the new one (same screen) */
