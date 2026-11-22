@@ -1468,6 +1468,12 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.5.6, careers (P2 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** a new pilot's name,
+  difficulty (Rookie, Pilot or Admiral: rewards, damage taken, insurance and how enemies fight) and Hardcore
+  (×1.5 rewards, Admiral until it ends; a destroyed ship loses the pilot, the galaxy keeping their colonies as
+  independent ones). Your pilot in the pause menu changes the difficulty while docked and turns Hardcore off for
+  good. Fixed: the pause menu was hidden behind the port's screens. Tested in `tests/emberreach_career_t.js` and
+  `tests/emberreach_career_browser_t.js`.
 - **0.5.5, pilots (P1 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** up to six pilots in one
   galaxy they share: markets, mined asteroids, war events, colonies, first discoveries and names are the galaxy's;
   money, ships, reputation, missions and exploration data are each pilot's. The pilots' screen (the pause menu's

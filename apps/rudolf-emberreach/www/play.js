@@ -56,13 +56,13 @@
 (function () {
 'use strict';
 const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
-	Pi = window.EmberPilot, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
+	Pi = window.EmberPilot, Cr = window.EmberCareer, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
 	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel, Tc = window.EmberTouch, Ne = window.EmberNet;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.5'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.6'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -171,6 +171,8 @@ async function start() {
 	game.home = majors[game.power];
 	game.P = !duel && ok && sv.player ? sv.player : Tr.newPlayer(game.home.id);
 	if (!duel && !ok) Sv.joinGalaxy(game.P, gal, game.pilotId);   /* (a new pilot arrives in the galaxy as it is) */
+	/* (0.5.6) a new pilot's name, difficulty and Hardcore (career.js): asked for here, or from the URL for a set start */
+	if (!duel && !ok) Cr.make(game.P, fresh ? {name: Q.get('name'), diff: Q.get('diff'), hardcore: Q.has('hardcore')} : await chooseCareer(game.home));
 	if (Q.has('ship') && !ok) game.P.ship.model = Q.get('ship');
 	Co.registerScrips(game.P);
 	game.homePort = !ok && Sc.STATION[Q.get('port')] ? Q.get('port') : ok && sv.version == 1 ? sv.port : 'halo';
@@ -308,7 +310,7 @@ function resume(sv) {
 }
 /* save now (gamekit keeps it); quietly, at most once a second */
 function persist() {
-	if (!s || !fit || game.duel) return;
+	if (!s || !fit || game.duel || game.lostForGood) return;   /* (0.5.6: nothing of a lost Hardcore pilot is saved again) */
 	if (game.saving) { game.savePending = true; return }   /* (a save asked for meanwhile follows the one under way, so the last word is kept) */
 	game.savePending = false;
 	game.saving = true; game.savedAt = game.t;
@@ -1072,7 +1074,7 @@ function mapKeys(dt) {
 /* (0.5.0) a collision's damage to you: shields, then the hull and its modules */
 function bumped(dmg, how, by) {
 	if (!by && duelGuest()) duelNetRock(dmg);
-	const out = C.damage(game.pcs, dmg, 'ram', game.t); game.hitAt = game.t;
+	const out = C.damage(game.pcs, dmg * takenK(), 'ram', game.t); game.hitAt = game.t;
 	for (const a of out.alerts) moduleAlert(a);
 	if (game.duel) { if (by && by.duel) duelHit(1, out.shield + out.hull); if (game.pcs.dead) duelDown(0); return out }
 	if (game.pcs.dead) lost(how);
@@ -1280,7 +1282,7 @@ function combat(dt) {
 			if (best == ME && !n.provokedByPlayer) { if (!n.wasHostile) hail(n); n.wasHostile = true }
 		}
 		const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, a: s.acc, heat: pc.heat, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, a: f.s.acc, heat: f.cs.heat, id: f.id} : null;
-		const c = C.think(n, tgt, n.home, game.t);
+		const c = C.think(n, tgt, n.home, game.t, null, f == ME && !game.duel ? Cr.skill(game.P) : 1);   /* (0.5.6: how well they fight this pilot) */
 		/* below a world's line: its gravity, its turning frame (as the player's), and 450 m kept off the ground */
 		n.s.grav = Sc.gravityAt(scene, n.s.p);
 		const nw = n.s.grav ? Sc.gravityWell(scene, n.s.p) : null, solid = nw && !nw.body.atmo && !(nw.body.src && nw.body.src.gas);
@@ -1387,8 +1389,10 @@ function provoke(n) {
 const gunCue = cs => cs.load.guns.some(g => g.kind == 'heavy' || g.kind == 'lance' || g.kind == 'gatlingL') ? 'heavy' : cs.load.guns.some(g => /^gatling/.test(g.kind)) ? 'gatling' : 'pulse';
 /* the mass drivers' charge, 0-1 (and over 1 held past full), for the HUD */
 const railCharge = cs => { const g = cs.load.guns.find(x => C.WEAPONS[x.kind].charge && x.charge > 0); return g ? g.charge / C.WEAPONS[g.kind].charge : 0 };
+/* (0.5.6) the damage the pilot takes, by their difficulty (career.js); duels are always even */
+const takenK = () => game.duel ? 1 : Cr.takenK(game.P);
 function hitMe(pr) {
-	const out = C.damage(game.pcs, pr.dmg, pr.kind, game.t);
+	const out = C.damage(game.pcs, pr.dmg * takenK(), pr.kind, game.t);
 	game.hitAt = game.t;
 	Snd.cue(out.hull > 0 ? 'hullHit' : 'shieldHit');
 	for (const a of out.alerts) moduleAlert(a);
@@ -1693,6 +1697,8 @@ function settle() {
 }
 /* the ship is lost: a new one at the last port docked at */
 function lost(how) {
+	if (game.lostForGood) return;
+	if (!game.duel && Cr.diesForGood(game.P)) { say('Ship destroyed: ' + how, '#e5484d'); hardcoreLost(how); return }   /* (0.5.6: Hardcore) */
 	say('Ship destroyed: ' + how, '#e5484d'); Snd.cue('destroyed');
 	/* the cargo goes down with her. The insurer (insurance.js) says where you wake up, and in what: the ship as it
 	   was if the policy's paid up, or a starter at home if not */
@@ -1774,7 +1780,7 @@ function choosePilot() {
 		const draw = () => {
 			btns.textContent = '';
 			const row = (x, i) => x
-				? '<div class="pt-slot"><b>' + esc(tr('Pilot {n}', {n: i + 1})) + '</b> <span>' + esc([x.origName || x.origin, x.shipName || x.ship, x.star].filter(Boolean).join(' · ')) + '</span> <span class="small">'
+				? '<div class="pt-slot' + (x.hc == 'on' ? ' hc' : '') + '"><b>' + esc(x.name || tr('Pilot {n}', {n: i + 1})) + '</b> <span>' + esc([x.origName || x.origin, x.shipName || x.ship, x.star].filter(Boolean).join(' · ')) + '<br>' + esc(careerLabel(x)) + '</span> <span class="small">'
 					+ esc((x.cash ? x.cash.n.toLocaleString('en-US') + ' ' + x.cash.code + ' · ' : '') + tr('Day {d}', {d: x.day})) + '</span> <button class="primary" data-play="' + i + '">' + esc(tr('Play')) + '</button> <button data-del="' + i + '">' + esc(tr('Delete')) + '</button></div>'
 				: '<div class="pt-slot"><b>' + esc(tr('Pilot {n}', {n: i + 1})) + '</b> <span class="small">' + esc(tr('Empty slot')) + '</span> <button data-new="' + i + '">' + esc(tr('New pilot')) + '</button></div>';
 			body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr('Your pilots')) + '</h1><p class="small">' + esc(tr('One galaxy, up to six pilots: what each pilot does stays in the galaxy for the others.')) + '</p>'
@@ -1790,12 +1796,55 @@ function choosePilot() {
 			if (b.dataset.play != null || b.dataset.new != null) { ov.hidden = true; body.onclick = null; res(+(b.dataset.play != null ? b.dataset.play : b.dataset.new)); return }
 			if (b.dataset.del != null) {
 				if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = tr('Delete this pilot: sure? (the galaxy keeps what they did)'); return }
-				const i = +b.dataset.del; gal.slots[i] = null; if (gal.cur == i) gal.cur = null;
+				const i = +b.dataset.del, gone = gal.slots[i] && gal.slots[i].id; gal.slots[i] = null; if (gal.cur == i) gal.cur = null; if (gone) Sv.orphan(gal, gone);
 				await RG.save(null, 'pilot-' + (i + 1)); await saveGalaxyOnly(); draw();
 			}
 		};
 		ov.hidden = false; draw();
 	});
+}
+/* (0.5.6) a pilot's difficulty and Hardcore, as words (a slot's summary or the pilot) */
+const careerLabel = x => tr(Cr.DIFF[x.diff] ? Cr.DIFF[x.diff].name : 'Pilot') + (x.hc == 'on' ? ' · ' + tr('Hardcore') : x.hc == 'done' ? ' · ' + tr('Hardcore finished') : '');
+const DIFF_TEXT = {rookie: 'Weaker enemies, less damage taken, cheaper insurance; rewards ×0.75.', pilot: 'The galaxy as it is.', admiral: 'Sharper enemies, more damage taken, dearer insurance; rewards ×1.25.'};
+/* (0.5.6) the new pilot's name, difficulty and Hardcore (Hardcore only here, and it makes the pilot an Admiral) */
+function chooseCareer(home) {
+	return new Promise(res => {
+		const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns'); btns.textContent = '';
+		body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr('New pilot')) + '</h1><p class="small">' + esc(home.name.replace(/^The /, '')) + '</p>'
+			+ '<label class="cr-row">' + esc(tr('Name (optional)')) + ' <input id="crName" maxlength="24" autocomplete="off"></label>'
+			+ '<h2 class="org-h">' + esc(tr('Difficulty')) + '</h2><div class="cr-diff">' + Cr.DIFFS.map(d => '<label><input type="radio" name="crDiff" value="' + d + '"' + (d == 'pilot' ? ' checked' : '') + '> <b>' + esc(tr(Cr.DIFF[d].name)) + '</b> <span>' + esc(tr(DIFF_TEXT[d])) + '</span></label>').join('') + '</div>'
+			+ '<label class="cr-hc"><input type="checkbox" id="crHc"> <b>' + esc(tr('Hardcore')) + '</b> <span>' + esc(tr('Rewards ×1.5 and the Contraband Merchant. You fly as an Admiral, and if your ship is destroyed this pilot is lost for good. It can only be turned on now; once off, never again.')) + '</span></label>';
+		const hc = $('crHc'), radios = [...body.querySelectorAll('input[name=crDiff]')];
+		hc.onchange = () => { for (const r of radios) { r.disabled = hc.checked; if (hc.checked) r.checked = r.value == 'admiral' } };
+		const go = document.createElement('button'); go.className = 'primary'; go.textContent = tr('Start'); go.id = 'crStart';
+		go.onclick = () => { ov.hidden = true; const d = (radios.find(r => r.checked) || {}).value; res({name: $('crName').value, diff: d, hardcore: hc.checked}) };
+		btns.appendChild(go); ov.hidden = false; $('crName').focus();
+	});
+}
+/* (0.5.6) the pilot's own screen (the pause menu's Your pilot): the difficulty, changed while docked (not while
+   Hardcore holds it at Admiral), and Hardcore turned off for good */
+function careerScreen(body, button, back) {
+	const P = game.P, hc = Cr.hcOf(P), can = Cr.canChangeDiff(P, game.docked);
+	body.innerHTML = '<p class="build">Ember Reach · ' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(P.name || tr('Your pilot')) + '</h1><p class="small">' + esc(careerLabel(P)) + '</p>'
+		+ '<h2 class="org-h">' + esc(tr('Difficulty')) + '</h2><div class="cr-diff">' + Cr.DIFFS.map(d => '<label><input type="radio" name="crDiff" value="' + d + '"' + (P.diff == d ? ' checked' : '') + (can.ok ? '' : ' disabled') + '> <b>' + esc(tr(Cr.DIFF[d].name)) + '</b> <span>' + esc(tr(DIFF_TEXT[d])) + '</span></label>').join('') + '</div>'
+		+ (can.ok ? '' : '<p class="small" id="crWhy">' + esc(tr(hc == 'on' ? 'A Hardcore pilot is an Admiral until Hardcore ends.' : 'The difficulty can be changed while docked.')) + '</p>')
+		+ '<h2 class="org-h">' + esc(tr('Hardcore')) + '</h2><p class="small" id="crHcState">' + esc(tr(hc == 'on' ? 'Hardcore is on: rewards ×1.5 and the Contraband Merchant; if your ship is destroyed, this pilot is lost for good.' : hc == 'done' ? 'Hardcore finished: its rewards and the Contraband Merchant stay.' : hc == 'off' ? 'Hardcore is off for good.' : 'This pilot was made without Hardcore.')) + '</p>';
+	for (const r of body.querySelectorAll('input[name=crDiff]')) r.onchange = () => { const x = Cr.setDiff(P, r.value, game.docked); if (x.ok) { persist(); say(tr('Difficulty') + ': ' + tr(Cr.DIFF[r.value].name), '#9fb0cc') } else say(x.why, '#f2a33a') };
+	button(tr('Done'), back, true).focus();
+	if (hc == 'on') { const off = button(tr('Turn Hardcore off'), e => { if (!off.dataset.sure) { off.dataset.sure = 1; off.textContent = tr('Turn Hardcore off: sure? (it can never be turned on again)'); return } Cr.hcOff(P); persist(); say(tr('Hardcore is off for good.'), '#f2a33a'); overlay('career') }); off.id = 'crHcOff' }
+}
+/* (0.5.6) a Hardcore pilot's ship destroyed: the pilot is gone. Their save is cleared and their slot freed; the
+   galaxy keeps what they did (their colonies independent) */
+async function hardcoreLost(how) {
+	game.lostForGood = true; Snd.cue('destroyed');
+	if (Port.isOpen()) Port.close();   /* (lost while the port's screens are up: they'd cover Pilot lost) */
+	const gal = game.galaxy, id = game.pilotId, packed = Sv.packGalaxy(gal, game.P, id, game.day);
+	Object.assign(gal, Sv.unpackGalaxy(packed) || gal); gal.slots[game.slot] = null; gal.cur = null; Sv.orphan(gal, id);
+	try { await RG.save(null, 'pilot-' + (game.slot + 1)); await RG.save(Sv.packGalaxy(gal, null, null, gal.day), 'galaxy') } catch (e) {}
+	const ov = $('ov'), body = $('ovBody'), btns = $('ovBtns'); btns.textContent = '';
+	body.innerHTML = '<h1 id="ovT">' + esc(tr('Pilot lost')) + '</h1><p>' + esc((game.P.name ? game.P.name + ': ' : '') + how) + '</p><p class="small">' + esc(tr('Your ship was destroyed with Hardcore on: this pilot is gone. The galaxy keeps what they did.')) + '</p>';
+	const b = document.createElement('button'); b.className = 'primary'; b.textContent = tr('Pilots'); b.id = 'hcPilots'; b.onclick = () => { location.search = pilotsUrl(true) }; btns.appendChild(b);
+	ov.hidden = false; RG.pause(); b.focus();
 }
 function chooseOrigin(oldGalaxy) {
 	return new Promise(res => {
@@ -2524,8 +2573,10 @@ function overlay(kind) {
 		button(tr('Save to a file'), () => { persist(); setTimeout(() => RG.exportSave(['galaxy', ...Array.from({length: Sv.SLOTS}, (_, i) => 'pilot-' + (i + 1))]), 1300) });   /* (0.5.5: the galaxy and every pilot) */
 		button(tr('Load from a file'), () => RG.importSave().then(() => location.reload(), e => say(e.message, '#f2a33a')));
 		/* (0.5.5) the pilots' screen (a new pilot, another pilot, or wiping the galaxy) */
+		button(tr('Your pilot'), () => overlay('career'));
 		button(tr('Pilots'), () => { persist(); setTimeout(() => { location.search = pilotsUrl(true) }, 1300) });
 	}
+	if (kind == 'career') { RG.pause(); careerScreen(body, button, () => overlay('pause')) }
 	if (kind == 'duel') duelPick(body, button, close);
 	if (kind == 'duelOver') duelOver(body, button, close);
 	if (kind == 'duelWait') duelNetWait(body, button, close);

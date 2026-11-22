@@ -21,7 +21,7 @@
 'use strict';
 const isNode = typeof module != 'undefined';
 const req = (n, g) => isNode ? require('./' + n) : root[g];
-const G = req('galaxy.js', 'EmberGalaxy'), F = req('factions.js', 'EmberFactions'), E = req('economy.js', 'EmberEconomy'), R = req('reputation.js', 'EmberReputation');
+const Ca = req('career.js', 'EmberCareer'), G = req('galaxy.js', 'EmberGalaxy'), F = req('factions.js', 'EmberFactions'), E = req('economy.js', 'EmberEconomy'), R = req('reputation.js', 'EmberReputation');
 
 const EXPLORE = {sweep: 8, survey: 12, surveyRadii: 6, first: 2.5, chart: 40, days: 20, ruinSearch: 20, worldSearch: 8,
 	value: {Gas: 120, Barren: 90, Exotic: 160, Desert: 140, Tundra: 160, Ocean: 450, EarthLike: 700, Forest: 900, Terra: 900}, life: 1500, ruin: 6000};
@@ -121,10 +121,10 @@ function sell(P, holder, currency, day) {
 	const X = record(P), items = unsold(P), su = items.reduce((t, x) => t + x.su, 0);
 	if (!items.length) return {ok: false, why: 'Nothing to sell: scan systems and survey planets first.'};
 	for (const x of items) if (x.kind == 'system') X.sold[x.key] = 1; else if (x.kind == 'landing') X.land[x.key].s = 1; else X.pl[x.key].s = 1;
-	const code = currency || 'SU', amount = code == 'SU' ? su : su * E.rate(code, day);
-	if (code == 'SU') { const o = F.byId(P.origin).currency.code; P.wallet[o] = (P.wallet[o] || 0) + su * E.rate(o, day) * 0.92 } else P.wallet[code] = (P.wallet[code] || 0) + amount;
+	const k = Ca.rewardK(P), code = currency || 'SU', amount = (code == 'SU' ? su : su * E.rate(code, day)) * k;   /* (0.5.6: the pilot's reward multiplier) */
+	if (code == 'SU') { const o = F.byId(P.origin).currency.code; P.wallet[o] = (P.wallet[o] || 0) + su * E.rate(o, day) * 0.92 * k } else P.wallet[code] = (P.wallet[code] || 0) + amount;
 	if (holder) R.act(P, 'scanRuins', holder, {amount: Math.min(5, su / 2000)});
-	return {ok: true, items: items.length, su, amount: code == 'SU' ? su * 0.92 : amount, code: code == 'SU' ? F.byId(P.origin).currency.code + ' (via free traders)' : code};
+	return {ok: true, items: items.length, su, amount: code == 'SU' ? su * 0.92 * k : amount, code: code == 'SU' ? F.byId(P.origin).currency.code + ' (via free traders)' : code};
 }
 /* naming: a living world or a ruin you discovered first. 2 to 24 letters, digits, spaces, apostrophes, hyphens */
 function nameable(P) {
