@@ -1339,7 +1339,9 @@ also arms the first ships and adds fire groups:
 - **0.5.1, colonies on the ground (L3.5):** a claim can put the primary port on an airless world: a surface outpost
   or settlement (`surface.js`'s kinds), at the outpost's and the station's fees, built like the others. Built, it
   stands on its world as a surface port with pads, the traffic controller and its market in the sponsor's coin, and
-  an outpost grows into a settlement at the colonial office. (`plan-ember-reach-landing-work.md`, L3.5.)
+  an outpost grows into a settlement, and a settlement into a surface starport with its heavy landing field, at
+  the colonial office. Its planner draws the site (pads and buildings) before and while building, and marks where
+  the colony's surface mines lie. (`plan-ember-reach-landing-work.md`, L3.5.)
 
 - **0.5.0, duels (first stage):** a two-pilot duel mode beside the single-player game (`?duel`, or Duels on the
   pause menu), with its own `duel.js`.
