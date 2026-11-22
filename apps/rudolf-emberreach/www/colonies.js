@@ -52,7 +52,9 @@
      The port takes a surface slot on its world (a moon's too: its surface slots count like a planet's). Built, it
      stands on its world in flight like L2's surface ports (groundPorts: a flattened site, pads, the controller), in
      its sponsor's coin. It grows by upgrades planned at the colonial office: an outpost into a settlement (tier 2,
-     3,000 t). Not in the Rift, which has no surface ports.
+     3,000 t), and a settlement into a surface starport (tier 3, 20,000 t, tier 3 points as for any tier 3 build;
+     then it counts as a great port: 500,000 more people), with its heavy landing field. Not in the Rift, which has
+     no surface ports.
    The record (P.colonies, P.hauls, P.deposits) is plain data, kept in the save. GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -68,7 +70,9 @@ const PORTS = {
 	base: {name: 'Forward base', cls: 'trefoil', fee: 200000, goods: {Iron: 625, Titanium: 500, Machinery: 375, Electronics: 375, Munitions: 625}, base: true},
 	/* (0.5.1) on the ground: surface.js's kind in `surface`; a settlement also grows from an outpost (FAC usettle) */
 	soutpost: {name: 'Surface outpost', cls: 'trefoil', surface: 'outpost', fee: 120000, goods: {Iron: 400, Aluminum: 300, Titanium: 150, Machinery: 200, Electronics: 100, Food: 150, Water: 150, Fuel: 50}},
-	ssettle: {name: 'Surface settlement', cls: 'bloom', surface: 'settlement', fee: 300000, goods: {Iron: 1800, Aluminum: 1400, Titanium: 700, Machinery: 1100, Electronics: 600, Food: 700, Water: 600, Fuel: 300}}};
+	ssettle: {name: 'Surface settlement', cls: 'bloom', surface: 'settlement', fee: 300000, goods: {Iron: 1800, Aluminum: 1400, Titanium: 700, Machinery: 1100, Electronics: 600, Food: 700, Water: 600, Fuel: 300}},
+	/* (0.5.1 L3.5 step 3) only grown from a settlement (FAC ustarport), never claimed outright: no fee, no goods of its own */
+	sstarport: {name: 'Surface starport', cls: 'lantern', surface: 'starport', fee: 0, goods: {}, grown: true}};
 const COL = {claimDays: 2, seasonDays: 30, salvage: 1 / 3, core: G.REGIONS[0][2], beaconRadii: 30, deliverRange: 3000, charter: 100, neutral: -100, perRep: 100, finishRep: 150,
 	raid: {unclaimed: 0.10, claimed: 0.05}, baseEffort: 5, rent: {fee: 40000, cut: 0.3}, scrip: {drift: 0.15}, takeover: 2, indep: {share: [0.10, 0.15], security: -0.15},
 	mine: {rate: 25, metals: 1.2, keep: 400},
@@ -363,7 +367,10 @@ const FAC = {
 	city: {name: 'Surface city', where: 'surface', tier: 3, t: 20000, pop: 500000, port: true, wealth: 0.1},
 	great: {name: 'Great port', where: 'orbit', tier: 3, t: 25000, pop: 500000, port: true, tech: 0.1},
 	/* (0.5.1) a colony's surface port grows where it stands: no slot of its own, on the port's world */
-	usettle: {name: 'Grow into a settlement', where: 'surface', tier: 2, t: 3000, mix: 'habitat', upgrade: {from: 'soutpost', to: 'ssettle'}}};
+	usettle: {name: 'Grow into a settlement', where: 'surface', tier: 2, t: 3000, mix: 'habitat', upgrade: {from: 'soutpost', to: 'ssettle'}},
+	/* (step 3) a settlement into a surface starport: tier 3 (the surface city's 20,000 t and tier 3 points), on a world
+	   with room for its 3.8 km site and its heavy landing field 8 km off */
+	ustarport: {name: 'Grow into a surface starport', where: 'surface', tier: 3, t: 20000, upgrade: {from: 'ssettle', to: 'sstarport'}}};
 /* the goods for a facility: its mix times its tonnage; surface builds on worlds over 1.5 g cost 25% more */
 function facGoods(fac, body, where) {
 	const F0 = FAC[fac], mix = MIX[F0.mix || 'base'], k = where == 'surface' && body.g > 1.5 ? 1.25 : 1, out = {};
