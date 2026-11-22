@@ -668,7 +668,8 @@ See "Factions, wars and money" below.
 ### Saves
 
 Only the player's own changes are saved: ship, cargo, credits, reputation, discoveries and names, visited systems,
-and market drift. The galaxy is rebuilt from the model every time. Saves go through rudolfd with export and import,
+and market drift. The galaxy is rebuilt from the model every time. (0.5.5) The changes are kept in two parts: the
+galaxy's (shared by up to six pilots) and each pilot's; see [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md). Saves go through rudolfd with export and import,
 like every Library game.
 
 **Planned:** six pilots in one galaxy shared by them, difficulty, Hardcore, the Contraband Merchant, the Precursor
@@ -1467,6 +1468,11 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.5.5, pilots (P1 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** up to six pilots in one
+  galaxy they share: markets, mined asteroids, war events, colonies, first discoveries and names are the galaxy's;
+  money, ships, reputation, missions and exploration data are each pilot's. The pilots' screen (the pause menu's
+  Pilots) plays, starts, deletes, or wipes the galaxy; an old save becomes pilot 1. Tested in
+  `tests/emberreach_pilots_t.js` and `tests/emberreach_pilots_browser_t.js`.
 - **0.5.4:** ballistic weapons (gatlings, torpedoes, missiles) make no heat; hybrid ones (the mass driver, the
   disruptor) still do, as lasers do. Tested in `tests/emberreach_combat_t.js`.
 

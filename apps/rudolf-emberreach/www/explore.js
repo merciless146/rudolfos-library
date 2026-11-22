@@ -51,7 +51,8 @@ function chartSystem(P, star, day) { const X = record(P); if (X.sys[star.id] != 
 function survey(P, star, planet, port, day) {
 	const X = record(P), k = keyOf(star.id, planet.name);
 	if (X.pl[k]) return {new: false, first: !!X.pl[k].f};
-	const first = !charted(star, planet, port);
+	/* (0.5.5) another pilot in this galaxy surveyed it first (X.taken, from save.js joinGalaxy) */
+	const first = !charted(star, planet, port) && !(X.taken && X.taken.pl[k]);
 	X.pl[k] = {d: Math.floor(day), f: first ? 1 : 0};
 	if (X.sys[star.id] == null) X.sys[star.id] = Math.floor(day);
 	return {new: true, first, ruins: !!planet.ruins, alive: !!planet.alive, value: worth(planet) * (first ? EXPLORE.first : 1)};
@@ -60,7 +61,7 @@ function survey(P, star, planet, port, day) {
 function landed(P, star, planet, port, day) {
 	const X = record(P), k = keyOf(star.id, planet.name);
 	if (X.land[k]) return {new: false, first: !!X.land[k].f};
-	const first = !charted(star, planet, port);
+	const first = !charted(star, planet, port) && !(X.taken && X.taken.land[k]);
 	X.land[k] = {d: Math.floor(day), f: first ? 1 : 0};
 	return {new: true, first, value: landWorth(planet) * (first ? EXPLORE.first : 1)};
 }

@@ -34,7 +34,7 @@ const svg = k => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" st
 let env = null, root = null, screen = 'station', sel = {good: null, ship: null}, ex = {from: null, to: null, amount: ''}, mkt = null, naming = {};
 function open(e) {
 	env = e; root = document.getElementById('port'); root.hidden = false;
-	const myCol = env.port && env.port.colony ? Co.colonyAt(env.P, env.star.id) : null;
+	const myCol = env.port && env.port.colony ? Co.worldColonyAt(env.P, env.star.id) : null;   /* (0.5.5: another pilot's colony's market too) */
 	/* (0.3.7) this port's own market: its kind and world, its people, and the trades you've made there */
 	mkt = E.market(env.star, env.day, Object.assign({port: env.port, P: env.P}, myCol ? {holder: env.port.owner, econ: Co.economy(myCol, env.star), people: myCol.pop || 0, feed: Co.feeds(myCol, env.star, env.day)} : {}));
 	/* (0.3.8) modules kept before storage had places are taken in here */

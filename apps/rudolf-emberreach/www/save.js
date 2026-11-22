@@ -32,7 +32,7 @@ const vec = (x, n) => Array.isArray(x) && x.length == n && x.every(num);
 function pack(g) {
 	const r = v => v.map(x => +x.toPrecision(15));
 	const ref = (x, port) => x ? Object.assign({id: x.id, p: [x.x, x.y, x.z]}, port ? {port} : {}) : null;
-	return trim({v: VERSION, galaxy: GALAXY, power: g.power, port: g.port || null, ship: g.ship, day: g.day, t: +g.t.toFixed(3), docked: !!g.docked, pad: g.pad || null,
+	const out = {v: VERSION, galaxy: GALAXY, power: g.power, port: g.port || null, ship: g.ship, day: g.day, t: +g.t.toFixed(3), docked: !!g.docked, pad: g.pad || null,
 		star: ref(g.star), at: g.docked ? g.at || 'orbital' : null, fuel: +(g.fuel == null ? 1 : g.fuel).toFixed(4), lastPort: ref(g.lastPort, g.lastPortId || 'orbital'), routeTo: ref(g.routeTo),
 		player: g.player ? packPlayer(g.player) : null,
 		p: r(g.s.p), scale: 12, vel: r(g.s.v), q: r(g.s.q), w: r(g.s.w), fa: !!g.s.fa, throttle: +(+g.throttle || 0).toFixed(3),
@@ -42,7 +42,10 @@ function pack(g) {
 		/* landed (L1.2): the world, and the ship's place and heading in its turning axes */
 		landed: g.landed ? {world: g.landed.world, dir: r(g.landed.dir), h: +g.landed.h.toFixed(3), f: r(g.landed.f), u: r(g.landed.u)} : undefined, gear: g.gear ? true : undefined,
 		/* the settings (settings.js), kept clean */
-		settings: St ? St.sanitise(g.settings, null, I18 && I18.LANGS.map(l => l[0])) : g.settings});
+		settings: St ? St.sanitise(g.settings, null, I18 && I18.LANGS.map(l => l[0])) : g.settings};
+	/* (0.5.5) a pilot's save leaves out the galaxy's part (packGalaxy keeps it), before trimming to the budget */
+	if (g.pilotOnly && out.player) for (const k of WORLD) delete out.player[k];
+	return trim(out);
 }
 /* gamekit keeps a save up to 256 KB. A long game's records grow past that (every system charted, every asteroid
    chipped), so a save over the budget is trimmed, the least needed first: the asteroids mined longest ago (they
@@ -169,6 +172,105 @@ function restoreModules(fit, saved) {
 	return fit;
 }
 
-const EmberSave = {BUDGET, trim, VERSION, GALAXY, pack, unpack, restoreModules, packPlayer, unpackPlayer};
+/* ================= (0.5.5) one galaxy, up to six pilots (docs/plan-ember-reach-pilots.md, P1) =================
+   The game kit keeps three kinds of value for a Rudolf OS account: the game's own (RG.load()), now just the
+   settings; 'galaxy', the galaxy every pilot shares; and 'pilot-1' to 'pilot-6', a pilot each, packed as a save was
+   before (pack()) but without the galaxy's part. What is the galaxy's:
+     markets   the ports' markets as trades left them        mined      tonnes taken from each asteroid
+     warEvents what pilots did in the wars                     colonies   every pilot's colonies, each with its owner
+     firsts    first surveys and landings, by whom            names      the names given to worlds
+   and the galaxy's day. Everything else is the pilot's. A pilot is known by an id (p1, p2...), never by its slot, so
+   a new pilot in an old one's slot doesn't inherit what the old one left in the galaxy. */
+const SLOTS = 6, GV = 1;
+const WORLD = ['markets', 'mined', 'warEvents', 'colonies'];
+/* a new galaxy */
+const newGalaxy = day => ({gv: GV, galaxy: GALAXY, day: num(day) ? day : 0, seq: 0, cur: null, slots: Array(SLOTS).fill(null), world: {markets: {}, mined: {}, warEvents: [], colonies: [], firsts: {pl: {}, land: {}}, names: {}}});
+/* a slot's summary, shown on the pilots' screen: from the game's state (g as pack() takes it, with the origin's
+   names given by the caller) */
+function summary(id, g, names) {
+	const P = g.player || {}, w = P.wallet || {};
+	return {id, origin: P.origin, power: g.power, ship: P.ship && P.ship.model, star: g.star ? g.star.name || g.star.id : null, starId: g.star ? g.star.id : null, docked: !!g.docked,
+		cash: names && names.code ? {code: names.code, n: Math.round(w[names.code] || 0)} : null, day: Math.floor(g.day || 0), origName: names && names.origin || null, shipName: names && names.ship || null};
+}
+const slotOk = x => x === null || (obj(x) && typeof x.id == 'string' && /^p[0-9]{1,6}$/.test(x.id) && typeof x.origin == 'string');
+function unpackGalaxy(raw) {
+	if (!obj(raw) || raw.gv !== GV || raw.galaxy !== GALAXY || !num(raw.day) || !Number.isInteger(raw.seq) || raw.seq < 0 || !Array.isArray(raw.slots) || !obj(raw.world)) return null;
+	const W = raw.world, slots = Array(SLOTS).fill(null).map((_, i) => slotOk(raw.slots[i]) ? raw.slots[i] : null);
+	const fm = o => obj(o) ? Object.fromEntries(Object.entries(o).filter(([k, v]) => typeof v == 'string' && /^p[0-9]{1,6}$/.test(v))) : {};
+	return {gv: GV, galaxy: GALAXY, day: raw.day, seq: raw.seq, cur: Number.isInteger(raw.cur) && raw.cur >= 0 && raw.cur < SLOTS && slots[raw.cur] ? raw.cur : null, slots,
+		world: {markets: obj(W.markets) ? W.markets : {}, mined: obj(W.mined) ? W.mined : {}, warEvents: Array.isArray(W.warEvents) ? W.warEvents.slice(-200) : [],
+			colonies: Array.isArray(W.colonies) ? W.colonies.filter(c => obj(c) && typeof c.id == 'string' && typeof c.owner == 'string' && obj(c.star) && typeof c.stage == 'string') : [],
+			firsts: {pl: fm(W.firsts && W.firsts.pl), land: fm(W.firsts && W.firsts.land)}, names: obj(W.names) ? Object.fromEntries(Object.entries(W.names).filter(([k, v]) => typeof v == 'string' && v.length <= 24)) : {}}};
+}
+/* the galaxy as saved: the world's part of the pilot playing now (id) put into it; trimmed to the budget */
+function packGalaxy(gal, P, id, day) {
+	const W = gal.world, out = {gv: GV, galaxy: GALAXY, day: Math.max(gal.day || 0, Math.floor(day || 0)), seq: gal.seq, cur: gal.cur, slots: gal.slots, world: Object.assign({}, W)};
+	const w = out.world;
+	if (P) {
+		w.markets = P.markets || {}; w.mined = P.mined || {}; w.warEvents = (P.warEvents || []).slice(-200);
+		w.colonies = (P.others || []).map(c => Object.assign({}, c, {foreign: undefined})).concat((P.colonies || []).map(c => Object.assign({}, c, {owner: id})));
+		const X = P.explore, f = {pl: Object.assign({}, W.firsts.pl), land: Object.assign({}, W.firsts.land)};
+		if (X) { for (const k in X.pl || {}) if (X.pl[k].f && !f.pl[k]) f.pl[k] = id; for (const k in X.land || {}) if (X.land[k].f && !f.land[k]) f.land[k] = id }
+		w.firsts = f; w.names = Object.assign({}, W.names, X && X.names || {});
+	}
+	/* the budget: mined asteroids, then markets, then war events (first discoveries, names and colonies are kept) */
+	const size = () => JSON.stringify(out).length;
+	if (size() > BUDGET) w.mined = Object.fromEntries(Object.entries(w.mined).slice(-1000));
+	if (size() > BUDGET) w.markets = Object.fromEntries(Object.entries(w.markets).sort((a, b) => b[1].day - a[1].day).slice(0, 40));
+	if (size() > BUDGET) w.warEvents = w.warEvents.slice(-50);
+	if (size() > BUDGET) w.mined = {};
+	return out;
+}
+/* a pilot's save (pack()'s value) without the galaxy's part */
+function pilotOnly(packed) {
+	const out = Object.assign({}, packed); if (!out.player) return out;
+	const P = out.player = Object.assign({}, out.player); for (const k of WORLD) delete P[k];
+	return out;
+}
+/* the galaxy's part put into a pilot just unpacked (unpackPlayer's P), for the pilot id: their colonies, the others'
+   (P.others, not saved with the pilot), the shared records, the firsts others made (X.taken: their first surveys
+   and landings aren't this pilot's to have), and every name given */
+function joinGalaxy(P, gal, id) {
+	const W = gal.world;
+	P.markets = W.markets; P.mined = W.mined; P.warEvents = W.warEvents.slice();
+	P.colonies = W.colonies.filter(c => c.owner == id).map(c => { const x = Object.assign({}, c); delete x.owner; return x });
+	P.others = W.colonies.filter(c => c.owner != id).map(c => Object.assign({}, c, {foreign: true}));
+	const X = P.explore = P.explore || {sys: {}, pl: {}, sold: {}, names: {}};   /* (explore.js record()'s shape) */
+	{
+		X.names = Object.assign({}, W.names, X.names || {});
+		Object.defineProperty(X, 'taken', {value: {pl: Object.fromEntries(Object.entries(W.firsts.pl).filter(([k, v]) => v != id)), land: Object.fromEntries(Object.entries(W.firsts.land).filter(([k, v]) => v != id))}, enumerable: false, writable: true, configurable: true});
+	}
+	return P;
+}
+/* the days that passed in the galaxy while this pilot wasn't playing: their own deadlines move on by as much, so a
+   pilot's missions, deliveries, insurance, things on their way and colonies' seasons count only the pilot's own time */
+function shiftDays(P, d) {
+	if (!(d > 0)) return P;
+	const add = (o, k) => { if (o && num(o[k])) o[k] += d };
+	for (const m of P.missions || []) add(m, 'due');
+	for (const h of P.hauls || []) add(h, 'eta');
+	if (P.insurance) add(P.insurance, 'paidTo');
+	for (const x of P.stored || []) add(x, 'ready');
+	for (const x of P.hangar || []) add(x, 'ready');
+	for (const c of P.colonies || []) { for (const k of ['claimed', 'beaconBy', 'beacon', 'due', 'opens', 'paid', 'last', 'grown']) add(c, k); if (c.carrier) add(c.carrier, 'until'); for (const b of c.builds || []) { add(b, 'started'); add(b, 'finished') } }
+	P.policeKills = (P.policeKills || []).map(x => x + d);
+	P.day = (P.day || 0) + d;
+	return P;
+}
+/* an old save (one value, before 0.5.5): its pilot becomes p1 in slot 1 of a new galaxy holding its world */
+function migrate(raw, names) {
+	if (!obj(raw) || !raw.player || raw.settingsOnly) return null;
+	const gal = newGalaxy(raw.day); gal.seq = 1; gal.cur = 0;
+	const P = raw.player;
+	gal.world.markets = obj(P.markets) ? P.markets : {}; gal.world.mined = obj(P.mined) ? P.mined : {}; gal.world.warEvents = Array.isArray(P.warEvents) ? P.warEvents.slice(-200) : [];
+	gal.world.colonies = (Array.isArray(P.colonies) ? P.colonies : []).map(c => Object.assign({}, c, {owner: 'p1'}));
+	const X = P.explore; if (obj(X)) { for (const k in X.pl || {}) if (X.pl[k] && X.pl[k].f) gal.world.firsts.pl[k] = 'p1'; for (const k in X.land || {}) if (X.land[k] && X.land[k].f) gal.world.firsts.land[k] = 'p1'; gal.world.names = Object.assign({}, X.names || {}) }
+	const st = raw.star ? {id: raw.star.id, name: names && names.star || raw.star.id} : null;
+	gal.slots[0] = summary('p1', {player: P, power: raw.power, star: st, docked: raw.docked, day: raw.day}, names);
+	return {galaxy: gal, pilot: pilotOnly(raw), settings: raw.settings};
+}
+
+const EmberSave = {BUDGET, trim, VERSION, GALAXY, pack, unpack, restoreModules, packPlayer, unpackPlayer,
+	SLOTS, WORLD, newGalaxy, summary, unpackGalaxy, packGalaxy, pilotOnly, joinGalaxy, shiftDays, migrate};
 if (typeof module != 'undefined') module.exports = EmberSave; else root.EmberSave = EmberSave;
 })(typeof window != 'undefined' ? window : this);
