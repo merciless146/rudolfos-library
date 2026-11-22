@@ -1336,6 +1336,10 @@ also arms the first ships and adds fire groups:
   you've visited them with one. They're dense, 96 asteroids, and their asteroids hold a third more.
 - **0.4.9, surface mines (L3.5):** a colony builds surface mines at deposits the ground scan found on its worlds.
   Each works its deposit at 25 t a day and feeds that good to the colony port's market until the deposit runs out.
+- **0.5.1, colonies on the ground (L3.5):** a claim can put the primary port on an airless world: a surface outpost
+  or settlement (`surface.js`'s kinds), at the outpost's and the station's fees, built like the others. Built, it
+  stands on its world as a surface port with pads, the traffic controller and its market in the sponsor's coin, and
+  an outpost grows into a settlement at the colonial office. (`plan-ember-reach-landing-work.md`, L3.5.)
 
 - **0.5.0, duels (first stage):** a two-pilot duel mode beside the single-player game (`?duel`, or Duels on the
   pause menu), with its own `duel.js`.
@@ -1387,6 +1391,9 @@ also arms the first ships and adds fire groups:
 
 Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
+- **The plans for what follows L3:** ground sites (L4: ruins, Precursor sites and crash sites) in
+  [plan-ember-reach-sites.md](plan-ember-reach-sites.md); the Core's story (M6) and the later landing items
+  (atmospheres, surface vehicles, night lights) in [plan-ember-reach-core.md](plan-ember-reach-core.md).
 
 ## Open questions
 

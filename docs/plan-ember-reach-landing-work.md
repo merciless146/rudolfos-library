@@ -756,7 +756,32 @@ decided after 0.4.8).
 - **Seen:** the colonial office plans it (pick the deposit) and shows each mine's daily output and what's left; in
   flight, your mines are targets on their worlds, and a deposit's card says what a mine there does or could do.
 - Tested in the colony test's 42 to 45 and the browser test's 9n2.
-- **Still to do in L3.5:** claims on airless worlds as surface outposts and settlements, and the planner's layout.
+
+**Done in 0.5.1** (`colonies.js`, `port.js`, `play.js`): **colonies on the ground.**
+- **The claim:** the colonial office's planner has an "On the ground" part: pick a world (airless and landable,
+  under 500 K, with room for the site: `surface.js` `fits`; moons too, which are most of the ground) and claim a
+  **surface outpost** (the outpost's 120,000 SU fee and 1,500 t of goods) or a **surface settlement** (the station's
+  300,000 SU; the surface port's 6,000 t with the first port's 20%: 7,200 t). Goods are 25% more over 1.5 g, the
+  rule for every surface build. Sponsored or independent, as for orbital ports; none in the Rift, which has no
+  surface ports. The site's place on its world is drawn as `surface.js` places ports (near the terminator on a
+  locked world, within 60° of the equator otherwise), the same every time, and kept in the colony's record.
+- **Building:** the beacon goes down near the world as before. The constructor then holds 1.5 km over the site,
+  turning with the world, and the site is levelled into the ground. Goods are handed over there (N within 3 km,
+  under 60 m/s against the turning ground) or brought by haulers, with the same season, raids and carriers.
+- **In flight:** built, the port opens the next day on its world as one of L2's surface ports (`groundPorts`, id
+  `surface:<world>:colony`): its levelled site, its layout and model, a navigation target, a nav beacon for
+  arrivals, the traffic controller's pads (three S at an outpost), and docking on a pad opens its screens, with its
+  market in the sponsor's coin and the colony's economy, people and mines. It's in the save like any colony, and
+  a save docked there comes back docked there.
+- **Slots and growth:** the port takes a surface slot on its world (a moon's surface slots count like a planet's,
+  and mines can now go on moons too). **An outpost grows into a settlement** where it stands ("Grow into a
+  settlement": tier 2, a tier 2 point, 3,000 t, no slot of its own), keeping its site and its id; it then counts as
+  a station does (tier 2: a tier 3 point, 100,000 more people, more security and tech), with 4 S and an M pad.
+- Orbital ports, surface mines, forward bases, raids, independent colonies and rented carriers are unchanged, and
+  old saves load as they were.
+- Tested in the colony test's 46 to 54, and `tests/emberreach_groundcolony_t.js` (Chromium: claim, beacon, goods,
+  then down onto the outpost's pad, docked, its market, growing it, and the save).
+- **Still to do in L3.5:** the planner's layout of the site, and a settlement growing into a surface starport.
 
 ### L3.6 Raids
 
@@ -787,6 +812,7 @@ decided after 0.4.8).
 ## L4, in outline
 
 Planned in detail once L3 is in and played.
+(The detailed plan: [plan-ember-reach-sites.md](plan-ember-reach-sites.md).)
 
 - **L4: sites.**
   - Ruins on airless worlds, landed at and surveyed from the ground, at a better yield than from orbit.
