@@ -47,11 +47,15 @@ function pack(g) {
 	if (g.pilotOnly && out.player) for (const k of WORLD) delete out.player[k];
 	return trim(out);
 }
-/* gamekit keeps a save up to 256 KB. A long game's records grow past that (every system charted, every asteroid
+/* gamekit keeps a record up to RG.maxSave (256 KB on Rudolf OS 1.6.1, 6 MB from 1.6.2). A long game's records grow past that (every system charted, every asteroid
    chipped), so a save over the budget is trimmed, the least needed first: the asteroids mined longest ago (they
    only matter where you are), old war events, then systems and planets charted long ago whose data is already
    sold (they may be charted again). First discoveries and names are always kept. */
-const BUDGET = 230 * 1024;
+let BUDGET = 230 * 1024;
+/* (0.5.8) a record's limit, as the desktop says (RG.maxSave: 256 KB on Rudolf OS 1.6.1, 6 MB from 1.6.2): each
+   record is trimmed to nine tenths of it */
+let MAXREC = 256 * 1024;
+function setMax(n) { if (num(n) && n >= 64 * 1024) { MAXREC = Math.floor(n); BUDGET = Math.floor(n * 0.9) } return MAXREC }
 function trim(out) {
 	const size = () => JSON.stringify(out).length, P = out.player;
 	if (!P || size() <= BUDGET) return out;
@@ -220,8 +224,9 @@ function packGalaxy(gal, P, id, day) {
 		if (X) { for (const k in X.pl || {}) if (X.pl[k].f && !f.pl[k]) f.pl[k] = id; for (const k in X.land || {}) if (X.land[k].f && !f.land[k]) f.land[k] = id }
 		w.firsts = f; w.names = Object.assign({}, W.names, X && X.names || {});
 	}
-	/* the budget: mined asteroids, then markets, then war events (first discoveries, names and colonies are kept) */
-	const size = () => JSON.stringify(out).length;
+	/* the budget: mined asteroids, then markets, then war events (first discoveries, names and colonies are kept, in
+	   their own records: split). (0.5.8) Measured on the head's part */
+	const size = () => JSON.stringify({gv: out.gv, slots: out.slots, world: {markets: w.markets, mined: w.mined, warEvents: w.warEvents}}).length;
 	if (size() > BUDGET) w.mined = Object.fromEntries(Object.entries(w.mined).slice(-1000));
 	if (size() > BUDGET) w.markets = Object.fromEntries(Object.entries(w.markets).sort((a, b) => b[1].day - a[1].day).slice(0, 40));
 	if (size() > BUDGET) w.warEvents = w.warEvents.slice(-50);
@@ -277,10 +282,75 @@ function migrate(raw, names) {
 	return {galaxy: gal, pilot: pilotOnly(raw), settings: raw.settings};
 }
 
+/* ================= (0.5.8) the galaxy over several records (docs/plan-ember-reach-pilots.md, P2b) =================
+   What can be trimmed (markets, mined asteroids, war events) stays in the head, 'galaxy'. What's kept for good
+   (colonies, first discoveries, names) goes into nine parts, 'galaxy-1' to 'galaxy-9', by region: a star's coarse
+   sector picks its part, so a stretch of play mostly changes one part, and only the parts that changed are written.
+   Ten records in all: at 6 MB a record, 60 MB, the owner's limit; a warning from 80% (48 MB). Colonies are kept
+   short (KEYS), losslessly but for star positions (to 0.0001 pc). */
+const PARTS = 9;
+const fnv = t => { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) } return h >>> 0 };
+/* the part a star (or a key "star|world") belongs to: its sector's block of 4 x 4 x 4 sectors */
+function regionOf(key) {
+	const id = String(key).split('|')[0], m = /^(-?\d+),(-?\d+),(-?\d+)/.exec(id);
+	return fnv(m ? [+m[1], +m[2], +m[3]].map(v => Math.floor(v / 4)).join(',') : id) % PARTS;
+}
+const KEYS = {id: 'i', star: 's', sponsor: 'S', independent: 'I', war: 'w', key: 'k', port: 'p', world: 'W', stage: 't', claimed: 'c', beaconBy: 'b', due: 'd', need: 'n', got: 'g',
+	fee: 'f', currency: 'C', owner: 'o', opens: 'O', paid: 'P', last: 'l', pop: 'q', builds: 'B', points: 'x', carrier: 'r', site: 'z', scrip: 'h', low: 'L', grown: 'G', beacon: 'e',
+	coming: 'm', contested: 'T', orphan: 'N', why: 'y'};
+const UNKEYS = Object.fromEntries(Object.entries(KEYS).map(([a, b]) => [b, a]));
+const r4 = v => Math.round(v * 1e4) / 1e4;
+/* a finished colony's build records (what it needed and got, its deadlines and fee) are done with: not kept */
+const DONE_DROP = new Set(['need', 'got', 'coming', 'beaconBy', 'due', 'claimed', 'fee', 'currency']);
+function encColony(c) {
+	const o = {}, done = c.stage == 'done';
+	for (const [k, v] of Object.entries(c)) {
+		if (v === undefined || k == 'foreign' || (done && DONE_DROP.has(k))) continue;
+		let x = v;
+		if (k == 'star' && obj(v)) { const at = Array.isArray(v.at) && v.at.length == 3 && v.at.every(num) ? v.at.map(r4) : v.at; x = v.id === c.id && Object.keys(v).every(q => q == 'id' || q == 'name' || q == 'at') ? [v.name, at] : Object.assign({}, v, {at}) }
+		o[KEYS[k] || '+' + k] = x;
+	}
+	return o;
+}
+function decColony(o) {
+	const c = {};
+	for (const [k, v] of Object.entries(o)) { const key = k[0] == '+' ? k.slice(1) : UNKEYS[k]; if (key) c[key] = v }
+	if (Array.isArray(c.star)) c.star = {id: c.id, name: c.star[0], at: c.star[1]};
+	if (c.stage == 'done') { if (!c.need) c.need = {}; if (!c.got) c.got = {} }
+	return c;
+}
+/* a packed galaxy (packGalaxy's) as the head and its parts */
+function split(packed) {
+	const W = packed.world || {}, head = Object.assign({}, packed, {parts: PARTS, world: {markets: W.markets || {}, mined: W.mined || {}, warEvents: W.warEvents || []}});
+	const parts = Array.from({length: PARTS}, () => ({gp: 1, colonies: [], firsts: {pl: {}, land: {}}, names: {}}));
+	for (const c of W.colonies || []) parts[regionOf((c.star && c.star.id) || c.id)].colonies.push(encColony(c));
+	for (const t of ['pl', 'land']) for (const [k, v] of Object.entries((W.firsts || {})[t] || {})) parts[regionOf(k)].firsts[t][k] = v;
+	for (const [k, v] of Object.entries(W.names || {})) parts[regionOf(k)].names[k] = v;
+	return {head, parts};
+}
+/* the head and its parts (as loaded; a missing part is empty) as one packed galaxy, for unpackGalaxy */
+function merge(head, parts) {
+	if (!obj(head) || !num(head.parts)) return head;
+	const w = Object.assign({}, head.world || {}, {colonies: [], firsts: {pl: {}, land: {}}, names: {}});
+	for (const p of parts || []) {
+		if (!obj(p) || p.gp !== 1) continue;
+		if (Array.isArray(p.colonies)) for (const o of p.colonies) if (obj(o)) w.colonies.push(decColony(o));
+		for (const t of ['pl', 'land']) Object.assign(w.firsts[t], obj(p.firsts) && obj(p.firsts[t]) ? p.firsts[t] : {});
+		Object.assign(w.names, obj(p.names) ? p.names : {});
+	}
+	const out = Object.assign({}, head, {world: w}); delete out.parts;
+	return out;
+}
+/* how full the galaxy's records are: bytes, the limit (ten records), the largest record against one record's limit */
+function fullness(sp) {
+	const sizes = [sp.head, ...sp.parts].map(x => JSON.stringify(x).length), total = sizes.reduce((a, b) => a + b, 0), cap = MAXREC * (PARTS + 1);
+	return {total, cap, share: total / cap, biggest: Math.max(...sizes) / MAXREC, warn: total >= 0.8 * cap || Math.max(...sizes) >= 0.9 * MAXREC};
+}
+
 /* (0.5.6) a pilot gone (lost on Hardcore, or deleted): their colonies stay in the galaxy, independent, nobody's */
 function orphan(gal, id) { for (const c of gal.world.colonies) if (c.owner == id) { c.owner = ''; c.orphan = true } return gal }
 
-const EmberSave = {orphan, BUDGET, trim, VERSION, GALAXY, pack, unpack, restoreModules, packPlayer, unpackPlayer,
+const EmberSave = {get BUDGET() { return BUDGET }, get MAXREC() { return MAXREC }, setMax, PARTS, regionOf, encColony, decColony, split, merge, fullness, orphan, trim, VERSION, GALAXY, pack, unpack, restoreModules, packPlayer, unpackPlayer,
 	SLOTS, WORLD, newGalaxy, summary, unpackGalaxy, packGalaxy, pilotOnly, joinGalaxy, shiftDays, migrate};
 if (typeof module != 'undefined') module.exports = EmberSave; else root.EmberSave = EmberSave;
 })(typeof window != 'undefined' ? window : this);

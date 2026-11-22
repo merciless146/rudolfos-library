@@ -229,6 +229,29 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
   hidden behind the port's screens.
 - **Tests:** `tests/emberreach_career_t.js` (16, node) and `tests/emberreach_career_browser_t.js` (10, Chromium).
 
+**P2b is built (0.5.8):**
+- **The galaxy over ten records** (`save.js` split and merge): the head, `galaxy`, keeps what can be trimmed
+  (markets, mined asteroids, war events); nine parts, `galaxy-1` to `galaxy-9`, keep what never is (colonies, first
+  discoveries, names), each star by its block of 4×4×4 sectors, so play in one area mostly changes one part.
+- **Only changed parts are written:** a save writes the head and whichever parts differ from what was last loaded
+  or saved.
+- **Compact colonies:** short keys and no empty fields; a finished colony drops its finished build's records
+  (what it needed and got, deadlines, fee), which nothing reads; star positions to 0.0001 pc. About 200 bytes
+  each, down from about 490.
+- **A record's limit follows the desktop:** Rudolf OS 1.6.2's desktop says 6 MB in its hello (RudolfOS PR #614);
+  a desktop that says nothing (1.6.1) gets 256 KB, so the game still saves there, within 2.5 MB. Each record is
+  trimmed to nine tenths of the limit.
+- **Warnings:** at 80% of the galaxy's ten records (48 MB at 6 MB a record), or a part at 90% of its record, the
+  game says how full the galaxy is; a part that can no longer be saved says so too.
+- **An older galaxy** (one record, 0.5.5–0.5.7) is read as it is and split at the next save. Save to a file
+  carries all ten records and the six pilots.
+- **The game kit (1.4.0):** `RG.maxSave`; outside Rudolf OS it keeps saves in the browser's IndexedDB (still
+  reading the old localStorage ones), so a browser holds 6 MB records too.
+- **Not done:** loading the parts near the pilot first; all ten load at the start. Measured in node with 220,000
+  colonies (45 MB, the largest part 5.0 MB): reading it back takes about 0.7 s and preparing a save about 1 s, so
+  a galaxy that big would make a save noticeable (the laptop is slower). A typical galaxy is a few hundred KB, where
+  neither shows. Worth doing if galaxies ever grow that far: loading by region, and building only changed parts.
+- **Tests:** `tests/emberreach_galaxystore_t.js` (11, node) and `tests/emberreach_galaxystore_browser_t.js` (8,
 **P3 is built (0.5.7):**
 - **The Contraband Merchant** (`contraband.js`) is a card in Contacts at a great power's capitals, system ports and
   surface starports (not outposts, settlements, colony ports or anchorages), for pilots with Hardcore on or done.
@@ -255,7 +278,7 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 |---|---|---|---|
 | **P1** | The game kit's slots; the galaxy/pilot split of the save (the sweep, the two packs, migration, trimming each); the slot screen; delete a pilot; wipe the galaxy; export and import of the set | — | L |
 | **P2** | Difficulty (the table above, the slot and status; changed while docked; Admiral while Hardcore is on); Hardcore's states and the pilot-made-only switch; the wipe on death; rewards' multipliers; saving often | P1 | M |
-| **P2b** | The galaxy's storage: split by region over up to 10 records of 6 MB; a compact format for colonies, first discoveries and names; only changed regions written; the regions near the pilot loaded first; a warning at 48 MB. Needs Rudolf OS and the game kit at 6 MB a record | P2 | M |
+| **P2b** | The galaxy's storage: split by region over up to 10 records of 6 MB; a compact format for colonies; only changed regions written; a warning at 48 MB. Needs Rudolf OS and the game kit at 6 MB a record | P2 | M |
 | **P3** | The Contraband Merchant: the contact, contraband variants (outfit.js), stock, prices; bound to the pilot (never traded); not illegal; its insurance (none while Hardcore is on, twice the premium after) | P2 | M |
 | **P4** | The cloaking device: the module, radar and scanners ignoring it, transparency, heat, firing showing it; the award hook (test-only until M6) | P2 | M |
 | **P5** | Co-op, wing first: rooms of four in `net.js`, the relay and Rudolf OS's LAN service; the host's galaxy shared; guests' pilots saved at home; the Hardcore rule; docking, markets, NPCs, jumps together | P1 (P2 for the Hardcore rule) | L |
@@ -282,9 +305,10 @@ P3, P4 and P5 can be built at the same time once P1 and P2 are in.
   the questline's end).
 
 - **Save sizes:** a save record may be up to **6 MB** (up from 256 KB: Rudolf OS's desktop and the game kit), and
-  **the galaxy up to 60 MB** in all (10 records), with a warning at 80% (48 MB). Pilots' saves are separate. With a
-  compact format that holds roughly 1.5 million colonies besides discoveries and names. Today, at 256 KB, the
-  galaxy would stop saving at about 600 colonies or 9,000 first discoveries, since those are never trimmed.
+  **the galaxy up to 60 MB** in all (10 records), with a warning at 80% (48 MB). Pilots' saves are separate. As
+  built (P2b), a finished colony takes about 200 bytes and a first discovery about 30, so 60 MB holds roughly
+  250,000 colonies or 1.5 million first discoveries before the warning (not the 1.5 million colonies first
+  estimated). Before P2b, at 256 KB, the galaxy stopped saving at about 600 colonies or 9,000 first discoveries.
 
 ## Open questions for the owner
 
