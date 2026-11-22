@@ -121,9 +121,12 @@ function draw(ctx, W, H, h, t) {
 		if (h.witchTo) text(ctx, TT('HYPERSPACE') + ' · ' + h.witchTo.toUpperCase(), cx, H - 40, {mono: true, align: 'center', size: 13, col: C.cyan, weight: 600});
 		ctx.restore(); return;
 	}
-	/* ---- the reticle ---- */
+	/* ---- the reticle (0.5.3: where the nose points, while looking round by touch) ---- */
+	const nose = h.nose;
+	if (!nose || nose.on) { ctx.save(); if (nose) ctx.translate(nose.x - cx, nose.y - cy);
 	ctx.strokeStyle = 'rgba(108,201,232,0.75)'; ctx.lineWidth = 1.4;
 	ctx.beginPath(); ctx.arc(cx, cy, 16, 0, 7); ctx.moveTo(cx - 30, cy); ctx.lineTo(cx - 22, cy); ctx.moveTo(cx + 22, cy); ctx.lineTo(cx + 30, cy); ctx.moveTo(cx, cy - 30); ctx.lineTo(cx, cy - 22); ctx.moveTo(cx, cy + 22); ctx.lineTo(cx, cy + 30); ctx.stroke();
+	ctx.restore() }
 	/* the velocity marker: where the ship is going, relative to the nearby frame */
 	if (h.prograde && h.speed > 2) {
 		const p = h.prograde;
@@ -173,12 +176,14 @@ function draw(ctx, W, H, h, t) {
 	/* ---- the panels, at the HUD's size (Settings); the markers above stay where they point ---- */
 	const W0 = W, H0 = H, k0 = OPT.size || 1; ctx.save(); ctx.scale(k0, k0); W = W / k0; H = H / k0;
 	const cxk = W / 2, small2 = W < 700;
+	/* (0.5.3) with the touch controls up, the panels stand above them: the top of each side's controls, at this scale */
+	const lift = side => h.touchUI && h.touchUI.top ? (h.touchUI.top[side] - 8) / k0 : H - 16;
 	/* sound captions, above the scanner */
-	if (h.captions && h.captions.length) { const cy2 = H - (h.touch ? 340 : 150); h.captions.slice(-3).forEach((c, i, a) => { const yy = cy2 - (a.length - 1 - i) * 22; ctx.font = '600 13px ' + SANS; const w = ctx.measureText('[ ' + c.text + ' ]').width + 16; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(cxk - w / 2, yy - 15, w, 20); text(ctx, '[ ' + c.text + ' ]', cxk, yy, {align: 'center', size: 13, weight: 600, col: '#ffffff'}) }) }
+	if (h.captions && h.captions.length) { const cy2 = H - (h.touch ? H - lift('all') + 150 : 150); h.captions.slice(-3).forEach((c, i, a) => { const yy = cy2 - (a.length - 1 - i) * 22; ctx.font = '600 13px ' + SANS; const w = ctx.measureText('[ ' + c.text + ' ]').width + 16; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(cxk - w / 2, yy - 15, w, 20); text(ctx, '[ ' + c.text + ' ]', cxk, yy, {align: 'center', size: 13, weight: 600, col: '#ffffff'}) }) }
 	if (h.fps != null) text(ctx, Math.round(h.fps) + ' FPS', W - 16, 14, {mono: true, size: 10, col: C.muted, align: 'right'});
 	/* ---- bottom centre: the scanner ---- */
 	if (h.scanner) {
-		const sc = h.scanner, rw = small2 ? 110 : 150, rh = small2 ? 38 : 50, sx = cxk, sy = H - rh - (h.touch ? 200 : 26), R = sc.range;
+		const sc = h.scanner, rw = small2 ? 110 : 150, rh = small2 ? 38 : 50, sx = cxk, sy = H - rh - (h.touch ? H - lift('all') + 12 : 26), R = sc.range;
 		ctx.fillStyle = 'rgba(8,14,26,0.6)'; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.fill();
 		ctx.strokeStyle = 'rgba(108,201,232,0.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(sx, sy, rw, rh, 0, 0, 7); ctx.ellipse(sx, sy, rw / 2, rh / 2, 0, 0, 7); ctx.moveTo(sx - rw, sy); ctx.lineTo(sx + rw, sy); ctx.moveTo(sx, sy - rh); ctx.lineTo(sx, sy + rh); ctx.stroke();
 		for (const b of sc.blips) {
@@ -191,7 +196,7 @@ function draw(ctx, W, H, h, t) {
 		text(ctx, (R / 1000) + ' km', sx + rw - 4, sy + rh + 12, {mono: true, size: 10, col: C.muted, align: 'right'});
 	}
 	/* ---- bottom left: flight ---- */
-	const bw = small2 ? 240 : 290, bh = 118, bx = 16, by = H - bh - (h.touch ? 190 : 16);
+	const bw = small2 ? 240 : 290, bh = 118, bx = 16, by = H - bh - (h.touch ? H - lift('left') : 16);
 	box(ctx, bx, by, bw, bh);
 	if (h.combat) {
 		const k = h.combat, py = by - 84;
@@ -243,7 +248,7 @@ function draw(ctx, W, H, h, t) {
 	else text(ctx, h.fa ? TT('Set') + ' ' + fmtSpeed(Math.max(0, thr) * h.vmax) : (h.thrustNote || TT('Thrust') + ' ' + Math.round(thr * 100) + '%'), bx + 12, by + 110, {size: 11, col: C.muted});
 	/* ---- bottom right: target ---- */
 	if (h.target) {
-		const T = h.target, w = small2 ? 210 : 280, th = T.land ? 138 : 118, x = W - w - 16, y = H - th - (h.touch ? 190 : 16);
+		const T = h.target, w = small2 ? 210 : 280, th = T.land ? 138 : 118, x = W - w - 16, y = H - th - (h.touch ? H - lift('right') : 16);
 		box(ctx, x, y, w, th);
 		if (T.land) text(ctx, T.land.line, x + 12, y + 128, {size: 11, col: T.land.ok ? C.green : C.muted, weight: 600});
 		text(ctx, T.kind.toUpperCase(), x + 12, y + 20, {mono: true, size: 11, col: C.muted});
@@ -254,7 +259,7 @@ function draw(ctx, W, H, h, t) {
 		if (T.dock) { const d = T.dock; text(ctx, d.line1, x + 12, y + 90, {size: 12, col: d.col || C.text, weight: 600}); if (d.line2) text(ctx, d.line2, x + 12, y + 108, {size: 12, col: C.muted}) }
 	}
 	/* ---- the radial menu (held on ~): its functions round a ring, the one pointed at lit ---- */
-	if (h.radial) {
+	if (h.radial && !h.radial.rects) {
 		const R0 = Math.min(W, H) * 0.26, n = h.radial.items.length;
 		ctx.fillStyle = 'rgba(4,8,16,0.55)'; ctx.beginPath(); ctx.arc(cx, cy, R0 + 70, 0, 7); ctx.fill();
 		ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, R0 * 0.35, 0, 7); ctx.stroke();
@@ -322,17 +327,10 @@ function draw(ctx, W, H, h, t) {
 		});
 	}
 	ctx.restore(); W = W0; H = H0;
-	/* ---- touch controls (where the touches land: not scaled) ---- */
-	if (h.touch && h.touchUI) {
-		const u = h.touchUI;
-		ctx.strokeStyle = 'rgba(232,237,246,0.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(u.stick.x, u.stick.y, u.stick.r, 0, 7); ctx.stroke();
-		ctx.fillStyle = 'rgba(108,201,232,0.45)'; ctx.beginPath(); ctx.arc(u.stick.x + u.stick.dx * u.stick.r, u.stick.y + u.stick.dy * u.stick.r, 26, 0, 7); ctx.fill();
-		ctx.strokeStyle = 'rgba(232,237,246,0.35)'; ctx.strokeRect(u.thr.x, u.thr.y, u.thr.w, u.thr.h);
-		ctx.fillStyle = 'rgba(242,163,58,0.5)'; const tv = Math.max(0, h.throttle); ctx.fillRect(u.thr.x, u.thr.y + u.thr.h * (1 - tv), u.thr.w, u.thr.h * tv);
-		if (u.vert) { const V = u.vert, mid = V.y + V.h / 2; ctx.strokeStyle = 'rgba(232,237,246,0.35)'; ctx.strokeRect(V.x, V.y, V.w, V.h); ctx.beginPath(); ctx.moveTo(V.x, mid); ctx.lineTo(V.x + V.w, mid); ctx.stroke();
-			ctx.fillStyle = 'rgba(108,201,232,0.5)'; ctx.fillRect(V.x, Math.min(mid, mid - V.v * V.h / 2), V.w, Math.abs(V.v) * V.h / 2); text(ctx, 'VERT', V.x + V.w / 2, V.y - 6, {align: 'center', size: 10, weight: 600, col: C.muted}) }
-		for (const b of u.buttons) { ctx.fillStyle = 'rgba(8,14,26,0.7)'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeStyle = b.on ? C.cyan : 'rgba(232,237,246,0.35)'; ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1); text(ctx, b.label, b.x + b.w / 2, b.y + b.h / 2 + 4, {align: 'center', size: 12, weight: 600, col: b.on ? C.cyan : C.text}) }
-	}
+	/* ---- touch controls (0.5.3, touch.js: where the touches land, so not scaled), and the radial menu by touch ---- */
+	const Tch = root.EmberTouch;
+	if (Tch && h.touch && h.touchUI) Tch.draw(ctx, h.touchUI, h, C, text);
+	if (Tch && h.radial && h.radial.rects) Tch.drawRadial(ctx, W, H, h.radial, C, text, TT('Radial menu') + ' · ' + TT('Tap outside to close'));
 	if (h.duel) duelBar(ctx, W, H, h.duel);
 	ctx.restore();
 }

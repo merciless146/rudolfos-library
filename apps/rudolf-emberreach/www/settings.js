@@ -5,6 +5,7 @@
    - Controls: every action's two keys and gamepad button, rebound by pressing what you want (a key taken from
      another action is moved, and the menu says from which); mouse sensitivity and pitch, gamepad pitch and dead
      zone; a reset.
+     (0.5.3) The touch controls: shown (Auto, On, Off), their size, a left-handed layout, opacity and sensitivity.
    - Language and accessibility: the languages Rudolf OS offers (i18n.js); reduced flashing (or as Rudolf OS
      says), reduced motion, a colour-blind palette, a high-contrast HUD, and captions for the sounds.
    The settings are kept in the save (save.js keeps them through a new game) and sanitised there with sanitise().
@@ -12,6 +13,8 @@
 (function (root) {
 'use strict';
 const I = root.EmberI18n || (typeof module != 'undefined' ? require('./i18n.js') : null), T = (s, v) => I ? I.T(s, v) : s;
+/* (0.5.3) the touch controls' own settings: touch.js */
+const Tc = root.EmberTouch || (typeof module != 'undefined' ? require('./touch.js') : null);
 
 const DEFAULTS = () => ({
 	graphics: {quality: 'high', res: 100, fov: 70, glow: true, fps: false, aa: 'auto', autoRes: true},
@@ -21,6 +24,7 @@ const DEFAULTS = () => ({
 	   the assists, each on or off whatever the scheme */
 	controls: {keys: {}, mice: 1, mouseSens: 100, invertMouse: false, invertPad: false, deadzone: 12, scheme: 'simple', autoGear: true, autoLights: true, landAssist: true, autoRoute: true},
 	lang: 'os',   /* follow Rudolf OS (or the browser) */
+	touch: Tc.DEFAULTS(),   /* (0.5.3) shown (auto, on, off), size, left-handed, opacity, sensitivity */
 	a11y: {flash: 'os', motion: false, palette: 'off', contrast: false, captions: false}});
 
 /* the actions on the Controls page, in groups (the debug keys aren't listed) */
@@ -82,6 +86,7 @@ function sanitise(x, actions, langs) {
 			return {keys, mice: 1, mouseSens: num(c.mouseSens, 25, 300, 100), invertMouse: bool(c.invertMouse, false), invertPad: bool(c.invertPad, false), deadzone: num(c.deadzone, 0, 40, 12),
 				scheme, autoGear: bool(c.autoGear, true), autoLights: bool(c.autoLights, on), landAssist: bool(c.landAssist, on), autoRoute: bool(c.autoRoute, on)};
 		})(),
+		touch: Tc.sanitise(x.touch),
 		lang: x.lang == 'os' || (langs || ['en']).includes(x.lang) ? x.lang : D.lang,
 		a11y: {flash: one(y.flash, ['os', 'on', 'off'], 'os'), motion: bool(y.motion, false), palette: one(y.palette, ['off', 'rg', 'by'], 'off'), contrast: bool(y.contrast, false), captions: bool(y.captions, false)}};
 }
@@ -139,6 +144,9 @@ function open(el, S, env) {
 		}
 		return out + head('Controls') + row('Mouse sensitivity', range('controls.mouseSens', c.mouseSens, 25, 300, 5, '%')) + row('Invert mouse pitch', onOff('controls.invertMouse', c.invertMouse))
 			+ row('Invert gamepad pitch', onOff('controls.invertPad', c.invertPad)) + row('Gamepad dead zone', range('controls.deadzone', c.deadzone, 0, 40, 1, '%'))
+			+ head('Touch controls') + row('Show touch controls', pick('touch.show', S.touch.show, [['auto', T('Auto')], ['on', T('On')], ['off', T('Off')]])) + '<p class="st-note">' + esc(T('Auto shows them on a touch screen, and hides them while a keyboard, mouse or gamepad is in use.')) + '</p>'
+			+ row('Touch control size', range('touch.size', S.touch.size, 75, 150, 5, '%')) + row('Left-handed layout', onOff('touch.left', S.touch.left)) + row('Touch control opacity', range('touch.opacity', S.touch.opacity, 20, 100, 5, '%'))
+			+ row('Touch sensitivity', range('touch.sens', S.touch.sens, 25, 300, 5, '%'))
 			+ '<p><button class="st-reset" data-reset="1">' + esc(T('Reset controls')) + '</button></p>';
 	}
 	function page2() {
