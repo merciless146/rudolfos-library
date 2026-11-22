@@ -1369,11 +1369,6 @@ also arms the first ships and adds fire groups:
   stands on its world as a surface port with pads, the traffic controller and its market in the sponsor's coin, and
   an outpost grows into a settlement at the colonial office. (`plan-ember-reach-landing-work.md`, L3.5.)
 
-- **0.5.3, phones (M6):** touch flight (`touch.js`, "Phones" under Settings): the stick, yaw, throttle and vertical
-  sliders, FIRE and FIRE 2 held together with the stick, TARGET, DOCK, CRUISE, GEAR, FA, the radial menu by touch,
-  MAP and pause, looking round by a drag; shown only while touch is in use; size, left-handed, opacity and
-  sensitivity in Settings. Tested in `tests/emberreach_touch_t.js` (a game flown, docked and traded in by taps on a
-  390 × 844 phone).
 - **0.5.0, duels (first stage):** a two-pilot duel mode beside the single-player game (`?duel`, or Duels on the
   pause menu), with its own `duel.js`.
   - **Ships:** four built for it from the ordinary yards (no Precursor work), guns gimballed: a heavy fighter (the
@@ -1401,6 +1396,12 @@ also arms the first ships and adds fire groups:
   - **LAN:** a browser can't take connections, so one computer on the network runs the relay: a small Rudolf OS
     service the host's game asks for (through the game kit), found by the other on the network (mDNS). Nothing goes
     over the internet.
+
+- **0.5.3, phones (M6):** touch flight (`touch.js`, "Phones" under Settings): the stick, yaw, throttle and vertical
+  sliders, FIRE and FIRE 2 held together with the stick, TARGET, DOCK, CRUISE, GEAR, FA, the radial menu by touch,
+  MAP and pause, looking round by a drag; shown only while touch is in use; size, left-handed, opacity and
+  sensitivity in Settings. Tested in `tests/emberreach_touch_t.js` (a game flown, docked and traded in by taps on a
+  390 × 844 phone).
 
 Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
