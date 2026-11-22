@@ -787,6 +787,7 @@ decided after 0.4.8).
 ## L4, in outline
 
 Planned in detail once L3 is in and played.
+(The detailed plan: [plan-ember-reach-sites.md](plan-ember-reach-sites.md).)
 
 - **L4: sites.**
   - Ruins on airless worlds, landed at and surveyed from the ground, at a better yield than from orbit.
