@@ -11,7 +11,8 @@ questions are folded in; what is still open is at the end.
 - **The galaxy's save belongs to the person's hardware:** one galaxy per Rudolf OS account, kept only on that
   computer, shared by that account's six pilots (owner's answer).
 - **Difficulty per pilot:** Rookie, Pilot, Admiral. Each changes the enemies, the damage taken and the rewards
-  (owner's answer).
+  (owner's answer). It can be changed while docked, except that **a Hardcore pilot is held at Admiral** until Hardcore
+  ends, by hand or by finishing the main questline (owner's answer).
 - **Hardcore,** a pilot's option with these rules:
   - It can be turned on **only when the pilot is made**.
   - It can be turned off at any time, and once off it can **never be turned back on** for that pilot.
@@ -78,7 +79,8 @@ two. As a start:
 - **The slot screen** (before the origin picker) shows the six slots, each with its summary.
   - An empty slot starts a new pilot: origin, name, difficulty, and the Hardcore box (only here).
   - A pilot can be deleted. That doesn't touch the galaxy.
-  - **Wipe the galaxy** (with a confirmation that lists the six pilots) resets everything, as New game does today.
+  - **Wipe the galaxy** (with a confirmation that lists the six pilots) resets everything, as New game does today:
+    **the six pilots are deleted with it** (owner's answer).
 - **Migration:** an existing save becomes the galaxy plus pilot 1 (difficulty Pilot, Hardcore off), checked by a
   test on real 0.5.x saves.
 - **Export and import** of a file carry the whole set: the galaxy and the six pilots.
@@ -87,8 +89,9 @@ two. As a start:
 
 ## 2. Difficulty
 
-Chosen when the pilot is made. Recommendation: it can be changed later only while docked. Starting values for
-playtests:
+Chosen when the pilot is made, and changed later **while docked** (owner's answer). **A pilot made with Hardcore is
+Admiral, and stays Admiral while Hardcore is on**; once Hardcore ends (by hand, or at the questline's end), the
+difficulty can be changed again. Starting values for playtests:
 
 | | Rookie | Pilot | Admiral |
 |---|---|---|---|
@@ -102,11 +105,13 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 ## 3. Hardcore
 
 **The pilot's state:** `hc` is one of `none`, `on`, `off`, `done`.
-- **Making the pilot:** `on` or `none`. There's no other way to reach `on`.
+- **Making the pilot:** `on` or `none`. There's no other way to reach `on`. Ticking Hardcore sets the difficulty to
+  Admiral and locks it there while `on`.
 - **On → off:** turned off by hand (Settings › Pilot, after a confirmation that says it can't be undone). Rewards go
-  back to normal, the Contraband Merchant is gone, and the pilot is ordinary from then on.
+  back to normal, the Contraband Merchant is gone, the difficulty can be changed again, and the pilot is ordinary
+  from then on.
 - **On → done:** the main questline finished while on. The cloak is given, Hardcore's risk ends (no more wipe on
-  death), and its rewards and Contraband Merchant stay.
+  death), its rewards and Contraband Merchant stay, and the difficulty can be changed again.
 - **Death while on:** the ship is destroyed and Hardcore is on, so insurance doesn't apply.
   - A screen says the pilot is lost, and the pilot's slot is emptied.
   - The galaxy keeps everything the pilot did. Their colonies turn independent; their discoveries keep their names.
@@ -124,13 +129,21 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 - **What they sell:** **Contraband** variants of weapons, modules and utilities.
   - Stock is drawn from the port's seed, refreshed weekly in galaxy time.
   - A variant is its base item with about **+20% to its main numbers** (damage or rate, shield strength, range,
-    efficiency), priced about **1.6×** and grade-capped below Precursor work.
+    efficiency), priced about **1.6×** and kept below Precursor work.
   - **Precursor gear stays the strongest.**
   - The heat rule carries over: a contraband gatling is still ballistic and makes no heat.
-- **Contraband gear:**
-  - It's marked as such in outfitting.
-  - It's kept if the pilot's Hardcore later ends by hand. The pilot just can't buy more, and selling it gives half.
-  - Open question 2: whether it's illegal.
+- **Contraband gear is bound to its pilot, for good** (owner's answer):
+  - it can **never be traded**: not sold, not given to another pilot or player, not left in a co-op partner's hands;
+    it can be fitted, taken off and kept in the pilot's own storage;
+  - it's marked as such in outfitting;
+  - it's kept if Hardcore later ends by hand; the pilot just can't buy more.
+- **It's illegal in the great powers' space** (owner's answer): a police or Marshal scan finds it. That means a fine
+  and some lost standing with that power, or a fight if you run. Free ports and independent colonies don't care.
+- **Insurance** (owner's answer):
+  - while Hardcore is on, contraband gear **can't be insured** (its value is left out of the policy, and it's lost
+    with the ship);
+  - once Hardcore is off (by hand or at the questline's end), it can be insured at **twice the premium** of its
+    non-contraband counterpart.
 
 ## 5. The Precursor cloaking device
 
@@ -156,7 +169,7 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 - **Joining:** a guest picks one of their pilots, and the pilot's version must match the host's.
   - **A Hardcore host admits only pilots whose Hardcore is on.**
   - A guest who is a Rookie keeps their own damage-taken multiplier; the AI's skill is the host's difficulty.
-- **Where people fly** (recommended, open question 5):
+- **Where people fly** (owner's answer):
   - **First, the wing stays together.** Everyone is in the host's system, and when the host jumps the guests are
     offered the jump and follow.
   - **Later, free roaming,** with the host's game simulating each system a player is in.
@@ -175,8 +188,8 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 | Step | What | Needs | Size |
 |---|---|---|---|
 | **P1** | The game kit's slots; the galaxy/pilot split of the save (the sweep, the two packs, migration, trimming each); the slot screen; delete a pilot; wipe the galaxy; export and import of the set | — | L |
-| **P2** | Difficulty (the table above, the slot and status); Hardcore's states and the pilot-made-only switch; the wipe on death; rewards' multipliers; saving often | P1 | M |
-| **P3** | The Contraband Merchant: the contact, contraband variants (outfit.js), stock, prices, keeping and selling | P2 | M |
+| **P2** | Difficulty (the table above, the slot and status; changed while docked; Admiral while Hardcore is on); Hardcore's states and the pilot-made-only switch; the wipe on death; rewards' multipliers; saving often | P1 | M |
+| **P3** | The Contraband Merchant: the contact, contraband variants (outfit.js), stock, prices; bound to the pilot (never traded); illegal (scans, fines, standing, fights); its insurance (none while Hardcore is on, twice the premium after) | P2 | M |
 | **P4** | The cloaking device: the module, radar and scanners ignoring it, transparency, heat, firing showing it; the award hook (test-only until M6) | P2 | M |
 | **P5** | Co-op, wing first: rooms of four in `net.js`, the relay and Rudolf OS's LAN service; the host's galaxy shared; guests' pilots saved at home; the Hardcore rule; docking, markets, NPCs, jumps together | P1 (P2 for the Hardcore rule) | L |
 | **P6** | Co-op free roaming (if chosen) | P5 | L |
@@ -192,30 +205,27 @@ P3, P4 and P5 can be built at the same time once P1 and P2 are in.
   non-Hardcore guest);
 - the existing 39 `tests/emberreach*_t.js` kept green.
 
+## Decided by the owner (2026-11-22)
+
+- **Wiping the galaxy deletes the six pilots too**, as New game does today.
+- **Contraband is illegal** in the great powers' space (a scan, a fine and lost standing, or a fight), **bound to its
+  pilot for good** (never traded), **uninsurable while Hardcore is on**, and insured at **twice** its ordinary
+  counterpart's premium once Hardcore is off.
+- **Co-op: the wing stays together first** (the host leads jumps); free roaming is a later step (P6).
+- **Difficulty can be changed while docked**, but **a Hardcore pilot is Admiral** until Hardcore ends (by hand or at
+  the questline's end).
+
 ## Open questions for the owner
 
-1. **Wiping the galaxy and the pilots.** Wiping the galaxy resets it "as a new game does". A new game today also
-   clears the pilot.
-   - (a) Wipe the six pilots with it. (b) Keep the pilots and restart them at their home stations with what they
-     own, in a fresh galaxy.
-   - **Recommended: (a).** It's what a new game does now, and the pilots' colonies and missions belong to the old
-     galaxy.
-2. **Is contraband illegal?**
-   - (a) Only exclusive: anyone may carry it.
-   - (b) Illegal in the great powers' space: a police or Marshal scan finds it, which brings a fine and some lost
-     standing, or a fight if you run. Free ports don't care.
-   - **Recommended: (b).** The name promises a risk, and the scanners already exist.
-3. **Hardcore and trade.** Should the 1.5× apply to trade profit too? (a) No: missions and other payouts only.
+These have recommended defaults, which the steps follow unless the owner says otherwise.
+
+1. **Hardcore and trade.** Should the 1.5× apply to trade profit too? (a) No: missions and other payouts only.
    (b) Yes, as a bonus at sale. **Recommended: (a)**, so the markets stay the same for every pilot in a shared
    galaxy.
-4. **Quitting during a fight on Hardcore.**
+2. **Quitting during a fight on Hardcore.**
    - (a) Allowed: the last save stands.
    - (b) Closing the game with a hostile in weapons range counts as a loss of the ship. For Hardcore, that's death.
    - **Recommended: (a) with frequent saves.** (b) punishes crashes and power cuts.
-5. **Co-op travel:** (a) the wing stays together (the host leads jumps); (b) free roaming from the start.
-   **Recommended: (a) first, then (b)**: much less to simulate on the host's machine.
-6. **Changing difficulty later:** (a) at any time while docked; (b) never. **Recommended: (a)**, with Hardcore's
-   rules unchanged.
-7. **The cloak and the other players:** should co-op partners see a faint outline of a cloaked friend (on their
+3. **The cloak and the other players:** should co-op partners see a faint outline of a cloaked friend (on their
    radar as a friend), or nothing, as enemies do? **Recommended:** friends see an outline on radar, so wings can
    fly together.
