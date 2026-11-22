@@ -9,6 +9,8 @@ const {chromium} = require('playwright');
 const {spawn} = require('child_process');
 const fs = require('fs'), path = require('path'), os = require('os');
 const PORT = +(process.argv[2] || 8770), RELAY = PORT + 1, LAN = PORT + 2, TOP = path.join(__dirname, '..');
+/* (the game's version, from its PKGINFO: the relay pairs only the same version) */
+const VER = /^version = (.+)$/m.exec(fs.readFileSync(path.join(TOP, 'apps/rudolf-emberreach/PKGINFO'), 'utf8'))[1].trim();
 const W = fs.mkdtempSync(path.join(os.tmpdir(), 'ern-'));
 let P = 0, F = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { F++; console.log('FAIL ' + n + (d !== undefined ? ' - ' + (typeof d == 'string' ? d : JSON.stringify(d)) : '')) } };
@@ -144,7 +146,7 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 		A = await frame(pa, () => EmberDebug.game.duel.m && document.getElementById('ov').hidden, 80);
 		Cc = await frame(pc, () => EmberDebug.game.duel.m && document.getElementById('ov').hidden, 80);
 		a = await view(A); const c = await view(Cc);
-		ok('16. quick match: the first waits in the queue, the next pilot looking (same version) is paired with them', /Looking for a pilot running Ember Reach 0\.5\.2/.test(looking) && a.state == 'ready' && c.state == 'ready' && a.role != c.role && a.m.phase == 'fight' && c.m.phase == 'fight', {looking, a: [a.role, a.m], c: [c.role, c.m]});
+		ok('16. quick match: the first waits in the queue, the next pilot looking (same version) is paired with them', new RegExp('Looking for a pilot running Ember Reach ' + VER.replace(/\./g, '\\.')).test(looking) && a.state == 'ready' && c.state == 'ready' && a.role != c.role && a.m.phase == 'fight' && c.m.phase == 'fight', {looking, a: [a.role, a.m], c: [c.role, c.m]});
 		/* leaving: the other is told, at once */
 		await Cc.evaluate(() => EmberDebug.game.duel.net.leave());
 		A = await frame(pa, () => document.getElementById('ovT').textContent == 'The duel is over', 50);
@@ -152,7 +154,7 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 		await pc.close();
 		/* ---- a LAN duel: hosted through the game kit (the desktop's duel service), found on the network and joined ---- */
 		await A.click('#ovBtns button.primary');
-		const pd = await open(ctx, Q, '&find=0.5.2');
+		const pd = await open(ctx, Q, '&find=' + VER);
 		let Dd = await frame(pd, () => !!document.querySelector('#ovBody input[name=duelShip]'));
 		await choose(A, 'shrike', 'lan', 'host');
 		A = await frame(pa, () => /Hosting a duel on this network/.test(document.getElementById('ovBody').textContent), 60);
@@ -178,7 +180,7 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 		await Ee.click('#ovBody input[name=duelOpp][value=lan]');
 		Ee = await frame(pe, () => !!document.querySelector('#duelLanList input'), 60);
 		const other = await Ee.evaluate(() => ({text: document.getElementById('duelLanList').textContent, disabled: document.querySelector('#duelLanList input').disabled}));
-		ok('20. another version is refused: the relay won\'t pair a 0.5.1 game with this 0.5.2 one (it says which), and a LAN duel of another version can\'t be joined (and says why)', old.t == 'error' && old.why == 'version' && old.ver == '0.5.2' && other.disabled && /0\.5\.1: both need the same version/.test(other.text), {old, other});
+		ok('20. another version is refused: the relay won\'t pair a 0.5.1 game with this ' + VER + ' one (it says which), and a LAN duel of another version can\'t be joined (and says why)', old.t == 'error' && old.why == 'version' && old.ver == VER && other.disabled && /0\.5\.1: both need the same version/.test(other.text), {old, other});
 		ok('21. no errors on any page', errs.length == 0, errs);
 	} catch (e) { F++; console.log('FAIL (threw) ' + (e.stack || e)) }
 	finally { await br.close(); srv.kill(); relay.kill(); lan.kill() }
