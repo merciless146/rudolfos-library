@@ -1173,8 +1173,8 @@ In the game since this change (`insurance.js`; tested in `tests/emberreach_insur
    population and the architect's pay; forward bases on the fronts, raids, independent colonies with their scrip,
    and rented carriers.
 8. **M6:** the Core, the black hole, polish; phones (1.6.0). **The Maw and the Rift are playable** (see "The Rift").
-   **Phones, the game's part (0.5.3):** the touch controls reworked for phones and the small-screen layout (below);
-   a low-power preset follows in the same version. The phone's own interface is Rudolf OS 2.0's (its plan-1.6.1 Part 2:
+   **Phones, the game's part (0.5.3, done):** the touch controls reworked for phones, the small-screen layout and a
+   low-power mode (below). Left for real phones: the owner's checks listed in the pull requests. The phone's own interface is Rudolf OS 2.0's (its plan-1.6.1 Part 2:
    1.6.1 lays only the groundwork, a workspace shown full screen as a panel); the game runs in such a panel as it is.
 
 **Released: the Single-Player Alpha Build (SPAB), 0.1.0**, in the Rudolf OS Library (`rudolf-emberreach`). It has
@@ -1401,6 +1401,15 @@ also arms the first ships and adds fire groups:
     side, so MSL and FLARE sit level with the yaw bar.
   - Nothing changes on a computer's screen: before and after at 1280x720 and 1920x1080 match.
   - Tested in `tests/emberreach_phone_t.js` (360x640 and 360x740, 390x844, 844x390 with touch; and 1280x720).
+- **0.5.3, phones: low-power mode** (Settings, Graphics: Auto, On, Off; Auto is on for a phone, a coarse pointer on
+  a screen under 600 px across, and off on a computer). On: the 3D view at most 60% of the screen's resolution and 1.5
+  pixels to the point, low detail, no glow, 30 frames a second (the game still runs 60 updates a second), asteroids
+  drawn within 15 km (under 40 m across, within 5 km; 40 km off), and the ground's tiles on half the budget, built from
+  a little nearer. Measured in a duel's asteroid field on a 390x844 screen at 3 pixels to the point with Chromium's
+  CPU throttled 4x (software rendering): about 4 frames a second and the game falling behind (0.93 of real time) off,
+  about 13 frames a second and the game on time on. On a computer nothing changes (1280x720 and 1920x1080, three runs
+  each, the same frame rates as before within the software renderer's noise). Tested in
+  `tests/emberreach_lowpower_t.js`.
 
 Still to come: duels online and on a LAN, the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
 phones (1.6.0), and multiplayer.
