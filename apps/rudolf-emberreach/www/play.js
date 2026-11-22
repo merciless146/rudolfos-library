@@ -85,7 +85,7 @@ const helpRows = () => St.GROUPS.flatMap(([g, acts]) => acts.filter(a => KEYS[a]
 let baseShip = null, W = 1, Hh = 1, view = null, R = null, scene = null, st = null, ship = null, s = null, fit = null, pilot = null, map = null;
 const game = {t: 0, day: 200, star: null, port: null, fuel: 1, route: null, jump: null, lastPort: null, mapOpen: false,
 	cruise: {on: false, v: 0, charge: 0}, throttle: 0, target: 0, clearance: null, docked: false, chase: false, systems: false, mouseFly: false, msgs: [], vision: null, gFelt: null, lastStep: null,
-	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: {stick: null, dx: 0, dy: 0, yaw: 0, thr: null, fire: null, fire2: null, msl: false, look: null},
+	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: {stick: null, dx: 0, dy: 0, yaw: 0, thr: null, fire: null, fire1: null, fire2: null, msl: false, look: null},
 	tgt: null, npcs: [], shots: [], beams: [], booms: [], cans: [], hatch: false, spill: {}, fields: [], field: null, rocks: [], sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, visits: 0, own: null};
 const say = (text, col) => { game.msgs.push({text, col, t: game.t}); if (game.msgs.length > 12) game.msgs.shift() };
 const at = x => [x.x, x.y, x.z];
@@ -1278,9 +1278,9 @@ function combat(dt) {
 	const wasLocked = game.locked; game.locked = hasMsl && C.updateLock(pc, s, foe, dt); if (!hasMsl) pc.lock = {id: null, t: 0};
 	if (game.locked && !wasLocked) Snd.cue('lock');
 	/* the triggers (0.3.4): Fire (the left mouse button) the primary guns, Fire secondary (the right) the secondary; with
-	   guns in only one group, either fires them; a gamepad's trigger fires every gun, and (0.5.3) touch's FIRE and FIRE 2 the two groups */
+	   guns in only one group, either fires them; a gamepad's trigger fires every gun (as game.touch.fire does), and (0.5.3) touch's FIRE and FIRE 2 the two groups */
 	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned && (!game.duel || duelLive());
-	const allG = RG.lastInput == 'pad' && RG.down('fire'), t1 = RG.down('fire') || allG || game.touch.fire != null, t2 = RG.down('fire2') || allG || game.touch.fire2 != null;
+	const allG = game.touch.fire != null || (RG.lastInput == 'pad' && RG.down('fire')), t1 = RG.down('fire') || allG || game.touch.fire1 != null, t2 = RG.down('fire2') || allG || game.touch.fire2 != null;
 	const oneGroup = new Set(pc.load.guns.filter(g => !C.WEAPONS[g.kind].homing).map(C.groupOf)).size < 2, heldG = g => oneGroup ? t1 || t2 : C.groupOf(g) == 1 ? t1 : t2, trigger = heldG;
 	/* the mass drivers: held, they charge; let go, they fire (combat mode only; out of it, the charge is lost) */
 	if (!can || game.mode == 'analysis') { for (const g of pc.load.guns) g.charge = 0 }
@@ -2054,7 +2054,7 @@ function touchLayout() {
 	const round = (act, label, x, y, rr, onFlag) => ({act, label, round: true, on: !!onFlag, x: X(x - rr, 2 * rr), y: y - rr, w: 2 * rr, h: 2 * rr, r: rr});
 	const sq = (act, label, x, y, w, h, onFlag) => ({act, label, on: !!onFlag, x: X(x, w), y, w, h});
 	const bh = Math.max(44, Math.round(44 * k));
-	const buttons = [round('fire', 'FIRE', fx, fy, fr, Tt.fire != null), round('fire2', 'FIRE 2', fx, fy - fr - 10 - f2, f2, Tt.fire2 != null),
+	const buttons = [round('fire', 'FIRE', fx, fy, fr, Tt.fire1 != null), round('fire2', 'FIRE 2', fx, fy - fr - 10 - f2, f2, Tt.fire2 != null),
 		sq('missile', 'MSL', W - m - tw - 10 - vw, thr.y - 10 - bh, vw, bh, game.locked), sq('flare', 'FLARE', W - m - tw, thr.y - 10 - bh, tw, bh)];
 	/* the rest along the top, right-aligned, in as many rows as they need (in landscape, clear of the messages) */
 	const bw = Math.max(48, Math.round(52 * k)), gap = 6, left = W >= 700 ? Math.min(W / 2, 372) : m, cols = Math.max(1, Math.floor((W - m - left + gap) / (bw + gap)));
@@ -2105,7 +2105,7 @@ function pointers() {
 		if (game.radial && game.radial.touch) { touchRadial(p); return }
 		const u = touchLayout();
 		const b = u.buttons.find(b => b.round ? Math.hypot(p.x - b.x - b.r, p.y - b.y - b.r) <= b.r + 6 : inBox(p, b, 2));
-		if (b && b.act == 'fire') { Tt.fire = e.pointerId; return }
+		if (b && b.act == 'fire') { Tt.fire1 = e.pointerId; return }
 		if (b && b.act == 'fire2') { Tt.fire2 = e.pointerId; return }
 		if (b) { ({missile: () => { Tt.msl = true }, flare: () => { Tt.flare = true }, hostile: () => game.mode == 'analysis' ? nearestInterest() : nearestHostile(), target: () => game.mode == 'analysis' ? nextTarget(true) : nextTarget(), ahead: targetAhead, fa: toggleFA, cruise: toggleCruise,
 			dock: requestDock, map: openMap, jump: requestJump, gear: toggleGear, radial: () => { game.radial = {sel: -1, at: game.t, touch: true}; Snd.cue('tick') }, pause: () => RG.pause()})[b.act](); return }
@@ -2116,7 +2116,7 @@ function pointers() {
 		if (!Tt.look) Tt.look = {id: e.pointerId, x: p.x, y: p.y};
 	});
 	const up = e => {
-		if (Tt.fire == e.pointerId) Tt.fire = null; if (Tt.fire2 == e.pointerId) Tt.fire2 = null;
+		if (Tt.fire1 == e.pointerId) Tt.fire1 = null; if (Tt.fire2 == e.pointerId) Tt.fire2 = null;
 		if (game.mapOpen) { map.up(pt(e)); return }
 		if (Tt.stick && Tt.stick.id == e.pointerId) { Tt.stick = null; Tt.dx = Tt.dy = 0 } if (Tt.yawId == e.pointerId) { Tt.yawId = null; Tt.yaw = 0 } if (Tt.vertId == e.pointerId) { Tt.vertId = null; Tt.vert = 0 } if (Tt.thrId == e.pointerId) Tt.thrId = null;
 		if (Tt.look && Tt.look.id == e.pointerId) Tt.look = null;

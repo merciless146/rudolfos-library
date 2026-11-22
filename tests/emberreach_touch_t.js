@@ -84,10 +84,10 @@ function layoutCheck(u, w, h) {
 		await T.down(1, sk.x, sk.y); await T.move(1, sk.x + sk.r * 0.7, sk.y - sk.r * 0.7);
 		await T.down(2, fire.x, fire.y);
 		let shots = 0; for (let i = 0; i < 12; i++) { await sleep(100); shots = Math.max(shots, await f.evaluate(() => EmberDebug.game.shots.length + EmberDebug.game.beams.length + (EmberDebug.game.pcs.heat > 0.005 ? 1 : 0))) }   /* (lasers: beams, and the heat they make) */
-		const mt = await f.evaluate(() => ({stick: !!EmberDebug.game.touch.stick, fire: EmberDebug.game.touch.fire != null, dx: EmberDebug.game.touch.dx, dy: EmberDebug.game.touch.dy, w: EmberDebug.s.w.slice(), q: EmberDebug.s.q.slice()}));
+		const mt = await f.evaluate(() => ({stick: !!EmberDebug.game.touch.stick, fire: EmberDebug.game.touch.fire1 != null, dx: EmberDebug.game.touch.dx, dy: EmberDebug.game.touch.dy, w: EmberDebug.s.w.slice(), q: EmberDebug.s.q.slice()}));
 		await T.up(2); await T.up(1); await sleep(100);
 		const turned = mt.q.some((v, i) => Math.abs(v - q0[i]) > 0.01);
-		const rel = await f.evaluate(() => ({stick: EmberDebug.game.touch.stick, dx: EmberDebug.game.touch.dx, fire: EmberDebug.game.touch.fire}));
+		const rel = await f.evaluate(() => ({stick: EmberDebug.game.touch.stick, dx: EmberDebug.game.touch.dx, fire: EmberDebug.game.touch.fire1}));
 		ok('4. two fingers at once: the stick (pitch and roll) turns the ship while FIRE fires its guns; both let go, the stick centres and the guns stop', mt.stick && mt.fire && mt.dx > 0.5 && mt.dy < -0.5 && turned && shots > 0 && !rel.stick && rel.dx == 0 && rel.fire == null, {mt, shots, rel, turned});
 		/* the yaw bar */
 		await f.evaluate(() => { EmberDebug.s.w = [0, 0, 0] });
