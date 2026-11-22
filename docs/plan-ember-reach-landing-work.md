@@ -781,7 +781,15 @@ decided after 0.4.8).
   old saves load as they were.
 - Tested in the colony test's 46 to 54, and `tests/emberreach_groundcolony_t.js` (Chromium: claim, beacon, goods,
   then down onto the outpost's pad, docked, its market, growing it, and the save).
-- **Still to do in L3.5:** the planner's layout of the site, and a settlement growing into a surface starport.
+- **The planner's layout** (`port.js` `sitePlan`, drawn as `layouts.html` draws a site from above): before a claim,
+  the site on the chosen world for an outpost (and a settlement, where the world has room); while it's claimed or
+  being built, the port to come; built, the site as it stands and, when growth is planned or under way, the site it
+  grows into. Pads are ringed in their size's colour and numbered (H in a hangar), buildings in their colours, with
+  a 100 m (or 1 km) bar. **The colony's surface mines** are marked where they lie (`colonies.js` `siteMap`: metres
+  east and north of the port, filled when working, outlined while being built, hollow for deposits found and not
+  yet mined), and listed with their distance and compass point from the port (or their world, if elsewhere).
+  Tested in the colony test's 55 and the browser test's 2b and 10.
+- **Still to do in L3.5:** a settlement growing into a surface starport.
 
 ### L3.6 Raids
 
@@ -812,6 +820,7 @@ decided after 0.4.8).
 ## L4, in outline
 
 Planned in detail once L3 is in and played.
+(The detailed plan: [plan-ember-reach-sites.md](plan-ember-reach-sites.md).)
 
 - **L4: sites.**
   - Ruins on airless worlds, landed at and surveyed from the ground, at a better yield than from orbit.
