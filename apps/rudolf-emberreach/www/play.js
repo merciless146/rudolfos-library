@@ -56,13 +56,13 @@
 (function () {
 'use strict';
 const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
-	Pi = window.EmberPilot, Cr = window.EmberCareer, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
+	Pi = window.EmberPilot, Cr = window.EmberCareer, Cl = window.EmberCloak, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
 	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel, Tc = window.EmberTouch, Ne = window.EmberNet;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.8'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.5.9'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -76,7 +76,7 @@ const KEYS = {
 	fa: ['KeyZ', 'pad:1'], cruise: ['KeyC', 'pad:3'], target: ['KeyT', 'Tab', 'pad:2'], navTarget: ['Period'], dock: ['KeyN'], view: ['KeyV', 'pad:11'],
 	map: ['KeyG', 'pad:8'], jump: ['KeyJ', 'pad:10'], route: ['Enter', 'NumpadEnter'], home: ['Home', 'KeyY'],
 	hatch: ['KeyI'], fire: ['Semicolon', 'pad:7', 'mouse:0'], fire2: ['Quote', 'mouse:2'], gear: ['KeyL'], missile: ['KeyK', 'pad:6'], flare: ['KeyB'], hostile: ['KeyU'],
-	systems: ['KeyO'], lights: ['Digit1'], nightVision: ['Digit2'], mode: ['KeyM'], radial: ['Backquote'], mouse: [], help: ['KeyH', 'F1'], pause: ['KeyP', 'Escape', 'pad:9'],
+	systems: ['KeyO'], lights: ['Digit1'], nightVision: ['Digit2'], cloak: ['Digit3'], mode: ['KeyM'], radial: ['Backquote'], mouse: [], help: ['KeyH', 'F1'], pause: ['KeyP', 'Escape', 'pad:9'],
 	dbgPirates: ['Digit6'], dbgBreak: ['Digit9'], dbgCanopy: ['Digit0'], dbgNear: ['Digit7'], dbgRoute: ['Digit8']};
 /* the controls help: every action with its keys as bound now (Settings rebinds them), in the chosen language */
 const tr = (t, v) => I18.T(t, v);
@@ -86,7 +86,7 @@ let baseShip = null, W = 1, Hh = 1, view = null, R = null, scene = null, st = nu
 const game = {t: 0, day: 200, star: null, port: null, fuel: 1, route: null, jump: null, lastPort: null, mapOpen: false,
 	cruise: {on: false, v: 0, charge: 0}, throttle: 0, target: 0, clearance: null, docked: false, chase: false, systems: false, mouseFly: false, msgs: [], vision: null, gFelt: null, lastStep: null,
 	axes: {pitch: 0, roll: 0, yaw: 0}, ptr: null, touch: Tc.create(), touchAuto: false,
-	tgt: null, npcs: [], shots: [], beams: [], booms: [], cans: [], hatch: false, spill: {}, fields: [], field: null, rocks: [], sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, visits: 0, own: null};
+	tgt: null, npcs: [], shots: [], beams: [], booms: [], cans: [], hatch: false, spill: {}, fields: [], field: null, rocks: [], sweep: 0, surveyT: 0, surveyKey: null, guarded: {}, pcs: null, cloak: null, visits: 0, own: null};
 const say = (text, col) => { game.msgs.push({text, col, t: game.t}); if (game.msgs.length > 12) game.msgs.shift() };
 const at = x => [x.x, x.y, x.z];
 const owner = () => game.port ? F.byId(game.port.owner) : null;
@@ -426,6 +426,7 @@ function actions(dt) {
 	padA(dt);
 	if (RG.pressed('lights')) toggleLights();
 	if (RG.pressed('nightVision')) toggleNightVision();
+	if (RG.pressed('cloak')) toggleCloak();
 	if (RG.pressed('dock')) requestDock();
 	if (RG.pressed('cruise')) toggleCruise();
 	if (RG.pressed('jump')) requestJump();
@@ -606,24 +607,36 @@ function toggleMouse() { game.mouseFly = !game.mouseFly; say('Mouse flight ' + (
 /* the radial menu: hold ~, point at a function (or step round with ← → or A D), let go. Steering waits meanwhile */
 /* the view: the cockpit, or third person (V, or the radial menu), a ship's length and a bit behind and a little above */
 const VIEW = {back: 2.2, up: 0.55};
+/* (0.5.9) the Precursor cloaking device (cloak.js): a cloaking field around the ship */
+function toggleCloak() {
+	if (!Cl.owned(game.P)) { say('No cloaking device', '#f2a33a'); Snd.cue('refused'); return }
+	if (game.docked || game.landed) { say('The cloaking field can\'t be raised here', '#f2a33a'); Snd.cue('refused'); return }
+	const r = Cl.toggle(game.cloak, game.pcs, game.P.ship.fit, game.t);
+	if (!r.ok) { say(r.why, '#f2a33a'); Snd.cue('refused'); return }
+	say(r.on ? 'Cloaking field up: hidden from other ships. It builds heat; firing or a hit shows you for 3 s' : 'Cloaking field down', r.on ? '#b9a4ff' : '#9fb0cc'); Snd.cue('tick');
+}
+function cloakDown(why) { if (game.cloak && game.cloak.on) { game.cloak.on = false; if (why) say(why, '#f2a33a') } }
+/* hidden from other ships now (raised, and not shown by firing or a hit) */
+const cloaked = () => !game.duel && Cl.hidden(game.cloak, game.t);
 function toggleView() { game.chase = !game.chase; say(game.chase ? 'Third-person view' : 'Cockpit view', '#9fb0cc') }
 const RADIAL = [['gear', 'Landing gear', () => toggleGear()], ['hatch', 'Cargo hatch', () => toggleHatch()], ['lights', 'Spotlights', () => toggleLights()], ['nightVision', 'Night vision', () => toggleNightVision()],
 	['systems', 'Internal systems', () => { game.systems = !game.systems }], ['flare', 'Flare', () => { const pc = game.pcs; if (pc.load.flares > 0) { const k = C.flare(pc, game.shots); say('Flare' + (k ? ': ' + k + ' decoyed' : '') + ' · ' + pc.load.flares + ' left'); Snd.cue('flare') } else say('No flares left', '#f2a33a') }],
-	['mouse', 'Mouse flight', () => toggleMouse()], ['fa', 'Flight assist', () => toggleFA()], ['autopilot', 'Autopilot', () => toggleAutopilot()], ['reboot', 'Reboot', () => reboot()], ['view', 'Third person', () => toggleView()]];
+	['cloak', 'Cloaking device', () => toggleCloak()], ['mouse', 'Mouse flight', () => toggleMouse()], ['fa', 'Flight assist', () => toggleFA()], ['autopilot', 'Autopilot', () => toggleAutopilot()], ['reboot', 'Reboot', () => reboot()], ['view', 'Third person', () => toggleView()]];
 function radialStep() {
+	const RL = radialMain();   /* (0.5.9) */
 	const R0 = game.radial;
 	if (R0 && R0.touch) return true;   /* (0.5.3: opened by touch, it stays open until an item or the outside is tapped) */
 	if (RG.down('radial')) {
 		if (!R0) { game.radial = {sel: -1, at: game.t}; Snd.cue('tick') }
 		const g = game.radial;
 		/* pointing: the item in the pointer's direction from the centre */
-		if (game.ptr && !game.ptr.touch) { const dx = game.ptr.x - W / 2, dy = game.ptr.y - Hh / 2; if (Math.hypot(dx, dy) > 40) g.sel = Math.round((Math.atan2(dx, -dy) / (2 * Math.PI)) * RADIAL.length + RADIAL.length) % RADIAL.length }
+		if (game.ptr && !game.ptr.touch) { const dx = game.ptr.x - W / 2, dy = game.ptr.y - Hh / 2; if (Math.hypot(dx, dy) > 40) g.sel = Math.round((Math.atan2(dx, -dy) / (2 * Math.PI)) * RL.length + RL.length) % RL.length }
 		/* or stepping round with ← → (or A D): the keyboard alone */
-		if (RG.pressed('rollLeft') || RG.pressed('yawLeft')) g.sel = (Math.max(0, g.sel) - 1 + RADIAL.length) % RADIAL.length;
-		if (RG.pressed('rollRight') || RG.pressed('yawRight')) g.sel = (g.sel + 1) % RADIAL.length;
+		if (RG.pressed('rollLeft') || RG.pressed('yawLeft')) g.sel = (Math.max(0, g.sel) - 1 + RL.length) % RL.length;
+		if (RG.pressed('rollRight') || RG.pressed('yawRight')) g.sel = (g.sel + 1) % RL.length;
 		return true;
 	}
-	if (R0) { game.radial = null; if (R0.sel >= 0 && !R0.done) RADIAL[R0.sel][2](); return false }
+	if (R0) { game.radial = null; if (R0.sel >= 0 && !R0.done) RL[R0.sel][2](); return false }
 	return false;
 }
 /* Analysis K: scan the target now. Ships with a warrant or manifest scanner (within 3 km); asteroids with a prospector
@@ -785,7 +798,7 @@ function turretStep(n, dt) {
 		for (const o of game.npcs) if (o != n && !o.cs.dead && o.role != 'turret' && En.enemies(n, o, P)) { const d = len(sub(o.s.p, n.s.p)); if (d < bd) { bd = d; best = o } }
 		n.foe = best;
 	}
-	const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, a: s.acc, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, a: f.s.acc, id: f.id} : null;
+	const f = n.foe, tgt = f == ME ? (cloaked() ? null : {p: s.p, v: s.v, a: s.acc, id: 'me'}) : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, a: f.s.acc, id: f.id} : null;
 	if (!tgt) return;
 	/* turn towards it, at most 90° a second, and fire when it's in line */
 	const want = norm(sub(tgt.p, n.s.p)), fw = Fl.forward(n.s), ang = Math.acos(Math.max(-1, Math.min(1, dot(fw, want)))), k = ang > 1e-6 ? Math.min(1, TURRET.turn * dt / ang) : 1;
@@ -1194,7 +1207,7 @@ function update(dt) {
 }
 /* ---------------- combat ---------------- */
 /* the player's guns, shields and hull: a fresh fighting state on the fit, with the hull and magazines carried over */
-function arm() { game.pcs = C.restore(C.state(ship, fit), game.P.combat); game.pcs.id = 'me' }
+function arm() { game.pcs = C.restore(C.state(ship, fit), game.P.combat); game.pcs.id = 'me'; if (!game.cloak) game.cloak = Cl.state() }   /* (0.5.9: the cloaking field's state; kept over a refit) */
 const shortName = id => { if (id == 'riftborn') return 'Riftborn'; if (id == 'marshals') return 'Marshal'; const f = F.byId(id); return f ? f.name.replace(/^The /, '') : 'Independent' };
 function npcMesh(n) { const k = 'npc:' + n.ship.length; if (!game.npcMeshes.has(k)) { game.npcMeshes.add(k); R.upload(k, Me.ship(n.ship.length, quality)) } }
 /* the system's cast, placed: around the port, or ahead of where you are */
@@ -1282,7 +1295,7 @@ function combat(dt) {
 			if (!best && n.ai.mode == 'attack') n.ai.mode = n.ai.base;
 			if (best == ME && !n.provokedByPlayer) { if (!n.wasHostile) hail(n); n.wasHostile = true }
 		}
-		const f = n.foe, tgt = f == ME ? {p: s.p, v: s.v, a: s.acc, heat: pc.heat, id: 'me'} : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, a: f.s.acc, heat: f.cs.heat, id: f.id} : null;
+		const f = n.foe, tgt = f == ME ? (cloaked() ? null : {p: s.p, v: s.v, a: s.acc, heat: pc.heat, id: 'me'}) : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, a: f.s.acc, heat: f.cs.heat, id: f.id} : null;
 		const c = C.think(n, tgt, n.home, game.t, null, f == ME && !game.duel ? Cr.skill(game.P) : 1);   /* (0.5.6: how well they fight this pilot) */
 		/* below a world's line: its gravity, its turning frame (as the player's), and 450 m kept off the ground */
 		n.s.grav = Sc.gravityAt(scene, n.s.p);
@@ -1307,6 +1320,7 @@ function combat(dt) {
 	turretsNear();
 	/* your guns */
 	for (const a of C.tick(pc, game.t, dt)) moduleAlert(a);
+	{ const cf = Cl.step(game.cloak, pc, game.P.ship.fit, dt); if (cf == 'failed') say('Cloaking field failed: overheated', '#e5484d'); else if (cf == 'lost') say('Cloaking field down: the device is gone', '#f2a33a') }   /* (0.5.9) */
 	if (pc.hot && !game.wasHot) say('Weapons overheated: guns locked until they cool', '#f2a33a');
 	game.wasHot = pc.hot;
 	const tg = curTarget(), foe = tg && tg.kind == 'ship' && !tg.cs.dead ? {p: tg.s.p, v: tg.s.v, id: tg.id} : null;
@@ -1326,7 +1340,7 @@ function combat(dt) {
 	if (can && (t1 || t2)) {
 		if (!pc.load.guns.length) { if (!game.saidUnarmed) { game.saidUnarmed = true; say('The ' + ship.name + ' carries no weapons', '#f2a33a') } }
 		else if (game.mode == 'analysis' && !pc.load.guns.some(g => g.kind == 'mining')) { if (!game.saidSafe2 || game.t - game.saidSafe2 > 4) { game.saidSafe2 = game.t; say('Analysis mode: weapons safe. No mining laser to fire (M for Combat mode)', '#9fb0cc') } }
-		else { const k = C.fire(pc, s, game.t, foe, game.shots, game.mode == 'analysis' ? g => g.kind == 'mining' : heldG); if (k) Snd.cue(gunCue(pc)) }
+		else { const k = C.fire(pc, s, game.t, foe, game.shots, game.mode == 'analysis' ? g => g.kind == 'mining' : heldG); if (k) { Snd.cue(gunCue(pc)); Cl.reveal(game.cloak, game.t) } }
 	} else game.saidUnarmed = false;
 	if (game.mode == 'analysis' && (RG.pressed('missile') || game.touch.msl)) { game.touch.msl = false; scanNow() }
 	else if (can && (RG.pressed('missile') || game.touch.msl)) {
@@ -1335,7 +1349,7 @@ function combat(dt) {
 		if (!pc.load.missiles && !torp) { say('No missiles left: restock at a port', '#f2a33a'); Snd.cue('refused') }
 		else if (!foe) { say('Target a ship first (T, or U for the nearest hostile)', '#f2a33a'); Snd.cue('refused') }
 		else if (!game.locked) { say('No lock yet: hold ' + tg.name + ' in your sights for 2 s', '#f2a33a'); Snd.cue('refused') }
-		else if (C.launch(pc, s, foe, game.shots)) { say('Missile away · ' + pc.load.missiles + ' left'); Snd.cue('missile'); if (!tg.duel && !En.hostile(P, tg)) provoke(tg) }
+		else if (C.launch(pc, s, foe, game.shots)) { Cl.reveal(game.cloak, game.t); say('Missile away · ' + pc.load.missiles + ' left'); Snd.cue('missile'); if (!tg.duel && !En.hostile(P, tg)) provoke(tg) }
 	}
 	if (game.mode == 'analysis' && (RG.pressed('flare') || game.touch.flare)) { game.touch.flare = false; pulse() }
 	else if (RG.pressed('flare') || game.touch.flare) { game.touch.flare = false; if (pc.load.flares > 0) { const k = C.flare(pc, game.shots); say('Flare' + (k ? ': ' + k + (k == 1 ? ' missile' : ' missiles') + ' decoyed' : '') + ' · ' + pc.load.flares + ' left'); Snd.cue('flare') } else say('No flares left', '#f2a33a') }
@@ -1347,6 +1361,7 @@ function combat(dt) {
 		if (m.kind == 'mining') { const ch = Mi.chip(rk, m.owner == 'me' ? s.p : m.p, Math.random, game.P.mined = game.P.mined || {}); if (ch) { const c = Ca.make(ch.good, ch.p, ch.v, game.t); c.ore = ch.t; c.name = ch.good + ' ore'; game.cans.push(c); if (m.owner == 'me') say('Ore: ' + ch.t + ' t ' + ch.good + (rk.left <= 0 ? ' · the asteroid is spent' : ''), '#c9a46a') } }
 	}
 	/* everything in flight */
+	if (cloaked()) for (const m of game.shots) if (m.target == 'me') m.target = null;   /* (0.5.9) hidden: missiles lose their lock */
 	const ships = [{id: 'me', s, cs: pc}, ...game.npcs.filter(n => !n.cs.dead).map(n => ({id: n.id, s: n.s, cs: n.cs, n}))];
 	const beams = []; const hits = C.stepProjectiles(game.shots, ships, dt, beams); for (const b of beams) { b.t = game.t; game.beams.push(b) }
 	game.beams = game.beams.filter(b => game.t - b.t < (C.WEAPONS[b.kind].beam || 0.05));
@@ -1394,7 +1409,7 @@ const railCharge = cs => { const g = cs.load.guns.find(x => C.WEAPONS[x.kind].ch
 const takenK = () => game.duel ? 1 : Cr.takenK(game.P);
 function hitMe(pr) {
 	const out = C.damage(game.pcs, pr.dmg * takenK(), pr.kind, game.t);
-	game.hitAt = game.t;
+	game.hitAt = game.t; Cl.reveal(game.cloak, game.t);
 	Snd.cue(out.hull > 0 ? 'hullHit' : 'shieldHit');
 	for (const a of out.alerts) moduleAlert(a);
 	if (game.duel) { const src = game.npcs.find(o => o.id == pr.owner); if (src && src.duel) duelHit(1, out.shield + out.hull); if (game.pcs.dead) duelDown(0); return }
@@ -1731,6 +1746,7 @@ function chartsNear() {
 	if (n) say('The cartographer\'s charts mark ' + n + (n == 1 ? ' surface outpost' : ' surface outposts') + ' within ' + CHARTS.pc + ' pc, with no port above (the star map shows them)', '#9fb0cc');
 }
 function docked() {
+	cloakDown();   /* (0.5.9) */
 	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.ap = null; fit.o2 = fit.o2Max; game.lastPort = game.star; game.portId = game.lastPortId = game.port ? game.port.id : T.ORBITAL; game.dockPort = game.port;
 	if (game.port) Atc.docked(atcOf(game.port), 'me');
 	game.P.combat = C.keep(game.pcs); game.npcs = []; game.shots = []; game.booms = [];
@@ -2025,7 +2041,7 @@ function draw() {
 			if (pd) { const ex = at.rot.slice(0, 3), ny = at.rot.slice(3, 6), col = (Su.PAD[pd.size] || Su.PAD.S).light, k = 0.6 + 0.4 * Math.sin(game.t * 4);
 				for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; glows.push({pos: add(add(add(at.pos, mul(ex, pd.c[0] + Math.cos(a) * pd.r)), mul(ny, pd.c[1] + Math.sin(a) * pd.r)), mul(at.up, 3)), radius: Math.max(2, pd.r * 0.06), col, alpha: k, scale: 3, min: 0.004}) } } }
 	}
-	if (game.chase) items.push({id: 'ship', pos: s.p, rot: mat3(B.r, B.u, B.f), light: norm(sub(sun.pos, s.p)), amb: 0.15});
+	if (game.chase) items.push(Object.assign({id: 'ship', pos: s.p, rot: mat3(B.r, B.u, B.f), light: norm(sub(sun.pos, s.p)), amb: 0.15}, cloaked() ? {fade: [Cl.CLOAK.alpha, -1]} : {}));   /* (0.5.9: under the cloaking field, a faint ghost) */
 	/* other ships, always in full; bolts and missiles as glows; explosions as growing glows */
 	for (const n of game.npcs) {
 		if (n.cs.dead) continue;
@@ -2149,8 +2165,8 @@ function hudDraw(cam) {
 		speed, vmax: s.spec.vmax, throttle: game.throttle, fa: s.fa, cruise: cz.on, charging: cz.charge > 0 ? cz.charge : 0, massLocked: !cz.on && Sc.massLocked(scene, s.p),
 		target, prograde: vm && game.settings.hud.prograde ? {x: vm.x, y: vm.y, on: vm.z > 0} : null, alerts: M.alerts(fit), modules: fit.modules, showSystems: game.systems, shipName: ship.name,
 		messages: game.msgs, vision: game.vision, gFelt: game.gFelt, reduceFlash: reduceFlash(), reduceMotion: game.settings.a11y.motion, thrustNote: s.fa ? null : tr('Thrust') + ' ' + Math.round(game.throttle * 100) + '%',
-		gear: game.gear, landed: !!game.landed, lights: !!game.lights, nv: !!game.nv, mode: game.mode || 'combat',
-		radial: game.radial ? {sel: game.radial.sel, items: RADIAL.map(([id, name]) => ({name: tr(name), on: id == 'gear' ? game.gear : id == 'hatch' ? game.hatch : id == 'lights' ? game.lights : id == 'nightVision' ? game.nv : id == 'systems' ? game.systems : id == 'view' ? !!game.chase : id == 'autopilot' ? !!game.ap : id == 'reboot' ? fit.reboot > 0 : id == 'mouse' ? game.mouseFly : id == 'fa' ? s.fa : null}))} : null, fps: game.settings.graphics.fps ? game.fps : null, captions: game.settings.a11y.captions ? game.captions.filter(c => game.t - c.t < 3) : null,
+		gear: game.gear, landed: !!game.landed, lights: !!game.lights, nv: !!game.nv, cloak: game.cloak && game.cloak.on ? (cloaked() ? 'on' : Math.ceil(game.cloak.until - game.t)) : null, mode: game.mode || 'combat',
+		radial: game.radial ? {sel: game.radial.sel, items: radialMain().map(([id, name]) => ({name: tr(name), on: id == 'cloak' ? !!(game.cloak && game.cloak.on) : id == 'gear' ? game.gear : id == 'hatch' ? game.hatch : id == 'lights' ? game.lights : id == 'nightVision' ? game.nv : id == 'systems' ? game.systems : id == 'view' ? !!game.chase : id == 'autopilot' ? !!game.ap : id == 'reboot' ? fit.reboot > 0 : id == 'mouse' ? game.mouseFly : id == 'fa' ? s.fa : null}))} : null, fps: game.settings.graphics.fps ? game.fps : null, captions: game.settings.a11y.captions ? game.captions.filter(c => game.t - c.t < 3) : null,
 		fuel: game.fuel, jumpCharge: J && J.tunnel == null ? J.charge : 0, witch: J && J.tunnel != null ? 1 - J.tunnel / JUMP.tunnel : null, witchTo: J && J.leg.star.name,
 		nextLeg: leg ? tr('Next') + ': ' + leg.star.name + ' · ' + leg.d.toFixed(1) + ' pc' + (leg.kind != 'jump' ? ' (lane)' : '') + ' · J' : null,
 		...touchHud(cam),
@@ -2195,8 +2211,9 @@ function touchLayout() {
 }
 /* the touch radial menu: the keyboard's, with what touch has no button for, and without mouse flight */
 const RADIAL_TOUCH = [['hostile', 'Nearest hostile', () => game.mode == 'analysis' ? nearestInterest() : nearestHostile()], ['flare', 'Flare', () => { game.touch.flare = true }], ['jump', 'Jump', () => requestJump()], ['mode', 'Combat / analysis mode', () => toggleMode()]];
-const radialList = () => game.radial && game.radial.touch ? [...RADIAL_TOUCH, ...RADIAL.filter(([id]) => id != 'mouse' && id != 'flare' && id != 'fa' && id != 'gear')] : RADIAL;
-function radialOn(id) { return id == 'gear' ? game.gear : id == 'hatch' ? game.hatch : id == 'lights' ? game.lights : id == 'nightVision' ? game.nv : id == 'systems' ? game.systems : id == 'view' ? !!game.chase : id == 'autopilot' ? !!game.ap : id == 'reboot' ? fit.reboot > 0 : id == 'mouse' ? game.mouseFly : id == 'fa' ? s.fa : null }
+const radialMain = () => RADIAL.filter(([id]) => id != 'cloak' || Cl.owned(game.P));   /* (0.5.9: the cloaking device, for a pilot who has one) */
+const radialList = () => game.radial && game.radial.touch ? [...RADIAL_TOUCH, ...radialMain().filter(([id]) => id != 'mouse' && id != 'flare' && id != 'fa' && id != 'gear')] : radialMain();
+function radialOn(id) { return id == 'cloak' ? !!(game.cloak && game.cloak.on) : id == 'gear' ? game.gear : id == 'hatch' ? game.hatch : id == 'lights' ? game.lights : id == 'nightVision' ? game.nv : id == 'systems' ? game.systems : id == 'view' ? !!game.chase : id == 'autopilot' ? !!game.ap : id == 'reboot' ? fit.reboot > 0 : id == 'mouse' ? game.mouseFly : id == 'fa' ? s.fa : null }
 function touchRadial() { if (game.radial) { game.radial = null; return } game.radial = {sel: -1, at: game.t, touch: true}; Tc.release(game.touch); Snd.cue('tick') }
 /* TARGET by touch: what's nearest the crosshair (within 20°), ships first; or the next target if nothing's there */
 function targetAhead() {
@@ -2270,7 +2287,7 @@ function duelPlace() {
 	const D = game.duel, A = D.A, at = i => (j => ({p: add(D.c, A.starts[j].p), q: Sc.lookRotation(A.starts[j].face, [0, 0, 1]), v: [0, 0, 0]}))(duelSide(i));
 	if (D.m) { const b = Du.build(D.m.ships[0]); baseShip = b.hull; game.P.ship.model = b.hull.id; game.P.ship.fit = b.fit; ship = b.ship; R.upload('ship', Me.ship(ship.length, quality)) }
 	s = Fl.create(ship, at(0)); s.radius = Math.max(2, ship.length / 2); s.mass = ship.mass;
-	fit = M.fit(ship); pilot = Pi.create(); M.apply(fit, s); game.pcs = C.state(ship, fit); game.pcs.id = 'me';
+	fit = M.fit(ship); pilot = Pi.create(); M.apply(fit, s); game.pcs = C.state(ship, fit); game.pcs.id = 'me'; game.cloak = Cl.state();
 	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = 0; game.ap = null; game.jump = null; game.tgt = null; game.nav = null;
 	game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null;
 	if (!D.m) return;

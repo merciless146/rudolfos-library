@@ -77,7 +77,10 @@ const CAT = {
 	array: {cat: 'utility', name: 'Prospecting array', kind: 'sensor', grades: 'C', price: 24000, draw: 0.3, text: 'Built for mining: shows the mineral hotspots in planetary rings (a resource scanner reads the asteroids themselves)'},
 	nav: {cat: 'utility', name: 'Nav beacon receiver', kind: 'sensor', grades: 'C', price: 3000, draw: 0.1, text: 'Arrive at a populated system\'s nav beacon, and take its system data'},
 	carto: {cat: 'utility', name: 'Cartographic sensor', kind: 'sensor', grades: 'C', price: 6000, draw: 0.2, text: 'Chart wild systems and survey planets'},
-	decoder: {cat: 'utility', name: 'Linguistic decoder', kind: 'sensor', grades: 'CBA', price: 7000, draw: 0.1, text: 'Translates the languages loaded into it'}};
+	decoder: {cat: 'utility', name: 'Linguistic decoder', kind: 'sensor', grades: 'CBA', price: 7000, draw: 0.1, text: 'Translates the languages loaded into it'},
+	/* (0.5.9) cloak.js: never sold anywhere, nor made from a blueprint; the pilot's own for good (worth nothing in a
+	   trade-in or a premium: insurance gives it back with the ship as part of the fit) */
+	cloak: {cat: 'utility', name: 'Precursor cloaking device', kind: 'cloak', grades: 'P', price: 0, draw: 0.8, precursor: true, unique: true, text: 'Hides the ship from other ships\' radar and scanners while it runs; it builds heat, and firing or a hit shows the ship for 3 s'}};
 const DECODER = {C: 2, B: 4, A: 8};   /* languages a decoder holds */
 const LANG_PRICE = 2500;              /* SU for each language loaded */
 

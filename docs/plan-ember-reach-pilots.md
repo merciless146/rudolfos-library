@@ -272,6 +272,25 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 - **Tests:** `tests/emberreach_contraband_t.js` (18, node) and `tests/emberreach_contraband_browser_t.js` (8,
   Chromium).
 
+**P4 is built (0.5.9):**
+- **The Precursor cloaking device** (`cloak.js`, and `cloak` in outfit.js) is a ship's utility module that puts up a
+  cloaking field. The pilot's for good (`P.cloak`): fitted in any utility mount, or taken out again, when it stays
+  theirs unfitted. It's never stored, sold, offered, made from a blueprint or worth anything in a trade-in or a
+  premium; a ship traded in or sold leaves it unfitted, and insurance gives it back with the ship as part of the
+  fit. Fitted in a stored ship, it's aboard that one. It draws 0.8 MW.
+- **The field** goes up and down with the Cloaking device key (3, on the Controls page under Ship) or the radial
+  menu (for a pilot who has one). Up, pirates and other AI ships lose the ship, a lock being built is lost, and a
+  missile homing on it loses its lock. The HUD shows CLOAKED, or SHOWN with the seconds left.
+- **Firing, launching a missile or being hit** shows the ship for 3 s.
+- **Heat:** +0.15 a second against 0.12 of cooling: from cold, about 33 s. At overheat the field fails and the ship
+  is hot as usual (guns locked until it cools); it can't be raised again while hot. Docking lowers it. Duels ignore
+  it.
+- **In third person** the pilot sees their own ship as a faint, cool-tinted ghost (render.js: a ghost item, drawn
+  at a fixed alpha). Other players seeing it so is P5's (co-op).
+- **The award** is `EmberCloak.award(P)`: nothing in the game calls it yet. The M6 link will, with `hcFinish`, when
+  the main questline is built. The tests call it directly.
+- **Tests:** `tests/emberreach_cloak_t.js` (15, node) and `tests/emberreach_cloak_browser_t.js` (11, Chromium).
+
 ## Steps
 
 | Step | What | Needs | Size |

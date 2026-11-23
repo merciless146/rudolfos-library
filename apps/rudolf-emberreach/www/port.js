@@ -17,7 +17,7 @@
 (function () {
 'use strict';
 const G = window.EmberGalaxy, F = window.EmberFactions, E = window.EmberEconomy, S = window.EmberShips, M = window.EmberModules, R = window.EmberReputation, Tr = window.EmberTrade,
-	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel, Hg = window.EmberHangar, Ct = window.EmberContracts, Sp = window.EmberShipPlan, Cb = window.EmberContraband, Ca = window.EmberCareer;
+	C = window.EmberCombat, En = window.EmberEncounters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Ins = window.EmberInsurance, T = window.EmberTravel, Hg = window.EmberHangar, Ct = window.EmberContracts, Sp = window.EmberShipPlan, Cb = window.EmberContraband, Ca = window.EmberCareer, Cl = window.EmberCloak;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fmt = (n, d) => (+n).toLocaleString('en-US', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 const money = (n, c) => c + ' ' + fmt(n, n < 100 ? 1 : 0);
@@ -331,7 +331,8 @@ function outfitting() {
 	if (ofSlot) {
 		const cur0 = O.at(me.ship.fit, ofSlot), offers = O.offers(env.hullShip, ofSlot, env.port, env.star.id), stored = Hg.modulesAt(me, env.place, env.day).filter(x => O.CAT[x.m.id].cat == ofSlot.cat), away = Hg.modulesElsewhere(me, env.place, env.day).filter(x => O.CAT[x.m.id].cat == ofSlot.cat);
 		side = '<span class="pt-label">' + esc(ofSlot.cat == 'core' ? 'Core' : ofSlot.cat == 'internal' ? 'Internal' : ofSlot.cat == 'external' ? 'External' : 'Utility') + '</span><div class="pt-big">' + esc(gname(cur0)) + '</div>'
-			+ (cur0 ? '<p class="small">' + esc(effect(cur0)) + (cur0.cb ? ' · <span class="gold">contraband: bound to you, never sold</span>' : ' · sells for ' + money(O.price(cur0) * 0.8 * rate, cur)) + '</p>' + (ofSlot.cat != 'core' ? '<div class="pt-btns"><button class="pt-ghost" data-act="ofstore">Take out (store)</button>' + (cur0.cb ? '' : '<button class="pt-ghost" data-act="ofsell">Take out and sell</button>') + '</div>' : '') : '')
+			+ (cur0 ? '<p class="small">' + esc(effect(cur0)) + (cur0.id == 'cloak' ? ' · <span class="gold">yours for good: never stored or sold</span>' : cur0.cb ? ' · <span class="gold">contraband: bound to you, never sold</span>' : ' · sells for ' + money(O.price(cur0) * 0.8 * rate, cur)) + '</p>' + (ofSlot.cat != 'core' ? '<div class="pt-btns">' + (cur0.id == 'cloak' ? '<button class="pt-ghost" data-act="ofstore">Take out (it stays yours)</button>' : '<button class="pt-ghost" data-act="ofstore">Take out (store)</button>' + (cur0.cb ? '' : '<button class="pt-ghost" data-act="ofsell">Take out and sell</button>')) + '</div>' : '') : '')
+			+ (ofSlot.cat == 'utility' && Cl.where(me) == 'free' ? '<div class="pt-btns"><button class="pt-ghost" data-act="ofcloakin">Fit your Precursor cloaking device here' + (cur0 ? ' (' + esc(gname(cur0)) + ' to storage)' : '') + '</button></div>' : '')
 			+ (cur0 && cur0.id == 'decoder' ? langLoader(cur0) : '')
 			+ (stored.length ? '<h3>In storage</h3>' + stored.map(x => '<div class="pt-claim"><span>' + esc(gname(x.m)) + ' · ' + esc(effect(x.m)) + '</span><span><button class="pt-ghost" data-act="offitstore" data-j="' + x.j + '">Fit</button> ' + (O.CAT[x.m.id].ruins || x.m.cb ? '' : '<button class="pt-ghost" data-act="ofsellstore" data-j="' + x.j + '">Sell · ' + money(O.price(x.m) * 0.8 * rate, cur) + '</button> ') + (x.m.cb ? '' : '<button class="pt-ghost" data-act="ofrecycle" data-j="' + x.j + '" title="' + esc(recycleText(x.m)) + '">Recycle</button>') + '</span></div>').join('') + '<p class="muted small">Recycling: ' + recycleNote() + '</p>' : '')
 			+ (away.length ? '<h3>Stored elsewhere</h3>' + away.map(x => { const q = Hg.moduleQuote(me, x.j, env.place, env.day); return '<div class="pt-claim"><span>' + esc(gname(x.m)) + ' · ' + esc(x.m.at ? (Hg.ready(x.m, env.day) ? 'at ' + x.m.at.name : 'arrives ' + (Hg.samePlace(x.m.at, env.place) ? 'here' : 'at ' + x.m.at.name) + ' on day ' + x.m.ready) : '') + '</span><span>' + (q.ok ? '<button class="pt-ghost" data-act="ofsend" data-j="' + x.j + '">Transfer here · ' + esc(transferText(q)) + '</button>' : '') + '</span></div>' }).join('') : '')
@@ -563,22 +564,30 @@ function outfitAct(act, t, me, d) {
 		const r = O.install(sh, me.ship.fit, ofSlot, m); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
 		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
 		const p = Tr.pay(me, o.price * rate, cur, d); if (!p.ok) { env.say('Not enough ' + p.code + ' for it'); env.cue('refused'); return }
-		if (r.old) (me.stored = me.stored || []).push(kept(r.old));
-		done('Fitted: ' + gname(m) + ' for ' + money(p.amount, p.code) + (r.old ? '. ' + gname(r.old) + ' went to storage.' : ''), r.fit);
+		const cloakOut = r.old && r.old.id == 'cloak';   /* (0.5.9: the cloak is never stored: it stays the pilot's, unfitted) */
+		if (r.old && !cloakOut) (me.stored = me.stored || []).push(kept(r.old));
+		done('Fitted: ' + gname(m) + ' for ' + money(p.amount, p.code) + (cloakOut ? '. Your cloaking device is unfitted: it stays yours.' : r.old ? '. ' + gname(r.old) + ' went to storage.' : ''), r.fit);
 	}
 	if (act == 'ofstore' || act == 'ofsell') {
 		const r = O.remove(sh, me.ship.fit, ofSlot); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
 		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
+		if (r.old.id == 'cloak') { done('Precursor cloaking device taken out: it stays yours, to fit again', r.fit); return }   /* (0.5.9: never stored or sold) */
 		if (act == 'ofstore') { (me.stored = me.stored || []).push(kept(r.old)); done(gname(r.old) + ' taken out and stored', r.fit) }
 		else { if (r.old.cb) { env.say(Cb.BOUND); env.cue('refused'); return } Tr.receive(me, O.price(r.old) * 0.8 * rate, cur, d); done(gname(r.old) + ' sold for ' + money(O.price(r.old) * 0.8 * rate, cur), r.fit) }
+	}
+	if (act == 'ofcloakin') {   /* (0.5.9) the pilot's cloaking device, into this utility mount */
+		if (!ofSlot || ofSlot.cat != 'utility') return;
+		const fit = JSON.parse(JSON.stringify(me.ship.fit)), r = Cl.fitInto(me, fit, ofSlot.i); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
+		if (r.old) (me.stored = me.stored || []).push(kept(r.old));
+		done('Precursor cloaking device fitted' + (r.old ? ' (' + gname(r.old) + ' stored)' : ''), fit);
 	}
 	if (act == 'offitstore') {
 		const j = +t.dataset.j, m0 = me.stored[j]; if (!m0 || !Hg.samePlace(m0.at, env.place) || !Hg.ready(m0, d)) { env.say('That module isn\'t here'); env.cue('refused'); return }
 		const m = Object.assign({}, m0); delete m.at; delete m.ready;
 		const r = O.install(sh, me.ship.fit, ofSlot, m); if (!r.ok) { env.say(r.why); env.cue('refused'); return }
 		if (!holdOk(r.fit)) { env.say('Your cargo wouldn\'t fit: sell some first'); env.cue('refused'); return }
-		me.stored.splice(j, 1); if (r.old) me.stored.push(kept(r.old));
-		done('Fitted from storage: ' + gname(m), r.fit);
+		me.stored.splice(j, 1); if (r.old && r.old.id != 'cloak') me.stored.push(kept(r.old));
+		done('Fitted from storage: ' + gname(m) + (r.old && r.old.id == 'cloak' ? '. Your cloaking device is unfitted: it stays yours.' : ''), r.fit);
 	}
 	if (act == 'ofrecycle') { const r = O.recycle(me, +t.dataset.j, env.star.id, d, env.ship.cargo); if (!r.ok) { env.say(r.why); env.cue('refused'); return } done('Recycled ' + gname(r.module) + ': ' + (Object.entries(r.goods).map(([g, n]) => n + ' t ' + g).join(', ') || 'nothing worth keeping') + (r.blueprint ? ', and the blueprint back' : '')); return }
 	if (act == 'ofsellstore') { const j = +t.dataset.j, m = me.stored[j]; if (!m || !Hg.samePlace(m.at, env.place) || !Hg.ready(m, d)) return; if (m.cb) { env.say(Cb.BOUND); env.cue('refused'); return } me.stored.splice(j, 1); Tr.receive(me, O.price(m) * 0.8 * rate, cur, d); done(gname(m) + ' sold for ' + money(O.price(m) * 0.8 * rate, cur)) }

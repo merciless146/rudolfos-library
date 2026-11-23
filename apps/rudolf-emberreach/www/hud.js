@@ -259,6 +259,7 @@ function draw(ctx, W, H, h, t) {
 	if (h.landed) chips.push([TT('LANDED'), C.green]); else if (h.gear) chips.push([TT('GEAR DOWN'), C.amber]);
 	if (h.lights) chips.push([TT('LIGHTS'), C.text]);
 	if (h.nv) chips.push([TT('NV'), C.green]);
+	if (h.cloak) chips.push(h.cloak == 'on' ? [TT('CLOAKED'), '#b9a4ff'] : [TT('SHOWN') + ' ' + h.cloak, C.amber]);   /* (0.5.9: the cloaking field; shown for a few seconds after firing or a hit) */
 	if (h.cruise) chips.push([TT('CRUISE'), C.cyan]); else if (h.charging) chips.push([TT('CHARGING') + ' ' + Math.ceil(h.charging), C.cyan]); else if (h.massLocked) chips.push([TT('MASS LOCKED'), C.muted]);
 	if (h.jumpCharge) chips.push([TT('JUMP') + ' ' + Math.ceil(h.jumpCharge), C.cyan]);
 	if (h.ap) chips.push([h.ap, C.cyan]);
