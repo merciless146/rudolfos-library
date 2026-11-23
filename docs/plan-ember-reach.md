@@ -1468,6 +1468,12 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.5.9, the Precursor cloaking device (P4 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** a
+  ship's utility module that raises a cloaking field (key 3, or the radial menu): AI ships lose the ship, missiles
+  their lock; it builds heat (about 33 s from cold) and fails at overheat; firing or a hit shows the ship for 3 s;
+  in third person, a faint ghost. The pilot's for good, never sold or stored. Awarded at the main questline's end
+  on Hardcore (M6); until then only the tests give it. Tested in `tests/emberreach_cloak_t.js` and
+  `tests/emberreach_cloak_browser_t.js`.
 - **0.5.8, the galaxy's storage (P2b of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** the galaxy
   over ten records (a head, and nine parts by region for colonies, first discoveries and names, written only when
   they change), compact colonies (about 200 bytes), up to 6 MB a record where the desktop says so (Rudolf OS

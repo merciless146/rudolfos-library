@@ -58,6 +58,8 @@ void main() { vec3 n = normalize(vN); float d = max(dot(n, uL), 0.0);
  o = vec4(mix(lit, vC.rgb * 1.15, vC.a), 1.0);
  /* (L3.2) a faded item (a ring's flat bands): nothing within uFade.x of the camera, whole beyond uFade.y */
  if (uFade.y > 0.0) { o.a = smoothstep(uFade.x, uFade.y, length(vPos)); if (o.a < 0.01) discard; }
+ /* (0.5.9) a ghost (a ship under a cloaking field): wholly at uFade.x, a cool shimmer */
+ if (uFade.y < 0.0) { o.a = uFade.x; o.rgb = mix(o.rgb, vec3(0.55, 0.7, 1.0), 0.35); }
  /* a world's air: a rim of haze on its lit side */
  if (uAtmo.a > 0.0) { float rim = pow(1.0 - max(dot(n, -normalize(vPos)), 0.0), 3.0); o.rgb += uAtmo.rgb * uAtmo.a * rim * (0.15 + 0.85 * smoothstep(-0.2, 0.4, dot(n, uL))); }
  o.rgb = nightVision(o.rgb);
@@ -207,7 +209,7 @@ function canvas2d(cv) {
 				const ci = (i / 9) * 12, col = [m.c[ci], m.c[ci + 1], m.c[ci + 2]], glow = m.c[ci + 3];
 				const k = glow > 0.5 ? 1.1 : 0.07 + 0.93 * Math.max(0, dot(nw, L) / nl), z = (P3[0][2] + P3[1][2] + P3[2][2]) / 3;
 				/* (L3.2) a faded item: by each triangle's distance */
-				let a = 1; if (it.fade) { const t = Math.min(1, Math.max(0, (z - it.fade[0]) / (it.fade[1] - it.fade[0]))); a = t * t * (3 - 2 * t); if (a < 0.01) continue }
+				let a = 1; if (it.fade && it.fade[1] < 0) a = it.fade[0]; else if (it.fade) { const t = Math.min(1, Math.max(0, (z - it.fade[0]) / (it.fade[1] - it.fade[0]))); a = t * t * (3 - 2 * t); if (a < 0.01) continue }   /* (0.5.9: a ghost: wholly at fade[0]) */
 				draw.push({z, tri: P3, fill: rgb(col, k), a});
 			}
 		}
