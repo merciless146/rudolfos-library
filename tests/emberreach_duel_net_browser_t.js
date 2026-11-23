@@ -9,8 +9,9 @@ const {chromium} = require('playwright');
 const {spawn} = require('child_process');
 const fs = require('fs'), path = require('path'), os = require('os');
 /* the game's own version (PKGINFO), so the checks follow each release; OLD is another one */
-const VER = /^version = (.*)$/m.exec(fs.readFileSync(path.join(__dirname, '../apps/rudolf-emberreach/PKGINFO'), 'utf8'))[1].trim(), OLD = '0.5.1', VRE = VER.replace(/\./g, '\\.');
 const PORT = +(process.argv[2] || 8770), RELAY = PORT + 1, LAN = PORT + 2, TOP = path.join(__dirname, '..');
+/* (read through TOP: Rudolf OS's duelgame62_t.sh runs a copy of this test from elsewhere, TOP pointed back here) */
+const VER = /^version = (.*)$/m.exec(fs.readFileSync(path.join(TOP, 'apps/rudolf-emberreach/PKGINFO'), 'utf8'))[1].trim(), OLD = '0.5.1', VRE = VER.replace(/\./g, '\\.');
 const W = fs.mkdtempSync(path.join(os.tmpdir(), 'ern-'));
 let P = 0, F = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { F++; console.log('FAIL ' + n + (d !== undefined ? ' - ' + (typeof d == 'string' ? d : JSON.stringify(d)) : '')) } };
