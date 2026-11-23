@@ -43,6 +43,32 @@ rooms; 8 connections from one address at once (the Node relay; Cloudflare's own 
 **Privacy:** the relay never tells a player the other's address, and logs nothing about players. The game sends
 nothing anywhere but the relay the player picked for a match.
 
+### Protocol 2: co-op wings of up to four (Ember Reach 0.6.0)
+
+For Ember Reach's co-op wing (docs/plan-ember-reach-pilots.md, P5). The same relays (Node, the Worker and Rudolf OS's
+`rudolf-duel`) take both protocols; protocol 1 (duels) is exactly as above.
+
+    {"t":"hello", "proto":2, "game":"ember-reach", "ver":"0.6.0", "want":"host", "size":2-4}
+    {"t":"hello", "proto":2, "game":"ember-reach", "ver":"0.6.0", "want":"join", "code":"ABC234"}
+
+- `host` with `size` (2 to 4: the host and up to three guests): answered `{"t":"room","code":...}` as before.
+- `join`: each guest is given the lowest free seat, `{"t":"paired","role":"guest","id":1-3,"size":N}`, and the host
+  is told `{"t":"joined","id":N}`. `"full"` once every seat is taken; `"room"` for a duel's room (or a wing's code
+  given in protocol 1).
+- No `quick` in protocol 2 (`"bad"`): quick match stays duels-only.
+- **Messages:** the host's `{"t":"g"...}` go to every guest, or to one when they begin `{"t":"g","to":N,`. A guest's go
+  to the host only, the relay adding the seat: `{"t":"g","f":N, ...}`. Guests never hear each other directly: the
+  host's game passes on what they need.
+- **Leaving:** a guest gone (closed, or dropped) frees their seat, the host gets `{"t":"left","id":N}`, and the room
+  stays open for another; a room left empty waits 10 minutes again. The host gone: every guest gets `{"t":"left"}`
+  and is closed, and the room goes.
+- The limits are protocol 1's, per connection. The host's game sends once for the whole wing.
+
+The games' own part (net.js `room()`): each guest says `{"k":"hi","proto":2,"ver","pilot"}`; the host answers
+`{"k":"welcome","id"}` or `{"k":"bye","why"}` (`version`, or its own rule: `hardcore`, a Hardcore host taking only
+Hardcore pilots) and the relay frees the seat when the guest closes. Pings go both ways as in duels; a guest silent
+for 10 s is let go by the host, and a host silent for 10 s ends the guest's session.
+
 ## The game's part
 
 All of these are `{"t":"g","k":...}` messages.

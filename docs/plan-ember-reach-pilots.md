@@ -291,6 +291,18 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
   the main questline is built. The tests call it directly.
 - **Tests:** `tests/emberreach_cloak_t.js` (15, node) and `tests/emberreach_cloak_browser_t.js` (11, Chromium).
 
+**P5a is built (0.6.0): rooms of four.**
+- **The relays** take protocol 2 beside duels' protocol 1 (docs/duel-protocol.md): a host's room of two to four,
+  guests seated 1-3, the host's messages to all or to one seat, a guest's to the host marked with its seat, guests
+  coming and going while the host stays. The Node relay and the Worker share `tools/duel-relay/protocol.mjs`;
+  Rudolf OS's `rudolf-duel` does the same in C (RudolfOS #671).
+- **The game's side** (`net.js` `room()`): the host welcomes a guest or turns them away: another version, or the
+  Hardcore rule (a Hardcore host takes only pilots with Hardcore on), with the reason shown to the guest.
+- **No gameplay yet:** P5b builds the wing on it.
+- **Tests:** `tests/emberreach_duel_relay_t.js` 20–26 (rooms, in Node and the Worker) and
+  `tests/emberreach_wing_net_t.js` (10: net.js's rooms over the Node relay, a LAN-style single room, and a duel
+  beside them).
+
 ## Steps
 
 | Step | What | Needs | Size |

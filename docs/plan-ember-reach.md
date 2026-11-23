@@ -1468,6 +1468,11 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.6.0, rooms of four (P5a of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** the duel relays
+  (Node, the Worker, and Rudolf OS's LAN relay) take co-op wings of up to four beside duels (protocol 2,
+  docs/duel-protocol.md); net.js's `room()` seats guests, turns away another version and, at a Hardcore host, pilots
+  without Hardcore. No gameplay yet (P5b). Tested in `tests/emberreach_duel_relay_t.js` and
+  `tests/emberreach_wing_net_t.js`.
 - **0.5.9, the Precursor cloaking device (P4 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** a
   ship's utility module that raises a cloaking field (key 3, or the radial menu): AI ships lose the ship, missiles
   their lock; it builds heat (about 33 s from cold) and fails at overheat; firing or a hit shows the ship for 3 s;

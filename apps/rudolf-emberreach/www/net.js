@@ -1,4 +1,4 @@
-/* ===== Ember Reach: duels over a network (0.5.2) =====
+/* ===== Ember Reach: duels over a network (0.5.2), and co-op rooms of up to four (0.6.0) =====
    Two people's games in one duel, on a LAN or online. Both talk to a relay (a WebSocket server): online, the duel
    relay (tools/duel-relay, with room codes and a quick-match queue); on a LAN, Rudolf OS's duel service on the host's
    computer (asked for through the game kit, RG.lan, and found on the network by mDNS). It's the same protocol and the
@@ -16,6 +16,11 @@
      only the ships and the shots travel, and positions go relative to the arena's centre.
    - Ending: a closed connection, 10 s without a word, a version mismatch or leaving ends the duel cleanly (end()).
    Transports are {send(o), close(), onopen, onmessage(o), onclose(why)}: ws(url) for a WebSocket, pipe() for tests.
+   (0.6.0) room(): a co-op wing of up to four (docs/plan-ember-reach-pilots.md P5) over the relay's protocol 2. The
+   host's game is the room's: each guest says hello ({k:'hi', ver, pilot}) and the host welcomes them ({k:'welcome',
+   id}) or turns them away ({k:'bye', why}: another version, or the host's own rule, admit(): a Hardcore host's,
+   Hardcore pilots only). Then the host sends to every guest, or to one (sendTo), and each guest to the host, who
+   hears who sent it (m.f). A guest gone quiet for 10 s is let go; a host gone quiet ends the guest's session.
    GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -91,7 +96,16 @@ const WHY = {
 	busy: () => 'The duel relay is busy: try again in a minute.',
 	limit: () => 'Too many messages: the relay closed the connection.',
 	bad: () => 'The duel relay did not understand this game.',
-	mine: () => 'You left the duel.'};
+	mine: () => 'You left the duel.',
+	/* (0.6.0) the co-op wing's */
+	wfull: () => 'That wing is full (four pilots at most).',
+	wroom: () => 'There is no wing with that code (it may have ended).',
+	wleft: () => 'The wing\'s host left: the wing is over.',
+	wlost: () => 'The connection to the wing\'s host was lost.',
+	wversion: o => 'The wing\'s host runs Ember Reach ' + (o.theirs || 'another version') + ' and you run ' + o.ver + ': all need the same version.',
+	hardcore: () => 'This wing\'s host flies Hardcore: only Hardcore pilots may join.',
+	refused: o => o.text || 'The wing\'s host turned you away.',
+	wmine: () => 'You left the wing.'};
 const whyText = (why, o) => (WHY[why] || (() => String(why || 'The duel ended.')))(o || {});
 /* o: {ver, want: 'host' | 'join' | 'quick', code, ship, now (seconds; a clock for tests)} */
 function session(tr, o) {
@@ -135,6 +149,77 @@ function session(tr, o) {
 		if (S.state == 'ready') emit('msg', m);
 	};
 	if (tr.open) setTimeout(() => { if (S.state == 'connecting' && tr.onopen) tr.onopen() }, 0);   /* (a transport already open) */
+	return S;
+}
+
+/* ---------- (0.6.0) a co-op room: the host and up to three guests ---------- */
+/* o: {ver, want: 'host' | 'join', code, size (2-4, hosting), pilot (what a guest tells the host: name, hc...),
+   admit(pilot) (the host's rule: null, or why not as {why, text}), now} */
+const WING = {size: 4, quiet: 10};
+function room(tr, o) {
+	const now = o.now || clock, host = o.want == 'host';
+	const S = {state: 'connecting', role: host ? 'host' : 'guest', id: host ? 0 : null, code: null, size: host ? o.size || WING.size : null, members: new Map(), rtt: null, heard: now(), pinged: 0, ended: null, handlers: {}};
+	const emit = (n, a, b) => { const f = S.handlers[n]; if (f) try { f(a, b) } catch (e) { console.error(e) } };
+	S.on = (n, f) => { S.handlers[n] = f; return S };
+	const wy = w => !host && ({full: 'wfull', room: 'wroom', left: 'wleft', lost: 'wlost', version: 'wversion', mine: 'wmine'})[w] || w;
+	function end(why, more) {
+		if (S.ended) return;
+		S.ended = {why: wy(why), text: whyText(wy(why), Object.assign({ver: o.ver, where: tr.url}, more || {}))}; S.state = 'over';
+		tr.onmessage = null; tr.onclose = null; try { tr.close() } catch (e) {}
+		emit('end', S.ended);
+	}
+	S.end = end;
+	/* sending: the host to every welcomed guest (or to one), a guest to the host */
+	S.send = m => S.state == 'ready' && tr.send(Object.assign({t: 'g'}, m));
+	S.sendTo = (id, m) => host && S.members.has(id) && S.members.get(id).ok && tr.send(Object.assign({t: 'g', to: id}, m));
+	S.leave = () => { if (S.ended) return; if (S.state == 'ready' || S.state == 'paired') tr.send({t: 'g', k: 'bye', why: 'left'}); end('mine') };
+	/* the host lets a guest go (their seat freed when they close) */
+	S.kick = (id, why, text) => { if (!host || !S.members.has(id)) return; tr.send({t: 'g', to: id, k: 'bye', why: why || 'refused', text}); S.members.delete(id); emit('left', id, why || 'refused') };
+	S.tick = () => {
+		if (S.ended) return;
+		const t = now();
+		if (host) {
+			if (S.state == 'ready' && t - S.pinged > NET.ping) { S.pinged = t; tr.send({t: 'g', k: 'ping', at: r4(t)}) }
+			for (const [id, m] of S.members) if (t - m.heard > WING.quiet) S.kick(id, 'lost');
+		} else if (S.state == 'paired' || S.state == 'ready') {
+			if (t - S.heard > WING.quiet) return end('lost');
+			if (S.state == 'ready' && t - S.pinged > NET.ping) { S.pinged = t; tr.send({t: 'g', k: 'ping', at: r4(t)}) }
+		}
+	};
+	tr.onopen = () => { S.state = 'relay'; S.heard = now(); tr.send({t: 'hello', proto: 2, game: NET.game, ver: o.ver, want: host ? 'host' : 'join', code: o.code || undefined, size: host ? S.size : undefined}) };
+	tr.onclose = why => end(S.state == 'paired' || S.state == 'ready' ? 'lost' : why == 'unreachable' ? 'unreachable' : 'closed');
+	tr.onmessage = m => {
+		if (S.ended) return;
+		S.heard = now();
+		if (m.t == 'room' && validCode(m.code)) { S.code = m.code; S.state = 'ready'; return emit('room', m.code) }   /* (the host is ready at once: guests come and go) */
+		if (m.t == 'joined' && host && Number.isInteger(m.id)) { S.members.set(m.id, {ok: false, heard: now(), pilot: null}); return }
+		if (m.t == 'paired' && !host && Number.isInteger(m.id)) { S.id = m.id; S.size = m.size; S.state = 'paired'; tr.send({t: 'g', k: 'hi', proto: 2, ver: o.ver, pilot: o.pilot || null}); return emit('paired', m.id) }
+		if (m.t == 'error') return end(typeof m.why == 'string' && WHY[wy(m.why)] ? m.why : 'bad', {theirs: typeof m.ver == 'string' ? m.ver.slice(0, 20) : null});
+		if (m.t == 'left') { if (host && Number.isInteger(m.id)) { const was = S.members.get(m.id); S.members.delete(m.id); if (was && was.ok) emit('left', m.id, 'left'); return } return end('left') }
+		if (m.t != 'g' || typeof m.k != 'string') return;
+		if (host) {
+			const id = m.f, who = S.members.get(id); if (!who) return;
+			who.heard = now();
+			if (m.k == 'hi') {
+				if (m.proto !== 2 || m.ver !== o.ver) return S.kick(id, 'version', null);
+				const no = o.admit ? o.admit(m.pilot || {}) : null;
+				if (no) return S.kick(id, no.why || 'refused', no.text);
+				who.ok = true; who.pilot = m.pilot || {}; tr.send({t: 'g', to: id, k: 'welcome', id, size: S.size});
+				return emit('joined', id, who.pilot);
+			}
+			if (m.k == 'bye') { S.members.delete(id); return emit('left', id, 'left') }
+			if (m.k == 'ping') { tr.send({t: 'g', to: id, k: 'pong', at: m.at}); return }
+			if (m.k == 'pong') return;
+			if (who.ok) emit('msg', m, id);
+			return;
+		}
+		if (m.k == 'welcome') { S.state = 'ready'; return emit('ready', S.id) }
+		if (m.k == 'bye') return end(m.why == 'version' ? 'version' : m.why == 'hardcore' ? 'hardcore' : m.why == 'left' ? 'left' : m.why == 'lost' ? 'lost' : 'refused', {text: typeof m.text == 'string' ? m.text.slice(0, 200) : null, theirs: null});
+		if (m.k == 'ping') { tr.send({t: 'g', k: 'pong', at: m.at}); return }
+		if (m.k == 'pong') { if (fin(m.at)) S.rtt = Math.max(0, now() - m.at); return }
+		if (S.state == 'ready') emit('msg', m, 0);
+	};
+	if (tr.open) setTimeout(() => { if (S.state == 'connecting' && tr.onopen) tr.onopen() }, 0);
 	return S;
 }
 
@@ -197,6 +282,6 @@ function ghostStep(g, s, dt, now) {
 	return e;
 }
 
-const EmberNet = {NET, RELAY, relayUrl, helloUrl, makeCode, normCode, validCode, ws, pipe, session, whyText, packShip, unpackShip, packShot, unpackShot, packMatch, mirror, packCond, condOk, ghost, ghostSet, ghostStep, nlerp};
+const EmberNet = {NET, WING, room, RELAY, relayUrl, helloUrl, makeCode, normCode, validCode, ws, pipe, session, whyText, packShip, unpackShip, packShot, unpackShot, packMatch, mirror, packCond, condOk, ghost, ghostSet, ghostStep, nlerp};
 if (isNode) module.exports = EmberNet; else root.EmberNet = EmberNet;
 })(typeof window != 'undefined' ? window : globalThis);
