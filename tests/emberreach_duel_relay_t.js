@@ -2,6 +2,7 @@
    joining, quick match, the versions checked, messages passed as they are, the other told when one goes, no address
    ever passed on, the size, rate and per-address limits, a LAN's one-room relay), the protocol's timers (a fake
    clock), and the Cloudflare Worker (worker.mjs, its Durable Objects run here on a stand-in for Workers' runtime).
+   (0.6.0) Protocol 2's co-op rooms of up to four, in both.
      node tests/emberreach_duel_relay_t.js [PORT]   (uses PORT and PORT+1) */
 const path = require('path');
 const PORT = +(process.argv[2] || 8790), DIR = path.join(__dirname, '..', 'tools/duel-relay');
@@ -81,6 +82,29 @@ const IP = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|::1|::ffff/;
 			const said = n => out.filter(o => o[0] == n).map(o => o[1]);
 			ok('13. the timers: no hello in 10 s, a paired player silent for 60 s (the other told), a room waiting 10 minutes: each closed', said('mute').some(t => /"time"/.test(t)) && paired && said('join').some(t => /"time"/.test(t)) && said('host').includes('{"t":"left"}') && said('lonely').some(t => /"time"/.test(t)) && lob.rooms.size == 0 && lob.clients.size == 0, out);
 		}
+		/* ---- (0.6.0) protocol 2: co-op rooms of up to four ---- */
+		{
+			const h2 = o => hello(Object.assign({proto: 2, ver: '0.6.0'}, o));
+			const ch = await pl(); ch.send(h2({want: 'host', size: 4})); await wait(60);
+			const ccode = ch.got[0].code, gs = [];
+			for (let i = 0; i < 3; i++) { const g = await pl(); g.send(h2({want: 'join', code: ccode})); gs.push(g); await wait(40) }
+			const g4 = await pl(); g4.send(h2({want: 'join', code: ccode})); await wait(60);
+			ok('20. a co-op room (protocol 2, size 4): three guests join with ids 1, 2, 3 and the size; the host hears each join; a fourth guest is turned away ("full")', ch.got[0].t == 'room' && gs.map(g => g.last().t + g.last().id + g.last().size).join() == 'paired14,paired24,paired34'
+				&& ch.got.filter(m => m.t == 'joined').map(m => m.id).join() == '1,2,3' && g4.got[0].why == 'full' && g4.closed, {host: ch.got, g4: g4.got});
+			ch.send({t: 'g', k: 'st', n: 1}); ch.send('{"t":"g","to":2,"k":"dm","n":2}'); await wait(60);
+			ok('21. the host\'s messages go to every guest; one beginning "to":2 goes to guest 2 only', gs.every(g => g.got.some(m => m.k == 'st')) && gs.map(g => g.got.some(m => m.k == 'dm') ? 1 : 0).join() == '0,1,0', gs.map(g => g.got));
+			gs[0].send({t: 'g', k: 'in', n: 7}); gs[2].send({t: 'g', k: 'in', n: 9}); await wait(60);
+			const fromHost = ch.got.filter(m => m.k == 'in');
+			ok('22. a guest\'s messages go to the host only, with who sent it ("f"); the other guests don\'t hear them', fromHost.map(m => m.f + ':' + m.n).join() == '1:7,3:9' && !gs[1].got.some(m => m.k == 'in'), {fromHost, g2: gs[1].got});
+			gs[1].w.close(); await wait(80);
+			const g5 = await pl(); g5.send(h2({want: 'join', code: ccode})); await wait(60);
+			ok('23. a guest leaving: the host is told which ({t:left, id: 2}); the room stays open, and a new guest takes the free seat (id 2)', ch.got.some(m => m.t == 'left' && m.id == 2) && !ch.closed && g5.last().id == 2 && !gs[0].closed, ch.got.filter(m => m.t != 'g'));
+			ch.w.close(); await wait(80);
+			ok('24. the host leaving: every guest is told and let go; the room closes', [gs[0], gs[2], g5].every(g => g.last().t == 'left' && g.closed));
+			const b1 = await pl(); b1.send(h2({want: 'quick'})); const b2 = await pl(); b2.send(h2({want: 'host', size: 5})); const b3 = await pl(); b3.send(h2({want: 'host'}));
+			const d1 = await pl(); d1.send(hello({want: 'host'})); await wait(60); const d2 = await pl(); d2.send(h2({want: 'join', code: d1.got[0].code})); await wait(60);
+			ok('25. refused: quick match in protocol 2 (duels only), a size of 5 or none; a co-op guest can\'t join a duel\'s room', [b1, b2, b3].every(b => b.got[0].why == 'bad' && b.closed) && d2.got[0].why == 'room', [b1.got, b2.got, b3.got, d2.got]);
+		}
 		/* ---- the Cloudflare Worker, on a stand-in for its runtime ---- */
 		{
 			class FakeWS {
@@ -124,6 +148,13 @@ const IP = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|::1|::ffff/;
 			ok('18. ... a pilot who gave up waiting leaves the queue: the next one waits in a new match, not in the empty one', k4.got[0].t == 'wait' && k4.got.length == 1, k4.got);
 			const bad = await W.default.fetch(new Request('https://relay.example/?want=dance', {headers: {Upgrade: 'websocket'}}), env);
 			ok('19. a connection without a hello\'s routing is refused (400)', bad.status == 400, bad.status);
+			/* (0.6.0) a co-op room in the Worker: its Durable Object holds the room of four */
+			const h2 = o => hello(Object.assign({proto: 2, ver: '0.6.0'}, o));
+			const ca = await connect('want=host&ver=0.6.0'); ca.send(h2({want: 'host', size: 3})); await wait(20);
+			const cc = ca.last().code, cg = [];
+			for (let i = 0; i < 3; i++) { const g = await connect('want=join&ver=0.6.0&code=' + cc); g.send(h2({want: 'join', code: cc})); cg.push(g); await wait(20) }
+			cg[1].send({t: 'g', k: 'in'}); await wait(20);
+			ok('26. the Worker\'s co-op room (size 3): two guests seated (1, 2), the third turned away ("full"); a guest\'s message reaches the host with "f"', cg[0].last().id == 1 && cg[1].last().id == 2 && cg[2].got[0].why == 'full' && ca.got.some(m => m.k == 'in' && m.f == 2), {host: ca.got, g: cg.map(g => g.got)});
 			globalThis.Response = RealResponse; globalThis.Request = RealRequest;
 			for (const o of env.ROOMS.objs.values()) if (o.timer) clearInterval(o.timer);
 		}
