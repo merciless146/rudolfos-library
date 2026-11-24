@@ -31,13 +31,20 @@ const vec3 = (v, m) => Array.isArray(v) && v.length == 3 && v.every(x => fin(x) 
 /* a member's own ship as it travels: seat, flight state (from the centre o), model, name, condition, cloak (0 none, 1
    raised and shown, 2 hidden), docked */
 function packMember(seat, s, o, x) {
-	return {id: seat, me: Ne.packShip(s, o), m: x.model, nm: x.name, c: Ne.packCond(x.cs), ck: x.cloak || 0, d: x.docked ? 1 : 0};
+	return {id: seat, me: Ne.packShip(s, o), m: x.model, nm: x.name, c: Ne.packCond(x.cs), ck: x.cloak || 0, d: x.docked ? 1 : 0, pd: x.pad || null};   /* (pd, 0.6.2: [port, pad] held) */
 }
 function unpackMember(m, o) {
 	if (!m || !Number.isInteger(m.id) || m.id < 0 || m.id >= WING.seats || !str(m.m, 40) || !Ne.condOk(m.c)) return null;
 	const me = Ne.unpackShip(m.me, o); if (!me) return null;
-	return {id: m.id, me, model: m.m, name: (str(m.nm, 40) || '').replace(/[<>]/g, '') || 'Wing pilot ' + (m.id + 1), cond: m.c, cloak: [0, 1, 2].includes(m.ck) ? m.ck : 0, docked: m.d === 1};
+	return {id: m.id, me, model: m.m, name: (str(m.nm, 40) || '').replace(/[<>]/g, '') || 'Wing pilot ' + (m.id + 1), cond: m.c, cloak: [0, 1, 2].includes(m.ck) ? m.ck : 0, docked: m.d === 1, pad: padOk(m.pd) ? m.pd : null};
 }
+
+/* (0.6.2) a pad held at a port of the system: [the port's id, the pad's number] */
+const padOk = x => Array.isArray(x) && x.length == 2 && str(x[0], 60) && Number.isInteger(x[1]) && x[1] >= 1 && x[1] <= 64;
+/* (0.6.2) the host's market records and colonies for its system, as they come: the records whole and sound, the
+   colonies at that star only */
+function marketsOk(mk, recordOk) { return !!mk && typeof mk == 'object' && !Array.isArray(mk) && Object.keys(mk).length <= 24 && Object.entries(mk).every(([k, e]) => k.length <= 80 && recordOk(e)) }
+function coloniesOk(cl, star) { return Array.isArray(cl) && cl.length <= 8 && cl.every(c => c && typeof c == 'object' && str(c.id, 60) && c.star && c.star.id == star) }
 
 /* ---------- the host's NPCs ---------- */
 /* an NPC as it travels: always its flight state, condition and whether it's hostile to the wing; its details
@@ -87,6 +94,6 @@ function fit(m) {
 	return t.length <= WING.max ? m : null;
 }
 
-const EmberWing = {WING, packMember, unpackMember, packNpc, unpackNpc, nearNpcs, claimOk, stOk, inOk, joinDays, leaveDays, fit};
+const EmberWing = {WING, padOk, marketsOk, coloniesOk, packMember, unpackMember, packNpc, unpackNpc, nearNpcs, claimOk, stOk, inOk, joinDays, leaveDays, fit};
 if (isNode) module.exports = EmberWing; else root.EmberWing = EmberWing;
 })(typeof window != 'undefined' ? window : globalThis);

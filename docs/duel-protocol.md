@@ -83,6 +83,10 @@ they stay within the relay's reach however far the system's worlds are.
   (`ev`: `{e:'hitN', i, dmg, kind}`).
 - `{k:'hit', dmg, kind}` (the host to one guest): an NPC's shot hit them. `{k:'kill', i}`: their claim destroyed it.
 - `{k:'jump', to, at, name}` (the host to all): its jump, for the guests to follow.
+- (0.6.2) `wing` also carries `mk` (the host's market records for the system's ports) and `cl` (its colonies there);
+  `ps` and `in` carry `pd`, the pad a member holds (`[port, pad]`).
+- (0.6.2) `{k:'mkt', key, e}` (the host to all): a market record changed. `{k:'trade', key, good, qty, sold, day}` (a
+  guest to the host): their trade, for the host to record in its market.
 
 ## The game's part
 

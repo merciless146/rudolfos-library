@@ -1468,6 +1468,10 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.6.2, the wing at the ports (P5b-2 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** guests dock
+  at the host's ports, each pilot on their own pad, and trade in the host's markets (their trades recorded there)
+  with their own money and cargo; the host's colonies show in its system; a docked host's system goes on for the
+  wing out in it. Tested in `tests/emberreach_wing_t.js` and `tests/emberreach_wing_ports_browser_t.js`.
 - **0.6.1, the wing flies together (P5b-1 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** the
   pause menu's Wing hosts or joins a co-op wing of up to four (online or on this network). Guests fly into the
   host's system on the host's day; everyone sees everyone, the host's NPCs and the shots; the host's game decides

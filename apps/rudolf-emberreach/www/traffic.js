@@ -67,6 +67,14 @@ function request(C, who, cls, t) {
 }
 /* the ship is down on its pad (docked or landed): it holds it, with no clock, until it leaves */
 function docked(C, who) { const p = C.pads.find(x => x.who == who); if (p) { p.docked = true; p.until = Infinity } return !!p }
+/* (0.6.2) a pad another wing pilot holds (their own game gave it them): taken here too, from an NPC if one had it;
+   never from you. False if it's yours, or the pad doesn't exist */
+function claim(C, who, n) {
+	const p = C.pads.find(x => x.n == n); if (!p || p.who == 'me') return false;
+	for (const q of C.pads) if (q.who == who && q != p) { q.who = null; q.docked = false }
+	p.who = who; p.docked = true; p.until = Infinity; C.queue = C.queue.filter(q => q.who != who);
+	return true;
+}
 /* it leaves (launches, lifts off, gives up its place) */
 function release(C, who) { const p = C.pads.find(x => x.who == who); if (p) { p.who = null; p.docked = false } C.queue = C.queue.filter(q => q.who != who) }
 /* time passes: clearances unused for 5 minutes are revoked; NPCs leave and arrive; pads go to the queue in turn.
@@ -96,6 +104,6 @@ function serve(C, t) {
    when it leaves, so that play.js can fly the ones near the pilot in and out: 'npcIn' and 'npcOut' events) */
 function settleNpc(C, who, t) { const p = C.pads.find(x => x.who == who); if (p) { p.docked = true; p.until = t + 30 + dwell(C); C.events.push({k: 'npcIn', who, pad: p.n, size: p.size}) } }
 
-const EmberTraffic = {ATC, SIZES, STATION_PADS, classOf, allowed, padsOf, make, request, status, docked, release, tick};
+const EmberTraffic = {ATC, SIZES, STATION_PADS, classOf, allowed, padsOf, make, request, status, docked, release, claim, tick};
 if (typeof module != 'undefined' && module.exports) module.exports = EmberTraffic; else root.EmberTraffic = EmberTraffic;
 })(typeof window != 'undefined' ? window : globalThis);

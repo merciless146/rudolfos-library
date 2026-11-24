@@ -159,6 +159,14 @@ function record(P, mkt, good, qty, sold, day) {
 	o[w][good] = (o[w][good] || 0) - qty;
 	for (const x of ['s', 'd']) for (const g in o[x]) if (Math.abs(o[x][g]) < 0.5) delete o[x][g];
 	if (!Object.keys(o.s).length && !Object.keys(o.d).length) delete m[mkt.key]; else m[mkt.key] = {day, s: o.s, d: o.d};
+	/* (0.6.2) the co-op wing: the host's game passes each change on, a guest's sends its trade to the host */
+	if (EmberEconomy.onRecord) try { EmberEconomy.onRecord(P, mkt.key, good, qty, sold, day) } catch (e) {}
+}
+/* (0.6.2) a market's record as it may come from the network: {day, s: {good: t}, d: {good: t}}, or null */
+function recordOk(e) {
+	if (e === null) return true;
+	const part = o => o && typeof o == 'object' && !Array.isArray(o) && Object.keys(o).length <= 80 && Object.entries(o).every(([g, v]) => g.length <= 40 && typeof v == 'number' && isFinite(v) && Math.abs(v) < 1e7);
+	return !!e && typeof e == 'object' && typeof e.day == 'number' && isFinite(e.day) && e.day >= 0 && part(e.s) && part(e.d);
 }
 /* the market at a star's port. ctx: {port (travel.js portsAt's record; else the system's first port), P (the player:
    their trades there), holder (a colony's sponsor), econ (a colony's facilities), people (a colony's), feed (its
@@ -205,6 +213,6 @@ function market(star, day, ctx) {
 	return {star: star.id, key, port: q && q.id, again: P => market(star, day, Object.assign({}, ctx, {P: P || ctx.P})), people, economy: mix, economyName: econLabel(mix), holder, contested: claim.contested, currency: code || 'SU', prices};
 }
 
-const EmberEconomy = {MKT, WORLD_ECON, PORT_ECON, PEOPLE, portEconomy, systemEconomy, econLabel, capacities, keyOf, offsets, record, RIFT_GOODS, ECON, registerScrip, GOODS, BASKET, basketCost, rate, crossRate, exchange, exchangeAnywhere, market};
+const EmberEconomy = {onRecord: null, recordOk, MKT, WORLD_ECON, PORT_ECON, PEOPLE, portEconomy, systemEconomy, econLabel, capacities, keyOf, offsets, record, RIFT_GOODS, ECON, registerScrip, GOODS, BASKET, basketCost, rate, crossRate, exchange, exchangeAnywhere, market};
 if (isNode) module.exports = EmberEconomy; else root.EmberEconomy = EmberEconomy;
 })(typeof window != 'undefined' ? window : this);
