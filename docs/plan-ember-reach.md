@@ -1468,6 +1468,11 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.6.6, raids on surface ports (L3.6 of [plan-ember-reach-landing-work.md](plan-ember-reach-landing-work.md)):**
+  coming within 20 km of a surface port on a day it's raided, a gang's ships over it, fighting its traffic, a forward
+  base's turrets and you. Driven off with your help, a defence reward and standing with its holder; left to it, the
+  port looted. No landing clearance while a raid is on. `raids.js`; tested in `tests/emberreach_raids_t.js` and
+  `tests/emberreach_raids_browser_t.js`.
 - **0.6.5, the wing together away from the host (P6b of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):**
   in a system the host isn't in, the first of the wing there keeps it for the others who come: they see each other
   and its ships, their shots and its NPCs' hits passed through the host; the keeper leaving, the next keeps it; the
@@ -1531,8 +1536,8 @@ also arms the first ships and adds fire groups:
 - **0.5.4:** ballistic weapons (gatlings, torpedoes, missiles) make no heat; hybrid ones (the mass driver, the
   disruptor) still do, as lasers do. Tested in `tests/emberreach_combat_t.js`.
 
-Still to come: the online relay put up (0.5.2 has it ready), the rest of colonies on the ground (L3.5), raids (L3.6), the Core's story,
-and multiplayer.
+Still to come: the online relay put up (0.5.2 has it ready), the Core's story, and the release. (Raids came with 0.6.6;
+co-op, the wing, with 0.6.0 to 0.6.5.)
 - **The plan for pilots and co-op:** six save slots in one shared galaxy, Rookie/Pilot/Admiral, Hardcore and its
   Contraband Merchant and cloak, co-op for four, in [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md) (steps
   P1–P6).

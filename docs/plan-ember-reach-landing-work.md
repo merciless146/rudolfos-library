@@ -802,6 +802,22 @@ decided after 0.4.8).
 
 - **Pirates raid surface ports,** colonies' and others'. A forward base's turrets (0.3.11) and the port's traffic
   are caught up in it.
+- **L3.6 is done** (0.6.6, `raids.js`):
+  - **When:** coming within 20 km of a surface port (flying in from farther: not launching from it or loading the game
+    there), now and then a raid is under way. It's decided by the port and
+    the day (the same all day, for everyone): an independent port 20% of days, a forward base 12%, a held port 8%, a
+    capital system's or a great port's (a surface starport, a heavy landing field) 4%; a colony's by its security,
+    30% at none down to 5%.
+  - **The raiders:** a gang's ships over the port, two at a camp or an outpost, three at a settlement, a base or a
+    landing field, four at a starport. They fight whatever is there: the port's traffic, a forward base's turrets, you.
+  - **Driven off with your help** (a raider destroyed by you or your wing): a defence reward from the holder (1,500 SU
+    a raider, in its coin, at your reward multiplier) and standing with it, on top of each raider's bounty. Driven
+    off by the port's own defences, no reward.
+  - **Not driven off** in three minutes, or left to it (you over 25 km away): the port is looted, 15-35% of its stock
+    of the two goods it has most of taken (its market short of them, prices up), and the raiders leave.
+  - **No landing clearance** while a raid is on, and one given before is held back.
+  - In a co-op wing, the game keeping the system runs the raid; the wing's kills count as help.
+  - Tested in `tests/emberreach_raids_t.js` (8) and `tests/emberreach_raids_browser_t.js` (8).
 
 ### L3.7 Release 0.5.0
 

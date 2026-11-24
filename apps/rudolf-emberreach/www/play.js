@@ -56,13 +56,13 @@
 (function () {
 'use strict';
 const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.EmberTraffic, Te = window.EmberTerrain, Ld = window.EmberLanding, E = window.EmberEconomy, G = window.EmberGalaxy, F = window.EmberFactions, S = window.EmberShips, Fl = window.EmberFlight, M = window.EmberModules,
-	Pi = window.EmberPilot, Cr = window.EmberCareer, Cl = window.EmberCloak, Wg = window.EmberWing, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
+	Pi = window.EmberPilot, Cr = window.EmberCareer, Cl = window.EmberCloak, Wg = window.EmberWing, Rd = window.EmberRaids, Sc = window.EmberScene, Me = window.EmberMeshes, Re = window.EmberRender, H = window.EmberHUD, RG = window.RG,
 	Snd = window.EmberSound, St = window.EmberSettings, I18 = window.EmberI18n, Sv = window.EmberSave, T = window.EmberTravel, Map = window.EmberMap, Tr = window.EmberTrade, Port = window.EmberPort,
 	C = window.EmberCombat, En = window.EmberEncounters, Ca = window.EmberCanisters, X = window.EmberExplore, Co = window.EmberColonies, O = window.EmberOutfit, Mi = window.EmberMining, Ins = window.EmberInsurance, Rg = window.EmberRings, Du = window.EmberDuel, Tc = window.EmberTouch, Ne = window.EmberNet;
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.6.5'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.6.6'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -809,6 +809,70 @@ function turretStep(n, dt) {
 	n.s.q = Sc.lookRotation(nf, Math.abs(dot(nf, at.up)) > 0.98 ? norm(cross(nf, [0.3, 0.2, 0.9])) : at.up);
 	if (ang < TURRET.aim + TURRET.turn * dt && len(sub(tgt.p, n.s.p)) < TURRET.range && !inZone(n.s.p)) { const shot = C.fire(n.cs, n.s, game.t, tgt, game.shots); if (shot && len(sub(s.p, n.s.p)) < 3000) Snd.cue(gunCue(n.cs)) }
 }
+/* ---------------- raids on surface ports (L3.6, 0.6.6; raids.js) ----------------
+   Coming within 20 km of a surface port (from farther off), now and then a raid under way: the gang's ships over the port, fighting its traffic,
+   its turrets and you. Driven off with your help, a defence reward and standing with its holder; not driven off in
+   three minutes, or left to it, the port is looted. No landing clearance while it's on */
+function raidCtx(q) {
+	if (q.colony) { const c = Co.colonyAt(game.P, game.star.id); return {security: c ? Co.stats(c, game.star).security : null} }
+	return {capital: !!(game.port && game.port.capital)};
+}
+const raidOn = portId => Object.values(game.raids || {}).some(r => r.on && r.port == portId && r.star == game.star.id);
+function raidsStep() {
+	if (!s || game.docked || game.duel || !wingKeeps() || !window.EmberSurface) return;
+	game.raids = game.raids || {};
+	const day = Math.floor(game.day);
+	for (const sp of game.surfacePorts || []) {
+		if (sp.q.lone && !X.found(game.P, game.star.id, sp.q.id)) continue;
+		const key = game.star.id + ':' + sp.q.id + ':' + day; if (game.raids[key]) continue;
+		/* (found flying in from farther: not on launching from the port, or loading the game there) */
+		if (!game.raidFar || game.raidFar.star != game.star.id) game.raidFar = {star: game.star.id, ids: new Set()};
+		const at = surfacePortAt(sp); if (len(sub(s.p, at.pos)) > Rd.RAID.near) { game.raidFar.ids.add(sp.q.id); continue }
+		if (!game.raidFar.ids.has(sp.q.id)) continue;
+		game.raids[key] = {port: sp.q.id, star: game.star.id, on: false};
+		if (Rd.under(game.star.id, sp.q, day, raidCtx(sp.q))) raidStart(key, sp);
+	}
+	for (const [key, r] of Object.entries(game.raids)) {
+		if (!r.on) continue;
+		if (r.star != game.star.id) { r.on = false; continue }   /* (you left the system: it went on without you) */
+		const sp = (game.surfacePorts || []).find(x => x.q.id == r.port), alive = game.npcs.filter(n => n.raid == key && !n.cs.dead && !n.gone);
+		if (!alive.length) { raidOver(r, sp); continue }
+		if (game.t - r.t0 > Rd.RAID.last || (sp && len(sub(s.p, surfacePortAt(sp).pos)) > Rd.RAID.keep)) raidLooted(r, sp, alive);
+	}
+}
+function raidStart(key, sp) {
+	const r = game.raids[key], at = surfacePortAt(sp), q = sp.q, k = Rd.size(q);
+	const gangs = F.minors().filter(m => m.type == 'criminal'), gang = gangs[Math.floor(Math.random() * gangs.length)], hulls = S.ships().filter(x => x.who.includes('pirate') && ['XS', 'S', 'M'].includes(x.size));
+	const E0 = at.rot.slice(0, 3), E1 = cross(at.up, E0), list = [];
+	for (let i = 0; i < k; i++) list.push({role: 'pirate', faction: gang.id, ship: hulls[Math.floor(Math.random() * hulls.length)], where: 'arrival', range: 1, ai: 'attack', wing: 'raid', raid: key});
+	place(list);
+	list.forEach((n, i) => {
+		const a = i / k * Math.PI * 2, alt = Rd.RAID.alt[0] + (Rd.RAID.alt[1] - Rd.RAID.alt[0]) * Math.random();
+		n.s.p = add(at.pos, add(mul(at.up, alt), add(mul(E0, Math.cos(a) * Rd.RAID.spread), mul(E1, Math.sin(a) * Rd.RAID.spread)))); n.pos = n.s.p;
+		n.s.v = Fl.frameAt(Sc.worldFrame(sp.body), n.s.p).v; n.home = add(at.pos, mul(at.up, 800));
+	});
+	Object.assign(r, {on: true, t0: game.t, n: k, helped: 0, name: q.name, owner: q.owner || null});
+	talk(q.owner, q.name + ': we are under attack! ' + k + ' raiders over the port. No clearance until they are driven off', '#e5484d'); Snd.cue('incoming');
+	/* a clearance there already given is held back */
+	const cl = game.clearance; if (cl && cl.port == q.id) { const C0 = game.atc && game.atc[cl.port]; if (C0) Atc.release(C0, 'me'); game.clearance = null }
+}
+function raidOver(r, sp) {
+	r.on = false;
+	if (!r.helped) { say('The raid on ' + r.name + ' was beaten off by its defences', '#9fb0cc'); return }
+	const P = game.P, cur = id => { const f = id && F.byId(id); return f && f.kind == 'major' && f.currency ? f.currency.code : null }, code = cur(r.owner) || cur(P.origin) || 'SU';   /* (its holder's coin; a minor's or an independent port's thanks, in yours) */
+	const amount = Cr.reward(P, Math.round(Rd.reward(r.n) * E.rate(code, game.day)));
+	P.wallet[code] = (P.wallet[code] || 0) + amount;
+	if (r.owner) window.EmberReputation.act(P, 'defendPort', r.owner);
+	talk(r.owner, r.name + ': the raiders are driven off. Our thanks: a defence reward of ' + amount.toLocaleString('en') + ' ' + code, '#7fd1a8'); Snd.cue('clearance'); persist();
+}
+function raidLooted(r, sp, alive) {
+	r.on = false;
+	for (const n of alive) { n.gone = true; if (game.tgt == n) game.tgt = null }
+	if (!sp) return;
+	const mkt = E.market(game.star, game.day, {port: sp.q, P: game.P}), got = Rd.loot(mkt, game.star.id, sp.q, game.day);
+	for (const g of got) E.record(game.P, mkt, g.good, g.tons, false, game.day);   /* (taken from its stock, as if bought) */
+	say('Raiders looted ' + r.name + (got.length ? ': ' + got.map(g => g.tons.toLocaleString('en') + ' t of ' + g.good).join(' and ') + ' taken' : '') + ', and left', '#e5484d');
+}
 function atcOf(port) {
 	game.atc = game.atc || {};
 	if (!game.atc[port.id]) { const sp = (game.surfacePorts || []).find(x => x.q.id == port.id); game.atc[port.id] = Atc.make(port, sp ? (sp.layout || (sp.layout = window.EmberSurface.layout(port.kind, port.seed))) : null, {t: game.t, seed: game.star.id + ':' + game.day}) }
@@ -837,6 +901,7 @@ function requestDock() {
 	if (cl && cl.port == at.port.id) { say(cl.queued ? at.name + ': you are ' + ord(cl.queued) + ' in the queue for a pad' : 'Clearance already granted: pad ' + cl.pad + ' at ' + at.name); return }
 	if (cl) { const C0 = game.atc && game.atc[cl.port]; if (C0) Atc.release(C0, 'me'); game.clearance = null }
 	const o = at.port.surface ? (at.port.owner ? F.byId(at.port.owner) : null) : owner(), stn = at.name, stName = stn;
+	if (at.port.surface && raidOn(at.port.id)) { talk(o && o.id, stn + ': we are under attack. No clearance until the raiders are driven off.', '#e5484d'); Snd.cue('refused'); return }   /* (0.6.6) */
 	if (!at.port.surface && game.port && game.port.maw && En.marshalsWant(game.P, game.day)) { say(stName + ': Interstellar Marshals. Docking denied: you are wanted. Surrender is the only clearance we give you.', '#e5484d'); Snd.cue('refused'); return }
 	if (o && game.P.bounties[o.currency.code] > 0 && game.npcs.some(n => n.role == 'patrol' && !n.cs.dead && n.faction == o.id)) { talk(o.id, stName + ': docking denied. You are wanted here: ' + Math.round(game.P.bounties[o.currency.code]).toLocaleString('en-US') + ' ' + o.currency.code + '.', '#e5484d'); Snd.cue('refused'); return }
 	if (o && o.id != game.home.id && F.relation(game.home.id, o.id) < 0) { talk(o.id, stName + ': docking denied. ' + o.name.replace(/^The /, '') + ' is at war with you.', '#e5484d'); Snd.cue('refused'); return }
@@ -1327,7 +1392,7 @@ function combat(dt) {
 		}
 	}
 	if (game.npcs.some(n => n.gone)) game.npcs = game.npcs.filter(n => !n.gone);
-	turretsNear();
+	turretsNear(); raidsStep();   /* (0.6.6) */
 	/* your guns */
 	for (const a of C.tick(pc, game.t, dt)) moduleAlert(a);
 	{ const cf = Cl.step(game.cloak, pc, game.P.ship.fit, dt); if (cf == 'failed') say('Cloaking field failed: overheated', '#e5484d'); else if (cf == 'lost') say('Cloaking field down: the device is gone', '#f2a33a') }   /* (0.5.9) */
@@ -1414,7 +1479,7 @@ if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () =
 	get scene() { return scene }};
 if (DEBUG) Object.assign(window.EmberDebug, {persist: () => persist()});   /* (0.5.5: the pilots' test saves now) */
 if (DEBUG) Object.assign(window.EmberDebug, {get wing() { return game.wing }, wingJumped: leg => wingJumped(leg), requestDock: () => requestDock(), pirates: k => debugPirates(k), get ME() { return ME }});   /* (0.6.1: the wing's test) */
-if (DEBUG) Object.assign(window.EmberDebug, {destroyed: (n, byMe) => { n.cs.dead = true; destroyed(n, byMe) }, wingSendTo: (seat, m) => wingSendTo(seat, m), keeps: () => wingKeeps()});   /* (0.6.4: the roaming test's own kill; 0.6.5: the together test's) */
+if (DEBUG) Object.assign(window.EmberDebug, {destroyed: (n, byMe) => { n.cs.dead = true; destroyed(n, byMe) }, wingSendTo: (seat, m) => wingSendTo(seat, m), keeps: () => wingKeeps(), raidStart: (key, sp) => { game.raids = game.raids || {}; game.raids[key] = {port: sp.q.id, star: game.star.id, on: false}; raidStart(key, sp) }, surfacePortAt: sp => surfacePortAt(sp)});   /* (0.6.4: the roaming test's own kill; 0.6.5: the together test's) */
 function provoke(n) {
 	En.provoke(n, game.npcs);
 	say('You fired on ' + n.name + (n.role == 'trader' ? ': a crime. The patrol will come.' : '. They are returning fire.'), '#f2a33a');
@@ -1437,6 +1502,7 @@ function hitMe(pr) {
 function destroyed(n, byMe) {
 	game.booms.push({pos: n.s.p.slice(), t: game.t, r: n.s.radius * 4, col: [1, 0.72, 0.4], life: 1.8});
 	if (n.duel) { Snd.cue('boom', 1); if (game.tgt == n) game.tgt = null; duelDown(1); return }
+	if (n.raid && game.raids && game.raids[n.raid] && (byMe || n.byWing)) game.raids[n.raid].helped++;   /* (0.6.6: a raider downed by you or your wing) */
 	for (const g of n.cargo || []) game.cans.push(Ca.make(g, n.s.p, n.s.v, game.t));
 	Snd.cue('boom', Math.max(0.15, Math.min(1, 3000 / (len(sub(n.s.p, s.p)) + 1))));
 	if (byMe) {
@@ -2943,7 +3009,7 @@ function wingMemberIn(m, f) {
 		const t = game.npcs.find(k => k.id == e.i && !k.remote); if (!t || t.cs.dead) continue;
 		C.damage(t.cs, e.dmg, e.kind, game.t); t.cs.lastHit = game.t;
 		if (!isHostile(t) && !t.provoked && t.role != 'wing') { t.provoked = true; t.foe = n; t.next = game.t + 2 } else if (t.foe == ME && Math.random() < 0.3) t.foe = n;
-		if (t.cs.dead) { destroyed(t, false); wingSendTo(f, {k: 'kill', i: t.id}); const mine = wingHost() ? W.shared : [...W.taken.values()]; En.credit(game.P, t, game.star.id, x => mine.includes(x)) }   /* (0.6.3: it counts for the missions you share; 0.6.5: a keeper guest, the shared ones it took) */
+		if (t.cs.dead) { t.byWing = true; destroyed(t, false); wingSendTo(f, {k: 'kill', i: t.id}); const mine = wingHost() ? W.shared : [...W.taken.values()]; En.credit(game.P, t, game.star.id, x => mine.includes(x)) }   /* (0.6.3: it counts for the missions you share; 0.6.5: a keeper guest, the shared ones it took) */
 	}
 }
 /* ---------- (0.6.3) missions the host shares (wing.js) ---------- */
