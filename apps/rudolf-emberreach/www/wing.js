@@ -15,6 +15,8 @@
      difference; leaving moves them back onto their own galaxy's day, plus the days lived in the wing.
    - Nothing of the host's galaxy is written to a guest's: a guest's game saves only the pilot.
    - (0.6.3) Missions the host shares: taken by each guest as their own copy, the work done kept in step (below).
+   - (0.6.4/0.6.5) Roaming: away from the host, a guest's game keeps its system; with others of the wing there, the
+     first to arrive keeps it for all of them, through the host (below).
    This file is plain data, the same in node (tests) and the page (play.js's wing* functions). GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -142,6 +144,28 @@ function takeShared(P, u, max) {
 	return {ok: true, mission: m};
 }
 
+/* ---------- (0.6.5) together away from the host ----------
+   In a system the host isn't in, one of the wing there keeps it for all of them: the first to arrive (the lowest seat
+   if two came at once). The host decides who (keepers, from each guest's system and since when) and says so every
+   second (st's wh: [seat, system's name, system, keeps]). The keeper's game runs the system as the host's does its
+   own, its state passed through the host ('fw' to the host; 'kst' to the others there), and the others' through the
+   host to it ('kin'). */
+function keepers(at, since, hostStar) {
+	const out = new Map();
+	for (const [seat, star] of at) {
+		if (star == hostStar) continue;
+		const k = out.get(star), t = since.get(seat) || 0;
+		if (k == null || t < (since.get(k) || 0) || (t == (since.get(k) || 0) && seat < k)) out.set(star, seat);
+	}
+	return out;
+}
+/* where each is, as the host tells it: [seat, name, system, keeps] */
+function whOk(x) { return Array.isArray(x) && Number.isInteger(x[0]) && x[0] >= 0 && x[0] < WING.seats && str(x[1], 80) && (x[2] == null || str(x[2], 60)) && (x[3] == null || x[3] === 0 || x[3] === 1) }
+/* a keeper's state, passed on by the host */
+function kstOk(m) { return m && m.k == 'kst' && str(m.star, 60) && vec3(m.o, 1e13) && Number.isInteger(m.kp) && m.kp >= 1 && m.kp < WING.seats }
+/* what a keeper may send through the host to the others there */
+function fwOk(m) { return m && m.k == 'fw' && (m.to == null || (Number.isInteger(m.to) && m.to >= 0 && m.to < WING.seats)) && m.m && ['st', 'hit', 'kill'].includes(m.m.k) }
+
 /* a message the host sends: under the relay's size, by dropping shots, then NPCs, then their details */
 function fit(m) {
 	let t = JSON.stringify(m);
@@ -150,6 +174,6 @@ function fit(m) {
 	return t.length <= WING.max ? m : null;
 }
 
-const EmberWing = {WING, padOk, marketsOk, coloniesOk, packMember, unpackMember, packNpc, unpackNpc, nearNpcs, claimOk, stOk, inOk, joinDays, leaveDays, fit, MTYPES, packMission, unpackMission, progOf, progOk, mergeProg, takeShared};
+const EmberWing = {WING, padOk, marketsOk, coloniesOk, packMember, unpackMember, packNpc, unpackNpc, nearNpcs, claimOk, stOk, inOk, joinDays, leaveDays, fit, MTYPES, packMission, unpackMission, progOf, progOk, mergeProg, takeShared, keepers, whOk, kstOk, fwOk};
 if (isNode) module.exports = EmberWing; else root.EmberWing = EmberWing;
 })(typeof window != 'undefined' ? window : globalThis);
