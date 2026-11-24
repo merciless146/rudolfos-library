@@ -32,7 +32,8 @@ const ACTIONS = {
 	smuggle: {rep: -15, lawful: -2},
 	raidConvoy: {rep: -40, lawful: -4},
 	scanRuins: {rep: 10, lawful: 0},         /* surveys sold to it */
-	rescue: {rep: 25, lawful: 1}};
+	rescue: {rep: 25, lawful: 1},
+	defendPort: {rep: 20, lawful: 1}};      /* (0.6.6) a raid on one of its surface ports driven off with your help */
 
 /* the cheapest jump-capable ship from home yards that sells for under 100,000 SU; else the independent Wren */
 function starter(o) {

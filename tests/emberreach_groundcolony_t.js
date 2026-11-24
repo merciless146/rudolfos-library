@@ -90,6 +90,7 @@ async function frame(pg, test) {
 		ok('6. the next day the outpost stands on its world as a surface port (not in orbit): a navigation target, on its levelled site, with a nav beacon for arrivals', sp && sp.id.endsWith(':colony') && sp.kind == 'outpost' && sp.inFlight && sp.nav && sp.beacon && sp.flats >= 1 && !sp.orbital && sp.owner == (await f.evaluate(() => EmberFactions.majors()[5].id)), sp);
 		/* down to it: 1.5 km over the site, N for a pad, then down onto it */
 		await f.evaluate(() => { EmberDebug.ship.autopilot = false; EmberDebug.game.ap = null });
+		await f.evaluate(() => { EmberRaids.under = () => false });   /* (0.6.6: no raid on the day this test lands; tests/emberreach_raids_browser_t.js has them) */
 		await f.evaluate(() => { const g = EmberDebug.game, s = EmberDebug.s, x = g.surfacePorts.find(y => y.q.colony), a = EmberDebug.surfacePortAt(x); g.clearance = null; g.landed = null; g.gear = false; g.npcs = []; g.atc = {};
 			s.p = a.pos.map((v, i) => v + a.up[i] * 1500); s.v = EmberFlight.frameAt(EmberScene.worldFrame(x.body), s.p).v; s.w = [0, 0, 0]; s.q = EmberScene.lookRotation(a.rot.slice(0, 3), a.up) });
 		await sleep(400);
