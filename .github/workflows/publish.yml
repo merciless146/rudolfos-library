@@ -20,6 +20,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    # Rudolf OS 1.6.3 Part 0: the Library's key is the "release" environment's secret, which only main may use
+    environment: release
     steps:
       - uses: actions/checkout@v4
       - name: Tools
