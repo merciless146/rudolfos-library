@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.6.3'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.6.4'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -729,7 +729,7 @@ function trafficHull(size) {
 	return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
 }
 function trafficEvent(portId, e) {
-	if (wingGuest()) return;   /* (0.6.3: a guest's traffic, like its other ships, comes from the host's game) */
+	if (!wingKeeps()) return;   /* (0.6.3: a guest's traffic, like its other ships, comes from the host's game; 0.6.4: unless it's away) */
 	if (!s || game.docked || game.jump || game.npcs.filter(n => n.traffic).length >= TRAFFIC.max) return;
 	const at = portsNear().find(x => x.port.id == portId); if (!at || at.d > TRAFFIC.near) return;
 	const hull = trafficHull(e.size); if (!hull) return;
@@ -1237,7 +1237,8 @@ function populate() {
 	}
 }
 function place(list) {
-	if (wingGuest()) return;   /* (0.6.1: a guest's ships come from the host's game) */
+	if (!wingKeeps()) return;   /* (0.6.1: a guest's ships come from the host's game; 0.6.4: away from it, its own) */
+	if (wingGuest()) game.wing.kept = game.star.id;
 	const fwd = Fl.forward(s), rnd = Math.random;
 	for (const n of list) {
 		if (n.id == null) n.id = 'd' + game.visits++ + '_' + Math.floor(rnd() * 1e6);
@@ -1413,6 +1414,7 @@ if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () =
 	get scene() { return scene }};
 if (DEBUG) Object.assign(window.EmberDebug, {persist: () => persist()});   /* (0.5.5: the pilots' test saves now) */
 if (DEBUG) Object.assign(window.EmberDebug, {get wing() { return game.wing }, wingJumped: leg => wingJumped(leg), requestDock: () => requestDock(), pirates: k => debugPirates(k), get ME() { return ME }});   /* (0.6.1: the wing's test) */
+if (DEBUG) Object.assign(window.EmberDebug, {destroyed: (n, byMe) => { n.cs.dead = true; destroyed(n, byMe) }});   /* (0.6.4: the roaming test's own kill) */
 function provoke(n) {
 	En.provoke(n, game.npcs);
 	say('You fired on ' + n.name + (n.role == 'trader' ? ': a crime. The patrol will come.' : '. They are returning fire.'), '#f2a33a');
@@ -1439,7 +1441,7 @@ function destroyed(n, byMe) {
 	Snd.cue('boom', Math.max(0.15, Math.min(1, 3000 / (len(sub(n.s.p, s.p)) + 1))));
 	if (byMe) {
 		const was = !!En.marshalsWant(game.P, game.day);
-		const res = En.killed(game.P, n, {star: game.star, day: game.day, own: game.own, skip: wingGuest() ? game.wing.taken : null});   /* (0.6.3: a guest's copies of shared missions, counted by the host's game) */
+		const res = En.killed(game.P, n, {star: game.star, day: game.day, own: game.own, skip: wingGuest() && !wingAway() ? game.wing.taken : null});   /* (0.6.3: a guest's copies of shared missions, counted by the host's game; 0.6.4: away, by yours) */
 		if (!was && En.marshalsWant(game.P, game.day) && !game.star.rift && game.marshalsAt == null && !game.npcs.some(x => x.role == 'marshal' && !x.cs.dead)) {
 			game.marshalsAt = game.t + 30 + Math.random() * 30;
 			say('The Interstellar Marshals have your name now. They are on their way.', '#e5484d');
@@ -1750,7 +1752,7 @@ function lost(how) {
 	fit = M.fit(ship); arm(); game.fuel = 1; game.route = null;
 	enterSystem(c.star); game.lastPortId = c.portId || T.ORBITAL;
 	launch(true);
-	if (wingGuest() && game.wing.star != game.star.id) say('Your wing is at ' + (game.wing.starName || 'another system') + ': Rejoin the wing from the Wing screen', '#6cc9e8');   /* (0.6.1) */
+	if (wingGuest() && game.wing.star != game.star.id) say('Your wing is at ' + (game.wing.starName || 'another system') + ': fly on your own, or Rejoin the wing from the Wing screen', '#6cc9e8');   /* (0.6.1) */
 	say((c.starter ? 'A starter ' : 'A new ') + ship.name + ' waits at ' + (st ? st.name : game.star.name) + (c.why == 'exchange' ? ' (the nearest port whose exchange takes ' + c.code + ')' : c.why == 'currency' ? ' (the nearest port trading in ' + c.code + ')' : ''));
 	persist();
 }
@@ -1796,7 +1798,7 @@ function openPort() {
 			game.fuel = r.fuel == null ? 1 : r.fuel; if (!game.P.combat) game.P.combat = C.refill(ship, {hull: 1});
 			env.ship = ship; env.hullShip = baseShip; env.fit = fit; arm(); R.upload('ship', Me.ship(ship.length, quality)); openPortAgain(); persist();
 		},
-		say: t => say(t), cue: k => Snd.cue(k), pilotId: game.pilotId};   /* (pilotId: what contraband is bound to, 0.5.7) */
+		say: t => say(t), cue: k => Snd.cue(k), pilotId: game.pilotId, wingGuest: wingGuest()};   /* (pilotId: what contraband is bound to, 0.5.7; wingGuest, 0.6.4: no claims in the host's galaxy) */
 	Port.open(env);
 }
 /* after buying a ship, reopen with the new one (same screen) */
@@ -2632,6 +2634,9 @@ const wingOn = () => !!(game.wing && game.wing.N && game.wing.N.state == 'ready'
 const wingGuest = () => wingOn() && game.wing.N.role == 'guest' && !!game.wing.days;
 const wingHost = () => wingOn() && game.wing.N.role == 'host';
 const wingAway = () => wingGuest() && game.wing.star && game.wing.star != game.star.id;
+/* (0.6.4) does this game keep its system (its ships, traffic, missions' ships)? The host's always; a guest's when
+   it's away from the host, roaming on its own */
+const wingKeeps = () => !wingGuest() || wingAway();
 const r0 = v => v.map(x => Math.round(x));
 /* a member's ship here, flown from the network (seat: 0 the host, 1-3 guests) */
 function wingMember(seat, model, name) {
@@ -2673,16 +2678,17 @@ function wingMissionsHtml() {
 function wingScreen(body, button, close) {
 	const W = game.wing, N = W && W.N, ws = !!RELAY, lan = lanOk();
 	if (N && (N.state == 'ready' || N.state == 'paired' || N.state == 'relay' || N.state == 'connecting')) {
-		const who = [W.myName + ' (you' + (N.role == 'host' ? ', the host' : '') + ')', ...[...(W.names || new globalThis.Map()).entries()].filter(([seat]) => seat != (N.role == 'host' ? 0 : N.id)).map(([seat, nm]) => nm + (seat == 0 ? ' (the host)' : ''))];
+		const wh = seat => { const x = seat == 0 && N.role == 'host' ? game.star.name : W.where && W.where.get(seat); return x ? ' · at ' + x : '' };   /* (0.6.4: where each is) */
+		const who = [W.myName + ' (you' + (N.role == 'host' ? ', the host' : '') + ') · at ' + game.star.name, ...[...(W.names || new globalThis.Map()).entries()].filter(([seat]) => seat != (N.role == 'host' ? 0 : N.id)).map(([seat, nm]) => nm + (seat == 0 ? ' (the host)' : '') + wh(seat))];
 		body.innerHTML = '<h1 id="ovT">Wing</h1>' + (N.state != 'ready' ? '<p id="wingWait">' + esc(W.wait || 'Connecting…') + '</p>' : '')
 			+ (W.code && N.role == 'host' ? '<p>Wing code: <b id="wingCode" class="duel-code">' + esc(W.code) + '</b>' + (W.how == 'lan' ? ' (on this network)' : ' (give it to up to three friends)') + '</p>' : '')
 			+ (N.state == 'ready' ? '<p class="small">In the wing:</p><ul id="wingWho">' + who.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '')
-			+ (wingAway() ? '<p class="small" id="wingAway">Your wing is at ' + esc(W.starName || 'another system') + '.</p>' : '')
+			+ (wingAway() ? '<p class="small" id="wingAway">Your wing is at ' + esc(W.starName || 'another system') + '. Away from it you fly on your own, still in the host\'s galaxy: its markets and colonies wherever you go (your trades go into them), the ships in your system your game\'s.</p>' : '')
 			+ (N.state == 'ready' ? wingMissionsHtml() : '')
 			+ '<p class="muted small">In a wing, the host\'s galaxy is the world: its markets (your trades go into them) and its colonies. Each of you keeps your own ship, money, cargo and missions; a guest\'s own galaxy waits, untouched, until they leave.</p>';
 		body.querySelectorAll('[data-wshare]').forEach(b => { b.onclick = () => { wingShare(+b.dataset.wshare); overlay('wing') } });   /* (0.6.3) */
 		body.querySelectorAll('[data-wtake]').forEach(b => { b.onclick = () => { wingTake(+b.dataset.wtake); overlay('wing') } });
-		if (wingAway()) button('Rejoin the wing', () => { close(); wingRejoin() });
+		if (wingAway()) button('Rejoin the wing', () => { close(); wingRejoin() });   /* (0.6.4: or fly on alone: away, your game keeps your system, in the host's galaxy) */
 		button('Leave the wing', () => { close(); N.leave() });
 		return;
 	}
@@ -2728,7 +2734,7 @@ function wingConnect(url, o) {
 	const P = game.P, hc = Cr.hcOf(P);
 	const N = Ne.room(Ne.ws(Ne.helloUrl(url, {want: o.want, ver: BUILD.version, code: o.code})), {ver: BUILD.version, want: o.want, code: o.code, size: Wg.WING.seats, pilot: {name: P.name || 'A pilot', hc, diff: Cr.diffOf(P)},
 		admit: p => hc == 'on' && p.hc != 'on' ? {why: 'hardcore'} : null});
-	const W = game.wing = {N, how: o.how, lan: !!o.lan, code: o.code || null, wait: 'Connecting…', names: new globalThis.Map(), myName: P.name || 'You', acc: 0, n: 0, full: new Set(), fullAt: 0, ev: [], star: null, days: null, shared: [], sharesSent: '', taken: new globalThis.Map(), offers: [], seen: new Set(), over: new Set(), sent: new globalThis.Map(), mAcc: 0};   /* (shared … mAcc: 0.6.3, the missions shared) */
+	const W = game.wing = {N, how: o.how, lan: !!o.lan, code: o.code || null, wait: 'Connecting…', names: new globalThis.Map(), myName: P.name || 'You', acc: 0, n: 0, full: new Set(), fullAt: 0, ev: [], star: null, days: null, shared: [], sharesSent: '', taken: new globalThis.Map(), offers: [], seen: new Set(), over: new Set(), sent: new globalThis.Map(), mAcc: 0, at: new globalThis.Map(), where: new globalThis.Map(), asked: null, kept: null};   /* (at … kept: 0.6.4, roaming) */   /* (shared … mAcc: 0.6.3, the missions shared) */
 	if (o.want == 'host') W.names.set(0, W.myName);
 	/* (0.6.2) a market's change: the host passes it on to the wing; a guest's own trade goes to the host, to record */
 	E.onRecord = (P, key, good, qty, sold, day) => {
@@ -2740,7 +2746,7 @@ function wingConnect(url, o) {
 		.on('paired', () => { W.wait = 'Waiting for the host to welcome you…' })
 		.on('ready', () => { W.wait = 'Joining the wing…'; wingBg() })
 		.on('joined', (id, p) => { W.names.set(id, String(p.name || 'Wing pilot').slice(0, 40)); say(W.names.get(id) + ' joined the wing', '#7fd1a8'); wingTell(id); wingShares(id) })
-		.on('left', id => { const nm = W.names.get(id); W.names.delete(id); game.npcs = game.npcs.filter(n => n.member !== id); if (nm) say(nm + ' left the wing', '#9fb0cc') })
+		.on('left', id => { const nm = W.names.get(id); W.names.delete(id); W.where.delete(id); W.at.delete(id); game.npcs = game.npcs.filter(n => n.member !== id); if (nm) say(nm + ' left the wing', '#9fb0cc') })
 		.on('msg', wingMsg)
 		.on('end', wingEnded);
 }
@@ -2761,10 +2767,16 @@ function wingWorld(m, first) {
 	if (Wg.coloniesOk(m.cl, m.star)) P.others = [...(P.others || []).filter(c => !c.star || c.star.id != m.star), ...m.cl.map(c => Object.assign({}, c, {foreign: true}))];
 }
 /* (the host) where the wing is, for one guest (seat) or for all */
-function wingTell(seat) {
-	const W = game.wing, P = game.P, here = game.star.id + ':';
+/* (the host) your galaxy's records at a star: its market records and colonies there (0.6.4: for any star, a guest
+   roaming there asking) */
+function worldOf(starId) {
+	const P = game.P, here = starId + ':';
 	const mk = Object.fromEntries(Object.entries(P.markets || {}).filter(([k]) => k.startsWith(here)).slice(0, 24));
-	const cl = [...(P.colonies || []), ...(P.others || [])].filter(c => c.star && c.star.id == game.star.id).slice(0, 8).map(c => { const o = Object.assign({}, c); delete o.foreign; return o });
+	const cl = [...(P.colonies || []), ...(P.others || [])].filter(c => c.star && c.star.id == starId).slice(0, 8).map(c => { const o = Object.assign({}, c); delete o.foreign; return o });
+	return {mk, cl};
+}
+function wingTell(seat) {
+	const W = game.wing, {mk, cl} = worldOf(game.star.id);
 	const m = {k: 'wing', star: game.star.id, at: at(game.star), name: game.star.name, day: game.day, o: r0(s.p), names: [...W.names.entries()], mk, cl};   /* (mk, cl: 0.6.2) */
 	if (seat == null) W.N.send(m); else W.N.sendTo(seat, m);
 	W.told = game.star.id;
@@ -2789,6 +2801,9 @@ function wingStep(dt) {
 	if (wingGuest()) game.npcs = game.npcs.filter(n => !(n.wingNpc || n.member != null) || game.t - n.seenAt < Wg.WING.gone || game.docked);
 	if (wingHost() && W.told != game.star.id) wingTell();
 	W.mAcc += dt; if (W.mAcc >= 1) { W.mAcc = 0; wingMissions() }   /* (0.6.3) */
+	/* (0.6.4) the host gone from the system you're in: yours to keep now, its ships your game's */
+	if (wingAway() && W.kept != game.star.id && !game.docked && !game.landed && !game.jump && game.t - (W.hostSeen || 0) > Wg.WING.gone) { W.kept = game.star.id; populate() }
+	if (wingGuest() && W.asked != game.star.id) { W.asked = game.star.id; N.send({k: 'world?', star: game.star.id}) }   /* (0.6.4: the host's galaxy's records here, wherever you are) */
 	W.acc += dt; if (W.acc < 1 / Wg.WING.rate - 1e-6) return; W.acc = 0;
 	const o = r0(s.p), mine = {model: baseShip.id, name: W.myName, cs: game.pcs, cloak: game.cloak && game.cloak.on ? (cloaked() ? 2 : 1) : 0, docked: game.docked, pad: myPad()};
 	/* the shots not sent yet: the host's (its own and its NPCs'), a guest's own; and the ones the host passes on */
@@ -2800,14 +2815,14 @@ function wingStep(dt) {
 		x.wsent = true; const p = Ne.packShot(x, o, null); p.tg = x.target == 'me' ? (wingHost() ? 0 : N.id) : typeof x.target == 'string' && /^w\d$/.test(x.target) ? +x.target[1] : -1; if (x.relay != null) p.fr = x.relay; shots.push(p);
 	}
 	if (wingHost()) {
-		if (game.t - W.fullAt > Wg.WING.full) { W.full.clear(); W.fullAt = game.t }
+		let wh = null; if (game.t - W.fullAt > Wg.WING.full) { W.full.clear(); W.fullAt = game.t; wh = [[0, game.star.name], ...[...W.where.entries()].filter(([seat]) => W.names.has(seat))] }   /* (wh, 0.6.4: where each of the wing is, every 3 s) */
 		const members = game.npcs.filter(n => n.member != null && !n.cs.dead), at0 = [s.p, ...members.map(n => n.s.p)];
 		const np = Wg.nearNpcs(game.npcs, at0).map(n => { const full = !W.full.has(n.id); W.full.add(n.id); return Wg.packNpc(n, o, full, isHostile(n) || !!(n.foe && n.foe.member != null)) });
 		const ps = [Wg.packMember(0, s, o, mine), ...members.map(n => Wg.packMember(n.member, n.s, o, {model: n.model, name: n.name, cs: n.cs, cloak: n.cloak, docked: n.docked, pad: n.pad}))];
-		const m = Wg.fit({k: 'st', n: ++W.n, star: game.star.id, at: at(game.star), name: game.star.name, day: game.day, o, ps, np, sh: shots});
+		const m = Wg.fit({k: 'st', n: ++W.n, star: game.star.id, at: at(game.star), name: game.star.name, day: game.day, o, ps, np, sh: shots}); if (m && wh) m.wh = wh;
 		if (m) N.send(m);
 	} else if (wingGuest()) {
-		N.send({k: 'in', n: ++W.n, star: game.star.id, o, me: Ne.packShip(s, o), m: mine.model, nm: mine.name, c: Ne.packCond(game.pcs), ck: mine.cloak, d: game.docked ? 1 : 0, pd: mine.pad, sh: shots, ev: W.ev.splice(0, 32)});
+		N.send({k: 'in', n: ++W.n, star: game.star.id, sn: game.star.name, o, me: Ne.packShip(s, o), m: mine.model, nm: mine.name, c: Ne.packCond(game.pcs), ck: mine.cloak, d: game.docked ? 1 : 0, pd: mine.pad, sh: shots, ev: W.ev.splice(0, 32)});
 	}
 }
 /* a message from the wing (f: who, for the host; 0, the host, for a guest) */
@@ -2820,8 +2835,13 @@ function wingMsg(m, f) {
 	if (m.k == 'hit' && fin(m.dmg) && m.dmg > 0 && m.dmg < 5000 && typeof m.kind == 'string' && C.WEAPONS[m.kind] && !game.pcs.dead && !game.docked) { hitMe({dmg: m.dmg, kind: m.kind, p: s.p, owner: 'net'}); return }   /* (hitMe: at your own difficulty's damage; the loss, your own pilot's rules) */
 	if (m.k == 'mkt' && typeof m.key == 'string' && m.key.length <= 80 && E.recordOk(m.e)) { const P = game.P; P.markets = P.markets || {}; if (m.e) P.markets[m.key] = m.e; else delete P.markets[m.key]; return }   /* (0.6.2: the host's market changed) */
 	if (m.k == 'shares' && Array.isArray(m.ms)) return wingSharesIn(m.ms);   /* (0.6.3) */
+	if (m.k == 'world' && m.star == game.star.id) return wingWorld(m, false);   /* (0.6.4: the host's records where you are) */
 	if (m.k == 'kill' && typeof m.i == 'string') { const n = game.npcs.find(x => x.wingNpc && x.id == m.i); if (n && !n.cs.dead) { n.cs.dead = true; destroyed(n, true) } return }
-	if (m.k == 'jump' && typeof m.to == 'string' && Array.isArray(m.at) && m.to != game.star.id) { W.follow = {id: m.to, at: m.at, name: String(m.name || '').slice(0, 60)}; say('The wing\'s host is jumping to ' + W.follow.name + ': press J to follow', '#6cc9e8') }
+	if (m.k == 'jump' && typeof m.to == 'string' && Array.isArray(m.at) && m.to != game.star.id) {
+		const nm = String(m.name || '').slice(0, 60);
+		if (wingAway()) { say('The wing\'s host is jumping to ' + nm, '#9fb0cc'); return }   /* (0.6.4: roaming, your own route stays yours) */
+		W.follow = {id: m.to, at: m.at, name: nm}; say('The wing\'s host is jumping to ' + W.follow.name + ': press J to follow', '#6cc9e8');
+	}
 }
 /* (a guest) where the wing is: the first time, into it (onto the host's day); later, where it went */
 function wingWhere(m) {
@@ -2839,7 +2859,11 @@ function wingWhere(m) {
 function wingFromHost(m) {
 	const W = game.wing, now = netNow(); W.star = m.star; W.starName = String(m.name || W.starName || ''); W.last = Object.assign({}, W.last || {}, {star: m.star, at: m.at, name: m.name, day: m.day, o: m.o});
 	game.day = Math.max(game.day, m.day);
+	if (Array.isArray(m.wh)) { W.where = new globalThis.Map(m.wh.slice(0, Wg.WING.seats).filter(x => Array.isArray(x) && Number.isInteger(x[0]) && typeof x[1] == 'string').map(x => [x[0], x[1].slice(0, 60)])) }   /* (0.6.4) */
 	if (m.star != game.star.id) return;
+	W.hostSeen = game.t;
+	/* (0.6.4) the host has come to the system you kept: its ships are the system's now */
+	if (W.kept == game.star.id) { W.kept = null; game.npcs = game.npcs.filter(n => n.remote); game.shots = game.shots.filter(x => x.net); if (game.tgt && !game.tgt.remote) game.tgt = null; say('The wing\'s host is here: the system is theirs again', '#7fd1a8') }
 	if (W.follow && W.follow.id == game.star.id) W.follow = null;
 	for (const x of Array.isArray(m.ps) ? m.ps.slice(0, Wg.WING.seats) : []) {
 		const u = Wg.unpackMember(x, m.o); if (!u || u.id == W.N.id) continue;
@@ -2865,10 +2889,12 @@ function wingFromHost(m) {
 function wingFromGuest(m, f) {
 	const W = game.wing;
 	/* (0.6.2) a guest's trade at a port of this system: recorded in your market there (and passed on to the wing) */
-	if (m.k == 'trade') { if (typeof m.key == 'string' && m.key.startsWith(game.star.id + ':') && m.key.length <= 80 && typeof m.good == 'string' && m.good.length <= 40 && fin(m.qty) && m.qty > 0 && m.qty <= 1e5) E.record(game.P, {key: m.key}, m.good, Math.floor(m.qty), !!m.sold, game.day); return }
+	if (m.k == 'world?') { if (typeof m.star == 'string' && m.star.length <= 60 && Number.isInteger(f)) { W.at.set(f, m.star); W.N.sendTo(f, Object.assign({k: 'world', star: m.star}, worldOf(m.star))) } return }   /* (0.6.4: a guest's system, wherever it is) */
+	if (m.k == 'trade') { if (typeof m.key == 'string' && (m.key.startsWith(game.star.id + ':') || (W.at.has(f) && m.key.startsWith(W.at.get(f) + ':'))) && m.key.length <= 80 && typeof m.good == 'string' && m.good.length <= 40 && fin(m.qty) && m.qty > 0 && m.qty <= 1e5) E.record(game.P, {key: m.key}, m.good, Math.floor(m.qty), !!m.sold, game.day); return }
 	/* (0.6.3) work a guest did on a mission you share: into yours (and so on to the wing) */
-	if (m.k == 'mp') { const x = W.shared.find(k => k.id == m.id && !k.done); if (x && Wg.progOk(m.p)) Wg.mergeProg(x, m.p, false); return }
+	if (m.k == 'mp') { const x = W.shared.find(k => k.id == m.id && !k.done); if (x && Wg.progOk(m.p)) Wg.mergeProg(x, m.p, game.star.id != x.star.id); return }   /* (0.6.4: its kills too where you aren't: a roaming guest's game keeps that system) */
 	if (m.k != 'in' || !Wg.inOk(m) || !Number.isInteger(f)) return;
+	W.at.set(f, m.star); if (typeof m.sn == 'string') W.where.set(f, m.sn.replace(/[<>]/g, '').slice(0, 60));   /* (0.6.4) */
 	if (m.star != game.star.id) { game.npcs = game.npcs.filter(n => n.member !== f); wingPad(f, null); return }   /* (not here: away from the wing) */
 	const me = Ne.unpackShip(m.me, m.o); if (!me || !Ne.condOk(m.c)) return;
 	const n = wingMember(f, String(m.m || ''), W.names.get(f) || 'Wing pilot');

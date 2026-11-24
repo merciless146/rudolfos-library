@@ -366,6 +366,26 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
   kill counted by the host's game on its strike; both paid; a finished mission not offered again; what's left kept on
   leaving).
 
+**P6a is built (0.6.4): roaming apart.**
+- **Away from the host,** a guest flies where they like (their own jumps, their own route: the host's jumps are told,
+  not followed) and their game keeps the system they're in: its pirates, patrols and traffic, and their missions'
+  ships, as it would alone.
+- **Still the host's galaxy:** arriving anywhere, a guest's game asks the host's for its records there (market records
+  and colonies), and its trades go to the host's markets as at the host's side. A guest can't claim a colony while in
+  a wing (it would be the host's galaxy's); they claim in their own, after leaving.
+- **Where everyone is:** the Wing screen shows each pilot's system (the host passes it on every 3 s).
+- **The host arriving** where a guest roams takes the system over (the guest's own ships give way to the host's);
+  the host leaving, the guest's game keeps it again.
+- **Shared missions away:** the game that keeps the mission's system counts its kills, a roaming guest's included;
+  the host's copy takes them when the host isn't there.
+- **Days:** a guest's own jumps take their own days, so roaming their day can run ahead of the host's (never behind:
+  they're on whichever is later). Leaving, the days lived are counted as before.
+- **Not yet (P6b):** two of the wing together away from the host each keep their own copy of the system and don't
+  see each other. P6b makes one of them keep it for both, passed through the host.
+- **Tests:** `tests/emberreach_wing_roam_browser_t.js` (9: the guest keeping another system, the host's records
+  there, its trade recorded at the host's, where each is, the host's jump not taking over, a shared strike done
+  away, the host arriving and leaving).
+
 ## Steps
 
 | Step | What | Needs | Size |
@@ -377,7 +397,8 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 | **P4** | The cloaking device: the module, radar and scanners ignoring it, transparency, heat, firing showing it; the award hook (test-only until M6) | P2 | M |
 | **P5** | Co-op, wing first: rooms of four in `net.js`, the relay and Rudolf OS's LAN service; the host's galaxy shared; guests' pilots saved at home; the Hardcore rule; docking, markets, NPCs, jumps together | P1 (P2 for the Hardcore rule) | L |
 | **P5c** | Missions the host shares with the wing | P5b | M |
-| **P6** | Co-op free roaming (if chosen) | P5 | L |
+| **P6a** | Co-op roaming apart: a guest away keeps its own system, in the host's galaxy | P5 | M |
+| **P6b** | Wingmates together away from the host: one keeps the system for both | P6a | M |
 | **M6 link** | The questline's end awards the cloak and moves Hardcore to `done` | P4, M6.7 | S |
 
 P3, P4 and P5 can be built at the same time once P1 and P2 are in.
