@@ -118,9 +118,9 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 		await A.f.evaluate(seat => { const g = EmberDebug.game, n = g.npcs.find(x => x.member == seat); g.shots.push({kind: 'pulse', p: n.s.p.map((v, i) => v - (i == 0 ? 30 : 0)), v: [3000, 0, 0], ttl: 1, dmg: 50, owner: 'me'}) }, b1.id);
 		await sleep(900);
 		ok('8. the host\'s own shot on a guest\'s ship does nothing: no friendly fire', Math.abs((await view(B.f)).hull - bh1) < 0.5);
-		/* docking: not yet for a guest */
+		/* docking: a guest asks like anyone (0.6.2: the ports test covers pads and markets) */
 		await B.f.evaluate(() => EmberDebug.requestDock()); await sleep(200);
-		ok('9. a guest asking to dock is told it comes in the next update (leave the wing to dock)', await B.f.evaluate(() => !EmberDebug.game.clearance || !EmberDebug.game.clearance.pad) && /next update/.test(await B.f.evaluate(() => [...document.querySelectorAll('#log *, .log *, #msgs *')].map(x => x.textContent).join(' ') + ' ' + JSON.stringify((EmberDebug.game.msgs || []).map(m => m.text)))), null);
+		ok('9. a guest asking to dock is answered as anyone would be (not refused for being in a wing)', !/next update|leave the wing/.test(await B.f.evaluate(() => JSON.stringify((EmberDebug.game.msgs || []).map(m => m.text)))), null);
 		/* the host jumps: the guests are told, and their next jump is the host's */
 		const there = await A.f.evaluate(() => { const g = EmberDebug.game, x = EmberGalaxy.starsNear(g.star.x, g.star.y, g.star.z, 6).find(k => k.kind == 'star' && k.id != g.star.id && !k.rift); EmberDebug.wingJumped({star: x}); return {id: x.id, name: x.name} });
 		await sleep(500);

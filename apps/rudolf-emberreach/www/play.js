@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release: the Single-Player Alpha Build (SPAB) in the Rudolf OS Library */
-const BUILD = {name: 'Single-Player Alpha Build', version: '0.6.1'};
+const BUILD = {name: 'Single-Player Alpha Build', version: '0.6.2'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -289,7 +289,7 @@ function launch(first) {
 	fit = fit || M.fit(ship); pilot = Pi.create(); M.apply(fit, s); arm();
 	if (game.clearance && game.atc && game.atc[game.clearance.port]) Atc.release(game.atc[game.clearance.port], 'me');
 	game.cruise = {on: false, v: 0, charge: 0}; game.throttle = first ? 0 : 0.2; game.docked = false; game.dockPort = null; game.tgt = null; game.hatch = false; game.gear = false; game.clearance = null; game.jump = null;
-	populate();
+	if (game.wingKept) game.wingKept = false; else populate();   /* (0.6.2: a host's system, kept for the wing while docked) */
 	if (!first) { say('Launched from ' + st.name + '. Fly safe.'); Snd.cue('launch') }
 	else if (st) say('Holding 2.5 km off ' + st.name + '. Press N for docking clearance.');
 	persist();
@@ -507,7 +507,7 @@ function dockGround(sp) {
 	game.ap = null; fit.o2 = fit.o2Max;
 	Atc.docked(atcOf(sp.q), 'me');
 	game.docked = true; game.dockPort = sp.q; game.lastPort = game.star; game.portId = game.lastPortId = sp.q.id;
-	game.P.combat = C.keep(game.pcs); game.npcs = []; game.shots = []; game.booms = [];
+	game.P.combat = C.keep(game.pcs); dockedWorld();   /* (0.6.2) */
 	/* (0.3.10) surface deliveries due here are handed over, before the missions settle */
 	for (const m of Ct.deliverAt(game.P, game.star.id, sp.q.id)) say('Delivered ' + m.tons + ' t of ' + m.good + ' to ' + sp.q.name, '#7fd1a8');
 	En.tick(game.P, game.star.id, 0, true); settle(); chartsNear();
@@ -518,7 +518,7 @@ function dockGround(sp) {
 function undockGround() {
 	const dp = game.dockPort; if (dp) Atc.release(atcOf(dp), 'me');
 	game.docked = false; game.dockPort = null; game.clearance = null; game.tgt = null;
-	if (!game.pcs) arm(); populate();
+	if (!game.pcs) arm(); if (game.wingKept) game.wingKept = false; else populate();   /* (0.6.2) */
 	say('Clamps released at ' + (dp ? dp.name : 'the port') + ': lift off with vertical thrust or the throttle. Fly safe.', '#7fd1a8'); Snd.cue('launch'); persist();
 }
 /* landed: fixed to the ground, turning with the world; vertical thrust (or the throttle past 10%) lifts off */
@@ -822,7 +822,6 @@ function portsNear() {
 }
 const padWord = z => ({S: 'small', M: 'medium', L: 'large', XL: 'extra-large', C: 'capital'})[z] || z;
 function requestDock() {
-	if (wingGuest()) { say('Docking in a wing comes in the next update: leave the wing (Wing, in the menu) to dock', '#f2a33a'); Snd.cue('refused'); return }   /* (0.6.1) */
 	/* with an Autopilot Computer, N hands the ship back to it: cruise assist in cruise, docking with a clearance */
 	if (apFitted() && !game.ap) {
 		if (game.cruise.on) { apEngage('cruise'); return }
@@ -1126,7 +1125,7 @@ function update(dt) {
 	actions(dt);
 	Tc.step(game.touch, dt);
 	if (game.wing && game.wing.N) wingStep(dt);   /* (0.6.1: the wing, docked or not) */
-	if (game.docked) return;
+	if (game.docked) { if (wingHost() && game.wingKept) { game.t += dt; const pc = game.pcs; combat(dt); if (game.pcs !== pc) return } return }   /* (0.6.2: docked, a host's system goes on for the wing out in it) */
 	game.t += dt;
 	game.nvK = Math.max(0, Math.min(1, (game.nvK || 0) + (game.nv ? 1 : -1) * dt * 4));
 	/* the route's next jump, by itself (an assist) */
@@ -1296,15 +1295,15 @@ function combat(dt) {
 			n.next = game.t + 0.7 + Math.random() * 0.6;
 			let best = null, bd = 25000;
 			if (n.role != 'trader') {
-				if (n.duel || En.hostile(P, n)) { const d = len(sub(s.p, n.s.p)); if (d < bd || n.duel) { bd = d * 0.8; best = ME } }
+				if (!game.docked && (n.duel || En.hostile(P, n))) { const d = len(sub(s.p, n.s.p));   /* (0.6.2: a docked host isn't a target) */ if (d < bd || n.duel) { bd = d * 0.8; best = ME } }
 				for (const o of game.npcs) if (o != n && !o.cs.dead && o.role != 'depot' && En.enemies(n, o, P)) { const d = len(sub(o.s.p, n.s.p)); if (d < bd) { bd = d; best = o } }
-			} else if (n.provoked) best = ME;
+			} else if (n.provoked && !game.docked) best = ME;
 			n.foe = best;
 			if (best && n.ai.mode == n.ai.base && n.ai.base != 'hold') n.ai.mode = n.role == 'trader' ? 'flee' : 'attack';
 			if (!best && n.ai.mode == 'attack') n.ai.mode = n.ai.base;
 			if (best == ME && !n.provokedByPlayer) { if (!n.wasHostile) hail(n); n.wasHostile = true }
 		}
-		const f = n.foe, tgt = f == ME ? (cloaked() ? null : {p: s.p, v: s.v, a: s.acc, heat: pc.heat, id: 'me'}) : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, a: f.s.acc, heat: f.cs.heat, id: f.id} : null;
+		const f = n.foe, tgt = f == ME ? (cloaked() || game.docked ? null : {p: s.p, v: s.v, a: s.acc, heat: pc.heat, id: 'me'}) : f && !f.cs.dead ? {p: f.s.p, v: f.s.v, a: f.s.acc, heat: f.cs.heat, id: f.id} : null;
 		const c = C.think(n, tgt, n.home, game.t, null, f == ME && !game.duel ? Cr.skill(game.P) : 1);   /* (0.5.6: how well they fight this pilot) */
 		/* below a world's line: its gravity, its turning frame (as the player's), and 450 m kept off the ground */
 		n.s.grav = Sc.gravityAt(scene, n.s.p);
@@ -1334,12 +1333,12 @@ function combat(dt) {
 	game.wasHot = pc.hot;
 	const tg = curTarget(), foe = tg && tg.kind == 'ship' && !tg.cs.dead ? {p: tg.s.p, v: tg.s.v, id: tg.id} : null;
 	const hasMsl = pc.load.missiles > 0 || pc.load.guns.some(g => g.kind == 'torpedo' && g.ammo > 0);
-	const wasLocked = game.locked; game.locked = hasMsl && C.updateLock(pc, s, foe, dt); if (!hasMsl) pc.lock = {id: null, t: 0};
+	const wasLocked = game.locked; game.locked = hasMsl && !game.docked && C.updateLock(pc, s, foe, dt); if (!hasMsl) pc.lock = {id: null, t: 0};
 	if (game.locked && !wasLocked) Snd.cue('lock');
 	/* the triggers (0.3.4): Fire (the left mouse button) the primary guns, Fire secondary (the right) the secondary; with
 	   guns in only one group, either fires them; a gamepad's trigger fires every gun; (0.5.3) touch's FIRE the primary,
 	   FIRE 2 the secondary */
-	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned && (!game.duel || duelLive());
+	const zoned = inZone(s.p), can = pilot.conscious && !game.jump && !zoned && !game.docked && (!game.duel || duelLive());   /* (0.6.2: docked, the wing's world runs on without you) */
 	const allG = RG.lastInput == 'pad' && RG.down('fire'), t1 = RG.down('fire') || allG || game.touch.fire != null, t2 = RG.down('fire2') || allG || game.touch.fire2 != null;
 	const oneGroup = new Set(pc.load.guns.filter(g => !C.WEAPONS[g.kind].homing).map(C.groupOf)).size < 2, heldG = g => oneGroup ? t1 || t2 : C.groupOf(g) == 1 ? t1 : t2, trigger = heldG;
 	/* the mass drivers: held, they charge; let go, they fire (combat mode only; out of it, the charge is lost) */
@@ -1351,7 +1350,8 @@ function combat(dt) {
 		else if (game.mode == 'analysis' && !pc.load.guns.some(g => g.kind == 'mining')) { if (!game.saidSafe2 || game.t - game.saidSafe2 > 4) { game.saidSafe2 = game.t; say('Analysis mode: weapons safe. No mining laser to fire (M for Combat mode)', '#9fb0cc') } }
 		else { const k = C.fire(pc, s, game.t, foe, game.shots, game.mode == 'analysis' ? g => g.kind == 'mining' : heldG); if (k) { Snd.cue(gunCue(pc)); Cl.reveal(game.cloak, game.t) } }
 	} else game.saidUnarmed = false;
-	if (game.mode == 'analysis' && (RG.pressed('missile') || game.touch.msl)) { game.touch.msl = false; scanNow() }
+	if (game.docked) { /* (0.6.2) */ }
+	else if (game.mode == 'analysis' && (RG.pressed('missile') || game.touch.msl)) { game.touch.msl = false; scanNow() }
 	else if (can && (RG.pressed('missile') || game.touch.msl)) {
 		game.touch.msl = false;
 		const torp = pc.load.guns.some(g => g.kind == 'torpedo' && g.ammo > 0);
@@ -1360,7 +1360,8 @@ function combat(dt) {
 		else if (!game.locked) { say('No lock yet: hold ' + tg.name + ' in your sights for 2 s', '#f2a33a'); Snd.cue('refused') }
 		else if (C.launch(pc, s, foe, game.shots)) { Cl.reveal(game.cloak, game.t); say('Missile away · ' + pc.load.missiles + ' left'); Snd.cue('missile'); if (!tg.duel && !En.hostile(P, tg)) provoke(tg) }
 	}
-	if (game.mode == 'analysis' && (RG.pressed('flare') || game.touch.flare)) { game.touch.flare = false; pulse() }
+	if (game.docked) { /* (0.6.2) */ }
+	else if (game.mode == 'analysis' && (RG.pressed('flare') || game.touch.flare)) { game.touch.flare = false; pulse() }
 	else if (RG.pressed('flare') || game.touch.flare) { game.touch.flare = false; if (pc.load.flares > 0) { const k = C.flare(pc, game.shots); say('Flare' + (k ? ': ' + k + (k == 1 ? ' missile' : ' missiles') + ' decoyed' : '') + ' · ' + pc.load.flares + ' left'); Snd.cue('flare') } else say('No flares left', '#f2a33a') }
 	/* bolts against asteroids: mining lasers chip ore; anything else just stops */
 	if (game.rocks.length) for (let i = game.shots.length - 1; i >= 0; i--) {
@@ -1371,7 +1372,7 @@ function combat(dt) {
 	}
 	/* everything in flight */
 	if (cloaked()) for (const m of game.shots) if (m.target == 'me') m.target = null;   /* (0.5.9) hidden: missiles lose their lock */
-	const ships = [{id: 'me', s, cs: pc}, ...game.npcs.filter(n => !n.cs.dead).map(n => ({id: n.id, s: n.s, cs: n.cs, n}))];
+	const ships = [...(game.docked ? [] : [{id: 'me', s, cs: pc}]), ...game.npcs.filter(n => !n.cs.dead).map(n => ({id: n.id, s: n.s, cs: n.cs, n}))];   /* (0.6.2: a docked host's ship is out of it) */
 	const beams = []; const hits = C.stepProjectiles(game.shots, ships, dt, beams); for (const b of beams) { b.t = game.t; game.beams.push(b) }
 	game.beams = game.beams.filter(b => game.t - b.t < (C.WEAPONS[b.kind].beam || 0.05));
 	for (const h of hits) {
@@ -1761,11 +1762,17 @@ function chartsNear() {
 	for (const x of near) { const q = Su.ports(x, null); if (!q.length || T.portFor(x, game.day)) continue; for (const p of q) if (X.find(game.P, x.id, p.id, game.day)) n++ }
 	if (n) say('The cartographer\'s charts mark ' + n + (n == 1 ? ' surface outpost' : ' surface outposts') + ' within ' + CHARTS.pc + ' pc, with no port above (the star map shows them)', '#9fb0cc');
 }
+/* (0.6.2) docking: the system's ships and shots go, unless you host a wing some of which is out in it: then they're
+   kept, and run on (update: combat) with your ship out of it, until you launch */
+function dockedWorld() {
+	game.wingKept = wingHost() && game.npcs.some(n => n.member != null && !n.docked && !n.cs.dead);
+	if (game.wingKept) game.shots = game.shots.filter(x => x.owner != 'me'); else { game.npcs = []; game.shots = []; game.booms = [] }
+}
 function docked() {
 	cloakDown();   /* (0.5.9) */
 	game.docked = true; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.ap = null; fit.o2 = fit.o2Max; game.lastPort = game.star; game.portId = game.lastPortId = game.port ? game.port.id : T.ORBITAL; game.dockPort = game.port;
 	if (game.port) Atc.docked(atcOf(game.port), 'me');
-	game.P.combat = C.keep(game.pcs); game.npcs = []; game.shots = []; game.booms = [];
+	game.P.combat = C.keep(game.pcs); dockedWorld();   /* (0.6.2) */
 	En.tick(game.P, game.star.id, 0, true); settle(); chartsNear();
 	Snd.cue('docked'); Snd.update({main: 0, rcs: 0, speed: 0, cruise: 0, strain: 0, conscious: true, docked: true});
 	persist();
@@ -2655,7 +2662,7 @@ function wingScreen(body, button, close) {
 			+ (W.code && N.role == 'host' ? '<p>Wing code: <b id="wingCode" class="duel-code">' + esc(W.code) + '</b>' + (W.how == 'lan' ? ' (on this network)' : ' (give it to up to three friends)') + '</p>' : '')
 			+ (N.state == 'ready' ? '<p class="small">In the wing:</p><ul id="wingWho">' + who.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '')
 			+ (wingAway() ? '<p class="small" id="wingAway">Your wing is at ' + esc(W.starName || 'another system') + '.</p>' : '')
-			+ '<p class="muted small">Docking and trading in a wing come in the next update: a guest flies with the wing, fights beside it and follows its jumps, and leaves the wing to dock.</p>';
+			+ '<p class="muted small">In a wing, the host\'s galaxy is the world: its markets (your trades go into them) and its colonies. Each of you keeps your own ship, money, cargo and missions; a guest\'s own galaxy waits, untouched, until they leave.</p>';
 		if (wingAway()) button('Rejoin the wing', () => { close(); wingRejoin() });
 		button('Leave the wing', () => { close(); N.leave() });
 		return;
@@ -2704,6 +2711,12 @@ function wingConnect(url, o) {
 		admit: p => hc == 'on' && p.hc != 'on' ? {why: 'hardcore'} : null});
 	const W = game.wing = {N, how: o.how, lan: !!o.lan, code: o.code || null, wait: 'Connecting…', names: new globalThis.Map(), myName: P.name || 'You', acc: 0, n: 0, full: new Set(), fullAt: 0, ev: [], star: null, days: null};
 	if (o.want == 'host') W.names.set(0, W.myName);
+	/* (0.6.2) a market's change: the host passes it on to the wing; a guest's own trade goes to the host, to record */
+	E.onRecord = (P, key, good, qty, sold, day) => {
+		if (P !== game.P || !game.wing || game.wing.N !== N || N.state != 'ready') return;
+		if (N.role == 'host') N.send({k: 'mkt', key, e: P.markets && P.markets[key] || null});
+		else if (game.wing.days) N.send({k: 'trade', key, good, qty, sold: !!sold, day});
+	};
 	N.on('room', code => { W.code = code; W.wait = null; say(o.how == 'lan' ? 'Hosting a wing on this network' : 'Hosting a wing: its code is ' + code, '#7fd1a8'); wingBg() })
 		.on('paired', () => { W.wait = 'Waiting for the host to welcome you…' })
 		.on('ready', () => { W.wait = 'Joining the wing…'; wingBg() })
@@ -2712,9 +2725,28 @@ function wingConnect(url, o) {
 		.on('msg', wingMsg)
 		.on('end', wingEnded);
 }
+/* (0.6.2) your pad at a port of this system ([port, pad]), for the wing; and the pads the others hold, taken in your
+   controllers too, so two of the wing are never given the same one */
+function myPad() { for (const [id, C] of Object.entries(game.atc || {})) { const x = Atc.status(C, 'me'); if (x && x.pad) return [id, x.pad] } return null }
+function wingPad(seat, pad) {
+	const who = 'w' + seat;
+	if (pad && !(game.atc && game.atc[pad[0]])) { const q = (game.ports || []).find(x => x.id == pad[0]) || ((game.surfacePorts || []).find(x => x.q.id == pad[0]) || {}).q; if (q) atcOf(q) }
+	for (const [id, C] of Object.entries(game.atc || {})) { if (pad && id == pad[0]) Atc.claim(C, who, pad[1]); else if (C.pads.some(x => x.who == who)) Atc.release(C, who) }
+}
+/* (0.6.2, a guest) the host's galaxy for this system, in place of your own while you're in the wing (in memory only:
+   leaving rejoins your galaxy as it was saved): its market records here, and its colonies here */
+function wingWorld(m, first) {
+	const P = game.P;
+	if (first) { P.markets = {}; P.colonies = []; P.others = []; P.mined = {}; P.warEvents = [] }
+	if (Wg.marketsOk(m.mk, E.recordOk)) for (const [k, e] of Object.entries(m.mk)) { if (e) P.markets[k] = e; else delete P.markets[k] }
+	if (Wg.coloniesOk(m.cl, m.star)) P.others = [...(P.others || []).filter(c => !c.star || c.star.id != m.star), ...m.cl.map(c => Object.assign({}, c, {foreign: true}))];
+}
 /* (the host) where the wing is, for one guest (seat) or for all */
 function wingTell(seat) {
-	const W = game.wing, m = {k: 'wing', star: game.star.id, at: at(game.star), name: game.star.name, day: game.day, o: r0(s.p), names: [...W.names.entries()]};
+	const W = game.wing, P = game.P, here = game.star.id + ':';
+	const mk = Object.fromEntries(Object.entries(P.markets || {}).filter(([k]) => k.startsWith(here)).slice(0, 24));
+	const cl = [...(P.colonies || []), ...(P.others || [])].filter(c => c.star && c.star.id == game.star.id).slice(0, 8).map(c => { const o = Object.assign({}, c); delete o.foreign; return o });
+	const m = {k: 'wing', star: game.star.id, at: at(game.star), name: game.star.name, day: game.day, o: r0(s.p), names: [...W.names.entries()], mk, cl};   /* (mk, cl: 0.6.2) */
 	if (seat == null) W.N.send(m); else W.N.sendTo(seat, m);
 	W.told = game.star.id;
 }
@@ -2738,7 +2770,7 @@ function wingStep(dt) {
 	if (wingGuest()) game.npcs = game.npcs.filter(n => !(n.wingNpc || n.member != null) || game.t - n.seenAt < Wg.WING.gone || game.docked);
 	if (wingHost() && W.told != game.star.id) wingTell();
 	W.acc += dt; if (W.acc < 1 / Wg.WING.rate - 1e-6) return; W.acc = 0;
-	const o = r0(s.p), mine = {model: baseShip.id, name: W.myName, cs: game.pcs, cloak: game.cloak && game.cloak.on ? (cloaked() ? 2 : 1) : 0, docked: game.docked};
+	const o = r0(s.p), mine = {model: baseShip.id, name: W.myName, cs: game.pcs, cloak: game.cloak && game.cloak.on ? (cloaked() ? 2 : 1) : 0, docked: game.docked, pad: myPad()};
 	/* the shots not sent yet: the host's (its own and its NPCs'), a guest's own; and the ones the host passes on */
 	const shots = [];
 	for (const x of game.shots) {
@@ -2751,11 +2783,11 @@ function wingStep(dt) {
 		if (game.t - W.fullAt > Wg.WING.full) { W.full.clear(); W.fullAt = game.t }
 		const members = game.npcs.filter(n => n.member != null && !n.cs.dead), at0 = [s.p, ...members.map(n => n.s.p)];
 		const np = Wg.nearNpcs(game.npcs, at0).map(n => { const full = !W.full.has(n.id); W.full.add(n.id); return Wg.packNpc(n, o, full, isHostile(n) || !!(n.foe && n.foe.member != null)) });
-		const ps = [Wg.packMember(0, s, o, mine), ...members.map(n => Wg.packMember(n.member, n.s, o, {model: n.model, name: n.name, cs: n.cs, cloak: n.cloak, docked: n.docked}))];
+		const ps = [Wg.packMember(0, s, o, mine), ...members.map(n => Wg.packMember(n.member, n.s, o, {model: n.model, name: n.name, cs: n.cs, cloak: n.cloak, docked: n.docked, pad: n.pad}))];
 		const m = Wg.fit({k: 'st', n: ++W.n, star: game.star.id, at: at(game.star), name: game.star.name, day: game.day, o, ps, np, sh: shots});
 		if (m) N.send(m);
 	} else if (wingGuest()) {
-		N.send({k: 'in', n: ++W.n, star: game.star.id, o, me: Ne.packShip(s, o), m: mine.model, nm: mine.name, c: Ne.packCond(game.pcs), ck: mine.cloak, d: game.docked ? 1 : 0, sh: shots, ev: W.ev.splice(0, 32)});
+		N.send({k: 'in', n: ++W.n, star: game.star.id, o, me: Ne.packShip(s, o), m: mine.model, nm: mine.name, c: Ne.packCond(game.pcs), ck: mine.cloak, d: game.docked ? 1 : 0, pd: mine.pad, sh: shots, ev: W.ev.splice(0, 32)});
 	}
 }
 /* a message from the wing (f: who, for the host; 0, the host, for a guest) */
@@ -2766,6 +2798,7 @@ function wingMsg(m, f) {
 	if (!W.days) return;   /* (not in the host's system yet) */
 	if (m.k == 'st' && Wg.stOk(m)) return wingFromHost(m);
 	if (m.k == 'hit' && fin(m.dmg) && m.dmg > 0 && m.dmg < 5000 && typeof m.kind == 'string' && C.WEAPONS[m.kind] && !game.pcs.dead && !game.docked) { hitMe({dmg: m.dmg, kind: m.kind, p: s.p, owner: 'net'}); return }   /* (hitMe: at your own difficulty's damage; the loss, your own pilot's rules) */
+	if (m.k == 'mkt' && typeof m.key == 'string' && m.key.length <= 80 && E.recordOk(m.e)) { const P = game.P; P.markets = P.markets || {}; if (m.e) P.markets[m.key] = m.e; else delete P.markets[m.key]; return }   /* (0.6.2: the host's market changed) */
 	if (m.k == 'kill' && typeof m.i == 'string') { const n = game.npcs.find(x => x.wingNpc && x.id == m.i); if (n && !n.cs.dead) { n.cs.dead = true; destroyed(n, true) } return }
 	if (m.k == 'jump' && typeof m.to == 'string' && Array.isArray(m.at) && m.to != game.star.id) { W.follow = {id: m.to, at: m.at, name: String(m.name || '').slice(0, 60)}; say('The wing\'s host is jumping to ' + W.follow.name + ': press J to follow', '#6cc9e8') }
 }
@@ -2776,10 +2809,10 @@ function wingWhere(m) {
 	W.last = m; W.star = m.star; W.starName = String(m.name || '').slice(0, 60);
 	for (const [seat, nm] of Array.isArray(m.names) ? m.names : []) if (Number.isInteger(seat) && typeof nm == 'string') W.names.set(seat, nm.slice(0, 40));
 	if (!W.days) {
-		W.days = Wg.joinDays(game.P, game.day, m.day, Sv.shiftDays); game.day = m.day;
+		W.days = Wg.joinDays(game.P, game.day, m.day, Sv.shiftDays); game.day = m.day; wingWorld(m, true);   /* (0.6.2) */
 		if (!wingPlace(m)) return;
 		W.wait = null; say('Joined the wing at ' + game.star.name + (W.names.get(0) ? ', with ' + W.names.get(0) : ''), '#7fd1a8'); Snd.cue('arrive'); persist();
-	} else if (m.star != game.star.id && !game.jump) say('Your wing is at ' + W.starName + ': Rejoin the wing from the Wing screen, or follow its jumps', '#6cc9e8');
+	} else { wingWorld(m, false); if (m.star != game.star.id && !game.jump) say('Your wing is at ' + W.starName + ': Rejoin the wing from the Wing screen, or follow its jumps', '#6cc9e8'); }
 }
 /* (a guest) the host's state */
 function wingFromHost(m) {
@@ -2789,7 +2822,7 @@ function wingFromHost(m) {
 	if (W.follow && W.follow.id == game.star.id) W.follow = null;
 	for (const x of Array.isArray(m.ps) ? m.ps.slice(0, Wg.WING.seats) : []) {
 		const u = Wg.unpackMember(x, m.o); if (!u || u.id == W.N.id) continue;
-		const n = wingMember(u.id, u.model, u.name); n.name = u.name; n.cloak = u.cloak; n.docked = u.docked; n.seenAt = game.t;
+		const n = wingMember(u.id, u.model, u.name); n.name = u.name; n.cloak = u.cloak; n.docked = u.docked; n.seenAt = game.t; n.pad = u.pad; wingPad(u.id, u.pad);
 		Ne.ghostSet(n.ghost, u.me, now); n.cs.shield = Math.min(n.cs.shieldMax, u.cond.sh); n.cs.hull = Math.min(n.cs.hullMax, u.cond.hu); n.cs.dead = !!u.cond.dead;
 	}
 	for (const x of Array.isArray(m.np) ? m.np.slice(0, Wg.WING.npcs * 2) : []) {
@@ -2810,11 +2843,13 @@ function wingFromHost(m) {
 /* (the host) a guest's state, shots and claims */
 function wingFromGuest(m, f) {
 	const W = game.wing;
+	/* (0.6.2) a guest's trade at a port of this system: recorded in your market there (and passed on to the wing) */
+	if (m.k == 'trade') { if (typeof m.key == 'string' && m.key.startsWith(game.star.id + ':') && m.key.length <= 80 && typeof m.good == 'string' && m.good.length <= 40 && fin(m.qty) && m.qty > 0 && m.qty <= 1e5) E.record(game.P, {key: m.key}, m.good, Math.floor(m.qty), !!m.sold, game.day); return }
 	if (m.k != 'in' || !Wg.inOk(m) || !Number.isInteger(f)) return;
-	if (m.star != game.star.id) { game.npcs = game.npcs.filter(n => n.member !== f); return }   /* (not here: away from the wing) */
+	if (m.star != game.star.id) { game.npcs = game.npcs.filter(n => n.member !== f); wingPad(f, null); return }   /* (not here: away from the wing) */
 	const me = Ne.unpackShip(m.me, m.o); if (!me || !Ne.condOk(m.c)) return;
 	const n = wingMember(f, String(m.m || ''), W.names.get(f) || 'Wing pilot');
-	n.seenAt = game.t; n.cloak = [0, 1, 2].includes(m.ck) ? m.ck : 0; n.docked = m.d === 1;
+	n.seenAt = game.t; n.cloak = [0, 1, 2].includes(m.ck) ? m.ck : 0; n.docked = m.d === 1; n.pad = Wg.padOk(m.pd) ? m.pd : null; wingPad(f, n.pad);
 	Ne.ghostSet(n.ghost, me, netNow()); n.cs.shield = Math.min(n.cs.shieldMax, m.c.sh); n.cs.hull = Math.min(n.cs.hullMax, m.c.hu); n.cs.dead = !!m.c.dead;
 	for (const o of Array.isArray(m.sh) ? m.sh.slice(0, 32) : []) { const x = Ne.unpackShot(o, m.o, n.id, null); if (!x) continue; x.relay = f; x.target = null; Array.prototype.push.call(game.shots, x) }
 	for (const e of Array.isArray(m.ev) ? m.ev.slice(0, 32) : []) {
@@ -2837,7 +2872,7 @@ function wingJumped(leg) { if (wingHost() && leg && leg.star && leg.star.id) gam
    their galaxy as it was saved (nothing of the host's written to it) */
 async function wingEnded(e) {
 	const W = game.wing; if (!W) return;
-	game.wing = {end: e};
+	game.wing = {end: e}; E.onRecord = null; for (const C of Object.values(game.atc || {})) for (const x of C.pads) if (/^w\d$/.test(x.who || '')) { x.who = null; x.docked = false }   /* (0.6.2) */
 	if (W.lan && W.N.role == 'host' && RG.lan) RG.lan.stop();
 	game.npcs = game.npcs.filter(n => !(n.member != null || n.wingNpc)); game.shots = game.shots.filter(x => !x.net); if (game.tgt && (game.tgt.member != null || game.tgt.wingNpc)) game.tgt = null;
 	if (W.days && !game.lostForGood) {

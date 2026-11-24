@@ -325,11 +325,26 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 - **Saving:** in the wing, a guest's game saves their pilot only; their galaxy's records are never written. Leaving,
   they're back on their own galaxy's day plus the days lived in the wing (their deadlines as real time had them), and
   their galaxy's part (markets, mined rocks, colonies, the others' firsts) is as it was saved before.
-- **Not yet (P5b-2):** docking, a port's pads for each pilot, and trading in the host's markets. Until then a guest
-  is told docking comes next, and leaves the wing to dock. While the host is docked, the host's system shows no NPCs
-  to the guests.
+- **Docking and markets** came with P5b-2 (below).
 - **Tests:** `tests/emberreach_wing_t.js` (11, node) and `tests/emberreach_wing_browser_t.js` (14: four Chromium
   pages through the local relay, a Hardcore host turning away a pilot without Hardcore).
+
+**P5b-2 is built (0.6.2): the wing at the ports.**
+- **Guests dock** like anyone, by their own game's rules (a pilot at war with the system's holder is refused, as
+  ever), at the host's ports.
+- **Pads:** each pilot's pad goes out with their ship; every game marks the pads the others hold in its own
+  controller (`traffic.js` claim), so two of the wing are never given the same one.
+- **Markets:** a guest's game takes the host's market records for the system (on joining, and when the system
+  changes), and every change after: the host's own trades and the guest's, which go to the host to be recorded in its
+  market there (`economy.js` onRecord). Prices and stock are the host's; each pilot pays and is paid in their own
+  wallet, with their own cargo.
+- **The host's galaxy in a guest's game:** on joining, the guest's own markets, colonies, mined rocks and war records
+  give way, in memory only, to the host's (its colonies at this system shown as foreign); leaving rejoins the
+  guest's own galaxy as it was saved.
+- **A docked host:** while some of the wing is out in its system, its ships stay and fly on (`combat` runs with the
+  host's ship out of it: not a target, not hit, not firing), and they're the same ships when the host launches.
+- **Tests:** `tests/emberreach_wing_t.js` 12–15 and `tests/emberreach_wing_ports_browser_t.js` (8: two pages, a host
+  and a guest at the host's capital).
 
 ## Steps
 

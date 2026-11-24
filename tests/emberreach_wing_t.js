@@ -40,5 +40,18 @@ try {
 	ok('10. leaving 12 days later: back on your own galaxy\'s day plus those 12 (112); your deadlines as real time had them (the mission due on day 110 is 2 days late, as 12 days went by)', back == 112 && pl.missions[0].due == 110 && pl.insurance.paidTo == 104, {back, due: pl.missions[0].due});
 	const p2 = Tr.newPlayer(F.majors()[1].id); p2.missions = [{due: 90}]; const w2 = Wg.joinDays(p2, 80, 20, Sv.shiftDays), b2 = Wg.leaveDays(p2, w2, 25, Sv.shiftDays);
 	ok('11. a host whose galaxy is younger: your deadlines move back with you onto its day, and on leaving onto yours again (5 days lived: day 85, the mission still due on 90)', w2.joined == 20 && b2 == 85 && p2.missions[0].due == 90, {b2, due: p2.missions[0].due});
+	/* (0.6.2) ports: pads, markets, colonies */
+	const Atc = req('traffic.js'), E = req('economy.js');
+	const pm2 = Wg.unpackMember(JSON.parse(JSON.stringify(Wg.packMember(1, a.s, o, {model: 'kestrel', name: 'B', cs: a.cs, docked: true, pad: ['orbital', 3]}))), o);
+	ok('12. (0.6.2) a member\'s pad travels with them ([port, pad]); a pad that isn\'t one is dropped', JSON.stringify(pm2.pad) == '["orbital",3]' && Wg.unpackMember(Object.assign(Wg.packMember(1, a.s, o, {model: 'k', name: 'B', cs: a.cs}), {pd: ['orbital', 99]}), o).pad === null && Wg.unpackMember(Wg.packMember(1, a.s, o, {model: 'k', name: 'B', cs: a.cs}), o).pad === null);
+	const port = {id: 'orbital', cls: 'lantern', pads: 6}, CT = Atc.make(port, null, {seed: 's'}), mine = Atc.request(CT, 'me', 'S', 0), other = CT.pads.find(x => !x.who && x.n != mine.pad);
+	const c1 = Atc.claim(CT, 'w2', other.n), c2 = Atc.claim(CT, 'w2', mine.pad), again = Atc.request(CT, 'w9', 'S', 1);
+	ok('13. (0.6.2) a pad another of the wing holds is taken in your controller too (never yours); a newcomer is given another', mine.ok && c1 && !c2 && CT.pads.find(x => x.n == other.n).who == 'w2' && (!again.ok || (again.pad != other.n && again.pad != mine.pad)), {mine: mine.pad, other: other.n, again});
+	const rec = {day: 40, s: {Iron: -50}, d: {}};
+	ok('14. (0.6.2) the host\'s market records and colonies for its system are taken only when sound (a record\'s numbers, colonies at that star)', E.recordOk(rec) && E.recordOk(null) && !E.recordOk({day: 'x', s: {}, d: {}}) && !E.recordOk({day: 1, s: {Iron: 'lots'}, d: {}}) && Wg.marketsOk({'s1:orbital': rec}, E.recordOk) && !Wg.marketsOk({'s1:orbital': {day: 1}}, E.recordOk)
+		&& Wg.coloniesOk([{id: 'c1', star: {id: 's1'}}], 's1') && !Wg.coloniesOk([{id: 'c1', star: {id: 's2'}}], 's1'));
+	const seen = []; E.onRecord = (P0, key, good, qty, sold, day) => seen.push([key, good, qty, sold, day]);
+	const P0 = {}; E.record(P0, {key: 's1:orbital'}, 'Iron', 20, false, 40); E.onRecord = null;
+	ok('15. (0.6.2) every market change is told (the wing\'s host passes it on; a guest sends its trade to the host)', seen.length == 1 && seen[0].join() == 's1:orbital,Iron,20,false,40' && P0.markets['s1:orbital'].s.Iron == -20, seen);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
