@@ -1468,6 +1468,12 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.6.4, roaming apart (P6a of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** a guest no longer has
+  to follow the host. Away from the host, a guest's game keeps the system it's in (its own pirates, patrols and
+  traffic, its missions' ships), still in the host's galaxy: the host's market records and colonies there, its
+  trades recorded in the host's markets. The Wing screen shows where each of the wing is; the host arriving takes
+  the system over, and leaving gives it back. A shared mission done away counts. A guest can't claim a colony in the
+  host's galaxy. Tested in `tests/emberreach_wing_roam_browser_t.js`.
 - **0.6.3, missions shared in the wing (P5c of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** the host
   shares its missions from the Wing screen; each guest may take one as their own copy (within their three, due when
   the host's is). The host's game brings the mission's ships and counts the kills, whoever makes them; time in the

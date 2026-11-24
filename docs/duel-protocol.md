@@ -92,6 +92,11 @@ they stay within the relay's reach however far the system's worlds are.
   kills, seconds in the system, the depot, delivered, surveyed; `done` once it's over, sent once more). `{k:'mp', id,
   p}` (a guest to the host, when it changes): the work done on a copy the guest took, merged into the host's (never
   undone; kills only as the host's game counted them).
+- (0.6.4) Roaming: `{k:'world?', star}` (a guest to the host, on entering any system) asks for the host's galaxy's
+  records there; `{k:'world', star, mk, cl}` (the host to that guest) answers, as `wing`'s `mk` and `cl`. `in`
+  carries `sn`, the guest's system's name; `st` carries `wh` every 3 s, `[[seat, system name]]` for the wing. A
+  guest's `trade` is taken for the system it's in, wherever that is; `mp`'s kills are taken where the host isn't (a
+  roaming guest's game keeps that system).
 
 ## The game's part
 
