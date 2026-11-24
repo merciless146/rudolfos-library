@@ -1468,6 +1468,13 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.6.1, the wing flies together (P5b-1 of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** the
+  pause menu's Wing hosts or joins a co-op wing of up to four (online or on this network). Guests fly into the
+  host's system on the host's day; everyone sees everyone, the host's NPCs and the shots; the host's game decides
+  hits (each pilot taking them at their own difficulty, a guest paid for a kill); the wing can't hurt itself; guests
+  follow the host's jumps or rejoin; each pilot's death rules; a guest's galaxy is never written, and leaving puts
+  them back on their own day. Docking and markets in a wing come next. Tested in `tests/emberreach_wing_t.js` and
+  `tests/emberreach_wing_browser_t.js`.
 - **0.6.0, rooms of four (P5a of [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md)):** the duel relays
   (Node, the Worker, and Rudolf OS's LAN relay) take co-op wings of up to four beside duels (protocol 2,
   docs/duel-protocol.md); net.js's `room()` seats guests, turns away another version and, at a Hardcore host, pilots

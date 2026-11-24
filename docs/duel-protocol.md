@@ -69,6 +69,21 @@ The games' own part (net.js `room()`): each guest says `{"k":"hi","proto":2,"ver
 Hardcore pilots) and the relay frees the seat when the guest closes. Pings go both ways as in duels; a guest silent
 for 10 s is let go by the host, and a host silent for 10 s ends the guest's session.
 
+### Ember Reach's wing messages (0.6.1, `wing.js`)
+
+Over protocol 2, after the welcome. Coordinates are relative to each message's centre `o` (the sender's ship), so
+they stay within the relay's reach however far the system's worlds are.
+
+- `{k:'wing', star, at, name, day, o, names}`: the host to a guest just welcomed, and to all when its system changes.
+- `{k:'st', n, star, at, name, day, o, ps, np, sh}` (the host, 15 a second): every member's ship (`ps`: seat, flight
+  state, model, name, condition, cloak 0/1/2, docked), the NPCs near any member (`np`: details when first sent and
+  every 3 s), and the shots in flight (`sh`: `tg` the target's seat, `fr` the guest whose shot it was). Kept under
+  the relay's 8 KB by dropping shots, then NPCs.
+- `{k:'in', n, star, o, me, m, nm, c, ck, d, sh, ev}` (a guest, 15 a second): its ship, shots, and claims
+  (`ev`: `{e:'hitN', i, dmg, kind}`).
+- `{k:'hit', dmg, kind}` (the host to one guest): an NPC's shot hit them. `{k:'kill', i}`: their claim destroyed it.
+- `{k:'jump', to, at, name}` (the host to all): its jump, for the guests to follow.
+
 ## The game's part
 
 All of these are `{"t":"g","k":...}` messages.
