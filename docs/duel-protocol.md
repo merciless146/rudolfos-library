@@ -87,6 +87,11 @@ they stay within the relay's reach however far the system's worlds are.
   `ps` and `in` carry `pd`, the pad a member holds (`[port, pad]`).
 - (0.6.2) `{k:'mkt', key, e}` (the host to all): a market record changed. `{k:'trade', key, good, qty, sold, day}` (a
   guest to the host): their trade, for the host to record in its market.
+- (0.6.3) `{k:'shares', ms}` (the host to all when anything in it changes, and to a guest just welcomed): the
+  missions it shares (`ms`, `wing.js` packMission: what each is, its deadline, the work done `p` as `{k, s, d, v, u}`:
+  kills, seconds in the system, the depot, delivered, surveyed; `done` once it's over, sent once more). `{k:'mp', id,
+  p}` (a guest to the host, when it changes): the work done on a copy the guest took, merged into the host's (never
+  undone; kills only as the host's game counted them).
 
 ## The game's part
 

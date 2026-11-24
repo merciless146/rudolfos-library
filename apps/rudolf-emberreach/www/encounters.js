@@ -198,12 +198,18 @@ function killed(P, npc, ctx) {
 		if (npc.wasHostile && !npc.provokedByPlayer) R.act(P, 'killShipAtWar', npc.faction);
 		else { R.act(P, 'killShip', npc.faction, {where: T.at(star)}); msg.push('Crime: you destroyed a ' + (f ? f.name.replace(/^The /, '') + ' ' : '') + 'ship. A bounty is on you.') }
 	}
-	/* missions */
-	for (const m of P.missions || []) {
-		if (m.done || m.star.id != star.id) continue;
-		if (npc.mission == m.id || (NEEDS[m.type] == 'kills' && npc.faction == m.against && npc.role != 'depot')) { if (NEEDS[m.type] == 'kills') m.kills = (m.kills || 0) + 1; if (NEEDS[m.type] == 'depot' && npc.role == 'depot') m.depot = true }
-	}
+	/* missions (0.6.3: in a wing, a guest's copies of the host's shared missions are counted by the host's game, ctx.skip) */
+	credit(P, npc, star.id, ctx.skip ? m => !ctx.skip.has(m.id) : null);
 	return {msg, pay};
+}
+/* (0.6.3) an NPC destroyed at a star: the missions it counts for (those `pick` allows, if given). Returns them */
+function credit(P, npc, starId, pick) {
+	const out = [];
+	for (const m of P.missions || []) {
+		if (m.done || m.star.id != starId || (pick && !pick(m))) continue;
+		if (npc.mission == m.id || (NEEDS[m.type] == 'kills' && npc.faction == m.against && npc.role != 'depot')) { if (NEEDS[m.type] == 'kills') m.kills = (m.kills || 0) + 1; if (NEEDS[m.type] == 'depot' && npc.role == 'depot') m.depot = true; out.push(m) }
+	}
+	return out;
 }
 /* the player fired on someone who wasn't hostile: they (and their wing) turn on you */
 function provoke(npc, all) {
@@ -264,6 +270,6 @@ function settle(P, day) {
 	return out;
 }
 
-const EmberEncounters = {MARSHALS, bountySU, policeKills, marshalsWant, marshalShip, marshalWing, marshalGuards, RIFTBORN, riftborn, ENC, NEEDS, DEPOT, cast, hostile, enemies, killed, provoke, offers, missionStar, accept, need, tick, complete, settle};
+const EmberEncounters = {MARSHALS, bountySU, policeKills, marshalsWant, marshalShip, marshalWing, marshalGuards, RIFTBORN, riftborn, ENC, NEEDS, DEPOT, cast, hostile, enemies, killed, credit, provoke, offers, missionStar, accept, need, tick, complete, settle};
 if (isNode) module.exports = EmberEncounters; else root.EmberEncounters = EmberEncounters;
 })(typeof window != 'undefined' ? window : this);

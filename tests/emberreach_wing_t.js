@@ -53,5 +53,28 @@ try {
 	const seen = []; E.onRecord = (P0, key, good, qty, sold, day) => seen.push([key, good, qty, sold, day]);
 	const P0 = {}; E.record(P0, {key: 's1:orbital'}, 'Iron', 20, false, 40); E.onRecord = null;
 	ok('15. (0.6.2) every market change is told (the wing\'s host passes it on; a guest sends its trade to the host)', seen.length == 1 && seen[0].join() == 's1:orbital,Iron,20,false,40' && P0.markets['s1:orbital'].s.Iron == -20, seen);
+	/* (0.6.3) missions the host shares */
+	const En = req('encounters.js'), war = F.wars()[0], against = war.b;
+	const hm = {id: war.a + ':40:' + war.id + ':0', issuer: war.a, against, war: war.id, system: 'sys1', systemName: 'Vela', type: 'strike', text: 'Strike at <b>Vela</b>', effort: 6, reward: 4200, currency: 'NYA', star: {id: 'st1', name: 'Vela', at: [1, 2, 3]}, port: null, accepted: 40, due: 50, kills: 1, stay: 0, depot: false, done: false};
+	const u = Wg.unpackMission(JSON.parse(JSON.stringify(Wg.packMission(hm))));
+	ok('16. (0.6.3) a shared mission travels whole (what it is, its deadline, the work done) and comes in clean (no markup in its text)', u && u.m.id == hm.id && u.m.against == against && u.m.due == 50 && u.m.reward == 4200 && u.m.text == 'Strike at bVela/b' && u.p.k == 1 && !u.done, u);
+	const bad = [{type: 'heist'}, {reward: -1}, {star: {id: 's'}}, {p: {k: 500, s: 0, d: 0, v: 0, u: 0}}, {text: 'x'.repeat(300)}];
+	ok('17. (0.6.3) a shared mission that isn\'t sound is refused (a type the game hasn\'t, a reward of a negative amount, a bad star, work done out of range, a text too long)', bad.every(b => !Wg.unpackMission(Object.assign(Wg.packMission(hm), b))));
+	const gp = Tr.newPlayer(F.majors()[1].id); gp.missions = [{id: 'a', star: {id: 'x'}, due: 9, done: false}, {id: 'b', star: {id: 'x'}, due: 9, done: false}];
+	const t1 = Wg.takeShared(gp, u, 3), t1b = Wg.takeShared(gp, u, 3), u2 = Wg.unpackMission(Wg.packMission(Object.assign({}, hm, {id: 'other'}))), t2 = Wg.takeShared(gp, u2, 3);
+	ok('18. (0.6.3) a guest takes a shared mission as their own copy (its work so far with it); taking it again links the one held; a fourth is refused', t1.ok && !t1.again && gp.missions.length == 3 && gp.missions[2].kills == 1 && gp.missions[2] !== hm && t1b.ok && t1b.again && !t2.ok && /three/.test(t2.why), {t1, t2});
+	const c = gp.missions[2];
+	const ch1 = Wg.mergeProg(c, {k: 3, s: 12, d: 0, v: 0, u: 1}, false), ch2 = Wg.mergeProg(c, {k: 3, s: 4, d: 0, v: 0, u: 0}, true), ch3 = Wg.mergeProg(c, {k: 3, s: 4, d: 0, v: 0, u: 0}, true);
+	ok('19. (0.6.3) work done elsewhere comes in and is never undone; kills only as the host\'s game counted them', ch1 && c.kills == 3 && c.stay == 12 && c.surveyed && ch2 && !ch3, c);
+	/* kills: the host's game counts a guest's kill for the missions it shares; a guest's own game skips its shared copies */
+	const hp = Tr.newPlayer(F.majors()[0].id); hp.missions = [Object.assign({}, hm, {kills: 0}), Object.assign({}, hm, {id: 'mine', kills: 0})];
+	const foe = {role: 'navy', faction: against, ship: {value: 100}};
+	const got = En.credit(hp, foe, 'st1', m => m.id == hm.id);
+	ok('20. (0.6.3) the host\'s game counts a guest\'s kill for the missions it shares (and only those)', got.length == 1 && hp.missions[0].kills == 1 && hp.missions[1].kills == 0, hp.missions.map(m => m.kills));
+	const gq = Tr.newPlayer(F.majors()[0].id); gq.missions = [Object.assign({}, hm, {kills: 0}), Object.assign({}, hm, {id: 'solo', kills: 0})];
+	En.killed(gq, Object.assign({}, foe, {wasHostile: true}), {star: {id: 'st1'}, day: 41, own: {}, skip: new Set([hm.id])});
+	ok('21. (0.6.3) a guest\'s own kill leaves their copy of a shared mission to the host\'s count, and counts for their own missions', gq.missions[0].kills == 0 && gq.missions[1].kills == 1, gq.missions.map(m => m.kills));
+	const done = Wg.unpackMission(Wg.packMission(Object.assign({}, hm, {done: true}))), gz = Tr.newPlayer(F.majors()[1].id);
+	ok('22. (0.6.3) a mission the host has finished goes out as over: it can\'t be taken', done.done && !Wg.takeShared(gz, done, 3).ok);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
