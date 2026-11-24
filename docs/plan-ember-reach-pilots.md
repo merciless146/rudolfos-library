@@ -380,11 +380,29 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
   the host's copy takes them when the host isn't there.
 - **Days:** a guest's own jumps take their own days, so roaming their day can run ahead of the host's (never behind:
   they're on whichever is later). Leaving, the days lived are counted as before.
-- **Not yet (P6b):** two of the wing together away from the host each keep their own copy of the system and don't
-  see each other. P6b makes one of them keep it for both, passed through the host.
+- **Two of the wing together away from the host** came with P6b (below).
 - **Tests:** `tests/emberreach_wing_roam_browser_t.js` (9: the guest keeping another system, the host's records
   there, its trade recorded at the host's, where each is, the host's jump not taking over, a shared strike done
   away, the host arriving and leaving).
+
+**P6b is built (0.6.5): together away from the host.**
+- **One keeps the system:** in a system the host isn't in, the first of the wing to arrive keeps it (the lowest seat
+  if two came at once): its game runs the system for all of them there, as the host's does its own. The others'
+  games make no ships of their own there; any they had give way when someone else keeps it.
+- **The host decides who** (it knows where everyone is and since when) and says so every second; the relay carries a
+  guest's messages only to the host, so the keeper's state goes to the host and on to the others there, and theirs
+  to the host and on to the keeper.
+- **Together there,** they see each other and the keeper's ships; their shots on its NPCs are claims its game
+  applies (a kill sent back, so the one who made it is paid); its NPCs' hits on them are sent to each, taken at their
+  own difficulty. A keeper docked while the others are out keeps the system running, as the host does.
+- **Changing hands:** the keeper leaving, the next there (the earliest) keeps the system, its own ships appearing; the
+  host arriving takes it over.
+- **Shared missions:** the keeper's game counts the kills there, for the shared missions it took; the others' copies
+  take the count from the host. A mission's ships come from the keeper's missions: a mission only another there holds
+  brings none while someone else keeps the system.
+- **Tests:** `tests/emberreach_wing_t.js` 23–25 and `tests/emberreach_wing_together_browser_t.js` (7: three pages, a
+  host and two guests: who keeps, seeing each other, a kill through the keeper, a hit through the host, the keeper
+  leaving, the host arriving).
 
 ## Steps
 

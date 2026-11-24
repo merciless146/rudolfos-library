@@ -76,5 +76,11 @@ try {
 	ok('21. (0.6.3) a guest\'s own kill leaves their copy of a shared mission to the host\'s count, and counts for their own missions', gq.missions[0].kills == 0 && gq.missions[1].kills == 1, gq.missions.map(m => m.kills));
 	const done = Wg.unpackMission(Wg.packMission(Object.assign({}, hm, {done: true}))), gz = Tr.newPlayer(F.majors()[1].id);
 	ok('22. (0.6.3) a mission the host has finished goes out as over: it can\'t be taken', done.done && !Wg.takeShared(gz, done, 3).ok);
+	/* (0.6.5) together away from the host */
+	const kp = Wg.keepers(new Map([[1, 'x'], [2, 'x'], [3, 'h']]), new Map([[1, 50], [2, 20], [3, 1]]), 'h'), kq = Wg.keepers(new Map([[2, 'x'], [1, 'x']]), new Map([[1, 7], [2, 7]]), 'h');
+	ok('23. (0.6.5) a system the host isn\'t in is kept by the first of the wing there (the lowest seat if two came at once); the host\'s own, by the host', kp.get('x') == 2 && !kp.has('h') && kq.get('x') == 1, {kp: [...kp], kq: [...kq]});
+	ok('24. (0.6.5) where each is and who keeps: sound entries only', Wg.whOk([1, 'Vela', 's1', 1]) && Wg.whOk([0, 'Home']) && !Wg.whOk([5, 'Vela', 's1', 1]) && !Wg.whOk([1, 'Vela', 's1', 2]) && !Wg.whOk([1, 7]));
+	ok('25. (0.6.5) a keeper sends on through the host only its state, its hits and its kills; the state passed on needs the keeper\'s seat', Wg.fwOk({k: 'fw', to: null, m: {k: 'st'}}) && Wg.fwOk({k: 'fw', to: 2, m: {k: 'hit'}}) && !Wg.fwOk({k: 'fw', to: 2, m: {k: 'shares'}}) && !Wg.fwOk({k: 'fw', to: 9, m: {k: 'kill'}})
+		&& Wg.kstOk({k: 'kst', star: 's', o, kp: 2}) && !Wg.kstOk({k: 'kst', star: 's', o, kp: 0}) && !Wg.kstOk({k: 'kst', star: 's', o}));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

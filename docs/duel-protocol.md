@@ -97,6 +97,11 @@ they stay within the relay's reach however far the system's worlds are.
   carries `sn`, the guest's system's name; `st` carries `wh` every 3 s, `[[seat, system name]]` for the wing. A
   guest's `trade` is taken for the system it's in, wherever that is; `mp`'s kills are taken where the host isn't (a
   roaming guest's game keeps that system).
+- (0.6.5) Together away from the host: `st`'s `wh` is sent every second as `[seat, system's name, system, keeps]`;
+  in a system the host isn't in, the guest with `keeps` 1 (the first there) keeps it. Its game sends `{k:'fw', to,
+  m}` to the host: `m` its `st` (`to` null), or a `hit` or `kill` for one seat; the host passes it on, from that
+  keeper only, to the others in its system (`st` as `{k:'kst', kp, ...}`, the keeper's seat in `kp`). The others'
+  `in` goes on from the host to the keeper as `{k:'kin', fs, ...}` (`fs`: whose).
 
 ## The game's part
 
