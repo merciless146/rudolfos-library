@@ -14,6 +14,7 @@
    - Days: a guest's pilot lives on the host's day while in the wing. Joining moves their deadlines by the
      difference; leaving moves them back onto their own galaxy's day, plus the days lived in the wing.
    - Nothing of the host's galaxy is written to a guest's: a guest's game saves only the pilot.
+   - (0.6.3) Missions the host shares: taken by each guest as their own copy, the work done kept in step (below).
    This file is plain data, the same in node (tests) and the page (play.js's wing* functions). GPL-2.0-or-later. ===== */
 (function (root) {
 'use strict';
@@ -86,6 +87,61 @@ function joinDays(P, homeDay, hostDay, shift) { shift(P, hostDay - homeDay); ret
 /* leaving: back onto the pilot's own galaxy's day, plus the days lived in the wing */
 function leaveDays(P, w, nowDay, shift) { const back = w.home + Math.max(0, nowDay - w.joined); shift(P, back - nowDay); return back }
 
+/* ---------- (0.6.3) missions the host shares ----------
+   The host's game is the world, so its missions are the ones whose ships and depots it brings (encounters.js cast). A
+   mission the host shares goes to the wing; each guest may take it (a copy of their own, within their three, due when
+   the host's is). The work done is the wing's: the host's game counts the kills (its NPCs, whoever destroys them); the
+   rest (time in the system, a delivery, a survey) whoever does it, passed to the host and on to the wing. Each pilot is
+   paid in their own game, by their own rules, when it's done; and fails it, late, as ever. */
+const MTYPES = ['strike', 'blockade', 'defend', 'escort', 'recon', 'sabotage', 'supply', 'survey', 'ruin', 'delivery', 'groundsurvey'];
+const MSTR = ['issuer', 'against', 'war', 'system', 'systemName', 'planet', 'port', 'portName', 'world', 'good'];
+const clean = t => t.replace(/[<>]/g, '');
+/* a mission as it travels: what it is, and the work done on it */
+function packMission(m) {
+	const x = {id: m.id, kind: m.kind || null, type: m.type, star: {id: m.star.id, name: m.star.name, at: m.star.at}, text: m.text, reward: m.reward, currency: m.currency, due: m.due, accepted: m.accepted, p: progOf(m)};
+	for (const k of MSTR) if (m[k] != null) x[k] = m[k];
+	if (m.tons != null) x.tons = m.tons; if (m.effort != null) x.effort = m.effort; if (m.done) x.done = 1;
+	return x;
+}
+function unpackMission(x) {
+	if (!x || !str(x.id, 120) || !(x.kind == null || x.kind == 'explore' || x.kind == 'surface') || !MTYPES.includes(x.type)) return null;
+	if (!x.star || !str(x.star.id, 60) || !str(x.star.name, 80) || !vec3(x.star.at, 1e6) || !str(x.text, 200) || !str(x.currency, 8)) return null;
+	if (!fin(x.reward) || x.reward < 0 || x.reward > 1e10 || !fin(x.due) || !(x.accepted == null || fin(x.accepted)) || !progOk(x.p)) return null;
+	if (x.tons != null && !(Number.isInteger(x.tons) && x.tons > 0 && x.tons <= 1e4)) return null;
+	if (x.effort != null && !(fin(x.effort) && x.effort >= 0 && x.effort <= 1e4)) return null;
+	const m = {id: x.id, type: x.type, star: {id: x.star.id, name: clean(x.star.name), at: x.star.at.slice()}, text: clean(x.text), reward: Math.round(x.reward), currency: x.currency, due: x.due, accepted: x.accepted == null ? x.due : x.accepted, port: null};
+	if (x.kind) m.kind = x.kind;
+	for (const k of MSTR) { if (x[k] == null) continue; if (!str(x[k], 80)) return null; m[k] = clean(x[k]) }
+	if (x.tons != null) m.tons = x.tons; if (x.effort != null) m.effort = x.effort;
+	return {m, p: x.p, done: x.done === 1};
+}
+/* the work done: kills, seconds in the system, the depot, delivered, surveyed */
+function progOf(m) { return {k: m.kills || 0, s: Math.floor(m.stay || 0), d: m.depot ? 1 : 0, v: m.delivered ? 1 : 0, u: m.surveyed ? 1 : 0} }
+function progOk(p) { return !!p && Number.isInteger(p.k) && p.k >= 0 && p.k <= 99 && Number.isInteger(p.s) && p.s >= 0 && p.s <= 1e6 && [p.d, p.v, p.u].every(b => b === 0 || b === 1) }
+/* work done elsewhere, into a mission (never undone; kills only as the host's game counted them). Returns whether it changed */
+function mergeProg(m, p, kills) {
+	let ch = false;
+	if (kills && p.k > (m.kills || 0)) { m.kills = p.k; ch = true }
+	if (p.s > Math.floor(m.stay || 0)) { m.stay = p.s; ch = true }
+	if (p.d && !m.depot) { m.depot = true; ch = true }
+	if (p.v && !m.delivered) { m.delivered = true; ch = true }
+	if (p.u && !m.surveyed) { m.surveyed = true; ch = true }
+	return ch;
+}
+/* (a guest) taking a shared mission: a copy of your own (one you hold already is linked again, as after leaving and
+   coming back) */
+function takeShared(P, u, max) {
+	P.missions = P.missions || [];
+	const had = P.missions.find(x => x.id == u.m.id && !x.done);
+	if (had) { mergeProg(had, u.p, true); return {ok: true, mission: had, again: true} }
+	if (u.done) return {ok: false, why: 'That mission is over.'};
+	if (P.missions.filter(x => !x.done).length >= (max || 3)) return {ok: false, why: 'You can hold three missions at once.'};
+	const m = Object.assign({}, u.m, {kills: 0, stay: 0, depot: false, done: false});
+	mergeProg(m, u.p, true);
+	P.missions.push(m);
+	return {ok: true, mission: m};
+}
+
 /* a message the host sends: under the relay's size, by dropping shots, then NPCs, then their details */
 function fit(m) {
 	let t = JSON.stringify(m);
@@ -94,6 +150,6 @@ function fit(m) {
 	return t.length <= WING.max ? m : null;
 }
 
-const EmberWing = {WING, padOk, marketsOk, coloniesOk, packMember, unpackMember, packNpc, unpackNpc, nearNpcs, claimOk, stOk, inOk, joinDays, leaveDays, fit};
+const EmberWing = {WING, padOk, marketsOk, coloniesOk, packMember, unpackMember, packNpc, unpackNpc, nearNpcs, claimOk, stOk, inOk, joinDays, leaveDays, fit, MTYPES, packMission, unpackMission, progOf, progOk, mergeProg, takeShared};
 if (isNode) module.exports = EmberWing; else root.EmberWing = EmberWing;
 })(typeof window != 'undefined' ? window : globalThis);

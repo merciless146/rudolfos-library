@@ -346,6 +346,26 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 - **Tests:** `tests/emberreach_wing_t.js` 12–15 and `tests/emberreach_wing_ports_browser_t.js` (8: two pages, a host
   and a guest at the host's capital).
 
+**P5c is built (0.6.3): missions shared in the wing.**
+- **Sharing:** the host's Wing screen lists its missions, each with Share with the wing. A mission shared goes to the
+  wing (and to anyone who joins later); a guest's Wing screen offers it, with Take it.
+- **Taken,** it's a copy of the guest's own: one of their three, due when the host's is, with the work done so far.
+  Leaving the wing, a guest keeps what's left as their own mission.
+- **The work is the wing's:** the host's game brings the mission's ships and depots (they're its NPCs) and counts the
+  kills, whoever makes them; time in the system, a delivery or a survey counts for everyone who took it, whoever does
+  it (a guest's work goes to the host's copy, and on to the rest). The host's game is the count: a guest's own game
+  doesn't count its kills on a shared copy, so none is counted twice.
+- **Paid:** each pilot in their own game, by their own rules (their reward multiplier, their reputation), when it's
+  done; late, it fails for each as ever. A war mission's effort on the front goes to the host's galaxy through the
+  host's own copy: a guest gets the pay and the standing, and their galaxy at home is untouched, as for everything
+  in the wing. A mission a guest has finished can't be taken again in that wing.
+- **Fixed on the way:** a guest's game no longer tries to place port traffic of its own (its ships come from the
+  host's), which threw an error near a busy port.
+- **Tests:** `tests/emberreach_wing_t.js` 16–22 and `tests/emberreach_wing_missions_browser_t.js` (8: a host and a
+  guest: shares offered to a guest joining later, taken; the guest's time counting on the host's recon; the guest's
+  kill counted by the host's game on its strike; both paid; a finished mission not offered again; what's left kept on
+  leaving).
+
 ## Steps
 
 | Step | What | Needs | Size |
@@ -356,6 +376,7 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 | **P3** | The Contraband Merchant: the contact, contraband variants (outfit.js), stock, prices; bound to the pilot (never traded); not illegal; its insurance (none while Hardcore is on, twice the premium after) | P2 | M |
 | **P4** | The cloaking device: the module, radar and scanners ignoring it, transparency, heat, firing showing it; the award hook (test-only until M6) | P2 | M |
 | **P5** | Co-op, wing first: rooms of four in `net.js`, the relay and Rudolf OS's LAN service; the host's galaxy shared; guests' pilots saved at home; the Hardcore rule; docking, markets, NPCs, jumps together | P1 (P2 for the Hardcore rule) | L |
+| **P5c** | Missions the host shares with the wing | P5b | M |
 | **P6** | Co-op free roaming (if chosen) | P5 | L |
 | **M6 link** | The questline's end awards the cloak and moves Hardcore to `done` | P4, M6.7 | S |
 
