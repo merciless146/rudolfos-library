@@ -259,7 +259,7 @@ function joinGalaxy(P, gal, id) {
 /* the days that passed in the galaxy while this pilot wasn't playing: their own deadlines move on by as much, so a
    pilot's missions, deliveries, insurance, things on their way and colonies' seasons count only the pilot's own time */
 function shiftDays(P, d) {
-	if (!(d > 0)) return P;
+	if (!num(d) || d === 0) return P;   /* (0.6.1: either way: a wing's guest moves onto the host's day and back) */
 	const add = (o, k) => { if (o && num(o[k])) o[k] += d };
 	for (const m of P.missions || []) add(m, 'due');
 	for (const h of P.hauls || []) add(h, 'eta');

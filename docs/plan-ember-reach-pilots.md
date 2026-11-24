@@ -252,6 +252,8 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
   a galaxy that big would make a save noticeable (the laptop is slower). A typical galaxy is a few hundred KB, where
   neither shows. Worth doing if galaxies ever grow that far: loading by region, and building only changed parts.
 - **Tests:** `tests/emberreach_galaxystore_t.js` (11, node) and `tests/emberreach_galaxystore_browser_t.js` (8,
+  Chromium).
+
 **P3 is built (0.5.7):**
 - **The Contraband Merchant** (`contraband.js`) is a card in Contacts at a great power's capitals, system ports and
   surface starports (not outposts, settlements, colony ports or anchorages), for pilots with Hardcore on or done.
@@ -302,6 +304,32 @@ Hardcore's multiplier comes on top. The difficulty shows on the slot and in the 
 - **Tests:** `tests/emberreach_duel_relay_t.js` 20–26 (rooms, in Node and the Worker) and
   `tests/emberreach_wing_net_t.js` (10: net.js's rooms over the Node relay, a LAN-style single room, and a duel
   beside them).
+
+**P5b-1 is built (0.6.1): the wing flies together.**
+- **The Wing screen** (the pause menu's Wing): host a wing online or on this network, or join one with its code or
+  from this network's list. A guest joins in space (launch first).
+- **Joining:** the host's game welcomes the guest (the Hardcore rule as in P5a) and tells them where the wing is; the
+  guest's game puts them in the host's system, next to the host's ship, on the host's day (their deadlines moved by
+  the difference: `wing.js` joinDays, `shiftDays` now either way).
+- **Flying together** (`wing.js`, 15 messages a second): every pilot's ship on everyone's screen (a guest's through
+  the host), with names, never hostile; a cloaked friend as a faint outline; a docked one not shown. The host's
+  NPCs (its pirates, patrols, traders) are flown on the guests' screens from the host's game; a guest's game spawns
+  none of its own. Shots in flight are shown on every screen.
+- **Hits, the host's game deciding:** an NPC's shot on a guest's ship is sent to that guest, who takes it at their own
+  difficulty; a guest's shot on an NPC is a claim the host's game applies, and an NPC it destroys is sent back, so
+  the guest's game pays their pilot (bounty, reputation, missions). The host's hostile ships pick the nearest of the
+  wing (not one hidden or docked). The wing can't hurt itself.
+- **Jumps:** the host's jump is sent to the guests; their next jump (J) is to the same star, with their own drive and
+  fuel. A guest left elsewhere (after a loss, or not following) sees where the wing is and can **Rejoin the wing**.
+- **Death:** each pilot's own rules (insurance, or a Hardcore pilot lost, who leaves the wing).
+- **Saving:** in the wing, a guest's game saves their pilot only; their galaxy's records are never written. Leaving,
+  they're back on their own galaxy's day plus the days lived in the wing (their deadlines as real time had them), and
+  their galaxy's part (markets, mined rocks, colonies, the others' firsts) is as it was saved before.
+- **Not yet (P5b-2):** docking, a port's pads for each pilot, and trading in the host's markets. Until then a guest
+  is told docking comes next, and leaves the wing to dock. While the host is docked, the host's system shows no NPCs
+  to the guests.
+- **Tests:** `tests/emberreach_wing_t.js` (11, node) and `tests/emberreach_wing_browser_t.js` (14: four Chromium
+  pages through the local relay, a Hardcore host turning away a pilot without Hardcore).
 
 ## Steps
 
