@@ -2,6 +2,8 @@
    ruin field near home, flown to; not a target until found, then found by coming near; drawn, its plazas level; a
    structure surveyed by hovering over it for 8 s, another at once with K; the vault opened by landing on its plaza
    for 20 s, its cache of Artefacts set out; the site data worth what sites.js says, and the record saved and back.
+   (0.7.3, L4.2b) Its wardens: waking as you come low and near, firing; shot down, down for the season (not back when
+   you return), their remains surveyed; the vault's second wave of sentinels.
      node tests/emberreach_ruins_browser_t.js [PORT] */
 const {chromium} = require('playwright');
 const {spawn} = require('child_process');
@@ -89,6 +91,17 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 		A.f = await frame(A.pg, () => EmberDebug.navList().some(t => t.kind == 'groundsite'), 40);
 		const found = await A.f.evaluate(() => { const g = EmberDebug.game, x = EmberDebug.gsites[0].x; return {rec: g.P.explore.site && Object.values(g.P.explore.site)[0], drawn: [...EmberDebug.meshIds()].filter(k => k.startsWith('gsite:')).length} });
 		ok('2. coming near, it\'s sighted: found (a navigation target, its record begun) and drawn, piece by piece', found.rec && found.rec.b == 0 && found.drawn >= 5, found);
+		/* (L4.2b) the wardens: at 900 m and near, they wake and fire */
+		A.f = await frame(A.pg, gi => { const g = EmberDebug.game, G0 = EmberDebug.gsites[gi]; return g.npcs.filter(n => n.warden && n.warden.g == G0 && n.warden.awake).length == G0.Lo.wardens.length }, 80, gi);
+		const wd = await A.f.evaluate(gi => { const g = EmberDebug.game, G0 = EmberDebug.gsites[gi], ws = g.npcs.filter(n => n.warden && n.warden.g == G0); return {n: ws.length, want: G0.Lo.wardens.length, awake: ws.every(n => n.warden.awake), foe: ws.every(n => n.foe === EmberDebug.ME), role: ws.every(n => n.role == 'sentinel')} }, gi);
+		ok('2b. its wardens (2 or 3) stand on their towers, and wake as you come within 3 km and below 1.5 km, turning their lasers on you', wd.n == wd.want && wd.n >= 2 && wd.awake && wd.foe && wd.role, wd);
+		await A.f.evaluate(gi => { const g = EmberDebug.game, G0 = EmberDebug.gsites[gi]; for (const n of g.npcs.filter(n => n.warden && n.warden.g == G0 && !n.cs.dead)) EmberDebug.destroyed(n, true); g.pcs.hull = g.pcs.hullMax }, gi);
+		const down = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], r = Object.values(EmberDebug.game.P.explore.site)[0]; return {w: r.w, ws: r.ws, season: EmberFactions.seasonOf(EmberDebug.game.day), want: (1 << G0.Lo.wardens.length) - 1} }, gi);
+		ok('2c. shot down, the wardens are kept down for the season in the site\'s record', down.w == down.want && down.ws == down.season, down);
+		/* away and back: they stay down */
+		await over(gi, [0, 0], 9000); await sleep(800); await over(gi, [0, 0], 900); await sleep(800);
+		const back = await A.f.evaluate(gi => EmberDebug.game.npcs.filter(n => n.warden && n.warden.g == EmberDebug.gsites[gi] && !n.cs.dead).length, gi);
+		ok('2d. coming back the same season, the wardens are still down', back == 0, back);
 		/* the plazas are level */
 		const level = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], b = G0.body, Lo = G0.Lo; return Lo.plazas.map(p => { const h = c => EmberTerrain.height(b, EmberDebug.gsAt(G0, c).up && (() => { const d = G0.dir, e = G0.e, n = G0.n, v = d.map((x, i) => x + e[i] * c[0] / b.radius + n[i] * c[1] / b.radius), l = Math.hypot(...v); return v.map(x => x / l) })()); return Math.abs(h(p.c) - h([p.c[0] + p.r * 0.8, p.c[1]])) }) }, gi);
 		ok('3. its plazas are levelled into the ground (the height across each the same)', level.every(d => d < 0.01), level);
@@ -112,6 +125,11 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 			const kk = await A.f.evaluate(([gi, k]) => { const G0 = EmberDebug.gsites[gi], pc = G0.pieces.find(p => p.key == k), t = EmberDebug.gsParts().find(x => x.pc == pc); EmberDebug.setTarget(t); EmberDebug.scanNow(); return {b: Object.values(EmberDebug.game.P.explore.site)[0].b, bit: EmberSites.BITS.struct(pc.struct.n)} }, [gi, k]);
 			ok('5. K on a targeted structure in range surveys it at once', (kk.b & kk.bit) != 0, kk);
 		} else ok('5. (one structure only)', true);
+		/* (L4.2b) a warden's remains, surveyed with K */
+		const wr = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], pc = G0.pieces.find(p => p.struct && p.struct.type == 'warden'); return {key: pc.key, h: Math.min(40, pc.struct.h) / 2 + 30} }, gi);
+		await over(gi, null, wr.h, wr.key); await sleep(100);
+		const wrs = await A.f.evaluate(([gi, key]) => { const G0 = EmberDebug.gsites[gi], pc = G0.pieces.find(p => p.key == key), t = EmberDebug.gsParts().find(x => x.pc == pc); if (!t) return {t: false}; EmberDebug.setTarget(t); EmberDebug.scanNow(); return {t: true, name: t.name, b: Object.values(EmberDebug.game.P.explore.site)[0].b, bit: EmberSites.BITS.warden(pc.struct.n)} }, [gi, wr.key]);
+		ok('5b. a warden\'s remains are a structure to survey (a target, K in range)', wrs.t && /remains/.test(wrs.name) && (wrs.b & wrs.bit) != 0, wrs);
 		/* the vault: landed on its plaza for 20 s */
 		const pl = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], V = G0.Lo.vault, pz = G0.Lo.plazas.find(p => p.n == V.plaza); return {c: [pz.c[0] + pz.r * 0.3, pz.c[1]], r: pz.r} }, gi);
 		const low = await A.f.evaluate(() => EmberLanding.lowest(EmberShips.hull(EmberDebug.game.P.ship.model), true, 0).d);
@@ -122,9 +140,19 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 		A.f = await frame(A.pg, () => (Object.values(EmberDebug.game.P.explore.site)[0].b & 128) != 0, 300);
 		const vt = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], c = EmberSites.vaultCache(G0.x); return {tons: c.tons, bp: !!c.bp, cans: EmberDebug.game.cans.length, bps: (EmberDebug.game.P.blueprints || []).length, landed: !!EmberDebug.landed} }, gi);
 		ok('6. landed on its plaza for 20 s, the vault opens: its Artefacts set out as canisters (and a blueprint, if it held one)', vt.landed && vt.cans - cans1 == vt.tons && vt.bps - bps0 == (vt.bp ? 1 : 0), {vt, cans1, bps0});
+		/* (L4.2b) the vault's second wave: half the time, 30-50 s after */
+		const wave = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], w = EmberSites.vaultWave(G0.x), g = EmberDebug.game; return {w, set: !!g.vaultWave, after: g.vaultWave ? g.vaultWave.t - g.t : 0} }, gi);
+		if (wave.w) {
+			const n0 = await A.f.evaluate(() => { const g = EmberDebug.game; g.vaultWave.t = g.t; return g.npcs.filter(n => n.role == 'sentinel' && !n.warden && !n.cs.dead).length });
+			A.f = await frame(A.pg, n0 => EmberDebug.game.npcs.filter(n => n.role == 'sentinel' && !n.warden && !n.cs.dead).length > n0, 40, n0);
+			const n1 = await A.f.evaluate(() => EmberDebug.game.npcs.filter(n => n.role == 'sentinel' && !n.warden && !n.cs.dead).length);
+			ok('6b. this vault calls a second wave: due 30-50 s after it opened, sentinels come', wave.set && wave.after > 0 && wave.after <= 50 && n1 >= n0 + 2, {wave, n0, n1});
+		} else ok('6b. this vault calls no second wave (half of them don\'t)', !wave.set, wave);
 		/* the data */
 		const data = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], P = EmberDebug.game.P, r = Object.values(P.explore.site)[0], u = EmberExplore.unsold(P).find(x => x.kind == 'site'); return {su: u && u.su, want: EmberSites.dataWorth(G0.x, r.b) * (r.f ? 2.5 : 1), first: r.f} }, gi);
 		ok('7. the site data is for sale to cartographers at what it\'s worth (4,000 SU, 800 a structure, 2,000 for the vault; ×2.5 a first)', data.su > 0 && Math.abs(data.su - data.want) < 1, data);
+		const mapLine = await A.f.evaluate(id => { const M = EmberMap.create(); M.player = EmberDebug.game.P; M.day = EmberDebug.game.day; return M.describe(EmberGalaxy.lookup(id, null)).surface }, where.id);
+		ok('7b. the star map\'s card lists the site you know: "On the ground: … a ruin field (its world)"', /On the ground: .*a ruin field \(/.test(mapLine || '') && mapLine.includes(where.world), mapLine);
 		const round = await A.f.evaluate(() => { const P = EmberDebug.game.P, back = EmberSave.unpackPlayer(JSON.parse(JSON.stringify(EmberSave.packPlayer(P)))); return JSON.stringify(back.explore.site) == JSON.stringify(P.explore.site) });
 		ok('8. the site\'s record is saved and comes back', round);
 		ok('9. no errors', errs.length == 0, errs);

@@ -5,7 +5,7 @@
    over 200 seeds a kind; Precursor sites unweathered; a system's sites worked out in under a millisecond; and the
    three new mesh shapes. (0.7.2, L4.2) What surveying from the ground gives: each structure's find, the vault's cache
    and blueprint, the site data's worth; the model in pieces; the record (first discoveries, bits, data sold as far as
-   it's surveyed), saved, cleaned and shared among a galaxy's pilots.
+   it's surveyed), saved, cleaned and shared among a galaxy's pilots. (0.7.3, L4.2b) The wardens and the vault's wave.
      node tests/emberreach_sites_t.js */
 const path = require('path');
 const req = n => require(path.join(__dirname, '..', 'apps/rudolf-emberreach/www', n));
@@ -147,5 +147,15 @@ try {
 	const gal = Sv.newGalaxy(10), packed = Sv.packGalaxy(gal, P1, 'p1', 12), gal2 = Sv.unpackGalaxy(Sv.merge(Sv.split(packed).head, Sv.split(packed).parts)), P2 = Sv.joinGalaxy(Tr.newPlayer(F.majors()[1].id), gal2, 'p2');
 	const k = X.siteKey(star.id, site.id), second = X.siteSeen(P2, star, site, false, 13);
 	ok('19. (L4.2) saved and back (an unsound entry dropped, the rest kept); a first discovery of a site is the galaxy\'s: another pilot finding it after isn\'t first', back.explore.site[k] && back.explore.site[k].b == (B.struct(2) | B.VAULT) && !back.explore.site['bad|x'] && gal2.world.firsts.site[k] == 'p1' && second.new && !second.first, {k, firsts: gal2.world.firsts.site, second});
+	/* (L4.2b) the guardians */
+	let waves = 0, wmin = 99, wmax = 0;
+	for (let i = 0; i < 2000; i++) { const w = St.vaultWave(mk('field', i)); if (w) { waves++; wmin = Math.min(wmin, w); wmax = Math.max(wmax, w) } }
+	const Wd = St.WARDEN;
+	ok('20. (L4.2b) wardens wake within 3 km and below 1.5 km, turn 60° a second, an old laser each; a vault calls a second wave half the time, 30-50 s after', Wd.wake == 3000 && Wd.below == 1500 && Math.abs(Wd.turn - Math.PI / 3) < 1e-12 && Wd.hull.hard.join() == '1,0,0,0' && Wd.hull.role == 'sentinel' && Math.abs(waves / 2000 - 0.5) < 0.04 && wmin >= 30 && wmax <= 50 && St.vaultWave(mk('field', 3)) == St.vaultWave(mk('field', 3)), {waves, wmin, wmax});
+	const P3 = Tr.newPlayer(F.majors()[0].id), st3 = {id: '1,2,3/#9'}, si3 = {id: 'site:Q d:field', kind: 'field'};
+	X.siteMark(P3, st3, si3, B.warden(1), true, 5); const r3 = X.siteRec(P3, st3.id, si3.id); r3.w = 3; r3.ws = 0;
+	P3.explore.site['bad2|y'] = {d: 1, b: 0, s: 0, f: 0, k: 'field', w: 99, ws: 0};
+	const back3 = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(P3)))), k3 = X.siteKey(st3.id, si3.id);
+	ok('21. (L4.2b) a warden\'s remains surveyed count as a structure in the data (800 SU); the wardens down are saved with their season, an unsound entry dropped', St.dataWorth(f0, B.warden(1)) == 4800 && St.dataWorth(f0, B.struct(1) | B.warden(2)) == 5600 && back3.explore.site[k3].w == 3 && back3.explore.site[k3].ws == 0 && !back3.explore.site['bad2|y']);
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
