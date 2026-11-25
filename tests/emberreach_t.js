@@ -1,4 +1,4 @@
-/* Ember Reach (the Single-Player Alpha Build) in Chromium (Playwright), as the Rudolf OS desktop opens it: a sandboxed
+/* Ember Reach in Chromium (Playwright), as the Rudolf OS desktop opens it: a sandboxed
    frame, saves kept by the desktop. A new game (choosing an origin), the starport, launching and flying, the star
    map, a jump, pausing, the save and resuming from it, the Rift's Maw, losing the ship (insurance), and no errors on the way.
      node tests/emberreach_t.js [PORT] */
@@ -36,7 +36,7 @@ async function frame(pg, test) {
 		await pg.goto(`http://127.0.0.1:${PORT}/desk.html#debug&ship=corsair`);   /* (a new game in a Griffin: room for a phaser) */
 		let f = await frame(pg, () => !!document.querySelector('#ovBody button[data-i]'));
 		const start = await f.evaluate(() => ({build: (document.querySelector('#ovBody .build') || {}).textContent, n: document.querySelectorAll('#ovBody button[data-i]').length, h: document.getElementById('ovT').textContent}));
-		ok('1. a new game opens on choosing an origin, among the 12 great powers, marked as the single-player alpha', start.n == 12 && /Single-Player Alpha Build \d+\.\d+\.\d+/.test(start.build) && /origin/.test(start.h), start);
+		ok('1. a new game opens on choosing an origin, among the 12 great powers, marked with the build (Ember Reach and its version)', start.n == 12 && /^Ember Reach \d+\.\d+\.\d+$/.test(start.build) && /origin/.test(start.h), start);
 		await pg.screenshot({path: path.join(W, 'origin.png')});
 		await f.click('#ovBody button[data-i="5"]');
 		f = await frame(pg, () => window.EmberDebug && EmberDebug.game.docked && !!document.querySelector('[data-screen="launch"]'));
@@ -101,7 +101,7 @@ async function frame(pg, test) {
 		ok('7a. 0.4.3: a new pilot\'s first ship carries the gimballed version of every gun that has one, and (0.4.4) an Autopilot Computer', first.autopilot && first.ext.some(id => /G$/.test(id)) && !first.ext.some(id => ['pulse', 'heavy', 'needle', 'gatling', 'gatlingM', 'gatlingL'].includes(id)), first);
 		await pg.evaluate(() => send({op: 'pause'})); await sleep(400);
 		const paused = await f.evaluate(() => ({ov: !document.getElementById('ov').hidden, h: document.getElementById('ovT').textContent, build: (document.querySelector('#ovBody .build') || {}).textContent}));
-		ok('8. the desktop\'s pause pauses it (the alpha build named on the pause screen)', paused.ov && /Paused/.test(paused.h) && /Alpha/.test(paused.build), paused);
+		ok('8. the desktop\'s pause pauses it (the build named on the pause screen)', paused.ov && /Paused/.test(paused.h) && /^Ember Reach \d+\.\d+\.\d+$/.test(paused.build), paused);
 		/* Settings, from the pause screen: Spanish, then back to English; a rebinding */
 		await f.click('#ovBtns button:nth-child(2)'); await sleep(300);
 		await f.click('button[data-tab="2"]'); await f.selectOption('select[data-set="lang"]', 'es'); await sleep(200);

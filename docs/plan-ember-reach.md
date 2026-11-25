@@ -5,7 +5,7 @@ elliptical galaxy. Every one of its 4 million stars (0.2.0; there were ~8 billio
 habitability come from the astrophysics below, not from hand-placed content. "Ember Reach" is a working title.
 
 - **Package:** `rudolf-emberreach` (a Library game), in `apps/rudolf-emberreach/` since the **Single-Player Alpha
-  Build (SPAB), 0.1.0**: the publish workflow builds and signs it with the rest, and it's in the App Store's
+  Build (SPAB), 0.1.0** (named just **Ember Reach** from 0.7.0, the owner's choice, now that it has co-op): the publish workflow builds and signs it with the rest, and it's in the App Store's
   Library tab. Its browser test, as the desktop opens it, is `tests/emberreach_t.js`; the models' tests are
   `tests/emberreach_*_t.js`.
 - **Status:** the models are done and checked; the game itself is the milestones below.
@@ -1470,7 +1470,8 @@ also arms the first ships and adds fire groups:
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
 - **0.7.0, the release:** the pilots and co-op plan ([plan-ember-reach-pilots.md](plan-ember-reach-pilots.md), P1 to
   P6b) and raids (L3.6) in one build: six pilots in one galaxy, difficulty and Hardcore, the Contraband Merchant, the
-  co-op wing and its roaming, raids. The store description rewritten for all of it (it had stopped at 0.5.3, and
+  co-op wing and its roaming, raids. The build named just Ember Reach (it was the Single-Player Alpha Build), and the
+  store description rewritten for all of it (it had stopped at 0.5.3, and
   still listed multiplayer as to come). The full suite and the browser playthrough (`tests/emberreach_t.js`) pass.
 - **0.6.6, raids on surface ports (L3.6 of [plan-ember-reach-landing-work.md](plan-ember-reach-landing-work.md)):**
   coming within 20 km of a surface port on a day it's raided, a gang's ships over it, fighting its traffic, a forward
