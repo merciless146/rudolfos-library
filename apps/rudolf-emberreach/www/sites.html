@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ember Reach: sites on the ground (draft layouts and models)</title>
+<style>
+html,body{margin:0;background:#05060a;color:#d8dde8;font:13px/1.45 system-ui,sans-serif}
+header{padding:16px 18px 4px}h1{margin:0 0 4px;font-size:20px}header p{margin:0;color:#9aa6bb;max-width:900px}
+.row{display:flex;flex-wrap:wrap;gap:12px;padding:12px 14px}
+figure{margin:0;background:#0b0e16;border:1px solid #232a3a;border-radius:8px;padding:10px;width:612px}
+figcaption{padding:8px 2px 0;color:#9aa6bb}figcaption b{color:#fff}
+.pair{display:flex;gap:8px}canvas{display:block;background:#07090f;border-radius:4px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;padding:6px 18px 0;color:#9aa6bb}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+button{background:#141a28;color:#d8dde8;border:1px solid #2c3550;border-radius:6px;padding:4px 10px;font:inherit;cursor:pointer}
+</style>
+</head>
+<body>
+<header><h1>Sites on the ground: draft layouts and models</h1>
+<p>Each kind of site from <code>sites.js</code> (L4.1), laid out from a seed: the plan from above (plazas with their approach cones, the vault, the structures, guardians, loose ground in red), and the model from an oblique camera, from the meshes the game will draw. Ruin fields in each of the five styles a people may build in; an outlying waystation; a Precursor site; an old hulk and a fresh wreck. <button id="reseed">New seeds</button></p></header>
+<div class="legend" id="legend"></div>
+<div class="row" id="row"></div>
+<script src="wos-stats.js"></script>
+<script src="galaxy.js"></script>
+<script src="flight.js"></script>
+<script src="meshes.js"></script>
+<script src="landing.js"></script>
+<script src="surface.js"></script>
+<script src="factions.js"></script>
+<script src="economy.js"></script>
+<script src="ships.js"></script>
+<script src="sites.js"></script>
+<script>
+'use strict';
+const St = EmberSites, LEG = {plaza: '#4a4f5c', 'plaza cone (at 40 m)': '#73ccff', vault: '#f2d36a', structure: '#b9ab92', guardian: '#e5484d', 'loose ground': '#ff6b5e', debris: '#7b828c', 'point of interest': '#7fd1a8'};
+document.getElementById('legend').innerHTML = Object.entries(LEG).map(([k, c]) => '<span><i style="background:' + c + '"></i>' + k + '</span>').join('');
+function plan(cv, Lo) {
+	const x = cv.getContext('2d'), W = cv.width, k = (W / 2 - 14) / Lo.radius, P = c => [W / 2 + c[0] * k, W / 2 - c[1] * k];
+	x.clearRect(0, 0, W, W); x.fillStyle = '#11141c'; x.beginPath(); x.arc(W / 2, W / 2, Lo.radius * k, 0, 7); x.fill();
+	x.strokeStyle = '#2a3142'; x.setLineDash([2, 4]); x.stroke(); x.setLineDash([]);
+	const dot = (c, r, col) => { const [a, b] = P(c); x.fillStyle = col; x.beginPath(); x.arc(a, b, Math.max(1.5, r * k), 0, 7); x.fill() };
+	if (Lo.hull) {
+		const H = Lo.hull, sc = Lo.scar, [a, b] = P([0, 0]), [e, f] = P([sc.back[0] * sc.len, sc.back[1] * sc.len]);
+		x.strokeStyle = '#2b2622'; x.lineWidth = Math.max(2, sc.w * k); x.beginPath(); x.moveTo(a, b); x.lineTo(e, f); x.stroke(); x.lineWidth = 1;
+		for (const d of Lo.debris) dot(d.c, d.h[0], LEG.debris);
+		x.save(); x.translate(a, b); x.rotate(-H.heading); x.fillStyle = '#c8ccd4'; x.beginPath(); x.moveTo(H.length / 2 * k, 0); x.lineTo(-H.length / 2 * k, H.length * 0.36 * k); x.lineTo(-H.length / 2 * k, -H.length * 0.36 * k); x.fill(); x.restore();
+		for (const p of Lo.pois) if (p.type != 'hulk') dot(p.c, 6, LEG['point of interest']);
+	} else {
+		for (const p of Lo.plazas) { dot(p.c, p.r, LEG.plaza); const [a, b] = P(p.c); x.strokeStyle = LEG['plaza cone (at 40 m)'] + '66'; x.setLineDash([4, 4]); x.beginPath(); x.arc(a, b, (p.r + 40 * EmberSurface.CONE) * k, 0, 7); x.stroke(); x.setLineDash([]) }
+		dot(Lo.vault.c, Lo.vault.r, LEG.vault);
+		for (const s of Lo.structs) { dot(s.c, s.r, LEG.structure); if (s.loose) { const [a, b] = P(s.c); x.strokeStyle = LEG['loose ground']; x.beginPath(); x.arc(a, b, s.loose * k, 0, 7); x.stroke() } }
+		for (const w of Lo.wardens) dot(w.c, w.r, LEG.guardian);
+	}
+	x.fillStyle = '#9aa6bb'; x.font = '11px system-ui'; const bar = 100 * k; x.fillRect(12, W - 14, bar, 2); x.fillText('100 m', 12, W - 18);
+}
+function view(cv, Lo) {
+	const m = St.meshes(Lo), x = cv.getContext('2d'), W = cv.width, H = cv.height, az = 0.7, el = 0.62, sun = [0.55, -0.35, 0.76];
+	/* framed on what stands there (the structures, or the wreck and its debris), not the whole site's levelled ground */
+	const ext = Lo.hull ? Math.max(Lo.hull.length, ...Lo.debris.map(d => Math.hypot(...d.c))) : Math.max(...[...Lo.structs, ...Lo.wardens, ...Lo.plazas].map(o => Math.hypot(...o.c) + o.r));
+	const ca = Math.cos(az), sa = Math.sin(az), ce = Math.cos(el), se = Math.sin(el), D = ext * 2.3, f = W * 1.5;
+	const cam = v => { const a = v[0] * ca - v[1] * sa, b = v[0] * sa + v[1] * ca; return [a, b * se + v[2] * ce, -b * ce + v[2] * se] };
+	const pr = v => { const c = cam(v), depth = D - c[2]; return [W / 2 + c[0] * f / depth, H * 0.58 - c[1] * f / depth, depth] };
+	x.fillStyle = '#07090f'; x.fillRect(0, 0, W, H);
+	const g = []; for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; g.push(pr([Math.cos(a) * ext * 1.1, Math.sin(a) * ext * 1.1, 0])) }
+	x.fillStyle = '#2a2724'; x.beginPath(); g.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.fill();
+	const T = [];
+	for (let i = 0; i < m.p.length; i += 9) {
+		const a = pr(m.p.slice(i, i + 3)), b = pr(m.p.slice(i + 3, i + 6)), c = pr(m.p.slice(i + 6, i + 9));
+		const n = m.n.slice(i, i + 3), col = m.c.slice(i / 9 * 12, i / 9 * 12 + 4), lit = Math.max(0, n[0] * sun[0] + n[1] * sun[1] + n[2] * sun[2]);
+		const kk = col[3] >= 1 ? 1.15 : 0.22 + 0.85 * lit;
+		T.push({a, b, c, z: (a[2] + b[2] + c[2]) / 3, col: 'rgb(' + col.slice(0, 3).map(v => Math.min(255, Math.round(v * kk * 255))).join(',') + ')'});
+	}
+	T.sort((p, q) => q.z - p.z);
+	for (const t of T) { x.fillStyle = x.strokeStyle = t.col; x.beginPath(); x.moveTo(t.a[0], t.a[1]); x.lineTo(t.b[0], t.b[1]); x.lineTo(t.c[0], t.c[1]); x.closePath(); x.fill(); x.lineWidth = 0.5; x.stroke() }
+	return m.count();
+}
+/* sample sites of each kind, made up here from seeds (in the game they come from sitesAt) */
+const an = w => (/^[AEIOU]/.test(w) ? 'an ' : 'a ') + w;
+function samples(seed) {
+	const stone = i => [[0.62, 0.55, 0.44], [0.55, 0.56, 0.58], [0.58, 0.44, 0.36], [0.7, 0.67, 0.6], [0.42, 0.46, 0.5]][i % 5], ships = EmberShips.ships();
+	const list = Object.keys(St.STYLES).map((style, i) => ({kind: 'field', id: 'sample:field:' + style, radius: 400 + (seed + i * 97) % 500, seed: seed + i * 7919, age: 1 + (seed + i) % 9, style, stone: stone(i), Ts: 200, title: 'Ruin field (' + style + ')'}));
+	list.push({kind: 'outlier', id: 'sample:outlier', radius: 260, seed: seed + 50021, age: 4, style: 'relay', stone: stone(seed), Ts: 120, giantMoon: true, title: 'Outlying ruin: a waystation on a giant\'s moon'});
+	list.push({kind: 'precursor', id: 'sample:precursor', radius: 900, seed: seed + 60013, age: 0, style: 'precursor', Ts: 180, title: 'Precursor site (the Rift)'});
+	const sh = ships[(seed >>> 3) % ships.length], sh2 = ships[((seed >>> 5) + 17) % ships.length];
+	list.push({kind: 'hulk', id: 'sample:hulk', radius: sh.length * 7.2 + 60, seed: seed + 70001, ship: sh.id, length: sh.length, size: sh.size, title: 'Old hulk: ' + an(sh.name)});
+	list.push({kind: 'wreck', id: 'sample:wreck', radius: sh2.length * 7.2 + 60, seed: seed + 80021, ship: sh2.id, length: sh2.length, size: sh2.size, pod: true, recorder: true, title: 'Fresh wreck: ' + an(sh2.name) + ' (with an escape pod)'});
+	return list;
+}
+function draw(seed0) {
+	const row = document.getElementById('row'); row.innerHTML = '';
+	for (const site of samples(seed0)) {
+		const Lo = St.layout(site), fig = document.createElement('figure');
+		fig.innerHTML = '<div class="pair"><canvas width="300" height="300"></canvas><canvas width="300" height="300"></canvas></div><figcaption></figcaption>';
+		row.appendChild(fig); const [a, b] = fig.querySelectorAll('canvas'); plan(a, Lo); const tris = view(b, Lo), lo = St.meshes(Lo, 'lo').count(), bad = St.check(Lo);
+		const what = Lo.hull ? Lo.debris.length + ' pieces of debris · a scar ' + Math.round(Lo.scar.len) + ' m' : Lo.plazas.length + ' plaza' + (Lo.plazas.length > 1 ? 's' : '') + ' · ' + Lo.structs.length + ' structures (' + Lo.structs.map(s => s.type + (s.fallen ? ', fallen' : '')).join('; ') + ') · ' + Lo.wardens.length + ' ' + (site.kind == 'precursor' ? 'pylons' : 'wardens') + (site.age ? ' · ' + site.age.toFixed(1) + ' Gyr old' : '');
+		fig.querySelector('figcaption').innerHTML = '<b>' + site.title + '</b> · ' + (Lo.radius * 2 / 1000).toFixed(2) + ' km across · ' + what + ' · ' + tris + ' triangles (' + lo + ' at low detail)' + (bad.length ? ' · <span style="color:#ff8a7f">' + bad.join(', ') + '</span>' : '');
+	}
+}
+let seed = 20261125; draw(seed); document.getElementById('reseed').onclick = () => draw(seed = (seed * 48271) % 2147483647);
+</script>
+</body>
+</html>

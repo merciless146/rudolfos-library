@@ -9,6 +9,16 @@ polish and phones (Rudolf OS 1.6.0), are planned with the touch and small-screen
 
 Nothing here is built yet. Numbers are starting values for playtests.
 
+**The owner's answers (2026-11-25):** the story comes after the ground sites it needs (L4,
+`plan-ember-reach-sites.md`), built first.
+- **1, the ending:** the choice (Seal, Bind, Give, or leave it).
+- **10, the Echo:** "1.5x your ship, with smaller, weaker ships supporting them, 1 for each member of your own
+  wing": the Echo at one and a half times your ship, and with it one smaller, weaker escort for each other pilot in
+  your wing (none flying alone).
+- **9, the Core chart:** everywhere in the Core.
+- **3, time near the Maw:** within 10 radii of the Maw only.
+- **The rest** (2, 4 to 8, 11 to 14): to be gone through with the owner when the story's steps begin.
+
 ## What the plan already fixes
 
 These are decided and, mostly, built. The story below works within them and changes none of them.
