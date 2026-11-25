@@ -1468,6 +1468,10 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.7.2, ruin fields in the game (L4.2a of [plan-ember-reach-sites.md](plan-ember-reach-sites.md)):** ruin fields
+  and outlying ruins are drawn on their worlds' ground, their plazas levelled. They're found from orbit, by a ground
+  scan or by coming near. Their structures are surveyed by hovering over them or landing beside them, and the vault
+  is opened by landing on its plaza. That gives Artefacts, a blueprint now and then, and site data for cartographers.
 - **0.7.1, sites on the ground, the model (L4.1 of [plan-ember-reach-sites.md](plan-ember-reach-sites.md)):**
   `sites.js` works out each system's ruin fields, outlying ruins (waystations, on moons whenever there are any, else
   usually the farthest planet),
