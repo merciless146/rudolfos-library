@@ -1468,6 +1468,11 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.7.1, sites on the ground, the model (L4.1 of [plan-ember-reach-sites.md](plan-ember-reach-sites.md)):**
+  `sites.js` works out each system's ruin fields, outlying ruins (waystations, on moons whenever there are any),
+  Precursor sites, old hulks and fresh wrecks, with their layouts and models; ruins grouped into peoples with
+  styles of their own; `sites.html` shows them. Nothing in flight yet. The orbital ruin cache is now seeded from the
+  ruin. The owner chose to build L4 before the Core's story, and answered most of both plans' open questions.
 - **0.7.0, the release:** the pilots and co-op plan ([plan-ember-reach-pilots.md](plan-ember-reach-pilots.md), P1 to
   P6b) and raids (L3.6) in one build: six pilots in one galaxy, difficulty and Hardcore, the Contraband Merchant, the
   co-op wing and its roaming, raids. The build named just Ember Reach (it was the Single-Player Alpha Build), and the

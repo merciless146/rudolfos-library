@@ -27,6 +27,14 @@ Mesh.prototype.place = function (rz, t) {
 	return this;
 };
 Mesh.prototype.count = function () { return this.p.length / 9 };
+/* (0.7.1, sites.js) tilt in place, about the origin: pitch about x, then roll about y (a leaning monolith, a fallen
+   pillar, a hull on a slope); then place() turns it and moves it */
+Mesh.prototype.tilt = function (pitch, roll) {
+	const cp = Math.cos(pitch || 0), sp = Math.sin(pitch || 0), cr = Math.cos(roll || 0), sr = Math.sin(roll || 0);
+	const R = (a, i) => { const x = a[i], y = a[i + 1], z = a[i + 2], y1 = y * cp - z * sp, z1 = y * sp + z * cp; a[i] = x * cr + z1 * sr; a[i + 1] = y1; a[i + 2] = -x * sr + z1 * cr };
+	for (let i = 0; i < this.p.length; i += 3) { R(this.p, i); R(this.n, i) }
+	return this;
+};
 
 /* ---- primitives ---- */
 function cylinder(r, z0, z1, seg, col, capCol) {
@@ -38,6 +46,26 @@ function cylinder(r, z0, z1, seg, col, capCol) {
 		m.tri([0, 0, z1], [...p0, z1], [...p1, z1], capCol || col, [0, 0, 1], [0, 0, 1], [0, 0, 1]);
 		m.tri([0, 0, z0], [...p1, z0], [...p0, z0], capCol || col, [0, 0, -1], [0, 0, -1], [0, 0, -1]);
 	}
+	return m;
+}
+/* (0.7.1) a cylinder with different radii at its ends (spires, stepped mounds, plinths); r1 0 makes a cone */
+function frustum(r0, r1, z0, z1, seg, col, capCol) {
+	const m = new Mesh(), sl = (r0 - r1) / Math.max(1e-6, z1 - z0), nz = sl / Math.hypot(1, sl);
+	for (let k = 0; k < seg; k++) {
+		const a0 = k / seg * 2 * Math.PI, a1 = (k + 1) / seg * 2 * Math.PI, c0 = [Math.cos(a0), Math.sin(a0)], c1 = [Math.cos(a1), Math.sin(a1)], h = 1 / Math.hypot(1, sl);
+		const n0 = [c0[0] * h, c0[1] * h, nz], n1 = [c1[0] * h, c1[1] * h, nz];
+		const A = [c0[0] * r0, c0[1] * r0, z0], B = [c1[0] * r0, c1[1] * r0, z0], C = [c1[0] * r1, c1[1] * r1, z1], D = [c0[0] * r1, c0[1] * r1, z1];
+		m.tri(A, B, C, col, n0, n1, n1);
+		if (r1 > 0) { m.tri(A, C, D, col, n0, n1, n0); m.tri([0, 0, z1], D, C, capCol || col, [0, 0, 1], [0, 0, 1], [0, 0, 1]) }
+		m.tri([0, 0, z0], B, A, capCol || col, [0, 0, -1], [0, 0, -1], [0, 0, -1]);
+	}
+	return m;
+}
+/* (0.7.1) a shard: an elongated octahedron, 8 faces (the Precursors' crystals and pylons), standing from z0 to z0 + h,
+   r its waist, the waist a third of the way up */
+function shard(r, h, col, z0) {
+	const m = new Mesh(), b = z0 || 0, w = b + h / 3, top = [0, 0, b + h], bot = [0, 0, b], W = [[r, 0, w], [0, r, w], [-r, 0, w], [0, -r, w]];
+	for (let k = 0; k < 4; k++) { const a = W[k], c = W[(k + 1) % 4]; m.tri(a, c, top, col).tri(c, a, bot, col) }
 	return m;
 }
 /* a ring of `seg` flat-sided segments (a torus, or a hexagon for seg 6) with an elliptical tube a × b */
@@ -204,6 +232,6 @@ function ship(length, quality) {
 	return m;
 }
 
-const EmberMeshes = {rock, Mesh, COL, cylinder, torus, box, sphere, planet, planetColour, rings, atmosphere, star, starColour, station, ship, noise};
+const EmberMeshes = {rock, Mesh, COL, cylinder, frustum, shard, torus, box, sphere, planet, planetColour, rings, atmosphere, star, starColour, station, ship, noise};
 if (typeof module != 'undefined') module.exports = EmberMeshes; else root.EmberMeshes = EmberMeshes;
 })(typeof window != 'undefined' ? window : this);

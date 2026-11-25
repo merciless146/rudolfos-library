@@ -7,7 +7,23 @@ it is, how it's found, what it gives and costs, how it ties into the rest of the
 reviewable steps. It's written in the style of `plan-ember-reach-landing-work.md`, and is part of
 [plan-ember-reach.md](plan-ember-reach.md).
 
-Nothing here is built yet. The numbers are starting values for playtests, like the rest of the plan's.
+The numbers are starting values for playtests, like the rest of the plan's.
+
+**Status:** L4.1 is built (0.7.1, below). The owner chose to build L4 before the Core's story
+(`plan-ember-reach-core.md`), which needs its Precursor vaults and lodestones.
+
+**The owner's answers (2026-11-25):**
+- **1, outlying ruins:** yes, "but it should usually be on a moon (usually one orbiting a gas giant) as if it is some
+  sort of waystation or relay". Built so: on a moon whenever the system has one that can be landed on (a gas
+  giant's weighted 8, the ruin world's own 5, any other 3), else a planet; laid out as a relay (masts, dishes, a
+  hall). Measured: about 58% of outliers on moons (about 40% on gas giants' moons); the rest are in systems with no
+  landable moon at all.
+- **2, your own crash:** the cargo lies at the crash site as canisters for 7 days.
+- **4, survivors:** escape pods as a one-tonne cargo good.
+- **6, peoples:** ruins grouped into peoples by a 30 pc cell, each with a generated name and its own style.
+- **3, 5, 8, 9:** the recommendations (scooping wrecks stays no crime; fresh wrecks and old hulks both; no outliers
+  in the Rift; the orbital cache seeded from the ruin, done in L4.1).
+- **7, the release number:** still the owner's.
 
 ## Where things stand (main, 0.5.0)
 
@@ -415,7 +431,7 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
 
 | Step | What | Depends on | Size |
 |---|---|---|---|
-| **L4.1** | `sites.js`: kinds, placement, layouts, parts, the three shapes, `sites.html`; node tests. Nothing in flight yet | L3 done | medium |
+| **L4.1** ✓ | `sites.js`: kinds, placement, layouts, parts, the three shapes, `sites.html`; node tests. Nothing in flight yet (0.7.1) | L3 done | medium |
 | **L4.2** | Ruin fields in the game: drawn, found (survey, ground scan, map), the flown survey, the vault and its cache, site data; wardens and the vault's sentinels | L4.1 | large |
 | **L4.3** | Artifacts: `P.artifacts`, the broker's Finds tab, star charts on the map, inscriptions returned, devices; the excavation contract | L4.2 | medium |
 | **L4.4** | Unstable ground: loose ground on the scan, collapses, pits in `terrain.js`, undercrofts | L4.2 | small |
@@ -427,6 +443,19 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
 
 - **In parallel:** L4.6 can go alongside L4.2 once L4.1 is in, and L4.4 alongside L4.3.
 - **The Core's story** (`plan-ember-reach-core.md`) needs L4.5's lodestones and Precursor vaults first.
+
+**L4.1, as built (0.7.1):**
+- **`sites.js`:** `sitesAt(star, season, ctx)` (ctx: the space, a long lane near, a port, the holder, the surface
+  ports), `peopleOf(star)`, `layout(site)`, `check(layout)`, `parts(layout)`, `meshes(layout, detail)`.
+- **Ruin layouts:** plazas first; the vault beside the largest; the structures round the plazas, just outside their
+  35° cones; wardens or pylons farther out. The rest of the site is the levelled ground it keeps clear.
+- **`meshes.js`:** `frustum`, `shard`, and `Mesh.tilt(pitch, roll)`.
+- **`sites.html`:** each kind from above and from an oblique camera, with its triangle count and any rule breaks.
+- **Measured** (about 100,000 stars): ruin systems 1 in 405; ruin fields on 25% of them, outliers on most of the
+  rest; Precursor sites on about 2.5% of the Rift's stars, a quarter of the Rift's hulks old Precursor craft. At most
+  about 1,450 triangles for a ruin field at full detail, 1,000 at low. A system's sites in well under 1 ms.
+- **The orbital ruin cache** (open question 9) is seeded from the ruin in `play.js`.
+- **Tests:** `tests/emberreach_sites_t.js` (14).
 
 ## Risks, and what to do about them
 

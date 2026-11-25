@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release in the Rudolf OS Library: Ember Reach (named the Single-Player Alpha Build, SPAB, from 0.1.0 to 0.6.6) */
-const BUILD = {name: 'Ember Reach', version: '0.7.0'};
+const BUILD = {name: 'Ember Reach', version: '0.7.1'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -1774,9 +1774,10 @@ function surveyed(b) {
 	/* a ruin's cache: artefacts drift up as canisters */
 	if (p.ruins) {
 		/* a Precursor ruin (in the Rift): their relics, and more often than not one of their blueprints */
-		const pre = !!p.precursor, good = pre ? 'Precursor Relics' : 'Artefacts', k = pre ? 1 + Math.floor(Math.random() * 3) : 2 + Math.floor(Math.random() * 3), up = norm(sub(s.p, b.pos)), f = Fl.forward(s);
+		/* (0.7.1: seeded from the ruin, so the same ruin holds the same cache in every save; sites plan, open question 9) */
+		const cr = G.rng(G.hashStr('cache:' + game.star.id + ':' + p.name)), pre = !!p.precursor, good = pre ? 'Precursor Relics' : 'Artefacts', k = pre ? 1 + Math.floor(cr() * 3) : 2 + Math.floor(cr() * 3), up = norm(sub(s.p, b.pos)), f = Fl.forward(s);
 		for (let i = 0; i < k; i++) game.cans.push(Ca.make(good, add(add(s.p, mul(f, 400 + i * 40)), mul(up, -60)), add(s.v, mul(up, 3)), game.t));
-		const bp = pre ? O.precursorFrom(Math.random) : O.blueprintFrom(Math.random);
+		const bp = pre ? O.precursorFrom(cr) : O.blueprintFrom(cr);
 		if (bp && O.learn(P, bp)) say('In the ruin\'s records: a blueprint for ' + (pre ? O.bpName(bp) : bp.id == 'alien' ? 'an alien relay booster (size ' + bp.size + ')' : 'an alien dimensional phaser') + '. An artifact broker can build it' + (pre ? ', with goods from both sides of the Maw.' : '.'), '#c9a0ff');
 		say('The survey marks a cache: ' + k + ' canisters of ' + good + ' drift up ahead. Open the hatch (I) to scoop them.', '#f2d36a');
 	}
