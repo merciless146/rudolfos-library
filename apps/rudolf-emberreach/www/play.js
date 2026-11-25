@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release in the Rudolf OS Library: Ember Reach (named the Single-Player Alpha Build, SPAB, from 0.1.0 to 0.6.6) */
-const BUILD = {name: 'Ember Reach', version: '0.7.4'};
+const BUILD = {name: 'Ember Reach', version: '0.7.5'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -382,7 +382,7 @@ function controls(dt) {
 	let pitch = A.pitch, roll = A.roll, yaw = A.yaw, sx = d('strafeR') - d('strafeL'), sy = d('strafeU') - d('strafeD'), thr = 0;
 	const pad = readPad();
 	if (pad) { pitch += pad.pitch; roll += pad.roll; yaw += pad.yaw; thr += pad.thr; if (Math.abs(pad.pitch) + Math.abs(pad.roll) + Math.abs(pad.yaw) + Math.abs(pad.thr) > 0.3) game.touchAuto = false }
-	if (game.mouseFly && game.ptr && !game.ptr.touch) { const mx = (game.ptr.x - W / 2) / (W / 2), my = (game.ptr.y - Hh / 2) / (Hh / 2), dz = v => Math.abs(v) < 0.06 ? 0 : v; const k = 1.4 * game.settings.controls.mouseSens / 100; roll -= dz(mx) * k; pitch += dz(my) * k * (game.settings.controls.invertMouse ? -1 : 1) }
+	if (game.mouseFly && game.ptr && !game.ptr.touch) { const mx = (game.ptr.x - W / 2) / (W / 2), my = (game.ptr.y - Hh / 2) / (Hh / 2), dz = v => Math.abs(v) < 0.06 ? 0 : v; const k = 1.4 * game.settings.controls.mouseSens / 100; if (game.settings.controls.mouseRoll) roll -= dz(mx) * k; else yaw += dz(mx) * k; pitch += dz(my) * k * (game.settings.controls.invertMouse ? -1 : 1) }   /* (0.7.5: left and right yaw, or roll if the pilot chooses; up and down pitch) */
 	const Tt = game.touch, ta = Tc.axes(Tt, game.settings.touch.sens);
 	pitch += ta.pitch; roll += ta.roll; yaw += ta.yaw; sy += ta.vert;
 	thr += d('faster') - d('slower');
@@ -607,7 +607,7 @@ function toggleMode() {
 	say(game.mode == 'analysis' ? 'Analysis mode: ; mining lasers only · K scan the target · B pulse scanner · T next non-ship target · U nearest point of interest' : 'Combat mode: ; weapons · K missile · B flare · T next target · U nearest hostile', game.mode == 'analysis' ? '#6cc9e8' : '#f2a33a');
 	Snd.cue(game.mode == 'analysis' ? 'faOn' : 'faOff');
 }
-function toggleMouse() { game.mouseFly = !game.mouseFly; say('Mouse flight ' + (game.mouseFly ? 'on: point away from the centre to pitch and roll' : 'off')) }
+function toggleMouse() { game.mouseFly = !game.mouseFly; say('Mouse flight ' + (game.mouseFly ? 'on: point away from the centre to steer (left and right ' + (game.settings.controls.mouseRoll ? 'roll' : 'yaw') + ', up and down pitch)' : 'off')) }
 /* the radial menu: hold ~, point at a function (or step round with ← → or A D), let go. Steering waits meanwhile */
 /* the view: the cockpit, or third person (V, or the radial menu), a ship's length and a bit behind and a little above */
 const VIEW = {back: 2.2, up: 0.55};
@@ -3374,7 +3374,7 @@ function overlay(kind) {
 	const o = owner(), where = game.star.name + (o ? ' · ' + o.name.replace(/^The /, '') : ' · unclaimed space');
 	if (kind == 'help' || kind == 'pause') {
 		RG.pause();
-		body.innerHTML = '<p class="build">' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr(kind == 'pause' ? 'Paused' : 'Controls')) + '</h1><p>' + esc(ship.name) + ' · ' + esc(where) + ' · day ' + Math.floor(game.day) + ' · fuel ' + Math.round(game.fuel * 100) + '%. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + helpRows().map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table><p class="small">' + esc(tr('Mouse: the left button fires; with mouse flight on, point away from the centre to pitch and roll.')) + ' ' + esc(tr('Gamepad sticks: the left pitches and rolls, the right yaws and sets the throttle.')) + ' ' + esc(tr('Gamepad: the d-pad strafes (up and down are the vertical thrusters). A asks for docking; held half a second, it moves the landing gear.')) + ' ' + esc(tr('Touch: the stick pitches and rolls, the YAW slider under it yaws, and THR sets the throttle. FIRE and FIRE 2 fire the primary and secondary guns, TARGET picks what is nearest the crosshair, and MENU opens the radial menu. Drag anywhere else to look around.')) + ' ' + esc(tr('Touch: the VERT slider beside the throttle works the vertical thrusters, and GEAR moves the landing gear.')) + '</p><p class="small">' + esc(tr('Landing: target a world you can land on and cruise to it, and you drop out above it. Below its Kármán line its gravity pulls, and flight assist holds you up. Lower the gear, let down on the vertical thrusters (strafe up and down), and touch down slowly on level ground.')) + '</p>';
+		body.innerHTML = '<p class="build">' + BUILD.name + ' ' + BUILD.version + '</p><h1 id="ovT">' + esc(tr(kind == 'pause' ? 'Paused' : 'Controls')) + '</h1><p>' + esc(ship.name) + ' · ' + esc(where) + ' · day ' + Math.floor(game.day) + ' · fuel ' + Math.round(game.fuel * 100) + '%. ' + (R.kind == 'webgl' ? 'WebGL 2.' : 'Canvas 2D fallback.') + '</p><table>' + helpRows().map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table><p class="small">' + esc(tr('Mouse: the left button fires; with mouse flight on, point away from the centre to steer.')) + ' ' + esc(tr('Gamepad sticks: the left pitches and rolls, the right yaws and sets the throttle.')) + ' ' + esc(tr('Gamepad: the d-pad strafes (up and down are the vertical thrusters). A asks for docking; held half a second, it moves the landing gear.')) + ' ' + esc(tr('Touch: the stick pitches and rolls, the YAW slider under it yaws, and THR sets the throttle. FIRE and FIRE 2 fire the primary and secondary guns, TARGET picks what is nearest the crosshair, and MENU opens the radial menu. Drag anywhere else to look around.')) + ' ' + esc(tr('Touch: the VERT slider beside the throttle works the vertical thrusters, and GEAR moves the landing gear.')) + '</p><p class="small">' + esc(tr('Landing: target a world you can land on and cruise to it, and you drop out above it. Below its Kármán line its gravity pulls, and flight assist holds you up. Lower the gear, let down on the vertical thrusters (strafe up and down), and touch down slowly on level ground.')) + '</p>';
 		button(tr('Resume'), close, true).focus();
 		button(tr('Settings'), () => openSettings(() => overlay(kind)));
 		/* (0.5.0) duels: their own page; nothing of the game is touched */

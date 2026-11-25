@@ -3,8 +3,8 @@
    - Graphics, audio and HUD: quality, (0.5.3) low-power mode, resolution, field of view, glow, the frame rate; master, engines and ambience,
      effects, alerts; the HUD's size and opacity, how many messages and for how long, the scanner and markers.
    - Controls: every action's two keys and gamepad button, rebound by pressing what you want (a key taken from
-     another action is moved, and the menu says from which); mouse sensitivity and pitch, gamepad pitch and dead
-     zone; a reset.
+     another action is moved, and the menu says from which); mouse sensitivity, mouse left and right to yaw or to roll
+     (0.7.5: yaw by default) and inverted mouse pitch, gamepad pitch and dead zone; a reset.
      (0.5.3) The touch controls: shown (Auto, On, Off), their size, a left-handed layout, opacity and sensitivity.
    - Language and accessibility: the languages Rudolf OS offers (i18n.js); reduced flashing (or as Rudolf OS
      says), reduced motion, a colour-blind palette, a high-contrast HUD, and captions for the sounds.
@@ -22,7 +22,7 @@ const DEFAULTS = () => ({
 	hud: {size: 100, opacity: 100, messages: 3, msgTime: 8, scanner: true, prograde: true, lead: true},
 	/* the control scheme (Simple: the core keys, the rest in the radial menu, and the assists on; Full: every key) and
 	   the assists, each on or off whatever the scheme */
-	controls: {keys: {}, mice: 1, mouseSens: 100, invertMouse: false, invertPad: false, deadzone: 12, scheme: 'simple', autoGear: true, autoLights: true, landAssist: true, autoRoute: true},
+	controls: {keys: {}, mice: 1, mouseSens: 100, mouseRoll: false, invertMouse: false, invertPad: false, deadzone: 12, scheme: 'simple', autoGear: true, autoLights: true, landAssist: true, autoRoute: true},
 	lang: 'os',   /* follow Rudolf OS (or the browser) */
 	touch: Tc.DEFAULTS(),   /* (0.5.3) shown (auto, on, off), size, left-handed, opacity, sensitivity */
 	a11y: {flash: 'os', motion: false, palette: 'off', contrast: false, captions: false}});
@@ -83,7 +83,7 @@ function sanitise(x, actions, langs) {
 		controls: (() => {
 			/* (a player from before the schemes keeps Full, the keys they know; a new one starts Simple) */
 			const scheme = one(c.scheme, ['simple', 'full'], x.controls ? 'full' : 'simple'), on = scheme == 'simple';
-			return {keys, mice: 1, mouseSens: num(c.mouseSens, 25, 300, 100), invertMouse: bool(c.invertMouse, false), invertPad: bool(c.invertPad, false), deadzone: num(c.deadzone, 0, 40, 12),
+			return {keys, mice: 1, mouseSens: num(c.mouseSens, 25, 300, 100), mouseRoll: bool(c.mouseRoll, false), invertMouse: bool(c.invertMouse, false), invertPad: bool(c.invertPad, false), deadzone: num(c.deadzone, 0, 40, 12),
 				scheme, autoGear: bool(c.autoGear, true), autoLights: bool(c.autoLights, on), landAssist: bool(c.landAssist, on), autoRoute: bool(c.autoRoute, on)};
 		})(),
 		touch: Tc.sanitise(x.touch),
@@ -143,7 +143,7 @@ function open(el, S, env) {
 			}
 			out += '</table>';
 		}
-		return out + head('Controls') + row('Mouse sensitivity', range('controls.mouseSens', c.mouseSens, 25, 300, 5, '%')) + row('Invert mouse pitch', onOff('controls.invertMouse', c.invertMouse))
+		return out + head('Controls') + row('Mouse sensitivity', range('controls.mouseSens', c.mouseSens, 25, 300, 5, '%')) + row('Mouse left and right', pick('controls.mouseRoll', c.mouseRoll ? 1 : 0, [[0, T('Yaw')], [1, T('Roll')]])) + row('Invert mouse pitch', onOff('controls.invertMouse', c.invertMouse))
 			+ row('Invert gamepad pitch', onOff('controls.invertPad', c.invertPad)) + row('Gamepad dead zone', range('controls.deadzone', c.deadzone, 0, 40, 1, '%'))
 			+ head('Touch controls') + row('Show touch controls', pick('touch.show', S.touch.show, [['auto', T('Auto')], ['on', T('On')], ['off', T('Off')]])) + '<p class="st-note">' + esc(T('Auto shows them on a touch screen, and hides them while a keyboard, mouse or gamepad is in use.')) + '</p>'
 			+ row('Touch control size', range('touch.size', S.touch.size, 75, 150, 5, '%')) + row('Left-handed layout', onOff('touch.left', S.touch.left)) + row('Touch control opacity', range('touch.opacity', S.touch.opacity, 20, 100, 5, '%'))

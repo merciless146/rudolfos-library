@@ -74,5 +74,10 @@ try {
 		&& /mode: \['KeyM'\]/.test(PLAY) && /radial: \['Backquote'\]/.test(PLAY) && /mouse: \[\]/.test(PLAY));
 	const gfx = St.sanitise(undefined).graphics, gfx2 = St.sanitise({graphics: {aa: 'bogus', autoRes: 'x'}}).graphics;
 	ok('24. antialiasing on Auto and automatic resolution on by default; nonsense falls back to them', gfx.aa == 'auto' && gfx.autoRes === true && gfx2.aa == 'auto' && gfx2.autoRes === true && St.sanitise({graphics: {aa: 'off', autoRes: false}}).graphics.aa == 'off');
+	/* (0.7.5) mouse flight: left and right yaw by default, or roll if chosen; pitch inverted if chosen */
+	const mc = St.sanitise({controls: {mouseRoll: true}}).controls, md = St.sanitise({controls: {mouseRoll: 'yes'}}).controls, PL = fs.readFileSync(path.join(DIR, 'play.js'), 'utf8');
+	ok('25. (0.7.5) mouse flight steers with yaw by default (roll if the pilot chooses it, saved; nonsense back to yaw), pitch inverted if chosen; in the settings, with its words in every language', D.controls.mouseRoll === false && mc.mouseRoll === true && md.mouseRoll === false && D.controls.invertMouse === false
+		&& /if \(game\.settings\.controls\.mouseRoll\) roll -= dz\(mx\) \* k; else yaw \+= dz\(mx\) \* k; pitch \+= dz\(my\) \* k \* \(game\.settings\.controls\.invertMouse \? -1 : 1\)/.test(PL)
+		&& ['Mouse left and right', 'Yaw', 'Roll'].every(x => I.EN.includes(x)));
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);
