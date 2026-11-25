@@ -39,12 +39,12 @@ try {
 	ok('3. a ruin field stands on the ruin world when it can be landed on (about a fifth of them), an outlying ruin on another body when it can\'t', !wrong.length && fields > 20 && outliers > fields && share > 0.15 && share < 0.32, {fields, outliers, share, wrong: wrong.slice(0, 4)});
 
 	/* 4. outliers on a moon whenever there's one */
-	let onMoon = 0, onGiant = 0, onPlanetWithMoon = 0;
+	let onMoon = 0, onGiant = 0, onPlanetWithMoon = 0, onPlanet = 0, onFarthest = 0;
 	for (const s of ruinStars) for (const x of St.sitesAt(s, 0, {})) if (x.kind == 'outlier') {
 		const sy = G.system(s), ruin = sy.planets.find(p => p.ruins), moons = sy.planets.flatMap(p => p.moons || []).filter(m => L.landable(m).ok && m.name != ruin.name);
-		if (x.moon) { onMoon++; if (x.giantMoon) onGiant++ } else if (moons.length) onPlanetWithMoon++;
+		if (x.moon) { onMoon++; if (x.giantMoon) onGiant++ } else { if (moons.length) onPlanetWithMoon++; onPlanet++; const far = sy.planets.filter(p => p != ruin && L.landable(p).ok).reduce((a, p) => !a || p.a > a.a ? p : a, null); if (far && far.name == x.world) onFarthest++ }
 	}
-	ok('4. an outlying ruin (a waystation or relay) is on a moon whenever there\'s one to land on, a gas giant\'s most often', onPlanetWithMoon == 0 && onMoon > outliers * 0.45 && onGiant > onMoon * 0.5, {onMoon, onGiant, outliers, onPlanetWithMoon});
+	ok('4. an outlying ruin (a waystation or relay) is on a moon whenever there\'s one to land on, a gas giant\'s most often; otherwise usually on the planet farthest from the star', onPlanetWithMoon == 0 && onMoon > outliers * 0.45 && onGiant > onMoon * 0.5 && onPlanet > 10 && onFarthest > onPlanet * 0.75, {onMoon, onGiant, outliers, onPlanetWithMoon, onPlanet, onFarthest});
 
 	/* 5. placement */
 	const bad = [];

@@ -16,8 +16,9 @@ The numbers are starting values for playtests, like the rest of the plan's.
 - **1, outlying ruins:** yes, "but it should usually be on a moon (usually one orbiting a gas giant) as if it is some
   sort of waystation or relay". Built so: on a moon whenever the system has one that can be landed on (a gas
   giant's weighted 8, the ruin world's own 5, any other 3), else a planet; laid out as a relay (masts, dishes, a
-  hall). Measured: about 58% of outliers on moons (about 40% on gas giants' moons); the rest are in systems with no
-  landable moon at all.
+  hall). With no moon, "the ruins will usually be on the farthest landable planet from the star" (the owner, the same
+  day): that planet weighted 6 against 1 for each other. Measured: about 58% of outliers on moons (about 40% on gas
+  giants' moons); the rest, in systems with no landable moon, 90% on the farthest landable planet.
 - **2, your own crash:** the cargo lies at the crash site as canisters for 7 days.
 - **4, survivors:** escape pods as a one-tonne cargo good.
 - **6, peoples:** ruins grouped into peoples by a 30 pc cell, each with a generated name and its own style.

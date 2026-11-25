@@ -1469,7 +1469,8 @@ also arms the first ships and adds fire groups:
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
 - **0.7.1, sites on the ground, the model (L4.1 of [plan-ember-reach-sites.md](plan-ember-reach-sites.md)):**
-  `sites.js` works out each system's ruin fields, outlying ruins (waystations, on moons whenever there are any),
+  `sites.js` works out each system's ruin fields, outlying ruins (waystations, on moons whenever there are any, else
+  usually the farthest planet),
   Precursor sites, old hulks and fresh wrecks, with their layouts and models; ruins grouped into peoples with
   styles of their own; `sites.html` shows them. Nothing in flight yet. The orbital ruin cache is now seeded from the
   ruin. The owner chose to build L4 before the Core's story, and answered most of both plans' open questions.

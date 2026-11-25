@@ -7,7 +7,7 @@
      plazas to land on, a vault, 3 to 6 structures, 2 or 3 old warden towers.
    - Outlying ruins (the owner, 2026-11-25): where the ruin world can't be landed on, a smaller site of the same
      builders on another body of the system: on a moon whenever there's one that can be landed on (a gas giant's
-     most often), else a planet. A waystation or relay (masts, dishes, a hall), 0.3-0.8 km across, one plaza, a
+     most often), else a planet, usually the one farthest from the star. A waystation or relay (masts, dishes, a hall), 0.3-0.8 km across, one plaza, a
      small vault, one warden. Never in the Rift.
    - Precursor sites: on the Rift's Precursor ruin worlds that can be landed on. 1-3 km across, in the Precursors'
      own forms (shards, lattice arches, anchor rings, stepped wells), whole and unweathered, off-black with violet
@@ -36,8 +36,9 @@ const SITES = {
 	precursor: {r: [500, 1500], structs: [4, 7], plazas: [1, 2], plazaR: [40, 90], wardens: [2, 4], vault: 16},
 	hulk: {claimed: 0.03, contested: 0.06, unclaimed: 0.04, lane: 0.08, rift: 0.02, riftPre: 0.2, two: 0.2},
 	wreck: {claimed: 0.08, contested: 0.15, unclaimed: 0.1, pod: 0.3},
-	/* an outlier's body: a gas giant's moon most often, then the ruin world's own moons and other moons, a planet last */
-	outlierWeight: {giantMoon: 8, ruinMoon: 5, moon: 3, planet: 1},
+	/* an outlier's body: a gas giant's moon most often, then the ruin world's own moons and other moons; with no moon, a
+	   planet, the farthest from the star six times as likely as any other */
+	outlierWeight: {giantMoon: 8, ruinMoon: 5, moon: 3, farthest: 6, planet: 1},
 	loose: 0.25, polar: 70, share: 0.03, people: 30, margin: 8, seasonDays: 30};
 const CONE = Sf.CONE;
 /* the structures: footprint radius and height (m), as ranges */
@@ -108,7 +109,8 @@ function sitesAt(star, season, ctx) {
 			/* an outlier: a waystation or relay of the same builders, on another body */
 			const r = G.rng(G.hashStr('outlier:' + star.id)), others = land.filter(p => p != ruin), moons = others.filter(p => p.moon), cand = moons.length ? moons : others;   /* (on a moon whenever there is one) */
 			if (cand.length) {
-				const W = SITES.outlierWeight, w = p => !p.moon ? W.planet : p.parent == ruin.name ? W.ruinMoon : (sy.planets.find(q => q.name == p.parent) || {}).gas ? W.giantMoon : W.moon;
+				/* (no moon: usually the planet farthest from the star, the owner, 2026-11-25) */
+				const far = cand.reduce((a, p) => !p.moon && (!a || p.a > a.a) ? p : a, null), W = SITES.outlierWeight, w = p => !p.moon ? (p == far ? W.farthest : W.planet) : p.parent == ruin.name ? W.ruinMoon : (sy.planets.find(q => q.name == p.parent) || {}).gas ? W.giantMoon : W.moon;
 				const tot = cand.reduce((a, p) => a + w(p), 0); let x = r() * tot, p = cand[cand.length - 1];
 				for (const c of cand) if ((x -= w(c)) < 0) { p = c; break }
 				const radius = sized(p, SITES.outlier.r, r), at = radius && place(p, radius, r);
