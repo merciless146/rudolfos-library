@@ -9,8 +9,8 @@ reviewable steps. It's written in the style of `plan-ember-reach-landing-work.md
 
 The numbers are starting values for playtests, like the rest of the plan's.
 
-**Status:** L4.1 is built (0.7.1), and L4.2a, ruin fields in the game (0.7.2); both below. L4.2 is split in two: L4.2b,
-the wardens and the vault's sentinels, is next. The owner chose to build L4 before the Core's story
+**Status:** L4.1 (0.7.1), L4.2a, ruin fields in the game (0.7.2), and L4.2b, their wardens (0.7.3), are built; all
+below. Next: L4.3. The owner chose to build L4 before the Core's story
 (`plan-ember-reach-core.md`), which needs its Precursor vaults and lodestones.
 
 **The owner's answers (2026-11-25):**
@@ -435,7 +435,7 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
 |---|---|---|---|
 | **L4.1** ✓ | `sites.js`: kinds, placement, layouts, parts, the three shapes, `sites.html`; node tests. Nothing in flight yet (0.7.1) | L3 done | medium |
 | **L4.2a** ✓ | Ruin fields in the game: drawn, found (survey, ground scan, coming near), the flown survey, the vault and its cache, site data (0.7.2) | L4.1 | medium |
-| **L4.2b** | The wardens and the vault's sentinels; the map's card | L4.2a | small |
+| **L4.2b** ✓ | The wardens and the vault's sentinels; the map's card (0.7.3) | L4.2a | small |
 | **L4.3** | Artifacts: `P.artifacts`, the broker's Finds tab, star charts on the map, inscriptions returned, devices; the excavation contract | L4.2 | medium |
 | **L4.4** | Unstable ground: loose ground on the scan, collapses, pits in `terrain.js`, undercrofts | L4.2 | small |
 | **L4.5** | Precursor sites in the Rift: their forms, pylons, the sealed vault, Precursor finds, lodestones | L4.2, L4.3 | medium |
@@ -486,9 +486,20 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
   - Kept in `P.explore.site` (bits for each structure and the vault, the data sold, first or not); unsound entries
     are dropped on loading.
   - A first discovery is the galaxy's (`firsts.site`), so another pilot finding the same site later isn't first.
-- **Not yet:**
-  - the excavation contract (with L4.3);
-  - the map's "On the ground" line (L4.2b).
+- **Not yet:** the excavation contract (with L4.3).
+
+**L4.2b, as built (0.7.3):**
+- **Wardens:** a ruin field's 2 or 3 towers (an outlier's one) stand ready within 6 km of the site. Each is a
+  sentinel that doesn't move.
+  - **Waking:** when you're within 3 km of it and below 1.5 km above the ground (or when it's fired on).
+  - **Fighting:** it turns 60° a second and fires its old laser within 3 km.
+  - **It isn't drawn as a ship:** its tower is, and the warden fires from the top of it.
+- **Shot down, a warden stays down for the season:** the site's record keeps which (`w`) and when (`ws`).
+- **Its remains** are a structure to survey, worth 800 SU of site data like any other.
+- **The vault's second wave:** opening a vault calls sentinels from orbit half the time (seeded from the site), 30–50 s
+  later.
+- **The star map:** a system's card lists the sites you know: "On the ground: …, a ruin field (Quaisl d)".
+- **Tests:** `tests/emberreach_sites_t.js` 20–21; `tests/emberreach_ruins_browser_t.js` 2b–2d, 5b, 6b, 7b.
 - **Tests:**
   - `tests/emberreach_sites_t.js` 15–19.
   - `tests/emberreach_ruins_browser_t.js` (10).

@@ -1468,6 +1468,9 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.7.3, ruin fields' wardens (L4.2b of [plan-ember-reach-sites.md](plan-ember-reach-sites.md)):** each ruin field's
+  old warden towers wake and fire as you come low and near. Shot down, they stay down for the season, and their remains
+  are surveyed. Opening a vault calls a second wave of sentinels half the time. The star map lists the sites you know.
 - **0.7.2, ruin fields in the game (L4.2a of [plan-ember-reach-sites.md](plan-ember-reach-sites.md)):** ruin fields
   and outlying ruins are drawn on their worlds' ground, their plazas levelled. They're found from orbit, by a ground
   scan or by coming near. Their structures are surveyed by hovering over them or landing beside them, and the vault

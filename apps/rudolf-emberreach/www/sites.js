@@ -318,6 +318,14 @@ function meshes(Lo, detail) {
    own roll for a blueprint (a relay booster 40%, a phaser 20%). Site data: 4,000 SU, 800 a structure, 2,000 for the
    vault; an outlier half of all of it. The record keeps a bit for each structure surveyed (1 to 7) and one (8) for
    the vault. */
+/* (L4.2b) the guardians: wardens at a ruin field (an outlier's one), old towers each with an old laser, turning 60°
+   a second, waking when you're within 3 km and below 1.5 km. Shot down, they stay down for the season, and their
+   remains are surveyed as a structure. Opening a vault calls a second wave of sentinels from orbit half the time,
+   30-50 s later */
+const WARDEN = {wake: 3000, below: 1500, keep: 6000, turn: Math.PI / 3, aim: 4 * Math.PI / 180, range: 3000, wave: 0.5, waveAfter: [30, 50],
+	hull: {id: 'warden', name: 'Warden tower', size: 'S', role: 'sentinel', hull: 700, shield: 250, speed: 0, agility: 0, cargo: 0, jump: 0, hard: [1, 0, 0, 0], length: 8, value: 0, who: [], maker: 'warden', makerName: 'An old people'}};
+/* does opening this vault call a second wave, and when (seconds after)? */
+function vaultWave(site) { const r = G.rng(G.hashStr('wave:' + site.id + ':' + (site.seed >>> 0))); return r() < WARDEN.wave ? WARDEN.waveAfter[0] + r() * (WARDEN.waveAfter[1] - WARDEN.waveAfter[0]) : 0 }
 const SURVEY = {hover: 80, land: 150, time: 8, vault: 20, data: {base: 4000, struct: 800, vault: 2000}, outlier: 0.5, rift: 2,
 	cache: [4, 8], structTon: 0.5, bp: {phaser: 0.2, alien: 0.4}};
 const VAULT_BIT = 1 << 7;
@@ -337,10 +345,12 @@ function vaultCache(site) {
 /* what a site's data is worth (SU, before a first discovery's ×2.5) for the bits surveyed */
 function dataWorth(site, bits) {
 	let n = 0; for (let i = 0; i < 7; i++) if (bits & (1 << i)) n++;
+	for (let i = 16; i < 20; i++) if (bits & (1 << i)) n++;   /* (a warden's remains count as a structure) */
 	const D = SURVEY.data, su = bits ? D.base + D.struct * n + (bits & VAULT_BIT ? D.vault : 0) : 0;
 	return su * (site.kind == 'outlier' ? SURVEY.outlier : 1) * (site.rift ? SURVEY.rift : 1);
 }
-const BITS = {VAULT: VAULT_BIT, struct: n => 1 << (n - 1)};
+/* (L4.2b) a warden's remains, surveyed: bits 16 to 19 */
+const BITS = {VAULT: VAULT_BIT, struct: n => 1 << (n - 1), warden: n => 1 << (15 + n)};
 /* (L4.2) the site's model in pieces, each in its own frame (its centre on the ground at the origin): a plaza or the
    vault on the level ground of a flat, a structure or guardian on the ground as it lies at its foot. play.js stands
    each where its ground is. [{key, c (site metres), r, flat (stands on a flat), parts}] */
@@ -375,6 +385,6 @@ function pieceMesh(pc, detail) { const m = new Me.Mesh(); for (const q of pc.par
    ship's own mesh, plus at most 600 for the rest */
 const BUDGET = {hi: 3000, lo: 1400, debris: 600};
 
-const EmberSites = {SITES, STRUCT, STYLES, RELAY, PRECURSOR, BUDGET, peopleOf, sitesAt, layout, check, parts, meshes, hullFor, worldR, allPorts, SURVEY, BITS, structYield, vaultCache, dataWorth, pieces, pieceMesh};
+const EmberSites = {SITES, STRUCT, STYLES, RELAY, PRECURSOR, BUDGET, peopleOf, sitesAt, layout, check, parts, meshes, hullFor, worldR, allPorts, SURVEY, BITS, structYield, vaultCache, dataWorth, pieces, pieceMesh, WARDEN, vaultWave};
 if (isNode) module.exports = EmberSites; else root.EmberSites = EmberSites;
 })(typeof window != 'undefined' ? window : globalThis);

@@ -180,7 +180,8 @@ function exploreOk(e) {
 		&& (e.found === undefined || (obj(e.found) && Object.values(e.found).every(num)));   /* (lone surface ports found: L2.2) */
 }
 /* (L4.2) the sites' records: any entry that isn't sound is dropped (the rest of the record kept) */
-const siteOk = v => obj(v) && num(v.d) && Number.isInteger(v.b) && v.b >= 0 && v.b < 1 << 20 && num(v.s) && v.s >= 0 && (v.f === 0 || v.f === 1) && ['field', 'outlier', 'precursor', 'hulk', 'wreck'].includes(v.k);
+const siteOk = v => obj(v) && num(v.d) && Number.isInteger(v.b) && v.b >= 0 && v.b < 1 << 20 && num(v.s) && v.s >= 0 && (v.f === 0 || v.f === 1) && ['field', 'outlier', 'precursor', 'hulk', 'wreck'].includes(v.k)
+	&& (v.w === undefined || (Number.isInteger(v.w) && v.w >= 0 && v.w < 16 && Number.isInteger(v.ws)));   /* (L4.2b: the wardens down, w, in season ws) */
 function cleanExplore(e) {
 	if (!exploreOk(e)) return null;
 	if (e.site !== undefined) e.site = obj(e.site) ? Object.fromEntries(Object.entries(e.site).filter(([k, v]) => typeof k == 'string' && k.length <= 160 && siteOk(v))) : {};
