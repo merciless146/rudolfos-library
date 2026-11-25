@@ -3,11 +3,13 @@
    site on ground that can be landed on, within its world's share and clear of its ports; outlying ruins on a moon
    whenever there's one (the owner's choice); the peoples and their styles; the layouts' rules and triangle budgets
    over 200 seeds a kind; Precursor sites unweathered; a system's sites worked out in under a millisecond; and the
-   three new mesh shapes.
+   three new mesh shapes. (0.7.2, L4.2) What surveying from the ground gives: each structure's find, the vault's cache
+   and blueprint, the site data's worth; the model in pieces; the record (first discoveries, bits, data sold as far as
+   it's surveyed), saved, cleaned and shared among a galaxy's pilots.
      node tests/emberreach_sites_t.js */
 const path = require('path');
 const req = n => require(path.join(__dirname, '..', 'apps/rudolf-emberreach/www', n));
-const G = req('galaxy.js'), St = req('sites.js'), L = req('landing.js'), Sf = req('surface.js'), Me = req('meshes.js'), Sh = req('ships.js');
+const G = req('galaxy.js'), St = req('sites.js'), L = req('landing.js'), Sf = req('surface.js'), Me = req('meshes.js'), Sh = req('ships.js'), X = req('explore.js'), Sv = req('save.js'), Tr = req('trade.js'), F = req('factions.js');
 let P = 0, N = 0;
 const ok = (n, c, d) => { if (c) { P++; console.log('PASS ' + n) } else { N++; console.log('FAIL ' + n + (d !== undefined ? ' - ' + JSON.stringify(d).slice(0, 600) : '')) } };
 try {
@@ -117,5 +119,33 @@ try {
 	let topZ = -1e9; for (let i = 2; i < bx.p.length; i += 3) topZ = Math.max(topZ, bx.p[i]);
 	let fz = [Infinity, -Infinity]; for (let i = 2; i < f.p.length; i += 3) { fz[0] = Math.min(fz[0], f.p[i]); fz[1] = Math.max(fz[1], f.p[i]) }
 	ok('14. the new shapes: a frustum (spires, mounds, plinths), a shard of 8 faces, and any part tilted (a box 10 m tall, laid flat, stands 1 m)', f.count() == 32 && fz[0] == 0 && fz[1] == 30 && sd.count() == 8 && Math.abs(topZ - 1) < 1e-9, {f: f.count(), sd: sd.count(), topZ});
+	/* (L4.2) surveyed from the ground */
+	const mk = (kind, i) => ({kind, id: 't:' + kind + ':' + i, seed: (i * 2246822519 + 13) >>> 0, radius: St.SITES[kind].r[0], age: 4, style: 'terraces', stone: [0.6, 0.5, 0.4], Ts: 200});
+	let tons = 0, structs = 0, vaults = [], vaultsO = [], ph = 0, al = 0;
+	for (let i = 0; i < 2000; i++) {
+		const f = mk('field', i), o = mk('outlier', i);
+		for (let n = 1; n <= 4; n++) { structs++; if (St.structYield(f, n).ton) tons++ }
+		const v = St.vaultCache(f); vaults.push(v.tons); vaultsO.push(St.vaultCache(o).tons);
+		if (v.bp && v.bp.id == 'phaser') ph++; if (v.bp && v.bp.id == 'alien') al++;
+	}
+	const same = JSON.stringify(St.vaultCache(mk('field', 7))) == JSON.stringify(St.vaultCache(mk('field', 7))) && JSON.stringify(St.structYield(mk('field', 7), 2)) == JSON.stringify(St.structYield(mk('field', 7), 2));
+	ok('15. (L4.2) what the ground gives, the same in every save: half the structures a tonne of Artefacts; the vault 4-8 t (an outlier\'s half), a phaser blueprint 20% of the time, a relay booster\'s 20%', same && Math.abs(tons / structs - 0.5) < 0.03 && Math.min(...vaults) >= 4 && Math.max(...vaults) <= 8 && Math.max(...vaultsO) <= 4 && Math.abs(ph / 2000 - 0.2) < 0.03 && Math.abs(al / 2000 - 0.2) < 0.03, {t: tons / structs, ph: ph / 2000, al: al / 2000, vmin: Math.min(...vaults), vmax: Math.max(...vaults), omax: Math.max(...vaultsO)});
+	const B = St.BITS, f0 = mk('field', 1);
+	ok('16. (L4.2) site data: 4,000 SU, 800 a structure, 2,000 for the vault; an outlier half; twice in the Rift; nothing before anything\'s surveyed', St.dataWorth(f0, 0) == 0 && St.dataWorth(f0, B.struct(1)) == 4800 && St.dataWorth(f0, B.struct(1) | B.struct(3) | B.VAULT) == 7600 && St.dataWorth(mk('outlier', 1), B.struct(1)) == 2400 && St.dataWorth(Object.assign({}, f0, {rift: true}), B.struct(1)) == 9600);
+	let piecesOk = true;
+	for (let i = 0; i < 60; i++) { const Lo = St.layout(mk(i % 2 ? 'field' : 'outlier', i)), pc = St.pieces(Lo); if (pc.reduce((t, p) => t + St.pieceMesh(p, 'hi').count(), 0) != St.meshes(Lo, 'hi').count() || pc.filter(p => p.flat).length != Lo.plazas.length + 1 || pc.filter(p => p.struct).length != Lo.structs.length + Lo.wardens.length) piecesOk = false }
+	ok('17. (L4.2) the model in pieces (plazas and the vault on flats, each structure at its own ground) is the whole model', piecesOk);
+	/* the record */
+	const P1 = Tr.newPlayer(F.majors()[0].id), star = {id: '1,2,3/#4'}, site = {id: 'site:Vela b:field', kind: 'field'};
+	const a1 = X.siteSeen(P1, star, site, false, 10), again = X.siteSeen(P1, star, site, false, 12), withPort = X.siteSeen(Tr.newPlayer(F.majors()[0].id), star, site, true, 10);
+	const m1 = X.siteMark(P1, star, site, B.struct(2), false, 11), m1b = X.siteMark(P1, star, site, B.struct(2), false, 11);
+	const u1 = X.unsold(P1).filter(x => x.kind == 'site'), sold = X.sell(P1, null, 'SU', 11); X.siteMark(P1, star, site, B.VAULT, false, 12); const u2 = X.unsold(P1).filter(x => x.kind == 'site');
+	ok('18. (L4.2) a site\'s record: begun when found (a first discovery unless its system has a port), each structure or the vault once, its data sold as far as it\'s surveyed and the rest later', a1.new && a1.first && !again.new && !withPort.first && m1 && !m1b && u1.length == 1 && u1[0].su == 4800 * 2.5 && sold.ok && u2.length == 1 && u2[0].su == 2000 * 2.5, {u1, u2});
+	/* saved, cleaned, shared */
+	P1.explore.site['bad|x'] = {d: 'x'};
+	const back = Sv.unpackPlayer(JSON.parse(JSON.stringify(Sv.packPlayer(P1))));
+	const gal = Sv.newGalaxy(10), packed = Sv.packGalaxy(gal, P1, 'p1', 12), gal2 = Sv.unpackGalaxy(Sv.merge(Sv.split(packed).head, Sv.split(packed).parts)), P2 = Sv.joinGalaxy(Tr.newPlayer(F.majors()[1].id), gal2, 'p2');
+	const k = X.siteKey(star.id, site.id), second = X.siteSeen(P2, star, site, false, 13);
+	ok('19. (L4.2) saved and back (an unsound entry dropped, the rest kept); a first discovery of a site is the galaxy\'s: another pilot finding it after isn\'t first', back.explore.site[k] && back.explore.site[k].b == (B.struct(2) | B.VAULT) && !back.explore.site['bad|x'] && gal2.world.firsts.site[k] == 'p1' && second.new && !second.first, {k, firsts: gal2.world.firsts.site, second});
 } catch (e) { N++; console.log('FAIL (error) ' + (e.stack || e)) }
 console.log(P + '/' + (P + N) + ' passed'); process.exit(N ? 1 : 0);

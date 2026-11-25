@@ -45,6 +45,24 @@ function worth(p) { return ((EXPLORE.value[p.type] || 100) * (1 + p.esi) + (p.al
    from a cartographer's charts. Kept by star and port id, with the day found */
 function found(P, starId, portId) { const X = record(P); return !!(X.found && X.found[starId + '|' + portId] != null) }
 function find(P, starId, portId, day) { const X = record(P); X.found = X.found || {}; const k = starId + '|' + portId; if (X.found[k] != null) return false; X.found[k] = Math.floor(day); return true }
+/* (L4.2) sites on the ground (sites.js): X.site, {star id|site id: {d: day first seen, b: bits (each structure
+   surveyed, the vault opened), s: SU of its data already sold, f: a first discovery, k: its kind}}. A ruin with no
+   port in its system is always yours to find first, unless another pilot of this galaxy found it (X.taken.site) */
+const siteKey = (starId, siteId) => starId + '|' + siteId;
+function siteRec(P, starId, siteId) { const X = record(P); return (X.site && X.site[siteKey(starId, siteId)]) || null }
+function siteSeen(P, star, site, port, day) {
+	const X = record(P); X.site = X.site || {}; const k = siteKey(star.id, site.id);
+	if (X.site[k]) return {new: false, rec: X.site[k]};
+	const first = !port && !(X.taken && X.taken.site && X.taken.site[k]);
+	X.site[k] = {d: Math.floor(day), b: 0, s: 0, f: first ? 1 : 0, k: site.kind};
+	return {new: true, rec: X.site[k], first};
+}
+/* a bit set on a site's record (a structure surveyed, the vault opened); returns true if it's new */
+function siteMark(P, star, site, bit, port, day) {
+	const r = siteSeen(P, star, site, port, day).rec;
+	if (r.b & bit) return false;
+	r.b |= bit; return true;
+}
 /* the sweep: a system charted. Returns true if it's new to you */
 function chartSystem(P, star, day) { const X = record(P); if (X.sys[star.id] != null) return false; X.sys[star.id] = Math.floor(day); return true }
 /* a planet surveyed: returns {new, first, ruins, alive, value} (value in SU, as it will sell) */
@@ -104,8 +122,19 @@ function unsold(P) {
 		const [id, name] = k.split('|'), p = planetByKey(id, name);
 		out.push({key: k, kind: 'planet', label: (X.names[k] || name) + (p ? ' · ' + p.type + (p.alive ? ', life' : '') + (p.ruins ? ', ruins' : '') : '') + (e.f ? ' · first' : ''), su: (p ? worth(p) : 100) * (e.f ? EXPLORE.first : 1), first: !!e.f});
 	}
+	/* (L4.2) site data: what the structures and vault surveyed are worth, less what's sold */
+	const St = siteWorth();
+	for (const k in X.site || {}) {
+		const e = X.site[k]; if (!e.b || !St) continue;
+		const [id, sid] = k.split('|'), worth = St.dataWorth({kind: e.k, rift: id.startsWith('R:')}, e.b) * (e.f ? EXPLORE.first : 1), su = Math.max(0, worth - (e.s || 0));
+		if (su < 1) continue;
+		out.push({key: k, kind: 'site', label: siteLabel(sid, e) + (e.f ? ' · first' : ''), su, first: !!e.f, worth});
+	}
 	return out;
 }
+const siteWorth = () => isNode ? require('./sites.js') : root.EmberSites;
+/* a site's name in the data list: "Vela b, ruin field" */
+function siteLabel(sid, e) { const m = /^site:(.+):(field|outlier|precursor)$/.exec(sid); return m ? m[1] + ', ' + ({field: 'ruin field', outlier: 'outlying ruin', precursor: 'Precursor site'})[m[2]] + ' · site data' : sid }
 /* a planet from its key (the star's id holds its sector and index) */
 function planetByKey(id, name) { const s = starById(id); if (!s) return null; const pl = G.system(s).planets; return pl.find(p => p.name == name) || pl.flatMap(p => p.moons || []).find(m => m.name == name) || null }
 const STARS = new Map();
@@ -120,7 +149,7 @@ function starById(id) {
 function sell(P, holder, currency, day) {
 	const X = record(P), items = unsold(P), su = items.reduce((t, x) => t + x.su, 0);
 	if (!items.length) return {ok: false, why: 'Nothing to sell: scan systems and survey planets first.'};
-	for (const x of items) if (x.kind == 'system') X.sold[x.key] = 1; else if (x.kind == 'landing') X.land[x.key].s = 1; else X.pl[x.key].s = 1;
+	for (const x of items) if (x.kind == 'system') X.sold[x.key] = 1; else if (x.kind == 'landing') X.land[x.key].s = 1; else if (x.kind == 'site') X.site[x.key].s = x.worth; else X.pl[x.key].s = 1;   /* (a site's data sells as far as it's surveyed: more of it, later, sells again) */
 	const k = Ca.rewardK(P), code = currency || 'SU', amount = (code == 'SU' ? su : su * E.rate(code, day)) * k;   /* (0.5.6: the pilot's reward multiplier) */
 	if (code == 'SU') { const o = F.byId(P.origin).currency.code; P.wallet[o] = (P.wallet[o] || 0) + su * E.rate(o, day) * 0.92 * k } else P.wallet[code] = (P.wallet[code] || 0) + amount;
 	if (holder) R.act(P, 'scanRuins', holder, {amount: Math.min(5, su / 2000)});
@@ -189,6 +218,6 @@ function accept(P, m, day) {
 /* a survey done: mark the contracts it completes */
 function surveyDone(P, starId, planetName) { for (const m of P.missions || []) if (m.kind == 'explore' && !m.done && m.star.id == starId && m.planet == planetName) m.surveyed = true }
 
-const EmberExplore = {found, find, landed, landWorth, landedOn, deposits, EXPLORE, keyOf, charted, worth, chartSystem, survey, surveyed, isCharted: charted_, unsold, sell, nameable, rename, nameOf, offers, ruinsNear, accept, surveyDone, starById, planetByKey};
+const EmberExplore = {siteKey, siteRec, siteSeen, siteMark, found, find, landed, landWorth, landedOn, deposits, EXPLORE, keyOf, charted, worth, chartSystem, survey, surveyed, isCharted: charted_, unsold, sell, nameable, rename, nameOf, offers, ruinsNear, accept, surveyDone, starById, planetByKey};
 if (isNode) module.exports = EmberExplore; else root.EmberExplore = EmberExplore;
 })(typeof window != 'undefined' ? window : this);

@@ -76,15 +76,15 @@ function peopleOf(star) {
 
 /* ---------- which sites a system has ----------
    ctx: {space: 'claimed' | 'contested' | 'unclaimed', lane (within 10 pc of a long lane), port (the system has a
-   port in space, or a lone surface port), holder (its holder's faction id), ports (its surface ports, surface.js
-   ports(): sites keep clear of them), cls (its station class, to work those out if not given)}. season: the
+   port in space, or a lone surface port), holder (its holder's faction id), ports (surface ports to keep clear of:
+   by default every one the system could have, whatever its station's class)}. season: the
    calendar's (factions.js seasonOf: 30 days). */
 function sitesAt(star, season, ctx) {
 	ctx = ctx || {};
 	if (star.heart) return [];
 	const sy = G.system(star), bodies = sy.planets.flatMap(p => [p, ...(p.moons || [])]), land = bodies.filter(p => L.landable(p).ok), out = [];
 	if (!land.length) return out;
-	const ports = ctx.ports || Sf.ports(star, ctx.cls), taken = ports.map(q => ({world: q.world, dir: dirOf(q.lat, q.lon), r: (Sf.KIND[q.kind] || {radius: 300}).radius}));
+	const ports = ctx.ports || allPorts(star), taken = ports.map(q => ({world: q.world, dir: dirOf(q.lat, q.lon), r: (Sf.KIND[q.kind] || {radius: 300}).radius}));
 	/* a place on a world, clear of its ports' and other sites' (within the poles; anywhere on a locked world: the
 	   old builders didn't need the terminator) */
 	const place = (p, radius, r) => {
@@ -141,6 +141,13 @@ function sitesAt(star, season, ctx) {
 		}
 	}
 	return out;
+}
+/* every surface port the system could have, whatever its station's class (it changes with its holder), and its lone
+   ones: sites keep clear of all of them, so a site never moves when a holder changes */
+function allPorts(star) {
+	const seen = new Map();
+	for (const c of [null, ...Object.keys(Sf.PLACE)]) for (const q of Sf.ports(star, c)) seen.set(q.id + '|' + q.world + '|' + q.lat + '|' + q.lon, q);
+	return [...seen.values()];
 }
 /* a wreck's hull, from the stock ships by who flies where, up to a size */
 const POOL = {contested: ['navy'], lane: ['trader', 'courier', 'passenger', 'nomad'], claimed: ['trader', 'courier', 'navy', 'miner'], unclaimed: ['explorer', 'prospector', 'pirate', 'nomad', 'miner'],
@@ -301,27 +308,73 @@ function shellMesh(rx, ry, rz, col, seg, missing) {
 }
 function meshes(Lo, detail) {
 	const lo = detail == 'lo', m = new Me.Mesh();
-	for (const q of parts(Lo)) {
-		let x = null; const col = q.col || Me.COL.hull;
-		if (q.shape == 'box') x = Me.box([0, 0, 0], q.h, col);
-		else if (q.shape == 'cyl') x = Me.cylinder(q.r, q.z0, q.z1, q.plaza ? (lo ? 12 : 24) : q.thin ? (lo ? 4 : 6) : (lo ? 6 : 10), col);
-		else if (q.shape == 'frustum') x = Me.frustum(q.r0, q.r1, q.z0, q.z1, lo ? 5 : 8, col);
-		else if (q.shape == 'shard') x = Me.shard(q.r, q.h, col, q.z0 || 0);
-		else if (q.shape == 'ell') x = Me.sphere(0, () => col, q.r);
-		else if (q.shape == 'shell') x = shellMesh(q.r[0], q.r[1], q.r[2], col, lo ? 8 : 12, q.missing);
-		else if (q.shape == 'torus') x = Me.torus(q.R, q.a, q.b, 0, lo ? 12 : 20, 4, col);
-		else if (q.shape == 'ship') { x = Me.ship(q.length, lo ? 'low' : 'high').tilt(Math.PI / 2, 0); x.tilt(q.pitch, q.roll) }
-		if (!x) continue;
-		if (q.shape != 'ship' && (q.pitch || q.roll)) x.tilt(q.pitch, q.roll);
-		/* (a cylinder's own part offset is its c; boxes are built at the origin and moved) */
-		m.add(x.place(q.rot || 0, q.c || [0, 0, 0]));
-	}
+	for (const q of parts(Lo)) { const x = partMesh(q, lo); if (x) m.add(x) }
 	return m;
 }
+/* ---------- (L4.2) surveyed from the ground ----------
+   A site is surveyed a structure at a time: hover within 80 m of one, or land within 150 m, for 8 s with a working
+   cartographic sensor. The vault opens to a ship landed on its plaza for 20 s. What each gives is seeded from the
+   site, so it's the same in every save: half the structures leave a tonne of Artefacts; the vault 4-8 t, and its
+   own roll for a blueprint (a relay booster 40%, a phaser 20%). Site data: 4,000 SU, 800 a structure, 2,000 for the
+   vault; an outlier half of all of it. The record keeps a bit for each structure surveyed (1 to 7) and one (8) for
+   the vault. */
+const SURVEY = {hover: 80, land: 150, time: 8, vault: 20, data: {base: 4000, struct: 800, vault: 2000}, outlier: 0.5, rift: 2,
+	cache: [4, 8], structTon: 0.5, bp: {phaser: 0.2, alien: 0.4}};
+const VAULT_BIT = 1 << 7;
+const FIND = ['worn carvings', 'an inscription', 'tool marks in the stone', 'a sealed niche, empty', 'a mosaic of an unknown sky', 'a broken mechanism', 'the bones of a frame, long stripped'];
+/* what one structure gives when surveyed: {find (what you see), ton (a tonne of Artefacts)} */
+function structYield(site, n) {
+	const r = G.rng(G.hashStr('yield:' + site.id + ':' + n + ':' + (site.seed >>> 0)));
+	return {find: FIND[Math.floor(r() * FIND.length)], ton: r() < SURVEY.structTon};
+}
+/* what the vault holds: {tons of Artefacts, a blueprint or null} */
+function vaultCache(site) {
+	const r = G.rng(G.hashStr('vault:' + site.id + ':' + (site.seed >>> 0))), k = site.kind == 'outlier' ? 0.5 : 1;
+	const tons = Math.max(1, Math.round((SURVEY.cache[0] + r() * (SURVEY.cache[1] - SURVEY.cache[0])) * k)), b = r();
+	const bp = b < SURVEY.bp.phaser ? {id: 'phaser', size: 3} : b < SURVEY.bp.alien ? {id: 'alien', size: 2 + Math.floor(r() * 3)} : null;
+	return {tons, bp};
+}
+/* what a site's data is worth (SU, before a first discovery's ×2.5) for the bits surveyed */
+function dataWorth(site, bits) {
+	let n = 0; for (let i = 0; i < 7; i++) if (bits & (1 << i)) n++;
+	const D = SURVEY.data, su = bits ? D.base + D.struct * n + (bits & VAULT_BIT ? D.vault : 0) : 0;
+	return su * (site.kind == 'outlier' ? SURVEY.outlier : 1) * (site.rift ? SURVEY.rift : 1);
+}
+const BITS = {VAULT: VAULT_BIT, struct: n => 1 << (n - 1)};
+/* (L4.2) the site's model in pieces, each in its own frame (its centre on the ground at the origin): a plaza or the
+   vault on the level ground of a flat, a structure or guardian on the ground as it lies at its foot. play.js stands
+   each where its ground is. [{key, c (site metres), r, flat (stands on a flat), parts}] */
+function pieces(Lo) {
+	const out = [], r = G.rng(G.hashStr('parts:' + Lo.id)), turned = (q, rot) => { const c = q.c || [0, 0, 0], k = Math.cos(rot), s = Math.sin(rot); return Object.assign({}, q, {c: [c[0] * k - c[1] * s, c[0] * s + c[1] * k, c[2]], rot: (q.rot || 0) + rot}) };
+	const pre = Lo.kind == 'precursor', V = Lo.vault, stone = C4(Lo.stone);
+	for (const p of Lo.plazas) out.push({key: 'plaza' + p.n, c: p.c, r: p.r, flat: true, plaza: p.n, parts: [{shape: 'cyl', r: p.r, z0: -0.3, z1: 0.06, c: [0, 0, 0], col: pre ? [0.12, 0.11, 0.14, 0] : C4(Lo.stone.map(v => v * 0.8)), plaza: p.n}]});
+	const vp = pre ? [{shape: 'box', c: [0, 0, V.h / 2], h: [V.r, V.r * 0.4, V.h / 2], col: PRE.body}, {shape: 'box', c: [0, -V.r * 0.41, V.h * 0.45], h: [V.r * 0.12, 0.2, V.h * 0.4], col: PRE.seam}]
+		: [{shape: 'box', c: [0, 0, 0.2], h: [V.r, V.r * 0.6, 0.4], col: [0.05, 0.05, 0.05, 0]}, {shape: 'box', c: [V.r * 1.1, 0, V.h / 2], h: [V.r * 0.15, V.r * 0.6, V.h / 2], col: stone}, {shape: 'box', c: [-V.r * 1.1, 0, V.h / 2], h: [V.r * 0.15, V.r * 0.6, V.h / 2], col: stone}];
+	out.push({key: 'vault', c: V.c, r: V.r * 1.3, flat: true, vault: true, parts: vp.map(q => turned(q, V.rot))});
+	for (const st of [...Lo.structs, ...Lo.wardens]) out.push({key: (st.type == 'warden' || st.type == 'pylon' ? 'w' : 's') + st.n, c: st.c, r: st.r, flat: false, struct: st, parts: structParts(st, Lo.stone, PRE, r).map(q => turned(q, st.rot))});
+	return out;
+}
+function partMesh(q, lo) {
+	const col = q.col || Me.COL.hull;
+	let x = null;
+	if (q.shape == 'box') x = Me.box([0, 0, 0], q.h, col);
+	else if (q.shape == 'cyl') x = Me.cylinder(q.r, q.z0, q.z1, q.plaza ? (lo ? 12 : 24) : q.thin ? (lo ? 4 : 6) : (lo ? 6 : 10), col);
+	else if (q.shape == 'frustum') x = Me.frustum(q.r0, q.r1, q.z0, q.z1, lo ? 5 : 8, col);
+	else if (q.shape == 'shard') x = Me.shard(q.r, q.h, col, q.z0 || 0);
+	else if (q.shape == 'ell') x = Me.sphere(0, () => col, q.r);
+	else if (q.shape == 'shell') x = shellMesh(q.r[0], q.r[1], q.r[2], col, lo ? 8 : 12, q.missing);
+	else if (q.shape == 'torus') x = Me.torus(q.R, q.a, q.b, 0, lo ? 12 : 20, 4, col);
+	else if (q.shape == 'ship') { x = Me.ship(q.length, lo ? 'low' : 'high').tilt(Math.PI / 2, 0); x.tilt(q.pitch, q.roll) }
+	if (!x) return null;
+	if (q.shape != 'ship' && (q.pitch || q.roll)) x.tilt(q.pitch, q.roll);
+	return x.place(q.rot || 0, q.c || [0, 0, 0]);
+}
+/* one piece's mesh */
+function pieceMesh(pc, detail) { const m = new Me.Mesh(); for (const q of pc.parts) { const x = partMesh(q, detail == 'lo'); if (x) m.add(x) } return m }
 /* the triangles a site may take (the plan's budgets): a ruin at most 3,000 at full detail and 1,400 at low; a wreck its
    ship's own mesh, plus at most 600 for the rest */
 const BUDGET = {hi: 3000, lo: 1400, debris: 600};
 
-const EmberSites = {SITES, STRUCT, STYLES, RELAY, PRECURSOR, BUDGET, peopleOf, sitesAt, layout, check, parts, meshes, hullFor, worldR};
+const EmberSites = {SITES, STRUCT, STYLES, RELAY, PRECURSOR, BUDGET, peopleOf, sitesAt, layout, check, parts, meshes, hullFor, worldR, allPorts, SURVEY, BITS, structYield, vaultCache, dataWorth, pieces, pieceMesh};
 if (isNode) module.exports = EmberSites; else root.EmberSites = EmberSites;
 })(typeof window != 'undefined' ? window : globalThis);

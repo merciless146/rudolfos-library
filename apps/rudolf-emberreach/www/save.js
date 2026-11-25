@@ -153,7 +153,7 @@ function unpackPlayer0(x) {
 		/* M4: the hull's health and ammunition carried over; war missions in hand */
 		combat: x.combat && typeof x.combat == 'object' && num(x.combat.hull) ? x.combat : null,
 		/* M5: what you've charted, surveyed, sold and named */
-		explore: exploreOk(x.explore) ? x.explore : null,
+		explore: cleanExplore(x.explore),
 		/* (0.4.9) the deposits the ground scan found: {id: {star, body, res, tons}} */
 		deposits: obj(x.deposits) ? Object.fromEntries(Object.entries(x.deposits).filter(([k, v]) => /^dep:/.test(k) && obj(v) && typeof v.star == 'string' && typeof v.body == 'string' && typeof v.res == 'string' && num(v.tons) && v.tons > 0).map(([k, v]) => [k, {star: v.star, body: v.body, res: v.res, tons: v.tons, dir: Array.isArray(v.dir) && v.dir.length == 3 && v.dir.every(num) ? v.dir : undefined}]).slice(-600)) : {},
 		/* M5b: colonies and haulage contracts */
@@ -179,6 +179,13 @@ function exploreOk(e) {
 		&& Object.values(e.names).every(n => typeof n == 'string' && n.length <= 24) && (e.land === undefined || (obj(e.land) && Object.values(e.land).every(obj)))   /* (landings: L1.4; older saves have none) */
 		&& (e.found === undefined || (obj(e.found) && Object.values(e.found).every(num)));   /* (lone surface ports found: L2.2) */
 }
+/* (L4.2) the sites' records: any entry that isn't sound is dropped (the rest of the record kept) */
+const siteOk = v => obj(v) && num(v.d) && Number.isInteger(v.b) && v.b >= 0 && v.b < 1 << 20 && num(v.s) && v.s >= 0 && (v.f === 0 || v.f === 1) && ['field', 'outlier', 'precursor', 'hulk', 'wreck'].includes(v.k);
+function cleanExplore(e) {
+	if (!exploreOk(e)) return null;
+	if (e.site !== undefined) e.site = obj(e.site) ? Object.fromEntries(Object.entries(e.site).filter(([k, v]) => typeof k == 'string' && k.length <= 160 && siteOk(v))) : {};
+	return e;
+}
 /* put saved module health back on a fresh fit (unknown modules are ignored; health never above the pool) */
 function restoreModules(fit, saved) {
 	for (const m of fit.modules) if (saved && typeof saved[m.id] == 'number') m.hp = Math.max(0, Math.min(m.max, saved[m.id]));
@@ -197,7 +204,7 @@ function restoreModules(fit, saved) {
 const SLOTS = 6, GV = 1;
 const WORLD = ['markets', 'mined', 'warEvents', 'colonies'];
 /* a new galaxy */
-const newGalaxy = day => ({gv: GV, galaxy: GALAXY, day: num(day) ? day : 0, seq: 0, cur: null, slots: Array(SLOTS).fill(null), world: {markets: {}, mined: {}, warEvents: [], colonies: [], firsts: {pl: {}, land: {}}, names: {}}});
+const newGalaxy = day => ({gv: GV, galaxy: GALAXY, day: num(day) ? day : 0, seq: 0, cur: null, slots: Array(SLOTS).fill(null), world: {markets: {}, mined: {}, warEvents: [], colonies: [], firsts: {pl: {}, land: {}, site: {}}, names: {}}});
 /* a slot's summary, shown on the pilots' screen: from the game's state (g as pack() takes it, with the origin's
    names given by the caller) */
 function summary(id, g, names) {
@@ -213,7 +220,7 @@ function unpackGalaxy(raw) {
 	return {gv: GV, galaxy: GALAXY, day: raw.day, seq: raw.seq, cur: Number.isInteger(raw.cur) && raw.cur >= 0 && raw.cur < SLOTS && slots[raw.cur] ? raw.cur : null, slots,
 		world: {markets: obj(W.markets) ? W.markets : {}, mined: obj(W.mined) ? W.mined : {}, warEvents: Array.isArray(W.warEvents) ? W.warEvents.slice(-200) : [],
 			colonies: Array.isArray(W.colonies) ? W.colonies.filter(c => obj(c) && typeof c.id == 'string' && typeof c.owner == 'string' && obj(c.star) && typeof c.stage == 'string') : [],
-			firsts: {pl: fm(W.firsts && W.firsts.pl), land: fm(W.firsts && W.firsts.land)}, names: obj(W.names) ? Object.fromEntries(Object.entries(W.names).filter(([k, v]) => typeof v == 'string' && v.length <= 24)) : {}}};
+			firsts: {pl: fm(W.firsts && W.firsts.pl), land: fm(W.firsts && W.firsts.land), site: fm(W.firsts && W.firsts.site)}, names: obj(W.names) ? Object.fromEntries(Object.entries(W.names).filter(([k, v]) => typeof v == 'string' && v.length <= 24)) : {}}};
 }
 /* the galaxy as saved: the world's part of the pilot playing now (id) put into it; trimmed to the budget */
 function packGalaxy(gal, P, id, day) {
@@ -222,8 +229,8 @@ function packGalaxy(gal, P, id, day) {
 	if (P) {
 		w.markets = P.markets || {}; w.mined = P.mined || {}; w.warEvents = (P.warEvents || []).slice(-200);
 		w.colonies = (P.others || []).map(c => Object.assign({}, c, {foreign: undefined})).concat((P.colonies || []).map(c => Object.assign({}, c, {owner: id})));
-		const X = P.explore, f = {pl: Object.assign({}, W.firsts.pl), land: Object.assign({}, W.firsts.land)};
-		if (X) { for (const k in X.pl || {}) if (X.pl[k].f && !f.pl[k]) f.pl[k] = id; for (const k in X.land || {}) if (X.land[k].f && !f.land[k]) f.land[k] = id }
+		const X = P.explore, f = {pl: Object.assign({}, W.firsts.pl), land: Object.assign({}, W.firsts.land), site: Object.assign({}, W.firsts.site || {})};
+		if (X) { for (const t of ['pl', 'land', 'site']) for (const k in X[t] || {}) if (X[t][k].f && !f[t][k]) f[t][k] = id }   /* (site: L4.2) */
 		w.firsts = f; w.names = Object.assign({}, W.names, X && X.names || {});
 	}
 	/* the budget: mined asteroids, then markets, then war events (first discoveries, names and colonies are kept, in
@@ -252,7 +259,7 @@ function joinGalaxy(P, gal, id) {
 	const X = P.explore = P.explore || {sys: {}, pl: {}, sold: {}, names: {}};   /* (explore.js record()'s shape) */
 	{
 		X.names = Object.assign({}, W.names, X.names || {});
-		Object.defineProperty(X, 'taken', {value: {pl: Object.fromEntries(Object.entries(W.firsts.pl).filter(([k, v]) => v != id)), land: Object.fromEntries(Object.entries(W.firsts.land).filter(([k, v]) => v != id))}, enumerable: false, writable: true, configurable: true});
+		Object.defineProperty(X, 'taken', {value: Object.fromEntries(['pl', 'land', 'site'].map(t => [t, Object.fromEntries(Object.entries(W.firsts[t] || {}).filter(([k, v]) => v != id))])), enumerable: false, writable: true, configurable: true});   /* (site: L4.2) */
 	}
 	return P;
 }
@@ -278,7 +285,7 @@ function migrate(raw, names) {
 	const P = raw.player;
 	gal.world.markets = obj(P.markets) ? P.markets : {}; gal.world.mined = obj(P.mined) ? P.mined : {}; gal.world.warEvents = Array.isArray(P.warEvents) ? P.warEvents.slice(-200) : [];
 	gal.world.colonies = (Array.isArray(P.colonies) ? P.colonies : []).map(c => Object.assign({}, c, {owner: 'p1'}));
-	const X = P.explore; if (obj(X)) { for (const k in X.pl || {}) if (X.pl[k] && X.pl[k].f) gal.world.firsts.pl[k] = 'p1'; for (const k in X.land || {}) if (X.land[k] && X.land[k].f) gal.world.firsts.land[k] = 'p1'; gal.world.names = Object.assign({}, X.names || {}) }
+	const X = P.explore; if (obj(X)) { for (const t of ['pl', 'land', 'site']) for (const k in X[t] || {}) if (X[t][k] && X[t][k].f) gal.world.firsts[t][k] = 'p1'; gal.world.names = Object.assign({}, X.names || {}) }
 	const st = raw.star ? {id: raw.star.id, name: names && names.star || raw.star.id} : null;
 	gal.slots[0] = summary('p1', {player: P, power: raw.power, star: st, docked: raw.docked, day: raw.day}, names);
 	return {galaxy: gal, pilot: pilotOnly(raw), settings: raw.settings};
@@ -324,20 +331,20 @@ function decColony(o) {
 /* a packed galaxy (packGalaxy's) as the head and its parts */
 function split(packed) {
 	const W = packed.world || {}, head = Object.assign({}, packed, {parts: PARTS, world: {markets: W.markets || {}, mined: W.mined || {}, warEvents: W.warEvents || []}});
-	const parts = Array.from({length: PARTS}, () => ({gp: 1, colonies: [], firsts: {pl: {}, land: {}}, names: {}}));
+	const parts = Array.from({length: PARTS}, () => ({gp: 1, colonies: [], firsts: {pl: {}, land: {}, site: {}}, names: {}}));
 	for (const c of W.colonies || []) parts[regionOf((c.star && c.star.id) || c.id)].colonies.push(encColony(c));
-	for (const t of ['pl', 'land']) for (const [k, v] of Object.entries((W.firsts || {})[t] || {})) parts[regionOf(k)].firsts[t][k] = v;
+	for (const t of ['pl', 'land', 'site']) for (const [k, v] of Object.entries((W.firsts || {})[t] || {})) parts[regionOf(k)].firsts[t][k] = v;
 	for (const [k, v] of Object.entries(W.names || {})) parts[regionOf(k)].names[k] = v;
 	return {head, parts};
 }
 /* the head and its parts (as loaded; a missing part is empty) as one packed galaxy, for unpackGalaxy */
 function merge(head, parts) {
 	if (!obj(head) || !num(head.parts)) return head;
-	const w = Object.assign({}, head.world || {}, {colonies: [], firsts: {pl: {}, land: {}}, names: {}});
+	const w = Object.assign({}, head.world || {}, {colonies: [], firsts: {pl: {}, land: {}, site: {}}, names: {}});
 	for (const p of parts || []) {
 		if (!obj(p) || p.gp !== 1) continue;
 		if (Array.isArray(p.colonies)) for (const o of p.colonies) if (obj(o)) w.colonies.push(decColony(o));
-		for (const t of ['pl', 'land']) Object.assign(w.firsts[t], obj(p.firsts) && obj(p.firsts[t]) ? p.firsts[t] : {});
+		for (const t of ['pl', 'land', 'site']) Object.assign(w.firsts[t], obj(p.firsts) && obj(p.firsts[t]) ? p.firsts[t] : {});
 		Object.assign(w.names, obj(p.names) ? p.names : {});
 	}
 	const out = Object.assign({}, head, {world: w}); delete out.parts;

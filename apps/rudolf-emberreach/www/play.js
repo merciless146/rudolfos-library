@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release in the Rudolf OS Library: Ember Reach (named the Single-Player Alpha Build, SPAB, from 0.1.0 to 0.6.6) */
-const BUILD = {name: 'Ember Reach', version: '0.7.1'};
+const BUILD = {name: 'Ember Reach', version: '0.7.2'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -244,6 +244,7 @@ function enterSystem(star) {
 	game.tgt = null; game.nav = null; game.ap = null; game.clearance = null; game.atc = {}; game.dockPort = null; game.npcs = []; game.shots = []; game.beams = []; game.booms = []; game.cans = []; game.marshalsAt = null; game.held = null; game.landed = null; game.lastAlt = null; game.autoJumpAt = null; game.deposits = []; game.gscan = null;
 	game.sweep = game.P && X.isCharted(game.P, star.id) ? 0 : X.EXPLORE.sweep; game.surveyT = 0; game.surveyKey = null; game.guarded = {};
 	game.own = game.port && game.port.capital ? {owner: game.port.owner, contested: false} : T.ownerOf(star, game.day);
+	game.gsites = groundSites(star); game.gsurvey = null; game.vaultT = 0;   /* (L4.2) the ruins on its worlds' ground */
 	site(); beaconAt();
 	game.fields = Mi.fields(scene, star).map(f => Object.assign(f, {kind: 'field', radius: 500, fieldKind: f.kind})); game.field = null; game.rocks = []; game.rocksAt = null; game.hotHere = null;
 	game.ringNav = game.fields.filter(f => f.ring && !f.hotspot).map(ringNav); game.mines = minesHere();
@@ -335,7 +336,7 @@ const nearRocks = () => game.rocks.filter(r => len(sub(r.pos, s.p)) < 5000).sort
    system is the star map's pick, or the route's next leg) for cruise, surveys and jumps, picked with . (Period); and
    instance targets (the ships, canisters, asteroids, mining sites, deposits, the beacon, a colony's site) for guns,
    scans and the rest, picked with T. The HUD's card shows the instance target, or the navigation target with none */
-const navList = () => [...(st ? [st] : []), ...(game.surfacePorts || []).filter(sp => !sp.q.lone || X.found(game.P, game.star.id, sp.q.id)).map(sp => sp.tgt || (sp.tgt = surfaceTarget(sp))), ...scene.bodies.filter(b => b.kind == 'planet').flatMap(b => [b, ...(game.ringNav || []).filter(r => r.body == b.name)]), ...scene.bodies.filter(b => b.kind == 'star')];
+const navList = () => [...(st ? [st] : []), ...(game.surfacePorts || []).filter(sp => !sp.q.lone || X.found(game.P, game.star.id, sp.q.id)).map(sp => sp.tgt || (sp.tgt = surfaceTarget(sp))), ...(game.gsites || []).filter(gsFound).map(g => g.tgt), ...scene.bodies.filter(b => b.kind == 'planet').flatMap(b => [b, ...(game.ringNav || []).filter(r => r.body == b.name)]), ...scene.bodies.filter(b => b.kind == 'star')];
 /* (L3.2) a world's rings as a navigation target: the point of them nearest you (in their plane, in a band), which
    moves as you do; cruise drops out 4 km from it (scene.js) */
 const ringNav = f => ({kind: 'ring', name: f.ring.name, ring: f.ring, field: f, body: f.body, radius: 1, get pos() { return Rg.nearestPoint(f.ring, s.p) }});
@@ -348,7 +349,7 @@ const seesHot = () => !!(ship && ship.utility.array && M.works(fit, 'sensors') &
 const seesSites = () => !!(ship && ship.utility.prospector && M.works(fit, 'sensors') && M.works(fit, 'power'));
 const charted = f => !!(game.P.charted && game.P.charted[f.id]);
 const shownFields = () => game.fields.filter(f => (!f.hotspot || seesHot()) && (!f.hidden || charted(f) || seesSites()));
-const instList = () => [...(game.beacon ? [game.beacon] : []), ...(game.mines || []), ...(game.deposits || []), ...nearRocks(), ...shownFields(), ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans];
+const instList = () => [...(game.beacon ? [game.beacon] : []), ...gsParts(), ...(game.mines || []), ...(game.deposits || []), ...nearRocks(), ...shownFields(), ...(game.site ? [game.site] : []), ...game.npcs.filter(n => !n.cs.dead), ...game.cans];
 const targets = () => [...navList(), ...instList()];
 /* the targets are kept by reference (ships come and go); a lost navigation target falls back to the port, or the
    first body; a lost instance target to none */
@@ -570,6 +571,7 @@ function groundScan(dt, cruising) {
 	for (const m of Ct.scanned(game.P, game.star.id, b.name)) say('Ground survey done for the contract: ' + pname(b) + ' · dock anywhere to be paid', '#7fd1a8');   /* (0.3.10) */
 	if (!list.length) say('Ground scan of ' + pname(b) + ': no deposits within 5 km', '#9fb0cc');
 	else { const by = {}; for (const d of list) by[d.res] = (by[d.res] || 0) + 1; say('Ground scan: ' + list.length + (list.length == 1 ? ' deposit' : ' deposits') + ' within 5 km (' + Object.entries(by).map(([r, n]) => r + (n > 1 ? ' ×' + n : '')).join(', ') + '). T to target them', '#c9a46a') }
+	gsScanned(b, here);   /* (L4.2) a ruin within 5 km */
 	/* a lone surface port on this world, found (L2.2) */
 	const Su = window.EmberSurface;
 	for (const q of game.ports || []) if (q.lone && q.world == b.name && Su && X.find(game.P, game.star.id, q.id, game.day)) {
@@ -657,6 +659,7 @@ function scanNow() {
 		const d = len(sub(Tg.pos, s.p)); if (d > Mi.MINE.scanRange) { say('Prospect: within ' + H.fmtDist(Mi.MINE.scanRange), '#f2a33a'); Snd.cue('refused'); return }
 		Tg.prospected = true; say('Prospected ' + Tg.name + ': ' + comp(Tg), '#c9a46a'); Snd.cue('chart'); return;
 	}
+	if (Tg.kind == 'structure') { gsScanNow(Tg); return }   /* (L4.2) */
 	if (Tg.kind == 'planet') { say(X.surveyed(game.P, game.star.id, Tg.name) ? Tg.name + ': already surveyed' : 'A survey runs by itself within ' + H.fmtDist(Tg.radius * X.EXPLORE.surveyRadii) + ' of ' + Tg.name + ' (with a cartographic sensor)', '#6cc9e8'); return }
 	say('Nothing to scan on ' + (Tg.name || 'that'), '#9fb0cc');
 }
@@ -808,6 +811,170 @@ function turretStep(n, dt) {
 	const nf = norm(add(mul(fw, 1 - k), mul(want, k)));
 	n.s.q = Sc.lookRotation(nf, Math.abs(dot(nf, at.up)) > 0.98 ? norm(cross(nf, [0.3, 0.2, 0.9])) : at.up);
 	if (ang < TURRET.aim + TURRET.turn * dt && len(sub(tgt.p, n.s.p)) < TURRET.range && !inZone(n.s.p)) { const shot = C.fire(n.cs, n.s, game.t, tgt, game.shots); if (shot && len(sub(s.p, n.s.p)) < 3000) Snd.cue(gunCue(n.cs)) }
+}
+/* ---------------- sites on the ground (L4.2: sites.js; docs/plan-ember-reach-sites.md) ----------------
+   A ruin world's ruin field, or its builders' outlying waystation on another body: drawn within 30 km (in full within
+   6 km), their plazas and vault levelled into the ground (terrain.js flats), the structures standing on the ground as
+   it lies. Found by the ruin world's survey from orbit, a ground scan within 5 km, or coming within 1.5 km. Surveyed
+   from the ground a structure at a time (hover within 80 m or land within 150 m, 8 s, a working cartographic
+   sensor), and the vault opened by landing on its plaza for 20 s: its cache set out as canisters on the plaza.
+   (Precursor sites come with L4.5, crash sites with L4.6, the wardens and the vault's sentinels with L4.2b.) */
+const GSITE = {far: 30000, hi: 6000, near: 6000, see: 1500, scan: 5000};
+const gsLevelled = new Set();
+function groundSites(star) {
+	const St = window.EmberSites; if (!St || !window.EmberTerrain) return [];
+	const own = game.own || {}, list = St.sitesAt(star, F.seasonOf(game.day), {space: own.contested ? 'contested' : own.owner ? 'claimed' : 'unclaimed', port: !!(game.ports || []).length, holder: own.owner || null});
+	const out = [];
+	for (const x of list) {
+		if (x.kind != 'field' && x.kind != 'outlier') continue;
+		const body = scene.bodies.find(b => b.name == x.world); if (!body) continue;
+		const g = {x, body, dir: x.dir, Lo: St.layout(x), name: x.kind == 'field' ? 'Ruin field' : 'Outlying ruin'};
+		g.pieces = St.pieces(g.Lo);
+		/* the site's own east and north on its world (as a port's), and each piece's direction from the centre */
+		const d = g.dir, e0 = Math.hypot(d[0], d[1]) > 1e-6 ? [-d[1], d[0], 0] : [1, 0, 0], el = Math.hypot(...e0), e = e0.map(v => v / el), n = [d[1] * e[2] - d[2] * e[1], d[2] * e[0] - d[0] * e[2], d[0] * e[1] - d[1] * e[0]];
+		g.e = e; g.n = n;
+		const at = c => norm(add(d, add(mul(e, c[0] / body.radius), mul(n, c[1] / body.radius))));
+		for (const pc of g.pieces) {
+			pc.dir = at(pc.c);
+			/* plazas and the vault are levelled (once a world); a structure stands at the lowest of its foot, so none floats */
+			if (pc.flat && !gsLevelled.has(body.name + '|' + x.id + '|' + pc.key)) { Te.addFlat(body, pc.dir, pc.r + 3, pc.r * 0.5 + 6); gsLevelled.add(body.name + '|' + x.id + '|' + pc.key) }
+		}
+		for (const pc of g.pieces) {
+			if (pc.flat) { pc.h = Te.height(body, pc.dir); continue }
+			const k = pc.r * 0.8; pc.h = Math.min(...[[0, 0], [k, 0], [-k, 0], [0, k], [0, -k]].map(o => Te.height(body, at([pc.c[0] + o[0], pc.c[1] + o[1]]))));
+		}
+		g.tgt = {kind: 'groundsite', surface: true, g, body, name: g.name + ' · ' + x.world, radius: 30, get pos() { return gsAt(g, [0, 0]).pos }};
+		out.push(g);
+	}
+	return out;
+}
+/* where a place on a site is now, its world turning: {pos, up, rot} (pc: a piece, at its own ground) */
+function gsAt(g, c, pc) {
+	const b = g.body, bf = Sc.bodyFrame(b, Sc.turnOf(b, game.day, game.t)), W = v => add(add(mul(bf.x, v[0]), mul(bf.y, v[1])), mul(bf.z, v[2]));
+	const dir = pc ? pc.dir : norm(add(g.dir, add(mul(g.e, c[0] / b.radius), mul(g.n, c[1] / b.radius)))), h = pc ? pc.h : Te.height(b, dir);
+	const up = W(dir), e1 = norm(sub(W(g.e), mul(up, dot(W(g.e), up)))), n1 = cross(up, e1);
+	return {pos: add(b.pos, mul(up, b.radius + h)), up, rot: mat3(e1, n1, up)};
+}
+const gsFound = g => X.found(game.P, game.star.id, g.x.id);
+function gsFind(g, how) {
+	if (!X.find(game.P, game.star.id, g.x.id, game.day)) return false;
+	X.siteSeen(game.P, game.star, g.x, (game.ports || []).length > 0, game.day);
+	say(how + ': ' + (g.x.kind == 'field' ? 'a ruin field' : 'an outlying ruin of its builders, a waystation') + ' on ' + g.x.world + ' (' + (g.x.peopleName ? 'the ' + g.x.peopleName + ' people\'s' : 'an old people\'s') + '). A navigation target now', '#f2d36a'); Snd.cue('chart');
+	persist(); return true;
+}
+/* the ruin world's survey from orbit: a field on it marked; a waystation's body named */
+function gsSurveyed(p) {
+	for (const g of game.gsites || []) {
+		if (g.x.world == p.name) gsFind(g, 'The survey marks it');
+		else if (g.x.of == p.name && !gsFound(g)) say('The ruin\'s records name ' + g.x.world + ': its builders kept a waystation there. Survey it, or scan its ground', '#f2d36a');
+	}
+}
+/* a ground scan: a site within 5 km of here */
+function gsScanned(b, here) {
+	for (const g of game.gsites || []) if (g.body === b && Math.acos(Math.max(-1, Math.min(1, dot(g.dir, here)))) * b.radius < GSITE.scan) gsFind(g, 'Ground scan');
+}
+/* the structures and vault of the site you're near, as targets (U steps through them) */
+function gsParts() {
+	const out = [];
+	for (const g of game.gsites || []) {
+		if (!gsFound(g) || len(sub(gsAt(g, [0, 0]).pos, s.p)) > GSITE.near) continue;
+		for (const pc of g.pieces) if (pc.struct && pc.struct.type != 'warden' || pc.vault) out.push(pc.tgt || (pc.tgt = {kind: 'structure', g, pc, name: pc.vault ? 'the vault' : (pc.struct.fallen ? 'fallen ' : '') + pc.struct.type.replace('ringwall', 'ring wall').replace('mound', 'stepped mound').replace('shell', 'shell dome').replace('pillars', 'pillar field').replace('walls', 'grid of walls'), radius: Math.max(3, pc.r), get pos() { return add(gsAt(g, null, pc).pos, mul(gsAt(g, null, pc).up, pc.vault ? 2 : Math.min(30, (pc.struct.h || 4) / 2))) }}));
+	}
+	return out;
+}
+/* each frame: found by coming near; a structure surveyed; the vault opened */
+function gsStep(dt, cruising) {
+	if (!game.gsites || !game.gsites.length || cruising) return;
+	const P = game.P, sens = M.works(fit, 'sensors') && ship.utility.carto;
+	for (const g of game.gsites) {
+		const c = gsAt(g, [0, 0]), d = len(sub(c.pos, s.p)); if (d > GSITE.near) continue;
+		if (d < GSITE.see + g.x.radius) gsFind(g, 'Sighted');
+		if (!gsFound(g)) continue;
+		const rec = X.siteRec(P, game.star.id, g.x.id) || {b: 0}, St = window.EmberSites;
+		/* a structure: the targeted one if it's in range, else the nearest in range */
+		if (sens) {
+			let best = null;
+			for (const pc of g.pieces) {
+				if (!pc.struct || pc.struct.type == 'warden' || (rec.b & St.BITS.struct(pc.struct.n))) continue;
+				const a = gsAt(g, null, pc), top = add(a.pos, mul(a.up, Math.min(pc.struct.h, 40) / 2)), dd = len(sub(top, s.p)) - pc.r;
+				const ok = game.landed ? dd < St.SURVEY.land : dd < St.SURVEY.hover;
+				if (ok && (!best || (game.tgt && game.tgt.pc == pc) || dd < best.dd) && !(best && game.tgt && game.tgt.pc == best.pc)) best = {pc, dd};
+			}
+			const key = best && g.x.id + ':' + best.pc.key;
+			if (!best) game.gsurvey = game.gsurvey && game.gsurvey.g == g ? null : game.gsurvey;
+			else { if (!game.gsurvey || game.gsurvey.key != key) game.gsurvey = {key, g, pc: best.pc, t: 0}; game.gsurvey.t += dt; if (game.gsurvey.t >= St.SURVEY.time) { gsDone(g, best.pc); game.gsurvey = null } }
+		}
+		/* the vault: landed on its plaza */
+		const V = g.Lo.vault, pz = g.Lo.plazas.find(p => p.n == V.plaza);
+		if (game.landed && pz && !(rec.b & St.BITS.VAULT)) {
+			const pp = gsAt(g, pz.c);
+			if (len(sub(pp.pos, s.p)) < pz.r + 10) { game.vaultT += dt; if (game.vaultT >= St.SURVEY.vault) { game.vaultT = 0; gsVault(g, pz) } }
+			else game.vaultT = 0;
+		} else if (!game.landed) game.vaultT = 0;
+	}
+}
+function gsDone(g, pc) {
+	const St = window.EmberSites, P = game.P;
+	if (!X.siteMark(P, game.star, g.x, St.BITS.struct(pc.struct.n), (game.ports || []).length > 0, game.day)) return;
+	const y = St.structYield(g.x, pc.struct.n), a = gsAt(g, null, pc);
+	say('Surveyed: ' + (pc.tgt ? pc.tgt.name : pc.struct.type) + ' · ' + y.find + (y.ton ? '. A tonne of Artefacts lies by it: scoop it with the hatch (I)' : '. Nothing more'), y.ton ? '#f2d36a' : '#9fb0cc');
+	if (y.ton) game.cans.push(Ca.make('Artefacts', add(a.pos, add(mul(a.up, pc.r * 0.5 + 4), mul(a.rot.slice(0, 3), pc.r + 6))), Fl.frameAt(Sc.worldFrame(g.body), a.pos).v, game.t));
+	Snd.cue('chart'); gsAllDone(g); persist();
+}
+function gsVault(g, pz) {
+	const St = window.EmberSites, P = game.P;
+	if (!X.siteMark(P, game.star, g.x, St.BITS.VAULT, (game.ports || []).length > 0, game.day)) return;
+	const c = St.vaultCache(g.x), a = gsAt(g, pz.c), v = Fl.frameAt(Sc.worldFrame(g.body), a.pos).v, toShip = norm(sub(s.p, a.pos)), side = norm(sub(toShip, mul(a.up, dot(toShip, a.up))));
+	for (let i = 0; i < c.tons; i++) { const ang = i / c.tons * Math.PI * 2; game.cans.push(Ca.make('Artefacts', add(a.pos, add(mul(a.up, 2), add(mul(a.rot.slice(0, 3), Math.cos(ang) * pz.r * 0.55), mul(a.rot.slice(3, 6), Math.sin(ang) * pz.r * 0.55)))), v, game.t)) }
+	say('The vault opens: ' + c.tons + ' t of Artefacts set out on the plaza. Lift off and scoop them with the hatch (I)', '#f2d36a');
+	if (c.bp && O.learn(P, c.bp)) say('In the vault: a blueprint for ' + (c.bp.id == 'alien' ? 'an alien relay booster (size ' + c.bp.size + ')' : 'an alien dimensional phaser') + '. An artifact broker can build it.', '#c9a46a');
+	Snd.cue('docked'); gsAllDone(g); persist();
+}
+function gsAllDone(g) {
+	const St = window.EmberSites, rec = X.siteRec(game.P, game.star.id, g.x.id), n = g.Lo.structs.length;
+	let k = 0; for (const st of g.Lo.structs) if (rec.b & St.BITS.struct(st.n)) k++;
+	const su = St.dataWorth(g.x, rec.b) * (rec.f ? X.EXPLORE.first : 1);
+	say('Site data: ' + k + ' of ' + n + ' structures' + (rec.b & St.BITS.VAULT ? ', the vault' : '') + ' · worth ' + Math.round(su).toLocaleString('en') + ' SU to cartographers' + (rec.f ? ' (a first discovery)' : ''), '#6cc9e8');
+}
+/* Analysis K on a structure in range: surveyed at once */
+function gsScanNow(Tg) {
+	const St = window.EmberSites, pc = Tg.pc;
+	if (pc.vault) { say('The vault: land on its plaza and hold ' + St.SURVEY.vault + ' s', '#6cc9e8'); return }
+	if (!ship.utility.carto) { say('No cartographic sensor: no survey', '#f2a33a'); Snd.cue('refused'); return }
+	const a = gsAt(Tg.g, null, pc), dd = len(sub(add(a.pos, mul(a.up, Math.min(pc.struct.h, 40) / 2)), s.p)) - pc.r;
+	if (dd > (game.landed ? St.SURVEY.land : St.SURVEY.hover)) { say('Survey: hover within ' + St.SURVEY.hover + ' m of it, or land within ' + St.SURVEY.land + ' m (' + H.fmtDist(Math.max(0, dd)) + ' now)', '#f2a33a'); Snd.cue('refused'); return }
+	gsDone(Tg.g, pc); game.gsurvey = null;
+}
+/* the target card: a site, or one of its structures */
+function gsCard(Tg, target) {
+	const St = window.EmberSites, g = Tg.g, rec = X.siteRec(game.P, game.star.id, g.x.id) || {b: 0};
+	let k = 0; for (const st of g.Lo.structs) if (rec.b & St.BITS.struct(st.n)) k++;
+	const open = !!(rec.b & St.BITS.VAULT);
+	if (Tg.kind == 'groundsite') {
+		target.kind = (g.x.kind == 'field' ? 'ruin field' : 'outlying ruin · a waystation') + ' · ' + (g.x.radius * 2 / 1000).toFixed(1) + ' km across' + (g.x.peopleName ? ' · the ' + g.x.peopleName + ' people' : '');
+		target.dock = {line1: k + ' of ' + g.Lo.structs.length + ' structures surveyed · the vault ' + (open ? 'open' : 'sealed'), line2: 'Hover within ' + St.SURVEY.hover + ' m of a structure, or land on a plaza (U steps through them)', col: '#f2d36a'};
+		return;
+	}
+	const pc = Tg.pc;
+	if (pc.vault) { target.kind = 'the vault · beside plaza ' + g.Lo.vault.plaza; target.dock = open ? {line1: 'Open: its cache is taken', col: '#9fb0cc'} : {line1: game.landed && game.vaultT > 0 ? 'Opening… ' + Math.round(100 * game.vaultT / St.SURVEY.vault) + '%' : 'Land on plaza ' + g.Lo.vault.plaza + ' beside it and hold ' + St.SURVEY.vault + ' s', col: '#f2d36a'}; return }
+	const done = !!(rec.b & St.BITS.struct(pc.struct.n)), gs = game.gsurvey && game.gsurvey.pc == pc;
+	target.kind = Tg.name + ' · ' + Math.round(pc.struct.h) + ' m';
+	target.dock = done ? {line1: 'Surveyed · ' + St.structYield(g.x, pc.struct.n).find, col: '#9fb0cc'} : !ship.utility.carto ? {line1: 'No cartographic sensor: no survey', col: '#f2a33a'}
+		: gs ? {line1: 'Surveying… ' + Math.round(100 * game.gsurvey.t / St.SURVEY.time) + '%', col: '#6cc9e8'} : {line1: 'Survey: hover within ' + St.SURVEY.hover + ' m, or land within ' + St.SURVEY.land + ' m, for ' + St.SURVEY.time + ' s', col: '#9fb0cc'};
+}
+/* drawn: each piece at its own ground, within 30 km (in full within 6 km) */
+function gsDraw(items, cam, sun) {
+	const St = window.EmberSites; game.lod.sites = 0;
+	for (const g of game.gsites || []) {
+		const c = gsAt(g, [0, 0]), d = len(sub(c.pos, cam.p)); if (d > GSITE.far + g.x.radius) continue;
+		const det = d < GSITE.hi + g.x.radius ? 'hi' : 'lo';
+		for (const pc of g.pieces) {
+			const id = 'gsite:' + game.star.id + ':' + g.x.id + ':' + pc.key + ':' + det;
+			if (!game.portMeshes.has(id)) { game.portMeshes.add(id); R.upload(id, St.pieceMesh(pc, det)) }
+			const a = gsAt(g, null, pc); items.push({id, pos: a.pos, rot: a.rot, light: norm(sub(sun.pos, a.pos)), amb: 0.12});
+		}
+		game.lod.sites++;
+	}
 }
 /* ---------------- raids on surface ports (L3.6, 0.6.6; raids.js) ----------------
    Coming within 20 km of a surface port (from farther off), now and then a raid under way: the gang's ships over the port, fighting its traffic,
@@ -1253,6 +1420,7 @@ function update(dt) {
 			}
 		}
 	}
+	gsStep(dt, cz.on);   /* (L4.2) a site's structures and vault, surveyed from the ground (before the ground's collision check: landed too) */
 	/* proximity safety: held off stars, black holes and worlds with air; stopped at an airless world's surface */
 	safety();
 	/* collisions */
@@ -1479,6 +1647,7 @@ if (DEBUG) window.EmberDebug = {get duel() { return game.duel }, duelBegin: () =
 	get scene() { return scene }};
 if (DEBUG) Object.assign(window.EmberDebug, {persist: () => persist()});   /* (0.5.5: the pilots' test saves now) */
 if (DEBUG) Object.assign(window.EmberDebug, {get wing() { return game.wing }, wingJumped: leg => wingJumped(leg), requestDock: () => requestDock(), pirates: k => debugPirates(k), get ME() { return ME }});   /* (0.6.1: the wing's test) */
+if (DEBUG) Object.defineProperties(window.EmberDebug, Object.getOwnPropertyDescriptors({get gsites() { return game.gsites }, gsAt: (g, c, pc) => gsAt(g, c, pc), gsParts: () => gsParts(), setTarget: x => setTarget(x), set gear(v) { game.gear = v }, get landed() { return game.landed }}));   /* (L4.2: the sites' test; getters kept as getters) */
 if (DEBUG) Object.assign(window.EmberDebug, {destroyed: (n, byMe) => { n.cs.dead = true; destroyed(n, byMe) }, wingSendTo: (seat, m) => wingSendTo(seat, m), keeps: () => wingKeeps(), raidStart: (key, sp) => { game.raids = game.raids || {}; game.raids[key] = {port: sp.q.id, star: game.star.id, on: false}; raidStart(key, sp) }, surfacePortAt: sp => surfacePortAt(sp)});   /* (0.6.4: the roaming test's own kill; 0.6.5: the together test's) */
 function provoke(n) {
 	En.provoke(n, game.npcs);
@@ -1771,6 +1940,7 @@ function surveyed(b) {
 	say((p.alive ? 'Life! ' : p.life ? 'Traces of life. ' : '') + (p.ruins ? 'Ruins of an earlier people. ' : '') + 'Resources: ' + (p.res || []).slice(0, 4).join(', ') + ' · data worth ' + Math.round(r.value) + ' SU', p.ruins || p.alive ? '#f2d36a' : '#9fb0cc');
 	if (r.first) { say('First discovery: ' + pname(b) + ' is credited to you' + (p.alive || p.ruins ? '. Name it at a port\'s cartographers.' : '.'), '#7fd1a8'); Snd.cue('docked') } else Snd.cue('chart');
 	X.surveyDone(P, game.star.id, p.name); settle();
+	gsSurveyed(p);   /* (L4.2) the survey marks a ruin field on this world, or names the body its builders' waystation is on */
 	/* a ruin's cache: artefacts drift up as canisters */
 	if (p.ruins) {
 		/* a Precursor ruin (in the Rift): their relics, and more often than not one of their blueprints */
@@ -2135,6 +2305,7 @@ function draw() {
 			if (pd) { const ex = at.rot.slice(0, 3), ny = at.rot.slice(3, 6), col = (Su.PAD[pd.size] || Su.PAD.S).light, k = 0.6 + 0.4 * Math.sin(game.t * 4);
 				for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; glows.push({pos: add(add(add(at.pos, mul(ex, pd.c[0] + Math.cos(a) * pd.r)), mul(ny, pd.c[1] + Math.sin(a) * pd.r)), mul(at.up, 3)), radius: Math.max(2, pd.r * 0.06), col, alpha: k, scale: 3, min: 0.004}) } } }
 	}
+	gsDraw(items, cam, sun);   /* (L4.2) the ruins on the ground */
 	if (game.chase) items.push(Object.assign({id: 'ship', pos: s.p, rot: mat3(B.r, B.u, B.f), light: norm(sub(sun.pos, s.p)), amb: 0.15}, cloaked() ? {fade: [Cl.CLOAK.alpha, -1]} : {}));   /* (0.5.9: under the cloaking field, a faint ghost) */
 	/* other ships, always in full; bolts and missiles as glows; explosions as growing glows */
 	for (const n of game.npcs) {
@@ -2219,6 +2390,7 @@ function hudDraw(cam) {
 		target.dock = c.stage == 'claimed' ? {line1: d < Tg.radius * Co.COL.beaconRadii ? 'Press N to drop the beacon' : 'Beacon: within ' + H.fmtDist(Tg.radius * Co.COL.beaconRadii), line2: 'Due by day ' + c.beaconBy, col: d < Tg.radius * Co.COL.beaconRadii ? '#7fd1a8' : '#f2a33a'}
 			: {line1: Math.round(Co.progress(c) * 100) + '% built · due day ' + c.due, line2: d < Co.COL.deliverRange ? 'Press N to hand over goods' : 'Deliver within ' + H.fmtDist(Co.COL.deliverRange), col: d < Co.COL.deliverRange ? '#7fd1a8' : '#6cc9e8'};
 	}
+	if (Tg.kind == 'groundsite' || Tg.kind == 'structure') gsCard(Tg, target);   /* (L4.2) */
 	if (Tg.kind == 'planet') {
 		const done = X.surveyed(game.P, game.star.id, Tg.name), p = Tg.src, near = len(sub(s.p, Tg.pos)) < Tg.radius * X.EXPLORE.surveyRadii;
 		target.land = Ld.card(ship, p);   /* landing: can this ship set down there? */

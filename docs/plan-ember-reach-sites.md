@@ -9,7 +9,8 @@ reviewable steps. It's written in the style of `plan-ember-reach-landing-work.md
 
 The numbers are starting values for playtests, like the rest of the plan's.
 
-**Status:** L4.1 is built (0.7.1, below). The owner chose to build L4 before the Core's story
+**Status:** L4.1 is built (0.7.1), and L4.2a, ruin fields in the game (0.7.2); both below. L4.2 is split in two: L4.2b,
+the wardens and the vault's sentinels, is next. The owner chose to build L4 before the Core's story
 (`plan-ember-reach-core.md`), which needs its Precursor vaults and lodestones.
 
 **The owner's answers (2026-11-25):**
@@ -433,7 +434,8 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
 | Step | What | Depends on | Size |
 |---|---|---|---|
 | **L4.1** ✓ | `sites.js`: kinds, placement, layouts, parts, the three shapes, `sites.html`; node tests. Nothing in flight yet (0.7.1) | L3 done | medium |
-| **L4.2** | Ruin fields in the game: drawn, found (survey, ground scan, map), the flown survey, the vault and its cache, site data; wardens and the vault's sentinels | L4.1 | large |
+| **L4.2a** ✓ | Ruin fields in the game: drawn, found (survey, ground scan, coming near), the flown survey, the vault and its cache, site data (0.7.2) | L4.1 | medium |
+| **L4.2b** | The wardens and the vault's sentinels; the map's card | L4.2a | small |
 | **L4.3** | Artifacts: `P.artifacts`, the broker's Finds tab, star charts on the map, inscriptions returned, devices; the excavation contract | L4.2 | medium |
 | **L4.4** | Unstable ground: loose ground on the scan, collapses, pits in `terrain.js`, undercrofts | L4.2 | small |
 | **L4.5** | Precursor sites in the Rift: their forms, pylons, the sealed vault, Precursor finds, lodestones | L4.2, L4.3 | medium |
@@ -457,6 +459,39 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
   about 1,450 triangles for a ruin field at full detail, 1,000 at low. A system's sites in well under 1 ms.
 - **The orbital ruin cache** (open question 9) is seeded from the ruin in `play.js`.
 - **Tests:** `tests/emberreach_sites_t.js` (14).
+
+**L4.2a, as built (0.7.2):**
+- **In the game:** a system's ruin fields and outlying ruins (`play.js` `groundSites`, from `sites.js`). Precursor
+  sites wait for L4.5, crash sites for L4.6.
+- **Drawn** within 30 km, in full within 6 km. Each piece stands where its ground is: the plazas and the vault are
+  levelled into `terrain.js` as flats, and a structure stands at the lowest point under its foot, so none floats.
+- **Every site stays where it is,** whatever the system's holder: it keeps clear of the surface ports of every class
+  the system could have (`sites.js` `allPorts`).
+- **Found** by any of:
+  - the ruin world's survey from orbit, which marks a field (for an outlier it names the body);
+  - a ground scan within 5 km;
+  - coming within 1.5 km.
+  Found sites are navigation targets, and their structures and vault are targets within 6 km (U steps through them).
+- **Surveyed:**
+  - **A structure:** hover within 80 m or land within 150 m, for 8 s, with a working cartographic sensor; or K, in
+    range, at once. It gives what you find there, and a tonne of Artefacts from half of them.
+  - **The vault:** opens after 20 s landed on its plaza, setting out 4–8 t of Artefacts as canisters (an outlier's
+    half) and rolling its own blueprint: a phaser 20%, a relay booster 20%.
+  - **The target card** shows progress for both.
+- **Site data:**
+  - Worth 4,000 SU, plus 800 a structure and 2,000 for the vault; ×2.5 for a first discovery (a ruin in a system
+    with no port). An outlier's is half.
+  - It sells at cartographers as far as it's surveyed; data from more structures, surveyed later, sells again.
+- **The record:**
+  - Kept in `P.explore.site` (bits for each structure and the vault, the data sold, first or not); unsound entries
+    are dropped on loading.
+  - A first discovery is the galaxy's (`firsts.site`), so another pilot finding the same site later isn't first.
+- **Not yet:**
+  - the excavation contract (with L4.3);
+  - the map's "On the ground" line (L4.2b).
+- **Tests:**
+  - `tests/emberreach_sites_t.js` 15–19.
+  - `tests/emberreach_ruins_browser_t.js` (10).
 
 ## Risks, and what to do about them
 
