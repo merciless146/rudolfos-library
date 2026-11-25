@@ -5,7 +5,7 @@ elliptical galaxy. Every one of its 4 million stars (0.2.0; there were ~8 billio
 habitability come from the astrophysics below, not from hand-placed content. "Ember Reach" is a working title.
 
 - **Package:** `rudolf-emberreach` (a Library game), in `apps/rudolf-emberreach/` since the **Single-Player Alpha
-  Build (SPAB), 0.1.0**: the publish workflow builds and signs it with the rest, and it's in the App Store's
+  Build (SPAB), 0.1.0** (named just **Ember Reach** from 0.7.0, the owner's choice, now that it has co-op): the publish workflow builds and signs it with the rest, and it's in the App Store's
   Library tab. Its browser test, as the desktop opens it, is `tests/emberreach_t.js`; the models' tests are
   `tests/emberreach_*_t.js`.
 - **Status:** the models are done and checked; the game itself is the milestones below.
@@ -1468,6 +1468,11 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.7.0, the release:** the pilots and co-op plan ([plan-ember-reach-pilots.md](plan-ember-reach-pilots.md), P1 to
+  P6b) and raids (L3.6) in one build: six pilots in one galaxy, difficulty and Hardcore, the Contraband Merchant, the
+  co-op wing and its roaming, raids. The build named just Ember Reach (it was the Single-Player Alpha Build), and the
+  store description rewritten for all of it (it had stopped at 0.5.3, and
+  still listed multiplayer as to come). The full suite and the browser playthrough (`tests/emberreach_t.js`) pass.
 - **0.6.6, raids on surface ports (L3.6 of [plan-ember-reach-landing-work.md](plan-ember-reach-landing-work.md)):**
   coming within 20 km of a surface port on a day it's raided, a gang's ships over it, fighting its traffic, a forward
   base's turrets and you. Driven off with your help, a defence reward and standing with its holder; left to it, the
@@ -1536,8 +1541,8 @@ also arms the first ships and adds fire groups:
 - **0.5.4:** ballistic weapons (gatlings, torpedoes, missiles) make no heat; hybrid ones (the mass driver, the
   disruptor) still do, as lasers do. Tested in `tests/emberreach_combat_t.js`.
 
-Still to come: the online relay put up (0.5.2 has it ready), the Core's story, and the release. (Raids came with 0.6.6;
-co-op, the wing, with 0.6.0 to 0.6.5.)
+Still to come: the online relay put up (0.5.2 has it ready), and the Core's story (with the Precursor cloaking device it
+awards a Hardcore pilot). (Raids came with 0.6.6; co-op, the wing, with 0.6.0 to 0.6.5; the release, 0.7.0.)
 - **The plan for pilots and co-op:** six save slots in one shared galaxy, Rookie/Pilot/Admiral, Hardcore and its
   Contraband Merchant and cloak, co-op for four, in [plan-ember-reach-pilots.md](plan-ember-reach-pilots.md) (steps
   P1–P6).
