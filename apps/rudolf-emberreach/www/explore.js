@@ -23,7 +23,7 @@ const isNode = typeof module != 'undefined';
 const req = (n, g) => isNode ? require('./' + n) : root[g];
 const Ca = req('career.js', 'EmberCareer'), G = req('galaxy.js', 'EmberGalaxy'), F = req('factions.js', 'EmberFactions'), E = req('economy.js', 'EmberEconomy'), R = req('reputation.js', 'EmberReputation');
 
-const EXPLORE = {sweep: 8, survey: 12, surveyRadii: 6, first: 2.5, chart: 40, days: 20, ruinSearch: 20, worldSearch: 8,
+const EXPLORE = {sweep: 8, survey: 12, surveyRadii: 6, first: 2.5, chart: 40, days: 20, ruinSearch: 20, worldSearch: 8, excavation: {base: 3500, pc: 250},
 	value: {Gas: 120, Barren: 90, Exotic: 160, Desert: 140, Tundra: 160, Ocean: 450, EarthLike: 700, Forest: 900, Terra: 900}, life: 1500, ruin: 6000};
 const keyOf = (starId, planetName) => starId + '|' + planetName;
 const at = s => s.at || [s.x, s.y, s.z];
@@ -130,9 +130,13 @@ function unsold(P) {
 		if (su < 1) continue;
 		out.push({key: k, kind: 'site', label: siteLabel(sid, e) + (e.f ? ' · first' : ''), su, first: !!e.f, worth});
 	}
+	/* (L4.3) inscriptions found in ruins: cartographers buy them with your data */
+	const Ar = artifactsMod();
+	(P.artifacts || []).forEach((a, i) => { if (a.k == 'inscription' && Ar) out.push({key: a.s + '#' + a.n, kind: 'inscription', label: Ar.nameOf(a) + ' · an inscription', su: a.v, i}) });
 	return out;
 }
 const siteWorth = () => isNode ? require('./sites.js') : root.EmberSites;
+const artifactsMod = () => isNode ? require('./artifacts.js') : root.EmberArtifacts;
 /* a site's name in the data list: "Vela b, ruin field" */
 function siteLabel(sid, e) { const m = /^site:(.+):(field|outlier|precursor)$/.exec(sid); return m ? m[1] + ', ' + ({field: 'ruin field', outlier: 'outlying ruin', precursor: 'Precursor site'})[m[2]] + ' · site data' : sid }
 /* a planet from its key (the star's id holds its sector and index) */
@@ -149,7 +153,8 @@ function starById(id) {
 function sell(P, holder, currency, day) {
 	const X = record(P), items = unsold(P), su = items.reduce((t, x) => t + x.su, 0);
 	if (!items.length) return {ok: false, why: 'Nothing to sell: scan systems and survey planets first.'};
-	for (const x of items) if (x.kind == 'system') X.sold[x.key] = 1; else if (x.kind == 'landing') X.land[x.key].s = 1; else if (x.kind == 'site') X.site[x.key].s = x.worth; else X.pl[x.key].s = 1;   /* (a site's data sells as far as it's surveyed: more of it, later, sells again) */
+	for (const x of items) if (x.kind == 'system') X.sold[x.key] = 1; else if (x.kind == 'landing') X.land[x.key].s = 1; else if (x.kind == 'site') X.site[x.key].s = x.worth; else if (x.kind == 'inscription') {} else X.pl[x.key].s = 1;   /* (a site's data sells as far as it's surveyed: more of it, later, sells again) */
+	if (items.some(x => x.kind == 'inscription')) P.artifacts = P.artifacts.filter(a => a.k != 'inscription');   /* (L4.3: the inscriptions sold go) */
 	const k = Ca.rewardK(P), code = currency || 'SU', amount = (code == 'SU' ? su : su * E.rate(code, day)) * k;   /* (0.5.6: the pilot's reward multiplier) */
 	if (code == 'SU') { const o = F.byId(P.origin).currency.code; P.wallet[o] = (P.wallet[o] || 0) + su * E.rate(o, day) * 0.92 * k } else P.wallet[code] = (P.wallet[code] || 0) + amount;
 	if (holder) R.act(P, 'scanRuins', holder, {amount: Math.min(5, su / 2000)});
@@ -195,8 +200,29 @@ function offers(P, star, port, day) {
 				text: 'Survey the ruin rumoured at ' + x.star.name, reward: Math.round((2500 + 200 * x.d) * E.rate(code, day)), currency: code, dist: x.d});
 		}
 	}
+	/* (L4.3) an excavation: a ruin field to survey from the ground (three of its structures and the vault) */
+	const St = siteWorth();
+	if (St && r() < 0.35) {
+		const fields = ruinsNear(p0, EXPLORE.ruinSearch).filter(x => x.d > 0.01 && fieldOf(x.star) && !excavated(P, x.star.id, fieldOf(x.star))).slice(0, 4);
+		if (fields.length) {
+			const x = fields[Math.floor(r() * fields.length)], f = fieldOf(x.star);
+			out.push({id: 'x:' + star.id + ':' + Math.floor(day) + ':e', kind: 'explore', type: 'excavation', issuer: o.id, star: {id: x.star.id, name: x.star.name, at: at(x.star)}, planet: f.world, site: f.id, systemName: x.star.name,
+				text: 'Excavate the ruin field on ' + f.world, reward: Math.round((EXPLORE.excavation.base + EXPLORE.excavation.pc * x.d) * E.rate(code, day)), currency: code, dist: x.d});
+		}
+	}
 	return out.filter(m => !(P.missions || []).some(x => x.id == m.id));
 }
+/* (L4.3) a system's ruin field (sites.js), if its ruin world can be landed on */
+const fieldOf = star => { const St = siteWorth(); return St ? St.sitesAt(star, 0, {}).find(x => x.kind == 'field') || null : null };
+/* excavated: three of its structures surveyed (all, if it has fewer) and its vault open */
+function excavated(P, starId, site) {
+	const e = siteRec(P, starId, site.id), St = siteWorth(); if (!e || !St) return false;
+	let n = 0; for (let i = 0; i < 7; i++) if (e.b & (1 << i)) n++;
+	const need = Math.min(3, St.layout(site).structs.length);
+	return n >= need && !!(e.b & St.BITS.VAULT);
+}
+/* (L4.3) the ground work done at a site: an excavation contract there completed */
+function groundDone(P, star, site) { for (const m of P.missions || []) if (m.kind == 'explore' && m.type == 'excavation' && !m.done && m.star.id == star.id && m.site == site.id && excavated(P, star.id, site)) m.surveyed = true }
 /* ruins within r pc, nearest first (cached per place) */
 const RUINS = new Map();
 function ruinsNear(p, r) {
@@ -216,8 +242,8 @@ function accept(P, m, day) {
 	return {ok: true, mission: x};
 }
 /* a survey done: mark the contracts it completes */
-function surveyDone(P, starId, planetName) { for (const m of P.missions || []) if (m.kind == 'explore' && !m.done && m.star.id == starId && m.planet == planetName) m.surveyed = true }
+function surveyDone(P, starId, planetName) { for (const m of P.missions || []) if (m.kind == 'explore' && m.type != 'excavation' && !m.done && m.star.id == starId && m.planet == planetName) m.surveyed = true }   /* (an excavation is the ground's: L4.3) */
 
-const EmberExplore = {siteKey, siteRec, siteSeen, siteMark, found, find, landed, landWorth, landedOn, deposits, EXPLORE, keyOf, charted, worth, chartSystem, survey, surveyed, isCharted: charted_, unsold, sell, nameable, rename, nameOf, offers, ruinsNear, accept, surveyDone, starById, planetByKey};
+const EmberExplore = {excavated, groundDone, ruinsNear, siteKey, siteRec, siteSeen, siteMark, found, find, landed, landWorth, landedOn, deposits, EXPLORE, keyOf, charted, worth, chartSystem, survey, surveyed, isCharted: charted_, unsold, sell, nameable, rename, nameOf, offers, ruinsNear, accept, surveyDone, starById, planetByKey};
 if (isNode) module.exports = EmberExplore; else root.EmberExplore = EmberExplore;
 })(typeof window != 'undefined' ? window : this);

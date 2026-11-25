@@ -95,8 +95,8 @@ function leaveDays(P, w, nowDay, shift) { const back = w.home + Math.max(0, nowD
    the host's is). The work done is the wing's: the host's game counts the kills (its NPCs, whoever destroys them); the
    rest (time in the system, a delivery, a survey) whoever does it, passed to the host and on to the wing. Each pilot is
    paid in their own game, by their own rules, when it's done; and fails it, late, as ever. */
-const MTYPES = ['strike', 'blockade', 'defend', 'escort', 'recon', 'sabotage', 'supply', 'survey', 'ruin', 'delivery', 'groundsurvey'];
-const MSTR = ['issuer', 'against', 'war', 'system', 'systemName', 'planet', 'port', 'portName', 'world', 'good'];
+const MTYPES = ['strike', 'blockade', 'defend', 'escort', 'recon', 'sabotage', 'supply', 'survey', 'ruin', 'delivery', 'groundsurvey', 'excavation'];
+const MSTR = ['issuer', 'against', 'war', 'system', 'systemName', 'planet', 'port', 'portName', 'world', 'good', 'site'];
 const clean = t => t.replace(/[<>]/g, '');
 /* a mission as it travels: what it is, and the work done on it */
 function packMission(m) {

@@ -62,7 +62,7 @@ const Ct = window.EmberContracts, Ap = window.EmberAutopilot, Atc = window.Ember
 const {add, sub, mul, dot, len, norm, cross} = Sc.v;
 const Q = new URLSearchParams(location.search), DEBUG = Q.has('debug');
 /* the release in the Rudolf OS Library: Ember Reach (named the Single-Player Alpha Build, SPAB, from 0.1.0 to 0.6.6) */
-const BUILD = {name: 'Ember Reach', version: '0.7.3'};
+const BUILD = {name: 'Ember Reach', version: '0.7.4'};
 const $ = id => document.getElementById(id);
 const LOD = {spritePx: 48, stationHi: 20000, stationLo: 500000};
 const JUMP = {charge: 5, tunnel: 2.6, align: 5, hold: 12};   /* (0.3.6: a jump needs the nose within 5° of the system's star, and held within 12° while it charges) */
@@ -923,6 +923,8 @@ function gsDone(g, pc) {
 	const y = ward ? {find: 'the remains of a warden: its old laser, cold', ton: false} : St.structYield(g.x, pc.struct.n), a = gsAt(g, null, pc);
 	say('Surveyed: ' + (pc.tgt ? pc.tgt.name : pc.struct.type) + ' · ' + y.find + (y.ton ? '. A tonne of Artefacts lies by it: scoop it with the hatch (I)' : '. Nothing more'), y.ton ? '#f2d36a' : '#9fb0cc');
 	if (y.ton) game.cans.push(Ca.make('Artefacts', add(a.pos, add(mul(a.up, pc.r * 0.5 + 4), mul(a.rot.slice(0, 3), pc.r + 6))), Fl.frameAt(Sc.worldFrame(g.body), a.pos).v, game.t));
+	if (!ward) gsFindArt(g, pc.struct.n);   /* (L4.3) one structure in six holds a find */
+	X.groundDone(P, game.star, g.x); settle();
 	Snd.cue('chart'); gsAllDone(g); persist();
 }
 function gsVault(g, pz) {
@@ -932,6 +934,8 @@ function gsVault(g, pz) {
 	for (let i = 0; i < c.tons; i++) { const ang = i / c.tons * Math.PI * 2; game.cans.push(Ca.make('Artefacts', add(a.pos, add(mul(a.up, 2), add(mul(a.rot.slice(0, 3), Math.cos(ang) * pz.r * 0.55), mul(a.rot.slice(3, 6), Math.sin(ang) * pz.r * 0.55)))), v, game.t)) }
 	say('The vault opens: ' + c.tons + ' t of Artefacts set out on the plaza. Lift off and scoop them with the hatch (I)', '#f2d36a');
 	if (c.bp && O.learn(P, c.bp)) say('In the vault: a blueprint for ' + (c.bp.id == 'alien' ? 'an alien relay booster (size ' + c.bp.size + ')' : 'an alien dimensional phaser') + '. An artifact broker can build it.', '#c9a46a');
+	gsFindArt(g, 'v');   /* (L4.3) the vault's find */
+	X.groundDone(P, game.star, g.x); settle();
 	const wv = St.vaultWave(g.x); if (wv) game.vaultWave = {t: game.t + wv, body: g.body, star: game.star.id};   /* (L4.2b) half the time, a second wave */
 	Snd.cue('docked'); gsAllDone(g); persist();
 }
@@ -941,6 +945,23 @@ function gsAllDone(g) {
 	for (const w of g.Lo.wardens) if (rec.b & St.BITS.warden(w.n)) k++;
 	const n2 = n + g.Lo.wardens.filter(w => wardenDown(g, w.n)).length, su = St.dataWorth(g.x, rec.b) * (rec.f ? X.EXPLORE.first : 1);
 	say('Site data: ' + k + ' of ' + n2 + ' structures' + (rec.b & St.BITS.VAULT ? ', the vault' : '') + ' · worth ' + Math.round(su).toLocaleString('en') + ' SU to cartographers' + (rec.f ? ' (a first discovery)' : ''), '#6cc9e8');
+}
+/* (L4.3) a find (artifacts.js): into the record; a star chart read at once, marking the nearest ruins it shows */
+function gsFindArt(g, slot) {
+	const Ar = window.EmberArtifacts, P = game.P; if (!Ar) return;
+	const a = Ar.make(game.star.id, g.x, slot, (game.own || {}).owner || null); if (!a) return;
+	if (!Ar.add(P, a)) { if ((P.artifacts || []).length >= Ar.ART.max) say('A find, but your records hold ' + Ar.ART.max + ' already: sell or hand some on at an artifact broker', '#f2a33a'); return }
+	const nm = Ar.nameOf(a), what = {chart: 'a star chart', inscription: 'an inscription', device: 'a device', relic: 'a relic of note'}[a.k];
+	say('A find: ' + nm + ', ' + what + (a.k == 'inscription' ? ' (cartographers buy it; or return it to ' + (a.h ? shortName(a.h) : 'whoever holds this space') + ')' : a.k == 'device' ? ' (an artifact broker can study it, or recycle it)' : a.k == 'relic' ? ' (an artifact broker buys it)' : ''), '#c9a46a');
+	if (a.k == 'chart') {
+		const here = [game.star.x, game.star.y, game.star.z], marks = Ar.chartMarks(a, here, X.ruinsNear, (sid, pn) => X.surveyed(P, sid, pn)), names = [];
+		for (const x of marks) {
+			for (const site of window.EmberSites.sitesAt(x.star, 0, {})) if (site.kind == 'field' || site.kind == 'outlier') X.find(P, x.star.id, site.id, game.day);
+			names.push(x.star.name + ' (' + x.d.toFixed(1) + ' pc)');
+		}
+		a.m = marks.map(x => x.star.id);
+		say(names.length ? 'The chart shows ' + names.length + ' more of their ruins: ' + names.join(', ') + '. Marked on your map' : 'The chart shows no ruin you haven\'t surveyed', '#c9a46a');
+	}
 }
 /* Analysis K on a structure in range: surveyed at once */
 function gsScanNow(Tg) {

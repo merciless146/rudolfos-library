@@ -97,7 +97,7 @@ function sitesAt(star, season, ctx) {
 	};
 	/* a site's radius, kept to its world's share (none if the world is too small for half the least) */
 	const sized = (p, range, r) => { const want = span(r, range), cap = SITES.share * worldR(p); return want <= cap ? want : cap >= range[0] * 0.5 ? cap : 0 };
-	const base = p => ({world: p.name, moon: !!p.moon, parent: p.parent || null, giantMoon: !!(p.moon && (sy.planets.find(q => q.name == p.parent) || {}).gas), g: p.g, Ts: p.Ts});
+	const base = p => ({world: p.name, rift: !!star.rift, moon: !!p.moon, parent: p.parent || null, giantMoon: !!(p.moon && (sy.planets.find(q => q.name == p.parent) || {}).gas), g: p.g, Ts: p.Ts});
 	/* ruins */
 	const ruin = sy.planets.find(p => p.ruins);
 	if (ruin) {

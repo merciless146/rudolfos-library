@@ -1468,6 +1468,13 @@ also arms the first ships and adds fire groups:
   390 × 844 phone). The small-screen layout: the HUD placed round the touch controls, the starport's screens,
   the cards, the settings, the star map and the duel menu from 360 px wide (`tests/emberreach_phone_t.js`). Low-power
   mode, on by itself on phones (`tests/emberreach_power_t.js`).
+- **0.7.4, artifacts (L4.3 of [plan-ember-reach-sites.md](plan-ember-reach-sites.md)):** ruins' vaults, and now and
+  then their structures, hold finds:
+  - **star charts**, marking more of their builders' ruins;
+  - **inscriptions**, sold to cartographers or returned for standing;
+  - **devices**, studied for cheaper builds or recycled;
+  - **relics**, sold.
+  The artifact broker has a Finds section, and cartographers offer excavation contracts.
 - **0.7.3, ruin fields' wardens (L4.2b of [plan-ember-reach-sites.md](plan-ember-reach-sites.md)):** each ruin field's
   old warden towers wake and fire as you come low and near. Shot down, they stay down for the season, and their remains
   are surveyed. Opening a vault calls a second wave of sentinels half the time. The star map lists the sites you know.

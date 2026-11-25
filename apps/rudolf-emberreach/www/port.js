@@ -159,10 +159,28 @@ function carto() {
 function broker() {
 	const me = P(), bps = me.blueprints || [];
 	if (!O.broker(env.port)) return '<section class="pt-card"><h2>Artifact broker</h2><p class="muted small">No broker keeps shop at a port this small: try a lantern, bloom or halo.</p></section>';
+	const stud = (me.study || 0) > 0 ? 1 - (window.EmberArtifacts ? window.EmberArtifacts.ART.study : 0.25) : 1;   /* (L4.3: a studied device takes a quarter off a build's fee) */
 	const rows = bps.map((bp, j) => { const rc = O.recipe(bp), have = Object.entries(rc.goods).every(([g, t]) => (me.cargo[g] || 0) >= t);
-		return '<div class="pt-claim"><div><b>' + esc(O.bpName(bp)) + '</b><span class="muted small">' + Object.entries(rc.goods).map(([g, t]) => t + ' t ' + g + ((me.cargo[g] || 0) >= t ? '' : ' (have ' + (me.cargo[g] || 0) + ')')).join(', ') + '</span></div><button class="pt-primary" data-act="bpbuild" data-j="' + j + '"' + (have ? '' : ' disabled') + '>Build · ' + money(rc.fee * rateHere(), here()) + '</button></div>' }).join('');
-	return '<section class="pt-card"><h2>Artifact broker</h2>' + (rows || '<p class="muted small">Bring a blueprint from a ruin (surveying one sometimes turns one up) and the goods it calls for, and the broker builds the module.</p>') + '<p class="muted small">The blueprint goes into the build. Recycle the module (at the outfitter) to get it back with half the goods. Precursor blueprints come from the Rift\'s ruins and call for its goods as well as this side\'s; a Precursor core module is made to your hull\'s size, and a Precursor hull takes your ship in part-exchange.</p></section>';
+		return '<div class="pt-claim"><div><b>' + esc(O.bpName(bp)) + '</b><span class="muted small">' + Object.entries(rc.goods).map(([g, t]) => t + ' t ' + g + ((me.cargo[g] || 0) >= t ? '' : ' (have ' + (me.cargo[g] || 0) + ')')).join(', ') + '</span></div><button class="pt-primary" data-act="bpbuild" data-j="' + j + '"' + (have ? '' : ' disabled') + '>Build · ' + money(rc.fee * stud * rateHere(), here()) + (stud < 1 ? ' (studied)' : '') + '</button></div>' }).join('');
+	return '<section class="pt-card"><h2>Artifact broker</h2>' + (rows || '<p class="muted small">Bring a blueprint from a ruin (surveying one sometimes turns one up) and the goods it calls for, and the broker builds the module.</p>') + '<p class="muted small">The blueprint goes into the build. Recycle the module (at the outfitter) to get it back with half the goods. Precursor blueprints come from the Rift\'s ruins and call for its goods as well as this side\'s; a Precursor core module is made to your hull\'s size, and a Precursor hull takes your ship in part-exchange.</p></section>' + finds();
 }
+/* (L4.3) the broker's Finds: the artifacts from the ruins (artifacts.js) */
+function finds() {
+	const me = P(), Ar = window.EmberArtifacts, list = me.artifacts || [];
+	if (!Ar) return '';
+	const owner = env.port && env.port.owner, rh = rateHere(), cur = here(), fname = id => { const f = F.byId(id); return f ? f.name.replace(/^The /, '') : 'its space\'s holder' };
+	const rows = list.map((a, i) => {
+		const nm = esc(Ar.nameOf(a)), kind = Ar.KIND_NAME[a.k] || a.k, from = esc(a.w || '');
+		let act = '', note = '';
+		if (a.k == 'relic') act = '<button class="pt-primary" data-act="artsell" data-i="' + i + '">Sell · ' + money(a.v * rh, cur) + '</button>';
+		if (a.k == 'device') act = '<button data-act="artstudy" data-i="' + i + '">Study (a build 25% less)</button> <button data-act="artrecycle" data-i="' + i + '">Recycle (2 t Artefacts, 1 t Electronics)</button>';
+		if (a.k == 'inscription') { if (a.h && owner == a.h) act = '<button class="pt-primary" data-act="artreturn" data-i="' + i + '">Return to ' + esc(fname(a.h)) + ' (+' + Ar.ART.returned + ' standing)</button>'; note = ' · cartographers buy it with your data (' + a.v.toLocaleString('en') + ' SU)' + (a.h && owner != a.h ? '; or return it at a port of ' + esc(fname(a.h)) : '') }
+		if (a.k == 'chart') note = ' · read: it marked ' + (a.m ? a.m.length : 0) + ' ruin' + ((a.m || []).length == 1 ? '' : 's') + ' on your map';
+		return '<div class="pt-claim"><div><b>' + nm + '</b><span class="muted small">' + kind + ', from ' + from + note + '</span></div>' + (act ? '<div>' + act + '</div>' : '') + '</div>';
+	}).join('');
+	return '<section class="pt-card" id="ptFinds"><h2>Finds</h2>' + (rows || '<p class="muted small">Nothing yet. A ruin\'s vault always holds a find, and one structure in six does: star charts, inscriptions, devices, relics of note.</p>') + ((me.study || 0) > 0 ? '<p class="small">Studied: ' + me.study + ' device' + (me.study == 1 ? '' : 's') + ', each taking a quarter off a build\'s fee.</p>' : '') + '<p class="muted small">Your finds are kept with the ship\'s records (at most ' + Ar.ART.max + '), not in the hold.</p></section>';
+}
+
 /* the colonial office: your colonies, haulage, and the planner */
 const STAGE = {claimed: 'Claimed: drop the beacon', building: 'Building', done: 'Built', lapsed: 'Lapsed (salvage)', lost: 'Lost'};
 const payCode = c => c.independent ? c.scrip : F.byId(c.sponsor).currency.code;
@@ -522,7 +540,7 @@ function click(e) {
 	if (act == 'claim') { const st = Co.candidates(me, {star: env.star, owner: holder()}, d, env.ship.jump || 0, 10).find(x => x.id == colSel), r = st ? Co.claim(me, {star: env.star, owner: holder()}, st, t.dataset.k, d, env.ship.jump || 0, false, t.dataset.w || undefined) : {ok: false, why: 'Pick a system.'}; env.say(r.ok ? 'Claim filed on ' + st.name + ': fly there by day ' + r.colony.beaconBy + ' and press N near ' + r.colony.world + ' to drop the beacon.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
 	if (act && act.startsWith('of')) { outfitAct(act, t, me, d); }
 	if (act == 'bpbuild') {
-		const bp = (me.blueprints || [])[+t.dataset.j], r = bp ? O.build(me, bp, fee => Tr.pay(me, fee * rateHere(), here(), d), {coreSize: O.layout(env.hullShip).coreSize, held: Tr.held(me)}) : {ok: false, why: 'No such blueprint.'};
+		const stud = (me.study || 0) > 0 ? 0.75 : 1, bp = (me.blueprints || [])[+t.dataset.j], r = bp ? O.build(me, bp, fee => { const p = Tr.pay(me, fee * stud * rateHere(), here(), d); if (p.ok && stud < 1) me.study--; return p }, {coreSize: O.layout(env.hullShip).coreSize, held: Tr.held(me)}) : {ok: false, why: 'No such blueprint.'};   /* (L4.3: a studied device, a quarter off) */
 		if (r.ok && r.hull) {
 			/* a Precursor hull: your ship (and what's fitted beyond stock) goes in part-exchange */
 			const ti = Tr.tradeIn(env.hullShip, env.star, d), extra = O.extra(env.hullShip, me.ship.fit), fit0 = me.ship.fit && JSON.parse(JSON.stringify(me.ship.fit));
@@ -530,6 +548,21 @@ function click(e) {
 			me.ship.model = r.hull; env.onShip(r.hull); const kc = keepContraband(fit0); if (kc) env.say(kc.slice(2));
 			env.say('The broker built the ' + env.ship.name + ', a Precursor hull: your old ship went in part-exchange (' + fmt(ti.amount) + ' ' + ti.currency + ').'); env.cue('docked');
 		} else { env.say(r.ok ? 'The broker built the ' + O.bpName(bp) + ': it\'s in storage, ready to fit at the outfitter.' : r.why); env.cue(r.ok ? 'docked' : 'refused') }
+	}
+	/* (L4.3) the Finds */
+	if (act && act.startsWith('art')) {
+		const Ar = window.EmberArtifacts, i = +t.dataset.i, a = (me.artifacts || [])[i];
+		if (!a || !Ar) { env.say('That find has gone.'); env.cue('refused'); return }
+		const nm = Ar.nameOf(a), drop = () => me.artifacts.splice(i, 1);
+		if (act == 'artsell' && a.k == 'relic') { Tr.receive(me, a.v * rateHere(), here(), d); drop(); env.say('The broker bought ' + nm + ' for ' + money(a.v * rateHere(), here()) + '.'); env.cue('docked') }
+		if (act == 'artstudy' && a.k == 'device') { me.study = (me.study || 0) + 1; drop(); env.say('The broker studied ' + nm + ': your next build costs a quarter less.'); env.cue('clearance') }
+		if (act == 'artrecycle' && a.k == 'device') {
+			const g = Ar.recycled(), tons = Object.values(g).reduce((x, y) => x + y, 0);
+			if (Tr.free(me, env.ship) < tons) { env.say('No room in the hold: recycling it gives ' + tons + ' t.'); env.cue('refused'); return }
+			for (const [k, v] of Object.entries(g)) me.cargo[k] = (me.cargo[k] || 0) + v;
+			drop(); env.say('Recycled ' + nm + ': ' + Object.entries(g).map(([k, v]) => v + ' t of ' + k).join(' and ') + ' in your hold.'); env.cue('tick');
+		}
+		if (act == 'artreturn' && a.k == 'inscription' && a.h && env.port && env.port.owner == a.h) { R.act(me, 'returnFind', a.h); drop(); env.say('You returned ' + nm + ' to ' + F.byId(a.h).name.replace(/^The /, '') + ': its people remember. Your standing with them rises.'); env.cue('docked') }
 	}
 	if (act == 'purge') { delete (me.refinery || {})[t.dataset.g]; env.say('Emptied the ' + t.dataset.g + ' bin'); env.cue('tick') }
 	if (act == 'claimi' && env.wingGuest) { env.say('In a wing the galaxy is the host\'s: a colony is claimed in your own galaxy, once you leave the wing.'); env.cue('refused'); return }   /* (0.6.4) */
