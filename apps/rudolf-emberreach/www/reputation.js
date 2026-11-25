@@ -33,7 +33,8 @@ const ACTIONS = {
 	raidConvoy: {rep: -40, lawful: -4},
 	scanRuins: {rep: 10, lawful: 0},         /* surveys sold to it */
 	rescue: {rep: 25, lawful: 1},
-	defendPort: {rep: 20, lawful: 1}};      /* (0.6.6) a raid on one of its surface ports driven off with your help */
+	defendPort: {rep: 20, lawful: 1},
+	returnFind: {rep: 20, lawful: 1}};      /* (L4.3) an inscription from a ruin in its space, returned */      /* (0.6.6) a raid on one of its surface ports driven off with your help */
 
 /* the cheapest jump-capable ship from home yards that sells for under 100,000 SU; else the independent Wren */
 function starter(o) {

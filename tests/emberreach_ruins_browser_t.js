@@ -2,7 +2,7 @@
    ruin field near home, flown to; not a target until found, then found by coming near; drawn, its plazas level; a
    structure surveyed by hovering over it for 8 s, another at once with K; the vault opened by landing on its plaza
    for 20 s, its cache of Artefacts set out; the site data worth what sites.js says, and the record saved and back.
-   (0.7.3, L4.2b) Its wardens: waking as you come low and near, firing; shot down, down for the season (not back when
+   (0.7.4, L4.3) The vault's find. (0.7.3, L4.2b) Its wardens: waking as you come low and near, firing; shot down, down for the season (not back when
    you return), their remains surveyed; the vault's second wave of sentinels.
      node tests/emberreach_ruins_browser_t.js [PORT] */
 const {chromium} = require('playwright');
@@ -140,6 +140,9 @@ const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 		A.f = await frame(A.pg, () => (Object.values(EmberDebug.game.P.explore.site)[0].b & 128) != 0, 300);
 		const vt = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], c = EmberSites.vaultCache(G0.x); return {tons: c.tons, bp: !!c.bp, cans: EmberDebug.game.cans.length, bps: (EmberDebug.game.P.blueprints || []).length, landed: !!EmberDebug.landed} }, gi);
 		ok('6. landed on its plaza for 20 s, the vault opens: its Artefacts set out as canisters (and a blueprint, if it held one)', vt.landed && vt.cans - cans1 == vt.tons && vt.bps - bps0 == (vt.bp ? 1 : 0), {vt, cans1, bps0});
+		/* (L4.3) the vault's find */
+		const art = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], P = EmberDebug.game.P, f = EmberArtifacts.findAt(G0.x, 'v'), a = (P.artifacts || []).find(x => x.s.endsWith('|' + G0.x.id) && x.n == 'v'); return {want: f && f.k, got: a && a.k, name: a && EmberArtifacts.nameOf(a), m: a && a.m} }, gi);
+		ok('6a. the vault always holds a find: into your records, named from its site' + (art.want == 'chart' ? ' (a star chart, read: its ruins marked)' : ''), art.got && art.got == art.want && /^the /.test(art.name) && (art.want != 'chart' || Array.isArray(art.m)), art);
 		/* (L4.2b) the vault's second wave: half the time, 30-50 s after */
 		const wave = await A.f.evaluate(gi => { const G0 = EmberDebug.gsites[gi], w = EmberSites.vaultWave(G0.x), g = EmberDebug.game; return {w, set: !!g.vaultWave, after: g.vaultWave ? g.vaultWave.t - g.t : 0} }, gi);
 		if (wave.w) {

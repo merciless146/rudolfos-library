@@ -18,7 +18,8 @@ const req = (n, g) => isNode ? require('./' + n) : root[g];
 const Ca = req('career.js', 'EmberCareer'), F = req('factions.js', 'EmberFactions'), R = req('reputation.js', 'EmberReputation'), S = req('ships.js', 'EmberShips'), T = req('travel.js', 'EmberTravel'), E = req('economy.js', 'EmberEconomy');
 
 const ENC = {pirateOdds: {unclaimed: 0.5, contested: 0.45, claimed: 0.18, capital: 0.04}, missionDays: 10, maxMissions: 3, kills: 3, reconTime: 30, supplyTons: 5, bountyShare: 0.01, gangHarm: 40};
-const NEEDS = {strike: 'kills', blockade: 'kills', defend: 'kills', escort: 'kills', recon: 'stay', sabotage: 'depot', supply: 'deliver', survey: 'surveyed', ruin: 'surveyed',
+const NEEDS = {strike: 'kills', blockade: 'kills', defend: 'kills', escort: 'kills', recon: 'stay', sabotage: 'depot', supply: 'deliver', survey: 'surveyed', ruin: 'surveyed', excavation: 'surveyed',   /* (L4.3: a ruin field surveyed from the ground) */
+	
 	/* (0.3.10) surface work (contracts.js): a delivery to a surface port, a ground survey */
 	delivery: 'deliver', groundsurvey: 'surveyed'};
 /* a depot: a target that doesn't fly or shoot */
@@ -242,6 +243,7 @@ function need(m) {
 	if (k == 'kills') return Math.max(0, ENC.kills - m.kills) + ' ' + F.byId(m.against).name.replace(/^The /, '') + ' ship' + (ENC.kills - m.kills == 1 ? '' : 's') + ' to destroy at ' + m.star.name;
 	if (k == 'stay') return 'Scan at ' + m.star.name + ': ' + Math.max(0, Math.ceil(ENC.reconTime - m.stay)) + ' s in the system';
 	if (k == 'depot') return 'Destroy the depot at ' + m.star.name;
+	if (m.type == 'excavation') return 'Excavate the ruin field on ' + m.planet + ' at ' + m.star.name + ': survey three of its structures from the ground and open its vault';
 	if (k == 'surveyed') return 'Survey ' + m.planet + ' at ' + m.star.name + ': fly within 6 radii with it targeted, for 12 s';
 	return 'Deliver ' + ENC.supplyTons + ' t of Munitions to a port at ' + m.star.name;
 }

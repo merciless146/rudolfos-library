@@ -9,8 +9,13 @@ reviewable steps. It's written in the style of `plan-ember-reach-landing-work.md
 
 The numbers are starting values for playtests, like the rest of the plan's.
 
-**Status:** L4.1 (0.7.1), L4.2a, ruin fields in the game (0.7.2), and L4.2b, their wardens (0.7.3), are built; all
-below. Next: L4.3. The owner chose to build L4 before the Core's story
+**Status:** built so far, all described below:
+- L4.1 (0.7.1);
+- L4.2a, ruin fields in the game (0.7.2);
+- L4.2b, their wardens (0.7.3);
+- L4.3, artifacts (0.7.4).
+
+Next: L4.5 (Precursor sites and lodestones), for the Core's story. The owner chose to build L4 before the Core's story
 (`plan-ember-reach-core.md`), which needs its Precursor vaults and lodestones.
 
 **The owner's answers (2026-11-25):**
@@ -436,7 +441,7 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
 | **L4.1** ✓ | `sites.js`: kinds, placement, layouts, parts, the three shapes, `sites.html`; node tests. Nothing in flight yet (0.7.1) | L3 done | medium |
 | **L4.2a** ✓ | Ruin fields in the game: drawn, found (survey, ground scan, coming near), the flown survey, the vault and its cache, site data (0.7.2) | L4.1 | medium |
 | **L4.2b** ✓ | The wardens and the vault's sentinels; the map's card (0.7.3) | L4.2a | small |
-| **L4.3** | Artifacts: `P.artifacts`, the broker's Finds tab, star charts on the map, inscriptions returned, devices; the excavation contract | L4.2 | medium |
+| **L4.3** ✓ | Artifacts: `P.artifacts`, the broker's Finds tab, star charts on the map, inscriptions returned, devices; the excavation contract (0.7.4) | L4.2 | medium |
 | **L4.4** | Unstable ground: loose ground on the scan, collapses, pits in `terrain.js`, undercrofts | L4.2 | small |
 | **L4.5** | Precursor sites in the Rift: their forms, pylons, the sealed vault, Precursor finds, lodestones | L4.2, L4.3 | medium |
 | **L4.6** | Crash sites: old hulks, fresh wrecks, fallen ships; beacons, the pulse scanner's find, salvage notices; stripping, recorders, pods | L4.1 (and L4.2's plumbing) | large |
@@ -500,6 +505,37 @@ All of it in the player's record, cleaned by `unpackPlayer` like every other par
   later.
 - **The star map:** a system's card lists the sites you know: "On the ground: …, a ruin field (Quaisl d)".
 - **Tests:** `tests/emberreach_sites_t.js` 20–21; `tests/emberreach_ruins_browser_t.js` 2b–2d, 5b, 6b, 7b.
+
+**L4.3, as built (0.7.4):**
+- **`artifacts.js`:** a ruin's vault always holds a find, and one structure in six does.
+  - **Shares:** star charts 35, inscriptions 30, devices 20, relics of note 10, out of 95 (the plan's shares, as
+    weights: a find is always one of the four).
+  - **Names:** each find is named from its site ("the Vorux tablet"), the same in every save.
+  - **The record:** kept in `P.artifacts`, at most 64; a place's find once.
+- **A star chart** is read where it's found. It marks the one to three nearest ruins within 30 pc that you haven't
+  surveyed: their sites are found, so the map's card lists them, and the chart remembers which.
+- **Inscriptions:**
+  - **Sold** with your data at cartographers (3,000–9,000 SU).
+  - **Returned**, at an artifact broker in a port of the power whose space held the ruin when it was found: +20
+    standing (`reputation.js` `returnFind`).
+- **The broker's Finds** (in Contacts, at lanterns, blooms and halos) lists every find, with what can be done with it:
+  - a relic sold (15,000–40,000 SU);
+  - a device studied (`P.study`: each takes 25% off a build's fee, used by the next build) or recycled (2 t of
+    Artefacts and 1 t of Electronics into the hold);
+  - an inscription returned.
+  Twice the worth in the Rift.
+- **The excavation contract:** cartographers sometimes offer one, at 3,500 SU plus 250 SU a parsec, due in 20 days.
+  - The job: a ruin field to survey from the ground, three of its structures (all of them, if it has fewer) and its
+    vault.
+  - An orbital survey doesn't complete it.
+  - It can be shared in a co-op wing.
+- **Not yet:**
+  - Precursor charts and lodestones (L4.5);
+  - a relic shown at a colony (L4.8).
+- **Tests:**
+  - `tests/emberreach_artifacts_t.js` (11).
+  - `tests/emberreach_finds_browser_t.js` (8).
+  - `tests/emberreach_ruins_browser_t.js` 6a.
 - **Tests:**
   - `tests/emberreach_sites_t.js` 15–19.
   - `tests/emberreach_ruins_browser_t.js` (10).

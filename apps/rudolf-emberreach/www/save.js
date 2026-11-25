@@ -106,7 +106,7 @@ function landed(x) { return x && typeof x == 'object' && typeof x.world == 'stri
 function packPlayer(P) {
 	const r = (o, d) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v).map(([k, v]) => [k, +v.toFixed(d)]));
 	return {origin: P.origin, species: P.species, wallet: r(P.wallet, 2), cargo: r(P.cargo, 0), cost: r(P.cost, 3), rep: r(P.rep, 2), start: r(P.start, 0), lawful: P.lawful || 0,
-		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], contraband: P.contraband || undefined, cloak: P.cloak || undefined, blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
+		bounties: r(P.bounties, 0), commission: P.commission || null, warEvents: (P.warEvents || []).slice(-200), ship: P.ship, stored: P.stored || [], contraband: P.contraband || undefined, cloak: P.cloak || undefined, artifacts: P.artifacts && P.artifacts.length ? P.artifacts : undefined, study: P.study || undefined, blueprints: P.blueprints || [], recycled: P.recycled || {}, day: P.day || 0,
 		mined: P.mined || {}, charted: P.charted && Object.keys(P.charted).length ? P.charted : undefined, refinery: P.refinery || {}, combat: P.combat || null, missions: (P.missions || []).filter(m => !m.done), explore: P.explore || null,
 		colonies: P.colonies || [], hauls: P.hauls || [], deposits: P.deposits && Object.keys(P.deposits).length ? P.deposits : undefined, rift: P.rift || null, insurance: P.insurance === undefined ? undefined : P.insurance, policeKills: (P.policeKills || []).slice(-60),
 		/* (0.3.7) the ports' markets as your trades left them: {key: {day, s: {good: t}, d: {good: t}}} */
@@ -132,6 +132,10 @@ function unpackPlayer0(x) {
 		charted: obj(x.charted) ? Object.fromEntries(Object.entries(x.charted).filter(([k, v]) => typeof k == 'string' && k.startsWith('belt:') && v === 1).slice(-500)) : {},
 		/* recycling: the days of the latest modules each station took */
 		recycled: obj(x.recycled) ? Object.fromEntries(Object.entries(x.recycled).filter(([k, v]) => Array.isArray(v) && v.every(num)).slice(-200)) : {},
+		/* (L4.3) the ruins' finds (artifacts.js) and the devices studied */
+		artifacts: Array.isArray(x.artifacts) ? x.artifacts.filter(a => obj(a) && ['chart', 'inscription', 'device', 'relic', 'lodestone'].includes(a.k) && typeof a.s == 'string' && a.s.length <= 160 && typeof a.n == 'string' && a.n.length <= 4 && typeof a.w == 'string' && a.w.length <= 80
+			&& (a.h === null || typeof a.h == 'string') && num(a.v) && a.v >= 0 && a.v <= 1e6 && (a.r === 0 || a.r === 1) && (a.m === undefined || (Array.isArray(a.m) && a.m.length <= 3 && a.m.every(v => typeof v == 'string' && v.length <= 60)))).slice(0, 64) : [],
+		study: Number.isInteger(x.study) && x.study >= 0 && x.study <= 64 ? x.study : 0,
 		/* alien blueprints found in ruins */
 		blueprints: Array.isArray(x.blueprints) ? x.blueprints.filter(b => obj(b) && num(b.size) && (b.id == 'alien' || b.id == 'phaser' || (b.id == 'precursor' && O && O.PRECURSOR_MODS.includes(b.mod)) || (b.id == 'hull' && typeof b.hull == 'string' && S0 && S0.hull(b.hull) && S0.hull(b.hull).precursor))).slice(0, 30) : [],
 		/* the Rift: whether you've been (and the Maw's side you're on comes back with the star) */
